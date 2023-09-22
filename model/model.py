@@ -7,7 +7,7 @@ __all__ = [
     'Comptonized', 'CutoffPowerlaw',
     'OTTB',
     'Powerlaw',
-    'Constant'
+    'Constant',
 ]
 
 

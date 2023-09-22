@@ -881,7 +881,7 @@ class SpectralModel:
         default = []
         frozen = []
         rv = []
-        super = []
+        sup = []
 
         for c in self._components:
             for par in c._pars_dict.values():
@@ -889,14 +889,14 @@ class SpectralModel:
                 default.append(par.rv_default)
                 frozen.append(par.frozen)
                 rv.append(par.rv)
-                super.append(isinstance(par, SuperParameter))
+                sup.append(isinstance(par, SuperParameter))
 
         rv_dict = {
             'name': tuple(name),
             'default': tuple(default),
             'frozen': tuple(frozen),
             'rv': tuple(rv),
-            'super': tuple(super)
+            'super': tuple(sup)
         }
 
         return rv_dict
@@ -1034,6 +1034,11 @@ class SpectralModel:
             return self._call_func(pars, self._CE_func, **kwargs)
 
     def counts(self, pars, ebins, ch_emin, ch_emax, resp_matrix, exposure, comps=False):
+        if self.mtype != 'add':
+            raise TypeError(
+                f'counts is undefined for "{self.mtype}" type model "{self}"'
+            )
+
         CE = self.CE(pars, ebins, ch_emin, ch_emax, resp_matrix, comps)
         if comps:
             return {
@@ -1191,6 +1196,9 @@ class SpectralModel:
         return self.expression
 
 
+from bayespec.model.flux_model import FluxModel
+
+
 class SuperModel(SpectralModel):
     def __init__(self, m1, m2, operator, rename=True):
         components = []
@@ -1225,7 +1233,7 @@ class SuperModel(SpectralModel):
         self._operator = operator
         super().__init__(components)
 
-    def __call__(self, ebins, flux=None, fit_call=True):
+    def __call__(self, ebins, flux=None, model=None, fit_call=True):
         m1 = lambda *args: self._m1(*args, fit_call=fit_call)
         m2 = lambda *args: self._m2(*args, fit_call=fit_call)
 
@@ -1235,15 +1243,32 @@ class SuperModel(SpectralModel):
         if self._m1.mtype != 'con':
             if self._m2.mtype != 'con':
                 return m1(ebins) * m2(ebins)  # add*mul, mul*add, mul*mul
-            else:
-                return m1(ebins) * m2(ebins, flux)  # mul*con
+            else:  # mul*con
+                if not isinstance(self._m2, FluxModel):
+                    return m1(ebins) * m2(ebins, flux)
+                else:
+                    return m1(ebins) * m2(flux, model)
         else:
-            if self._m2.mtype == 'add':
-                return m1(ebins, m2(ebins))  # con*add
-            elif self._m2.mtype == 'mul':
-                return m1(ebins, m2(ebins) * flux)  # con*mul
+            if not isinstance(self._m1, FluxModel):
+                if self._m2.mtype == 'add':  # con*add
+                    return m1(ebins, m2(ebins))
+                elif self._m2.mtype == 'mul':  # con*mul
+                    return m1(ebins, m2(ebins) * flux)
+                else:  # con*con
+                    if not isinstance(self._m2, FluxModel):
+                        return m1(ebins, m2(ebins, flux))
+                    else:
+                        return m1(ebins, m2(flux, model))
             else:
-                return m1(ebins, m2(ebins, flux))  # con*con
+                if self._m2.mtype == 'add':  # con*add
+                    return m1(m2(ebins), self._m2)
+                elif self._m2.mtype == 'mul':  # con*mul
+                    return m1(m2(ebins) * flux, self._m2 * model)
+                else:  # con*con
+                    if not isinstance(self._m2, FluxModel):
+                        return m1(m2(ebins, flux), self._m2 * model)
+                    else:
+                        return m1(m2(flux, model), self._m2 * model)
 
     @SpectralModel.expression.getter
     def expression(self):

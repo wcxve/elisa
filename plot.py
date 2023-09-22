@@ -57,8 +57,11 @@ def plot_corner(
         max_n_ticks=5,
         smooth1d=0.0,
         smooth=smooth,
+        fill_contours=False,
         no_fill_contours=True,
-        data_kwargs={'alpha': 1},
+        plot_datapoints=True,
+        plot_density=True,
+        data_kwargs={'alpha': 1.0},
         pcolor_kwargs={'alpha': 0.95,
                        'edgecolors': 'face',
                        'linewidth': 0,
@@ -173,15 +176,18 @@ def plot_ppc(
 
     for xi, yi, yhi, yri, color in zip(x, y, y_hat, y_rep, colors):
         q_data = yi.cumsum()
-        q_rep = yri.cumsum(-1)
+        q_rep = yri.cumsum(axis=1)
+        yhi_cumsum = yhi.cumsum(axis=1)
 
-        q_rep /= q_data[-1]#q_rep[:, -1:]
-        q_data /= q_data[-1]
+        total = yhi_cumsum[:, -1:]
+
+        q_rep /= total#q_data[-1]#q_rep[:, -1:]
+        q_data = q_data[None,:]/total#q_data[-1]
+        yhi_cumsum /= total
 
         q_rep_hdi = az.hdi(np.expand_dims(q_rep, axis=0), hdi_prob=cl).T
+        q_yhi_hdi = az.hdi(np.expand_dims(yhi_cumsum, axis=0), hdi_prob=cl).T
 
-        yhi_cumsum = yhi.cumsum(axis=1)
-        yhi_cumsum /= yhi_cumsum[:, -1:]
         data_resd = az.hdi(np.expand_dims(q_data - yhi_cumsum, axis=0), hdi_prob=cl).T
         rep_resd = az.hdi(np.expand_dims(q_rep - yhi_cumsum, axis=0), hdi_prob=cl).T
 
@@ -201,6 +207,12 @@ def plot_ppc(
                 np.append(q_rep_hdi[0][slice_j], q_rep_hdi[0][slice_j][-1]),
                 np.append(q_rep_hdi[1][slice_j], q_rep_hdi[1][slice_j][-1]),
                 lw=0, step='post', alpha=0.4, color='gray'
+            )
+            axes[0].fill_between(
+                ebins,
+                np.append(q_yhi_hdi[0][slice_j], q_yhi_hdi[0][slice_j][-1]),
+                np.append(q_yhi_hdi[1][slice_j], q_yhi_hdi[1][slice_j][-1]),
+                lw=0, step='post', alpha=0.4, color=color
             )
 
             axes[1].fill_between(
@@ -225,18 +237,6 @@ def plot_ppc(
     return ppp1, ppp2
 
 
-def plot_spec(fmt='ldata ufspec icounts delchi'):
-    # data/ldata/counts/lcounts, uf/euf/eeuf, delchi/ratio/residual, icounts
-    plots = fmt.split(' ')
-    num = len(plots)
-
-    height_ratios = [1.6] + [1 for i in range(subplot_num - 1)]
-    fig_size = [4*1.5, 3*1.5]
-    fig, axes = plt.subplots(subplot_num, 1, sharex=True, gridspec_kw={'height_ratios': height_ratios}, figsize=fig_size)
-    fig.subplots_adjust(hspace=0, wspace=0)
-    fig.align_ylabels(axes)
-
-
 def _split_step_plot(x_left, x_right, y):
     mask = x_left[1:] != x_right[:-1]
     idx = [0, *(np.flatnonzero(mask) + 1), len(y)]
@@ -250,8 +250,28 @@ def _split_step_plot(x_left, x_right, y):
 
     return step_pairs
 
+def _quantile(data, cl, hdi=True, axis=None):
+    if hdi:
+        ndim = len(np.shape(data))
+        if ndim == 1:
+            data = data[None, None, :]
+        elif ndim == 2:
+            data = data[None, ...]
+        elif ndim == 3:
+            pass
+        else:
+            raise ValueError(f'`data` has shape={np.shape(data)}')
+        return az.hdi(data, cl).T
+    else:
+        return np.quantile(data, [0.5 - cl / 2.0, 0.5 + cl / 2.0], axis=axis)
 
-def _plot_data(ax, data, model, pars, marker, color, alpha, comps, sim_data=None, sim_pars=None):
+
+def _plot_data(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True, plot_uplims=False
+):
     color = color + hex(round(255 * alpha))[2:]
 
     emid = data.ch_emid_geom
@@ -259,17 +279,12 @@ def _plot_data(ax, data, model, pars, marker, color, alpha, comps, sim_data=None
     net_spec = data.net_spec
     net_err = data.net_error#_gehrels
 
-    uplims = net_spec < 0.0
+    if plot_uplims:
+        uplims = net_spec < 0.0
+    else:
+        uplims = np.full(len(net_spec), False)
     upper = np.zeros_like(net_spec)
     upper[uplims] = net_err[uplims] * 1.645
-
-    # xlim = [0.95 * data.ch_emin.min(), 1.05 * data.ch_emax.max()]
-    #
-    # ylower = net_spec[~uplims] - net_err[~uplims]
-    # ylim = [
-    #     0.8 * np.min(ylower[ylower > 0.0]),
-    #     1.2 * np.max(net_spec[~uplims] + net_err[~uplims]),
-    # ]
 
     ax.errorbar(
         emid, net_spec + upper, net_err, eerr,
@@ -282,30 +297,40 @@ def _plot_data(ax, data, model, pars, marker, color, alpha, comps, sim_data=None
     for i in _split_step_plot(data.ch_emin, data.ch_emax, CE):
         ax.step(*i, where='post', c=color, lw=1.3)
 
-    # if comps:
-    #     CE_comps = model.CE(pars, *other, comps=True).values()
-    #     if len(CE_comps) > 1:
-    #         for comp in CE_comps:
-    #             for i in _split_step_plot(data.ch_emin, data.ch_emax, comp):
-    #                 ax.step(*i, where='post', c=color, ls='--')
+    if comps:
+        CE_comps = model.CE(pars, *other, comps=True).values()
+        if len(CE_comps) > 1:
+            for comp in CE_comps:
+                for i in _split_step_plot(data.ch_emin, data.ch_emax, comp):
+                    ax.step(*i, where='post', c=color, ls=':')
 
-    if sim_pars is not None:
-        sim = model.CE(sim_pars, *other)
+    if pars_dist is not None:
+        sim = model.CE(pars_dist, *other)
         # sim_comps = model.CE(sim_pars, *other, comps=True).values()
         for cl in [0.683, 0.95]:
-            ci = np.quantile(sim, q=[0.5 - cl/2.0, 0.5 + cl/2.0], axis=0)
+            ci = _quantile(sim, cl, hdi, axis=0)
             ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
             ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
             for i, j in zip(ci_lower, ci_upper):
                 ax.fill_between(*i, j[1], lw=0, step='post', color=color, alpha=0.15)
 
-def _plot_ldata(ax, data, model, pars, marker, color, alpha, comps, sim_data=None, sim_pars=None):
-    _plot_data(ax, data, model, pars, marker, color, alpha, comps, sim_data, sim_pars)
+def _plot_ldata(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
+    _plot_data(ax, data, model, pars, marker, color, alpha, comps, pars_dist, hdi=True, plot_uplims=True)
 
     if ax.get_yscale() != 'log':
         ax.set_yscale('log')
 
-def _plot_ufspec(ax, data, model, pars, marker, color, alpha, comps, sim_data=None, sim_pars=None):
+def _plot_ufspec(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
     color = color + hex(round(255 * alpha))[2:]
 
     ebins = np.geomspace(data.ch_emin.min(), data.ch_emax.max(), 2001)
@@ -321,13 +346,11 @@ def _plot_ufspec(ax, data, model, pars, marker, color, alpha, comps, sim_data=No
             for i in NE_comps:
                 ax.step(ebins, np.append(i, i[-1]), where='post', c=color, ls=':')
 
-    if sim_pars is not None:
-        sim = model.NE(sim_pars, ebins)
+    if pars_dist is not None:
+        sim = model.NE(pars_dist, ebins)
         # sim_comps = model.NE(sim_pars, ebins, comps=True).values()
         for cl in [0.683, 0.95]:
-            ci = np.quantile(sim,
-                             q=[0.5 - cl / 2.0, 0.5 + cl / 2.0],
-                             axis=0)
+            ci = _quantile(sim, cl, hdi, axis=0)
             ci = np.column_stack([ci, ci[:, -1]])
             ax.fill_between(ebins, *ci, lw=0, step='post', color=color, alpha=0.25)
 
@@ -378,7 +401,12 @@ def _plot_ufspec(ax, data, model, pars, marker, color, alpha, comps, sim_data=No
     return xlim, ylim
 
 
-def _plot_eufspec(ax, data, model, pars, marker, color, alpha, comps, sim_data=None, sim_pars=None):
+def _plot_eufspec(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
     color = color + hex(round(255 * alpha))[2:]
 
     ebins = np.geomspace(data.ch_emin.min(), data.ch_emax.max(), 2001)
@@ -392,13 +420,11 @@ def _plot_eufspec(ax, data, model, pars, marker, color, alpha, comps, sim_data=N
             for i in ENE_comps:
                 ax.step(ebins, np.append(i, i[-1]), where='post', c=color, ls=':')
 
-    if sim_pars is not None:
-        sim = model.ENE(sim_pars, ebins)
+    if pars_dist is not None:
+        sim = model.ENE(pars_dist, ebins)
         # sim_comps = model.ENE(sim_pars, ebins, comps=True).values()
         for cl in [0.683, 0.95]:
-            ci = np.quantile(sim,
-                             q=[0.5 - cl / 2.0, 0.5 + cl / 2.0],
-                             axis=0)
+            ci = _quantile(sim, cl, hdi, axis=0)
             ci = np.column_stack([ci, ci[:, -1]])
             ax.fill_between(ebins, *ci, lw=0, step='post', color=color, alpha=0.25)
 
@@ -449,7 +475,12 @@ def _plot_eufspec(ax, data, model, pars, marker, color, alpha, comps, sim_data=N
     return xlim, ylim
 
 
-def _plot_eeufspec(ax, data, model, pars, marker, color, alpha, comps, sim_data=None, sim_pars=None):
+def _plot_eeufspec(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
     color = color + hex(round(255 * alpha))[2:]
 
     ebins = np.geomspace(data.ch_emin.min(), data.ch_emax.max(), 2001)
@@ -463,13 +494,11 @@ def _plot_eeufspec(ax, data, model, pars, marker, color, alpha, comps, sim_data=
             for i in EENE_comps:
                 ax.step(ebins, np.append(i, i[-1]), where='post', c=color, ls='--', lw=0.5)
 
-    if sim_pars is not None:
-        sim = model.EENE(sim_pars, ebins)
+    if pars_dist is not None:
+        sim = model.EENE(pars_dist, ebins)
         # sim_comps = model.EENE(sim_pars, ebins, comps=True).values()
         for cl in [0.683, 0.95]:
-            ci = np.quantile(sim,
-                             q=[0.5 - cl / 2.0, 0.5 + cl / 2.0],
-                             axis=0)
+            ci = _quantile(sim, cl, hdi, axis=0)
             ci = np.column_stack([ci, ci[:, -1]])
             ax.fill_between(ebins, *ci, lw=0, step='post', color=color, alpha=0.25)
 
@@ -522,7 +551,12 @@ def _plot_eeufspec(ax, data, model, pars, marker, color, alpha, comps, sim_data=
     return xlim, ylim
 
 
-def _plot_icounts(ax, data, model, pars, marker, color, alpha, sim_data=None, sim_pars=None):
+def _plot_icounts(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
     color = color + hex(round(255 * alpha))[2:]
 
     counts = data.net_counts
@@ -547,12 +581,12 @@ def _plot_icounts(ax, data, model, pars, marker, color, alpha, sim_data=None, si
     for i in _split_step_plot(data.ch_emin, data.ch_emax, model_icounts):
         ax.step(*i, where='post', c=color, lw=1.3)
 
-    if sim_data is not None:
+    if data_sim is not None:
         # sim_model = model.counts(sim_pars, *other, data.spec_exposure)
         # total_counts = sim_model.sum(axis=1)[:, None]
-        sim_icounts = sim_data.cumsum(axis=1) / total_counts
+        sim_icounts = data_sim.cumsum(axis=1) / total_counts
         for cl in [0.683, 0.95]:
-            ci = np.quantile(sim_icounts, q=[0.5 - cl/2.0, 0.5 + cl/2.0], axis=0)
+            ci = _quantile(sim_icounts, cl, hdi, axis=0)
             ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
             ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
             for i, j in zip(ci_lower, ci_upper):
@@ -563,7 +597,12 @@ def _plot_icounts(ax, data, model, pars, marker, color, alpha, sim_data=None, si
                 ax.scatter(emid[mask], icounts[mask], marker='x', c='r', zorder=10)
 
 
-def _plot_icounts_residual(ax, data, model, pars, marker, color, alpha, sim_data=None, sim_pars=None):
+def _plot_icounts_residual(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
     color = color + hex(round(255 * alpha))[2:]
 
     counts = data.net_counts
@@ -583,14 +622,14 @@ def _plot_icounts_residual(ax, data, model, pars, marker, color, alpha, sim_data
         capsize=1
     )
 
-    if sim_data is not None and sim_pars is not None:
-        sim_icounts = sim_data.cumsum(1)
-        sim_imodel = model.counts(sim_pars, *other, data.spec_exposure).cumsum(1)
+    if data_sim is not None and pars_fit is not None:
+        sim_icounts = data_sim.cumsum(1)
+        sim_imodel = model.counts(pars_fit, *other, data.spec_exposure).cumsum(1)
         sim_total = sim_imodel[:, -1:]
         sim_icounts /= sim_total
         sim_imodel /= sim_total
         for cl in [0.683, 0.95]:
-            ci = np.quantile(sim_icounts - sim_imodel, q=[0.5 - cl/2.0, 0.5 + cl/2.0], axis=0)
+            ci = _quantile(sim_icounts - sim_imodel, cl, hdi, axis=0)
             ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
             ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
             for i, j in zip(ci_lower, ci_upper):
@@ -605,41 +644,44 @@ def _plot_icounts_residual(ax, data, model, pars, marker, color, alpha, sim_data
                 ax.scatter(emid[mask], idiff[mask], marker='x', c='r', zorder=10)
 
 
-def _plot_edf(ax, data, model, pars, marker, color, alpha, sim_data=None):
-    color = color + hex(round(255 * alpha))[2:]
-
-    counts = data.net_counts
-    icounts = counts.cumsum()
-    total_counts = icounts[-1]
-    icounts /= np.abs(total_counts)
-
-    other = [data.ph_ebins, data.ch_emin, data.ch_emax, data.resp_matrix]
-    model_counts = model.counts(pars, *other, data.spec_exposure)
-    model_icounts = model_counts.cumsum()
-    model_icounts /= model_icounts[-1]
-
-    emid = data.ch_emid_geom
-    eerr = np.abs(data.ch_error)
-    ax.errorbar(
-        emid, icounts - model_icounts, xerr=eerr,
-        fmt=f'{marker} ', c=color, mec=color, ms=2.5, mfc='#FFFFFFCC',
-        capsize=1
-    )
-
-    if sim_data is not None:
-        sim_icounts = sim_data.cumsum(axis=1)
-        sim_icounts /= sim_icounts[:, -1:]  # np.abs(total_counts)
-        for cl in [0.683, 0.95]:
-            ci = np.quantile(sim_icounts - model_icounts,
-                             q=[0.5 - cl/2.0, 0.5 + cl/2.0],
-                             axis=0)
-            ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
-            ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
-            for i, j in zip(ci_lower, ci_upper):
-                ax.fill_between(*i, j[1], step='post', color=color, alpha=0.15)
+# def _plot_edf(ax, data, model, pars, marker, color, alpha, sim_data=None, hdi=True):
+#     color = color + hex(round(255 * alpha))[2:]
+#
+#     counts = data.net_counts
+#     icounts = counts.cumsum()
+#     total_counts = icounts[-1]
+#     icounts /= np.abs(total_counts)
+#
+#     other = [data.ph_ebins, data.ch_emin, data.ch_emax, data.resp_matrix]
+#     model_counts = model.counts(pars, *other, data.spec_exposure)
+#     model_icounts = model_counts.cumsum()
+#     model_icounts /= model_icounts[-1]
+#
+#     emid = data.ch_emid_geom
+#     eerr = np.abs(data.ch_error)
+#     ax.errorbar(
+#         emid, icounts - model_icounts, xerr=eerr,
+#         fmt=f'{marker} ', c=color, mec=color, ms=2.5, mfc='#FFFFFFCC',
+#         capsize=1
+#     )
+#
+#     if sim_data is not None:
+#         sim_icounts = sim_data.cumsum(axis=1)
+#         sim_icounts /= sim_icounts[:, -1:]  # np.abs(total_counts)
+#         for cl in [0.683, 0.95]:
+#             ci = _quantile(sim_icounts - model_icounts, cl, hdi, axis=0)
+#             ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
+#             ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
+#             for i, j in zip(ci_lower, ci_upper):
+#                 ax.fill_between(*i, j[1], step='post', color=color, alpha=0.15)
 
 
-def _plot_delchi(ax, data, model, pars, marker, color, alpha, sim_data=None, sim_pars=None):
+def _plot_delchi(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
     emid = data.ch_emid_geom
     eerr = np.abs(data.ch_error)
     net_spec = data.net_spec
@@ -657,13 +699,11 @@ def _plot_delchi(ax, data, model, pars, marker, color, alpha, sim_data=None, sim
         mec=color, capsize=1
     )
 
-    if sim_data is not None and sim_pars is not None:
-        sim_CE = sim_data / data.ch_width / data.spec_exposure
-        model_CE = model.CE(sim_pars, *other)
+    if data_sim is not None and pars_fit is not None:
+        sim_CE = data_sim / data.ch_width / data.spec_exposure
+        model_CE = model.CE(pars_fit, *other)
         for cl in [0.683, 0.95]:
-            ci = np.quantile((sim_CE - model_CE)/sim_CE.std(axis=0, ddof=1),
-                             q=[0.5 - cl/2.0, 0.5 + cl/2.0],
-                             axis=0)
+            ci = _quantile((sim_CE - model_CE)/sim_CE.std(axis=0, ddof=1), cl, hdi, axis=0)
             ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
             ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
             for i, j in zip(ci_lower, ci_upper):
@@ -674,7 +714,12 @@ def _plot_delchi(ax, data, model, pars, marker, color, alpha, sim_data=None, sim
                 ax.scatter(emid[mask], delchi[mask], marker='x', c='r', zorder=10)
 
 
-def _plot_ratio(ax, data, model, pars, marker, color, alpha, sim_data=None, sim_pars=None):
+def _plot_ratio(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
     emid = data.ch_emid_geom
     eerr = np.abs(data.ch_error)
     net_spec = data.net_spec
@@ -692,11 +737,11 @@ def _plot_ratio(ax, data, model, pars, marker, color, alpha, sim_data=None, sim_
         mec=color, capsize=1
     )
 
-    if sim_data is not None and sim_pars is not None:
-        sim_CE = sim_data / data.ch_width / data.spec_exposure
-        model_CE = model.CE(sim_pars, *other)
+    if data_sim is not None and pars_fit is not None:
+        sim_CE = data_sim / data.ch_width / data.spec_exposure
+        model_CE = model.CE(pars_fit, *other)
         for cl in [0.683, 0.95]:
-            ci = np.quantile(sim_CE/model_CE, q=[0.5 - cl/2.0, 0.5 + cl/2.0], axis=0)
+            ci = _quantile(sim_CE/model_CE, cl, hdi, axis=0)
             ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
             ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
             for i, j in zip(ci_lower, ci_upper):
@@ -707,7 +752,12 @@ def _plot_ratio(ax, data, model, pars, marker, color, alpha, sim_data=None, sim_
                 ax.scatter(emid[mask], ratio[mask], marker='x', c='r', zorder=10)
 
 
-def _plot_residuals(ax, data, model, pars, marker, color, alpha, sim_data=None, sim_pars=None):
+def _plot_residuals(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
     emid = data.ch_emid_geom
     eerr = np.abs(data.ch_error)
     net_spec = data.net_spec
@@ -724,11 +774,11 @@ def _plot_residuals(ax, data, model, pars, marker, color, alpha, sim_data=None, 
         mec=color, capsize=1
     )
 
-    if sim_data is not None and sim_pars is not None:
-        sim_CE = sim_data / data.ch_width / data.spec_exposure
-        model_CE = model.CE(sim_pars, *other)
+    if data_sim is not None and pars_fit is not None:
+        sim_CE = data_sim / data.ch_width / data.spec_exposure
+        model_CE = model.CE(pars_fit, *other)
         for cl in [0.683, 0.95]:
-            ci = np.quantile(sim_CE - model_CE, q=[0.5 - cl/2.0, 0.5 + cl/2.0], axis=0)
+            ci = _quantile(sim_CE - model_CE, cl, hdi, axis=0)
             # ci = np.quantile(sim_CE - CE, q=[0.5 - cl / 2.0, 0.5 + cl / 2.0], axis=0)
             ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
             ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
@@ -741,8 +791,10 @@ def _plot_residuals(ax, data, model, pars, marker, color, alpha, sim_data=None, 
 
 
 def _plot_deviance(
-    ax, data, model, pars, marker, color, alpha, deviance_obs,
-    sim_data=None, sim_pars=None, sim_deviance=None
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
 ):
     emid = data.ch_emid_geom
     eerr = np.abs(data.ch_error)
@@ -753,9 +805,9 @@ def _plot_deviance(
         capsize=1
     )
 
-    if sim_deviance is not None:
+    if deviance_dist is not None:
         for cl in [0.683, 0.95]:
-            upper = np.quantile(sim_deviance, q=cl, axis=0)
+            upper = np.quantile(deviance_dist, q=cl, axis=0)
             for i in _split_step_plot(data.ch_emin, data.ch_emax, upper):
                 ax.fill_between(*i, lw=0, step='post', color=color, alpha=0.15)
 
@@ -765,8 +817,10 @@ def _plot_deviance(
 
 
 def _plot_sign_deviance(
-    ax, data, model, pars, marker, color, alpha, deviance_obs,
-    sim_data=None, sim_pars=None, sim_deviance=None
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
 ):
     emid = data.ch_emid_geom
     eerr = np.abs(data.ch_error)
@@ -784,26 +838,48 @@ def _plot_sign_deviance(
         capsize=1
     )
 
-    if sim_data is not None \
-        and sim_pars is not None \
-        and sim_deviance is not None:
+    if deviance_dist is not None:
         for cl in [0.683, 0.95]:
-            # sim_sign = np.sign(sim_data - model.CE(sim_pars, *other))
-            # ci = np.quantile(sim_sign * sim_deviance**0.5, q=[0.5 - cl/2.0, 0.5 + cl/2.0], axis=0)
-            # ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
-            # ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
-            # for i, j in zip(ci_lower, ci_upper):
-            #     ax.fill_between(*i, j[1], lw=0, step='post', color=color, alpha=0.15)
-            #
-            # if cl == 0.95:
-            #     mask = (sign_deviance < ci[0]) | (sign_deviance > ci[1])
-            #     ax.scatter(emid[mask], sign_deviance[mask], marker='x', c='r', zorder=10)
-
-            upper = np.quantile(sim_deviance, q=cl, axis=0)
+            upper = np.quantile(deviance_dist, q=cl, axis=0)
             for i in _split_step_plot(data.ch_emin, data.ch_emax, upper):
                 ui = np.sqrt(i[1])
                 ax.fill_between(i[0], -ui, ui,  lw=0, step='post', color=color, alpha=0.15)
 
             if cl == 0.95:
                 mask = deviance_obs > upper
+                ax.scatter(emid[mask], sign_deviance[mask], marker='x', c='r', zorder=10)
+
+def _plot_sign_deviance2(
+    ax, data, model, pars, marker, color, alpha, comps,
+    pars_dist=None, pars_fit=None, data_sim=None,
+    deviance_obs=None, deviance_dist=None,
+    hdi=True
+):
+    emid = data.ch_emid_geom
+    eerr = np.abs(data.ch_error)
+    net_spec = data.net_spec
+
+    other = [data.ph_ebins, data.ch_emin, data.ch_emax, data.resp_matrix]
+    sign = np.sign(net_spec - model.CE(pars, *other))
+
+    color = color + hex(round(255 * alpha))[2:]
+
+    sign_deviance = sign * np.sqrt(deviance_obs)
+    ax.errorbar(
+        emid, sign_deviance, xerr=eerr,
+        fmt=f'{marker} ', c=color, mec=color, ms=2.5, mfc='#FFFFFFCC',
+        capsize=1
+    )
+
+    if deviance_dist is not None:
+        for cl in [0.683, 0.95]:
+            sim_sign = np.sign(data_sim - model.CE(pars_fit, *other))
+            ci = _quantile(sim_sign * deviance_dist**0.5, cl, hdi, axis=0)
+            ci_lower = _split_step_plot(data.ch_emin, data.ch_emax, ci[0])
+            ci_upper = _split_step_plot(data.ch_emin, data.ch_emax, ci[1])
+            for i, j in zip(ci_lower, ci_upper):
+                ax.fill_between(*i, j[1], lw=0, step='post', color=color, alpha=0.15)
+
+            if cl == 0.95:
+                mask = (sign_deviance < ci[0]) | (sign_deviance > ci[1])
                 ax.scatter(emid[mask], sign_deviance[mask], marker='x', c='r', zorder=10)

@@ -13,18 +13,19 @@ class Data:
     def __init__(
         self, erange, specfile,
         backfile=None, respfile=None, ancrfile=None, name=None,
+        is_spec_poisson=None, is_back_poisson=None,
         ignore_bad=True, keep_channel_info=False,
         group_type=None, group_scale=None
     ):
-        self._extract_spec(specfile)
+        self._extract_spec(specfile, is_spec_poisson)
         self._set_name(name)
-        self._extract_back(backfile)
+        self._extract_back(backfile, is_back_poisson)
         self._extract_resp(respfile, ancrfile)
         self._filter_channel(
             erange, ignore_bad, keep_channel_info, group_type, group_scale
         )
 
-    def _extract_spec(self, specfile):
+    def _extract_spec(self, specfile, is_spec_poisson):
         if '{' in specfile and specfile[-1] == '}':
             self._spec_num = int(specfile.split('{')[1].split('}')[0]) - 1
             self._spec_typeii = True
@@ -39,7 +40,16 @@ class Data:
             spec_header = spec_hdul['SPECTRUM'].header
             spec_data = spec_hdul['SPECTRUM'].data
 
-        spec_poisson = spec_header['POISSERR']
+        try:
+            spec_poisson = spec_header['POISSERR']
+        except Exception as e:
+            print('SPECTRUM: ' + str(e))
+            if is_spec_poisson is None:
+                raise ValueError(
+                    '`is_spec_poisson` must be provided when no "POISSERR" in'
+                    'spectrum header'
+                )
+            spec_poisson = is_spec_poisson
 
         if self._spec_typeii:
             spec_data = spec_data[self._spec_num : self._spec_num + 1]
@@ -122,7 +132,7 @@ class Data:
         self._grouping = np.array(grouping, dtype=np.int64)
 
 
-    def _extract_back(self, backfile):
+    def _extract_back(self, backfile, is_back_poisson):
         if self._spec_typeii:
             backfile = backfile or self._spec_data['BACKFILE'][0]
         else:
@@ -150,7 +160,16 @@ class Data:
             back_header = back_hdul['SPECTRUM'].header
             back_data = back_hdul['SPECTRUM'].data
 
-        back_poisson = back_header['POISSERR']
+        try:
+            back_poisson = back_header['POISSERR']
+        except Exception as e:
+            print('BACKGROUND: ' + str(e))
+            if is_back_poisson is None:
+                raise ValueError(
+                    '`is_back_poisson` must be provided when no "POISSERR" in '
+                    'background header'
+                )
+            back_poisson = is_back_poisson
 
         if self._back_typeii:
             back_data = back_data[self._back_num : self._back_num + 1]
@@ -375,21 +394,36 @@ class Data:
         )
         resp_matrix = resp_matrix[:, any_good_in_group]
 
-        groups_edge_indices = np.append(self._grouping, len(self._spec_counts))
-        channel = self._channel
-        emin, emax = self._ch_ebins.T
-        groups_channel = []
-        groups_emin = []
-        groups_emax = []
-        for i in range(len(self._grouping)):
-            if not any_good_in_group[i]:
-                continue
-            slice_i = slice(groups_edge_indices[i], groups_edge_indices[i + 1])
-            quality_slice = good_quality[slice_i]
-            channel_slice = channel[slice_i]
-            groups_channel.append(channel_slice[quality_slice].astype(str))
-            groups_emin.append(min(emin[slice_i]))
-            groups_emax.append(max(emax[slice_i]))
+        if len(self._grouping) == len(self._spec_counts):  # case of no group
+            any_good_in_group = good_quality
+            good_channel = self._channel[good_quality]
+            groups_channel = np.expand_dims(good_channel, axis=1).astype(str)
+            emin, emax = self._ch_ebins.T
+            groups_emin = emin[good_quality]
+            groups_emax = emax[good_quality]
+        else:
+            # NOTE: if there are some bad channels within a group, this will
+            # cause some inconsistency of a spectral plot, i.e., the error bar
+            # of energy of a channel group will cover the energy band of bad
+            # channels within the group, while these bad channels are never
+            # used in fitting.
+            any_good_in_group = np.add.reduceat(good_quality, self._grouping) != 0
+            groups_edge_indices = np.append(self._grouping, len(self._spec_counts))
+            channel = self._channel
+            emin, emax = self._ch_ebins.T
+            groups_channel = []
+            groups_emin = []
+            groups_emax = []
+
+            for i in range(len(self._grouping)):
+                if not any_good_in_group[i]:
+                    continue
+                slice_i = slice(groups_edge_indices[i], groups_edge_indices[i + 1])
+                quality_slice = good_quality[slice_i]
+                channel_slice = channel[slice_i]
+                groups_channel.append(channel_slice[quality_slice].astype(str))
+                groups_emin.append(min(emin[slice_i]))
+                groups_emax.append(max(emax[slice_i]))
 
         if keep_channel_info:
             groups_channel = np.array([

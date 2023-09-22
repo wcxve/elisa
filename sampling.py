@@ -7,6 +7,7 @@ import arviz as az
 import jax
 import numpy as np
 import numpyro
+import xarray as xr
 from arviz.data.base import make_attrs
 from numpyro.infer import MCMC, NUTS
 from pymc import Model, modelcontext
@@ -240,3 +241,81 @@ def sample_numpyro_nuts(
     )
     az_trace = to_trace(posterior=posterior, **idata_kwargs)
     return az_trace
+
+
+def sample_posterior_predictive(idata, statistics_dict, seed):
+    rng = np.random.default_rng(seed)
+
+    data_set = xr.Dataset(coords=idata['log_likelihood'].coords)
+
+    all_channel = []
+
+    for name, stat in statistics_dict.items():
+        coords = ('chain', 'draw', f'{name}_channel')
+
+        mu_on = idata['posterior'][f'{name}_TOTAL']
+
+        if stat == 'chi':
+            sigma = idata['constant_data'][f'{name}_spec_error']
+            spec_counts = rng.normal(mu_on, sigma)
+
+            all_channel.append(spec_counts)
+            data_set[f'{name}_Non'] = (coords, spec_counts)
+            data_set[f'{name}_Net'] = (coords, spec_counts)
+
+        elif stat == 'cstat':
+            spec_counts = rng.poisson(mu_on).astype(np.float64)
+
+            all_channel.append(spec_counts)
+            data_set[f'{name}_Non'] = (coords, spec_counts)
+            data_set[f'{name}_Net'] = (coords, spec_counts)
+
+        elif stat == 'pstat':
+            spec_counts = rng.poisson(mu_on).astype(np.float64)
+            back_counts = np.tile(
+                idata.constant_data[f'{name}_back_counts'],
+                (idata.posterior.chain.size, idata.posterior.draw.size, 1)
+            )
+            a = idata.constant_data[f'{name}_spec_exposure'].data / \
+                idata.constant_data[f'{name}_back_exposure'].data
+            net_counts = spec_counts - a * back_counts
+
+            all_channel.append(net_counts)
+            data_set[f'{name}_Non'] = (coords, spec_counts)
+            data_set[f'{name}_Net'] = (coords, net_counts)
+
+        elif stat == 'pgstat':
+            mu_off = idata['posterior'][f'{name}_BKG']
+            sigma = idata['constant_data'][f'{name}_back_error']
+            spec_counts = rng.poisson(mu_on).astype(np.float64)
+            back_counts = rng.normal(mu_off, sigma)
+            a = idata.constant_data[f'{name}_spec_exposure'].data / \
+                idata.constant_data[f'{name}_back_exposure'].data
+            net_counts = spec_counts - a * back_counts
+
+            all_channel.append(net_counts)
+            data_set[f'{name}_Non'] = (coords, spec_counts)
+            data_set[f'{name}_Noff'] = (coords, back_counts)
+            data_set[f'{name}_Net'] = (coords, net_counts)
+
+        elif stat == 'wstat':
+            mu_off = idata['posterior'][f'{name}_BKG']
+            spec_counts = rng.poisson(mu_on).astype(np.float64)
+            back_counts = rng.poisson(mu_off).astype(np.float64)
+            a = idata.constant_data[f'{name}_spec_exposure'].data / \
+                idata.constant_data[f'{name}_back_exposure'].data
+            net_counts = spec_counts - a * back_counts
+
+            all_channel.append(net_counts)
+            data_set[f'{name}_Non'] = (coords, spec_counts)
+            data_set[f'{name}_Noff'] = (coords, back_counts)
+            data_set[f'{name}_Net'] = (coords, net_counts)
+
+        else:
+            raise ValueError(f'statistic "{stat}" is not support')
+
+    all_channel = np.concatenate(all_channel, axis=2)
+    data_set['all_channel'] = (('chain', 'draw', 'channel'), all_channel)
+    idata.add_groups({'posterior_predictive': data_set})
+
+    return idata
