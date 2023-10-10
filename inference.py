@@ -1382,8 +1382,13 @@ class Infer:
             mle = self._mle_result
 
             if show_pars is not None:
+                if show_pars is True:
+                    pars_name = self._get_pars_name(None)
+                else:
+                    pars_name = self._get_pars_name(show_pars)
+
                 pars_info = []
-                for pname in self._get_pars_name(show_pars):
+                for pname in pars_name:
                     best, err = mle['pars'][pname]
                     pars_info.append(
                         rf'{pname}: {best:.2f}$\pm${err:.2f}'
@@ -2017,23 +2022,23 @@ if __name__ == '__main__':
     # i.mcmc_nuts(1000, 1000)
 
     path = '/Users/xuewc/BurstData/FRB221014/HXMT/'
-    LE = Data([1.5, 10],
+    LE = Data([2, 10],
               f'{path}/LE_optbmin5.fits',
               f'{path}/LE_phabkg20s_g0_0-94.pha',
-              f'{path}/LE_rsp.rsp')#,
-              # group_type='bmin', group_scale=25)
+              f'{path}/LE_rsp.rsp',
+              group_type='bmin', group_scale=25)
 
     ME = Data([10, 35],
               f'{path}/ME_optbmin5.fits',
               f'{path}/ME_phabkg20s_g0_0-53.pha',
-              f'{path}/ME_rsp.rsp')#,
-              # group_type='bmin', group_scale=25)
+              f'{path}/ME_rsp.rsp',
+              group_type='bmin', group_scale=25)
 
     HE = Data([28, 250],
               f'{path}/HE_optbmin5.fits',
               f'{path}/HE_phabkg20s_g0_0-12.pha',
-              f'{path}/HE_rsp.rsp')#,
-              # group_type='bmin', group_scale=25)
+              f'{path}/HE_rsp.rsp',
+              group_type='bmin', group_scale=25)
 
     from bayespec import BlackBodyRad, CutoffPowerlaw, OTTB, Powerlaw, xs, EnergyFlux, UniformParameter
     wabs = xs.wabs(2.79)
@@ -2059,10 +2064,11 @@ if __name__ == '__main__':
     # src.BBrad_2.kT = src.BBrad.kT * UniformParameter('factor', 0.5, 0.001, 0.999, log=1)
     infer = Infer([LE, ME, HE], wabs*src, 'wstat')
     # infer.bootstrap()
-    # infer.mcmc_nuts()
+    infer.mcmc_nuts()
+    infer.plot_corner()
     # infer.ppc()
     # infer.plot_data('ldata sdev icnt',
-    #                 sim_type='boot',
+    #                 sim='ppc',
     #                 show_pars=infer._rv['name'])
 
     # test for GRB 230307A

@@ -1,7 +1,7 @@
 import sys
 from datetime import datetime
 from functools import partial
-from typing import Dict, Optional, Sequence, Union
+from typing import Dict, Literal, Optional, Sequence, Union
 
 import arviz as az
 import jax
@@ -11,7 +11,9 @@ import xarray as xr
 from arviz.data.base import make_attrs
 from numpyro.infer import MCMC, NUTS
 from pymc import Model, modelcontext
-from pymc.backends.arviz import find_constants, find_observations
+from pymc.backends.arviz import (
+    coords_and_dims_for_inferencedata, find_constants, find_observations
+)
 from pymc.initial_point import StartDict
 from pymc.sampling.jax import (
     get_jaxified_graph,
@@ -45,8 +47,8 @@ def sample_numpyro_nuts(
     progressbar: bool = True,
     keep_untransformed: bool = False,
     chain_method: str = "parallel",
-    postprocessing_backend: Optional[str] = None,
-    postprocessing_chunks: Optional[int] = None,
+    postprocessing_backend: Literal["cpu", "gpu"] | None = None,
+    postprocessing_vectorize: Literal["vmap", "scan"] = "scan",
     idata_kwargs: Optional[Dict] = None,
     nuts_kwargs: Optional[Dict] = None,
 ) -> az.InferenceData:
@@ -93,10 +95,8 @@ def sample_numpyro_nuts(
         "parallel", and "vectorized".
     postprocessing_backend : Optional[str]
         Specify how postprocessing should be computed. gpu or cpu
-    postprocessing_chunks: Optional[int], default None
-        Specify the number of chunks the postprocessing should be computed in. More
-        chunks reduces memory usage at the cost of losing some vectorization, None
-        uses jax.vmap
+    postprocessing_vectorize: Literal["vmap", "scan"], default "scan"
+        How to vectorize the postprocessing: vmap or sequential scan
     idata_kwargs : dict, optional
         Keyword arguments for :func:`arviz.from_dict`. It also accepts a boolean as
         value for the ``log_likelihood`` key to indicate that the pointwise log
@@ -194,7 +194,7 @@ def sample_numpyro_nuts(
     print("Transforming variables...", file=sys.stdout)
     jax_fn = get_jaxified_graph(inputs=model.value_vars, outputs=vars_to_sample)
     result = _postprocess_samples(
-        jax_fn, raw_mcmc_samples, postprocessing_backend, num_chunks=postprocessing_chunks
+        jax_fn, raw_mcmc_samples, postprocessing_backend, postprocessing_vectorize
     )
     mcmc_samples = {v.name: r for v, r in zip(vars_to_sample, result)}
 
@@ -213,7 +213,7 @@ def sample_numpyro_nuts(
             model,
             raw_mcmc_samples,
             backend=postprocessing_backend,
-            num_chunks=postprocessing_chunks,
+            postprocessing_vectorize=postprocessing_vectorize,
         )
         tic6 = datetime.now()
         print("Log Likelihood time = ", tic6 - tic5, file=sys.stdout)
@@ -224,7 +224,23 @@ def sample_numpyro_nuts(
         "sampling_time": (tic3 - tic2).total_seconds(),
     }
 
-    posterior = mcmc_samples
+    # posterior = mcmc_samples
+    # # Update 'coords' and 'dims' extracted from the model with user 'idata_kwargs'
+    # # and drop keys 'coords' and 'dims' from 'idata_kwargs' if present.
+    # _update_coords_and_dims(coords=coords, dims=dims, idata_kwargs=idata_kwargs)
+    # # Use 'partial' to set default arguments before passing 'idata_kwargs'
+    # to_trace = partial(
+    #     az.from_dict,
+    #     log_likelihood=log_likelihood,
+    #     observed_data=find_observations(model),
+    #     constant_data=find_constants(model),
+    #     sample_stats=_sample_stats_to_xarray(pmap_numpyro),
+    #     coords=coords,
+    #     dims=dims,
+    #     attrs=make_attrs(attrs, library=numpyro),
+    # )
+    # az_trace = to_trace(posterior=posterior, **idata_kwargs)
+    coords, dims = coords_and_dims_for_inferencedata(model)
     # Update 'coords' and 'dims' extracted from the model with user 'idata_kwargs'
     # and drop keys 'coords' and 'dims' from 'idata_kwargs' if present.
     _update_coords_and_dims(coords=coords, dims=dims, idata_kwargs=idata_kwargs)
@@ -239,7 +255,7 @@ def sample_numpyro_nuts(
         dims=dims,
         attrs=make_attrs(attrs, library=numpyro),
     )
-    az_trace = to_trace(posterior=posterior, **idata_kwargs)
+    az_trace = to_trace(posterior=mcmc_samples, **idata_kwargs)
     return az_trace
 
 
