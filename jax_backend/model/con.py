@@ -1,0 +1,1 @@
+"""Convolution spectral components."""

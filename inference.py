@@ -1513,11 +1513,10 @@ class Infer:
             var_names.extend(
                 [p for p in self._idata.posterior.data_vars if '_BKG' in p]
             )
-
-        az.plot_trace(self._idata, var_names=var_names)
-
-        if fig_path:
-            plt.gcf().savefig(fig_path)
+        with az.style.context(['arviz-darkgrid']):
+            az.plot_trace(self._idata, var_names=var_names, compact=False)
+            if fig_path:
+                plt.gcf().savefig(fig_path)
 
     def plot_corner(
             self, samples='mcmc', profile=True, root=False, level_idx=3,
@@ -2062,10 +2061,10 @@ if __name__ == '__main__':
     # src.OOTB.norm.log = 1
     # src = EnergyFlux(1.5, 250)*BlackBodyRad(norm=1) + EnergyFlux(1.5, 250)*BlackBodyRad(norm=1)
     # src.BBrad_2.kT = src.BBrad.kT * UniformParameter('factor', 0.5, 0.001, 0.999, log=1)
-    infer = Infer([LE, ME, HE], wabs*src, 'wstat')
+    # infer = Infer([LE, ME, HE], wabs*src, 'wstat')
     # infer.bootstrap()
-    infer.mcmc_nuts()
-    infer.plot_corner()
+    # infer.mcmc_nuts()
+    # infer.plot_corner()
     # infer.ppc()
     # infer.plot_data('ldata sdev icnt',
     #                 sim='ppc',

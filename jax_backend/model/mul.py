@@ -1,0 +1,1 @@
+"""Multiplicative spectral components."""
