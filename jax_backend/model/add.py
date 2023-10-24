@@ -18,10 +18,10 @@ class NumIntAdditiveABC(AdditiveComponentABC, ABC):
     extra_kwargs = (('method', 'default'),)
 
     def __init__(self, *, method='default', **kwargs):
-        super().__init__(**kwargs)
-
         # wrap integrand with numerical integral method
         self._eval = integral(self._eval, method)
+
+        super().__init__(**kwargs)
 
 
 class BlackBody(NumIntAdditiveABC):
@@ -33,7 +33,8 @@ class BlackBody(NumIntAdditiveABC):
         ('norm', 'norm', 1.0, 1e-10, 1e10, False, False),
     )
 
-    def _eval(self, e, kT, norm):
+    @staticmethod
+    def _eval(e, kT, norm):
         return norm * 8.0525 * e * e / (kT * kT * kT * kT * jnp.expm1(e / kT))
 
 
@@ -46,7 +47,8 @@ class Powerlaw(AdditiveComponentABC):
         ('norm', 'norm', 1.0, 1e-10, 1e10, False, False),
     )
 
-    def _eval(self, e, PhoIndex, norm):
+    @staticmethod
+    def _eval(e, PhoIndex, norm):
         tmp = 1.0 - PhoIndex
         f = norm / tmp * jnp.power(e, tmp)
         return f[1:] - f[:-1]

@@ -1162,7 +1162,7 @@ class SpectralModel:
                     )
                 elif other.mtype == 'con':
                     raise TypeError(
-                        'unsupported operand order for *: "additive" and'
+                        'unsupported operand order for *: "additive" and '
                         '"convolution"'
                     )
         else:

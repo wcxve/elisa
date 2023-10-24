@@ -12,9 +12,9 @@ def trapezoid(func: Callable) -> Callable:
     """Trapezoid method."""
 
     @wraps(func)
-    def _(grid, *args):
+    def _(grid, *args, **kwargs):
         dx = grid[1:] - grid[:-1]
-        f_grid = func(grid, *args)
+        f_grid = func(grid, *args, **kwargs)
         return (f_grid[:-1] + f_grid[1:]) / 2.0 * dx
 
     return _
@@ -24,11 +24,11 @@ def simpson(func: Callable) -> Callable:
     """Simpson's 1/3 rule."""
 
     @wraps(func)
-    def _(grid, *args):
+    def _(grid, *args, **kwargs):
         dx = grid[1:] - grid[:-1]
         x_mid = (grid[:-1] + grid[1:]) / 2.0
-        f_grid = func(grid, *args)
-        f_mid = func(x_mid, *args)
+        f_grid = func(grid, *args, **kwargs)
+        f_mid = func(x_mid, *args, **kwargs)
         return dx / 6.0 * (f_grid[:-1] + 4.0 * f_mid + f_grid[1:])
 
     return _

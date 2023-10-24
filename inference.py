@@ -2052,7 +2052,7 @@ if __name__ == '__main__':
     # src.CPL.Ec.log = True
     # src.CPL.norm.log = True
     # src.PL.norm = src.PL.PhoIndex + src.PL.PhoIndex
-    src.PL.norm.log = 1
+    # src.PL.norm.log = 1
     # src = BlackBodyRad()
     # src.BBrad.norm.log = 1
     # src.BBrad.kT.log = 1
@@ -2061,7 +2061,7 @@ if __name__ == '__main__':
     # src.OOTB.norm.log = 1
     # src = EnergyFlux(1.5, 250)*BlackBodyRad(norm=1) + EnergyFlux(1.5, 250)*BlackBodyRad(norm=1)
     # src.BBrad_2.kT = src.BBrad.kT * UniformParameter('factor', 0.5, 0.001, 0.999, log=1)
-    # infer = Infer([LE, ME, HE], wabs*src, 'wstat')
+    infer = Infer([LE, ME, HE], wabs*src, 'wstat')
     # infer.bootstrap()
     # infer.mcmc_nuts()
     # infer.plot_corner()

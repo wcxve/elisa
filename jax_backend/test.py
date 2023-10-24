@@ -1,46 +1,22 @@
 from model.add import *
 
-
 if __name__ == '__main__':
-    import matplotlib.pyplot as plt
     import numpy as np
     import jax
     import jax.numpy as jnp
-    from jax.tree_util import tree_map, tree_reduce
 
     BB = BlackBody(kT=1)
-    BB2 = BlackBody(kT=2)
+    BB2 = BlackBody()
     m = BB+BB2
 
-    # class BlackBody:
-    #
-    #     def _eval(self, kT, norm, e):
-    #         print('eval')
-    #         return norm * 8.0525 * e*e / (kT*kT*kT*kT * jnp.expm1(e / kT))
-    #
-    # BB = BlackBody()
-
-    # funcs = {
-    #     'BB': BB._eval
-    # }
-    # pars = {
-    #     'BB': [np.r_[1.0, 1.5], np.r_[1.0, 1.]]
-    # }
-
-    # eval_map = lambda e: tree_map(
-    #     lambda f, p: f(*p, e),
-    #     funcs,
-    #     pars,
-    #     is_leaf=lambda v: isinstance(v, list)
-    # )
-    # eval_reduce = lambda e: tree_reduce()
-
+    # Done!
     # model1 = Model1(parA=1.1, parB=None)
     # model2 = Model2(parA=None)
     # model = model1 * model2
     # signature1: model(egrid, params=None)
     # signature2: model(egrid, params={'model1': {'parB': 1.0}})
 
+    # from jax.tree_util import tree_map, tree_reduce
     # components = [
     #     (BB, 2, 1),
     #     ('add', BB, 3, 2),
@@ -52,9 +28,9 @@ if __name__ == '__main__':
     # def operation(prev, args):
     #     op, component, *params = args
     #     if op == 'add':
-    #         return lambda e: print('add') or (prev(e) + component._eval(*params, e))
+    #         return lambda e: prev(e) + component._eval(*params, e)
     #     elif op == 'mul':
-    #         return lambda e: print('mul') or (prev(e) * component._eval(*params, e))
+    #         return lambda e: prev(e) * component._eval(*params, e)
     #     elif op == 'con':
     #         return lambda e: prev(e, flux=component._eval(*params, e))
     #     else:
@@ -76,3 +52,48 @@ if __name__ == '__main__':
     #
     # exec('f = lambda x: x*x', tmp := {})
     # jax.jit(tmp['f'])(1)
+
+    # >>> using haiku >>>
+    # import haiku as hk
+    # class A(hk.Module):
+    #     def __call__(self, e):
+    #         alpha = hk.get_parameter('alpha', (), e.dtype, jnp.ones)
+    #         return e**-alpha
+    #
+    # func = hk.without_apply_rng(hk.transform(lambda e: A()(e)))
+    #
+    # def eval_pl(components):
+    #     for c in components:
+    #         params = [
+    #             hk.get_parameter(name, (), jnp.float64, jnp.ones)
+    #             for name in c.params
+    #         ]
+    #         func = lambda e: c.eval(e, params)
+    #     return pl(e, alpha)
+    #
+    # def pl(e, alpha):
+    #     return e ** -alpha
+    #
+    # func2 = hk.without_apply_rng(hk.transform(lambda e: eval_pl(e)))
+    # <<< using haiku <<<
+
+    # >>> using equinox >>>
+    # import equinox as eqx
+    # from typing import Callable
+    # class PL(eqx.Module):
+    #     default = (('alpha', 1, 2, 3, False),)
+    #     alpha: float
+    #     _eval: Callable
+    #
+    #     def __init__(self, alpha=None):
+    #         super().__init__()
+    #         self.alpha = self.default[0][1] if alpha is None else alpha
+    #         self._eval = self.eval
+    #
+    #     @staticmethod
+    #     def eval(e, alpha):
+    #         return e**-alpha
+    #
+    # pl = PL()
+    # params, static = eqx.partition(pl.eval, eqx.is_array)
+    # <<< using equinox <<<

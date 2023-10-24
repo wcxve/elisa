@@ -1,4 +1,7 @@
-"""Module to handle spectral model construction."""
+"""Module to handle spectral model construction.
+TODO: I think refactoring is needed.
+      The model construction and parameter binding can be split.
+"""
 
 from __future__ import annotations
 
@@ -141,6 +144,12 @@ class OperationABC(NodeABC, ABC):
         if operator not in {'+', '*'}:
             raise ValueError(f'operator "{operator}" is not supported')
 
+        if not isinstance(lh, NodeABC):
+            raise TypeError(f'got wrong input {lh}')
+
+        if not isinstance(rh, NodeABC):
+            raise TypeError(f'got wrong input {rh}')
+
         type1 = lh.type
         type2 = rh.type
         if type1 != type2:
@@ -152,7 +161,7 @@ class OperationABC(NodeABC, ABC):
 
 
 class Parameter(NodeABC):
-    """Handle parameter definition of component."""
+    """Handle parameter definition of a component."""
 
     type: str = 'parameter'
     default: float
@@ -207,6 +216,13 @@ class ParameterOperation(OperationABC):
         # TODO: implementation detail
         super().__init__(lh, rh, operator)
 
+    def __repr__(self):
+        lh = repr(self.predecessor[0])
+        rh = repr(self.predecessor[1])
+        op = self.attrs['name']
+
+        return f'({lh}) {op} ({rh})'
+
     def __add__(
         self,
         other: Union[Parameter, ParameterOperation]
@@ -245,9 +261,18 @@ class UniformParameter(Parameter):
         frozen: bool = False,
         log: bool = False
     ):
+        self._config = {
+            'name': name,
+            'fmt': fmt,
+            'default': default,
+            'low': low,
+            'high': high,
+            'frozen': frozen,
+            'log': log
+        }
 
         if frozen:
-            distribution = default  # TODO: use Delta distribution?
+            distribution = default  # TODO: use a Delta distribution?
         else:
             if log:
                 distribution = LogUniform(low, high)
@@ -261,12 +286,30 @@ class UniformParameter(Parameter):
 
         super().__init__(name, fmt, default, distribution, deterministic)
 
+    def __repr__(self):
+        name = self._config["name"]
+        init = self._config["default"]
+
+        if self._config['frozen']:
+            s = f'{name} = {init}'
+        else:
+            low = self._config["low"]
+            high = self._config["high"]
+            if self._config['log']:
+                s = f'{name} ~ LogUniform(min={low}, max={high}, init={init})'
+            else:
+                s = f'{name} ~ Uniform(min={low}, max={high}, init={init})'
+
+        return s
+
 
 class Component(NodeABC):
     """Handle component definition."""
 
     type: str = 'component'
+    predecessor: list[Union[Parameter, ParameterOperation]]
     params: dict[str, Union[Parameter, ParameterOperation]]
+    comps: dict[str, Component]
 
     def __init__(
         self,
@@ -275,17 +318,18 @@ class Component(NodeABC):
         subtype: str,
         params: dict[str, Union[Parameter, ParameterOperation]],
         func: Callable,
+        is_ncon: bool
     ) -> None:
         if params is None:
-            self.params = {}
+            self._params = ()
             predecessor = None
         else:
             for v in params.values():
                 if v.type != 'parameter':
                     raise ValueError('Parameter type is required')
 
-            self.params = {k: v for k, v in params.items()}
-            predecessor = list(self.params.values())
+            self._params = tuple(params.keys())
+            predecessor = list(params.values())
 
         super().__init__(
             name=name,
@@ -293,7 +337,36 @@ class Component(NodeABC):
             predecessor=predecessor,
             subtype=subtype,
             func=func,
+            is_ncon=is_ncon
         )
+
+    def __getitem__(self, key: str) -> Union[Parameter, ParameterOperation]:
+        """Get parameter node."""
+
+        if key not in self._params:
+            raise ValueError(
+                f'{self.attrs["name"]} has parameter(s) {self._params}, but no'
+                f'"{key}"'
+            )
+
+        idx = self._params.index(key)
+
+        return self.predecessor[idx]
+
+    def __setitem__(
+        self, key: str,
+        value: Union[Parameter, ParameterOperation]
+    ):
+        """Set parameter given by user."""
+
+        if key not in self._params:
+            raise ValueError(
+                f'{self.attrs["name"]} has parameter(s) {self._params}, but no'
+                f'"{key}"'
+            )
+
+        idx = self._params.index(key)
+        self.predecessor[idx] = value
 
     def __add__(
         self,
@@ -307,31 +380,90 @@ class Component(NodeABC):
     ) -> ComponentOperation:
         return ComponentOperation(self, other, '*')
 
-    def set_params(
-        self,
-        params: dict[str, Union[Parameter, OperationABC]]
-    ) -> None:
-        """Set parameters."""
+    @property
+    def params(self) -> dict:
+        """Get parameter configure."""
 
-        params_in = set(params.keys())
-        params_all = set(self.params.keys())
+        return {
+            self.name: {
+                name: p for name, p in zip(self._params, self.predecessor)
+            }
+        }
 
-        if not params_in <= params_all:
-            diff = params_all - params_in
-            raise ValueError(f'input params {diff} not included in {self}')
+    @property
+    def comps(self) -> dict[str, Component]:
+        """Get component dict."""
 
-        for v in params.values():
-            if v.type != 'parameter':
-                raise ValueError('Parameter type is required')
+        return {self.name: self}
 
-        self.params.update(params)
-        self.predecessor = list(self.params.values())
+    @property
+    def func(self):
+        """Get component evaluation function."""
+
+        comp_name = str(self.name)
+        func = self.attrs['func']
+        mtype = self.attrs['subtype']
+
+        # notation: p=params, e=egrid, f=flux, ff=flux_func
+        # params structure should be {component_id: {par1: ..., param2: ...}}
+        if mtype == 'add':
+            def add_wrapper(p, e, *_):
+                """evaluate add component"""
+                return func(e, **p[comp_name])
+
+            return add_wrapper
+
+        elif mtype == 'mul':
+            def mul_wrapper(p, e, *_):
+                """evaluate mul component"""
+                return func(e, **p[comp_name])
+
+            return mul_wrapper
+
+        elif mtype == 'con':
+            if self.attrs['is_ncon']:
+                def ncon_wrapper(p, _=None, f=None, ff=None):
+                    """evaluate ncon component, f and ff must be given"""
+                    return func(ff, f, **p[comp_name])
+
+                return ncon_wrapper
+
+            else:
+                def con_wrapper(p, e, f, *_):
+                    """evaluate con component"""
+                    return func(e, f, **p[comp_name])
+
+                return con_wrapper
+
+        else:
+            raise TypeError(f'unrecognized model type "{mtype}"')
+
+    # def set_params(
+    #     self,
+    #     params: dict[str, Union[Parameter, OperationABC]]
+    # ) -> None:
+    #     """Set parameters."""
+    #
+    #     params_in = set(params.keys())
+    #     params_all = set(self.params.keys())
+    #
+    #     if not params_in <= params_all:
+    #         diff = params_all - params_in
+    #         raise ValueError(f'input params {diff} not included in {self}')
+    #
+    #     for v in params.values():
+    #         if v.type != 'parameter':
+    #             raise ValueError('Parameter type is required')
+    #
+    #     new_params = self.params | params
+    #     self.predecessor = list(new_params.values())
 
 
 class ComponentOperation(OperationABC):
     """Handle component operation."""
 
     # type is assigned in Operation
+    params: dict
 
     def __init__(
         self,
@@ -355,10 +487,23 @@ class ComponentOperation(OperationABC):
                 raise TypeError(f'{rh} is not additive')
 
         else:  # operator == '*'
-            if subtype1 == subtype2 == 'add':
+            if subtype1 == 'add':
+                if subtype2 == 'add':
+                    raise TypeError(
+                        f'unsupported types for *: {lh} (add) and {rh} (add)'
+                    )
+                elif subtype2 == 'con':
+                    raise TypeError(
+                        f'unsupported order for *: {lh} (add) and {rh} (con)'
+                    )
+
+            if lh.attrs['is_ncon'] and rh.attrs['is_ncon']:
                 raise TypeError(
-                    f'unsupported types for *: {lh} (add) and {rh} (add)'
+                    f'unsupported types for *: {lh} (ncon) and {rh} (ncon), '
+                    f'norm convolution can only be used once for one component'
                 )
+
+        is_ncon = False
 
         # determine the subtype
         if subtype1 == 'add' or subtype2 == 'add':
@@ -366,11 +511,14 @@ class ComponentOperation(OperationABC):
         else:
             if subtype1 == 'con' or subtype2 == 'con':
                 subtype = 'con'
+                if lh.attrs['is_ncon'] or rh.attrs['is_ncon']:
+                    is_ncon = True
             else:
                 subtype = 'mul'
 
         super().__init__(lh, rh, operator)
         self.attrs['subtype'] = subtype
+        self.attrs['is_ncon'] = is_ncon
 
     def __add__(
         self,
@@ -383,6 +531,125 @@ class ComponentOperation(OperationABC):
         other: Union[Component, ComponentOperation]
     ) -> ComponentOperation:
         return ComponentOperation(self, other, '*')
+
+    @property
+    def params(self) -> dict:
+        """Get parameter configure."""
+
+        lh, rh = self.predecessor
+
+        return lh.params | rh.params
+
+    @property
+    def comps(self) -> dict[str, Component]:
+        """Get component dict."""
+
+        lh, rh = self.predecessor
+
+        return lh.comps | rh.comps
+
+    @property
+    def func(self):
+        """Get evaluation function after the operation."""
+
+        op = self.attrs['name']
+        lh, rh = self.predecessor
+        m1 = lh.func
+        m2 = rh.func
+        type1 = lh.attrs['subtype']
+        type2 = rh.attrs['subtype']
+
+        # notation: p=params, e=egrid, f=flux, ff=flux_func
+        if op == '+':
+            def add_add_wrapper(p, e, *_):
+                """add + add"""
+                return m1(p, e) + m2(p, e)
+
+            return add_add_wrapper
+
+        if type1 != 'con':  # type1 is add or mul
+            if type2 != 'con':  # type2 is add or mul
+                def op_wrapper(p, e, *_):  # add * add not allowed
+                    """add * mul, mul * add, mul * mul"""
+                    return m1(p, e) * m2(p, e)
+
+                return op_wrapper
+
+            else:  # type2 is con
+                if rh.attrs['is_ncon']:  # type2 is ncon
+                    def mul_ncon_wrapper(p, e, f, ff):
+                        """mul * ncon"""
+                        return m1(p, e) * m2(p, e, f, ff)
+
+                    return mul_ncon_wrapper
+
+                else:  # type2 is con
+                    def mul_con_wrapper(p, e, f, *_):
+                        """mul * con"""
+                        return m1(p, e) * m2(p, e, f)
+
+                    return mul_con_wrapper
+
+        else:  # type1 is con
+            if lh.attrs['is_ncon']:  # type1 is ncon
+                if type2 == 'add':
+                    def ncon_add_wrapper(p, e, *_):
+                        """ncon * add"""
+                        return m1(p, e, m2(p, e), m2)
+
+                    return ncon_add_wrapper
+
+                elif type2 == 'mul':
+                    def ncon_mul_wrapper(e, p, f, ff):
+                        """ncon * mul"""
+                        def m2_ff(e_, p_, *_):
+                            """mul * add, this will be * by ncon"""
+                            return m2(e_, p_) * ff(e_, p_)
+
+                        return m1(p, e, m2(e, p) * f, m2_ff)
+
+                    return ncon_mul_wrapper
+
+                else:  # type2 == 'con'
+                    def ncon_con_wrapper(p, e, f, ff):
+                        """ncon * con"""
+                        def m2_ff(p_, e_, *_):
+                            """con * add, this will be * by ncon"""
+                            return m2(p_, e_, ff(p_, e_))
+
+                        return m1(p, e, m2(p, e, f), m2_ff)
+
+                    return ncon_con_wrapper
+
+            else:  # type1 is con
+                if type2 == 'add':
+                    def con_add_wrapper(p, e, *_):
+                        """con * add"""
+                        return m1(p, e, m2(p, e))
+
+                    return con_add_wrapper
+
+                elif type2 == 'mul':
+                    def con_mul_wrapper(p, e, f, *_):
+                        """con * mul"""
+                        return m1(p, e, m2(p, e) * f)
+
+                    return con_mul_wrapper
+
+                else:
+                    if rh.attrs['is_ncon']:
+                        def con_ncon_wrapper(p, e, f, ff):
+                            """con * ncon"""
+                            return m1(p, e, m2(p, e, f, ff))
+
+                        return con_ncon_wrapper
+
+                    else:
+                        def con_con_wrapper(p, e, f, *_):
+                            """con * con"""
+                            return m1(p, e, m2(p, e, f))
+
+                        return con_con_wrapper
 
 
 class LabelSpace:
@@ -434,13 +701,13 @@ class LabelSpace:
 
         return labels
 
-    def get_label_map(self, label_type: str) -> list[tuple]:
+    def get_label_map(self, label_type: str) -> dict[str, str]:
         """Solve name/fmt collision of sub-nodes and return suffix mapping."""
 
         self.check_label_type(label_type)
 
         label_space = {}
-        id_to_str = []
+        id_to_str = {}
         node_stack = [self.node]
 
         while node_stack:
@@ -453,7 +720,7 @@ class LabelSpace:
                 # check label collision
                 if label not in label_space:  # no label collision found
                     label_space[label] = [id_]  # record label and node id
-                    id_to_str.append((f'_{id_}', ''))
+                    id_to_str[f'{label}_{id_}'] = label
 
                 else:  # there is a label collision
                     same_label_nodes = label_space[label]
@@ -463,10 +730,10 @@ class LabelSpace:
                         num = len(same_label_nodes)
 
                         if label_type == 'name':
-                            str_ = f'_{num}'
+                            str_ = f'{num}'
                         else:
                             str_ = f'$_{num}$'
-                        id_to_str.append((f'_{id_}', str_))
+                        id_to_str[f'{label}_{id_}'] = f'{label}{str_}'
 
             else:  # push predecessors of operation to the node stack
                 node_stack = i.predecessor + node_stack
@@ -490,8 +757,8 @@ class LabelSpace:
 
         label = getattr(self.node, label_type)
 
-        for i in self.label_map[label_type]:
-            label = label.replace(*i)
+        for k, v in self.label_map[label_type].items():
+            label = label.replace(k, v)
 
         return label
 
@@ -573,14 +840,45 @@ class SpectralModel(metaclass=ComponentMeta):
         self._label = LabelSpace(node)
         self._comps = []
 
-    def __call__(self, egrid, flux=None):
-        return self.eval(egrid, flux)
-
     def __add__(self, other: SpectralModel):
         return SpectralModel(self._node + other._node)
 
     def __mul__(self, other: SpectralModel):
         return SpectralModel(self._node * other._node)
+
+    def __getitem__(self, key: str):
+        """Get a parameter of component."""
+
+        if '.' not in key:
+            raise ValueError('key format should be "component.parameter"')
+
+        c, p = key.split('.')
+
+        name_map = {v: k for k, v in self._label.label_map['name'].items()}
+
+        if c not in name_map:
+            raise ValueError(f'No component "{c}" in model "{self}"')
+
+        return self._node.comps[name_map[c]][p]
+
+    def __setitem__(
+        self,
+        key: str,
+        value: Union[Parameter, ParameterOperation]
+    ):
+        """Set a parameter of component."""
+
+        if '.' not in key:
+            raise ValueError('key format should be "component.parameter"')
+
+        c, p = key.split('.')
+
+        name_map = {v: k for k, v in self._label.label_map['name'].items()}
+
+        if c not in name_map:
+            raise ValueError(f'No component "{c}" in model "{self}"')
+
+        self._node.comps[name_map[c]][p] = value
 
     def __repr__(self):
         return self.expression
@@ -591,8 +889,18 @@ class SpectralModel(metaclass=ComponentMeta):
         return self._type
 
     @property
+    def params(self):
+        """Get parameter configure."""
+
+        name_map = self._label.label_map['name']
+
+        return {
+            name_map[k]: v for k, v in self._node.params.items()
+        }
+
+    @property
     def comps(self):
-        """Additive type of compositions of sub-components."""
+        """Additive type of compositions of subcomponents."""
 
         if self.type != 'add':
             raise TypeError(
@@ -614,27 +922,34 @@ class SpectralModel(metaclass=ComponentMeta):
         """Get model expression in LaTex format."""
         return self._label.fmt
 
-    def flux(self, egrid, flux=None):
-        """Evaluate flux by
-            * analytic expression
-            * trapezoid or Simpson's 1/3 rule given :math:`N_E`
-            * Xspec model library
+    # def flux(self, params, e_range, energy=True, ngrid=1000, log=True):
+    #     """Evaluate model by
+    #         * analytic expression
+    #         * trapezoid or Simpson's 1/3 rule given :math:`N_E`
+    #         * Xspec model library
+    #
+    #     TODO: docstring
+    #
+    #     """
+    #
+    #     if self.type != 'add':
+    #         raise TypeError(
+    #             f'flux is undefined for "{self.type}" type model "{self}"'
+    #         )
+    #
+    #     if log:  # evenly spaced grid in log space
+    #         egrid = np.geomspace(*e_range, ngrid)
+    #     else:  # evenly spaced grid in linear space
+    #         egrid = np.linspace(*e_range, ngrid)
+    #
+    #     if energy:  # energy flux
+    #         flux = np.sum(self.ENE(pars, ebins) * np.diff(ebins), axis=-1)
+    #     else:  # photon flux
+    #         flux = np.sum(self.NE(pars, ebins) * np.diff(ebins), axis=-1)
+    #
+    #     return flux
 
-        TODO: docstring
-
-        """
-        if self.type == 'add':
-            return self(egrid, flux)
-        else:
-            raise TypeError(f'flux is undefined for "{self.type}" model')
-
-    def eval(self, egrid, flux=None):
-        if self.type != 'con':
-            ...
-        else:
-            ...
-
-    def _get_prior(self) -> Callable:
+    def _build_prior(self) -> Callable:
         """Get the prior function which will be used in numpyro."""
 
         def prior():
@@ -643,6 +958,55 @@ class SpectralModel(metaclass=ComponentMeta):
             ...
 
         return prior
+
+    def __call__(self, egrid, flux=None):
+        # TODO:
+        return self.eval(egrid, flux)
+
+    def eval(self, *args, **kwargs):
+        """TODO"""
+        if self.type != 'con':
+            ...
+        else:
+            ...
+
+    def _build_func(self) -> Callable:
+        """Get the model evaluation function."""
+
+        # mapping: component_num -> component_id
+        id_map = {v: k for k, v in self._label.label_map['name'].items()}
+
+        # default parameter configure
+        default = {
+            c: {
+                name: param.default for name, param in params.items()
+            } for c, params in self.params.items()
+        }
+
+        def get_params(params):
+            """Get parameters with id."""
+            if params is None:
+                # set to default if None
+                params = default
+
+            else:
+                # get params
+                params = {
+                    k: v | params[k] if k in params else v
+                    for k, v in default.items()
+                }
+
+            # map to component_id
+            return {id_map[k]: v for k, v in params.items()}
+
+        # wrap the function from Component or ComponentOperation
+        f = self._node.func
+
+        def func(egrid, params, *args, **kwargs):
+            """Model evaluation wrapper."""
+            return f(get_params(params), egrid, *args, **kwargs)
+
+        return func
 
 
 class SpectralComponentABC(SpectralModel):
@@ -692,12 +1056,20 @@ class SpectralComponentABC(SpectralModel):
                     f'{cls_name}.{param_name}, which is not supported'
                 )
 
+        if self.type == 'ncon':  # normalization convolution type
+            subtype = 'con'
+            is_ncon = True
+        else:
+            subtype = self.type
+            is_ncon = False
+
         component = Component(
             name=type(self).__name__.lower(),
             fmt=fmt,
-            subtype=self.type,
+            subtype=subtype,
             params=params_dict,
             func=self._eval,
+            is_ncon=is_ncon
         )
 
         super().__init__(component)
@@ -708,7 +1080,8 @@ class SpectralComponentABC(SpectralModel):
         """Default configuration of parameters, overriden by subclass."""
         pass
 
+    @staticmethod
     @abstractmethod
-    def _eval(self, *args):
+    def _eval(*args):
         """Actual evaluation is defined here, overriden by subclass."""
         pass
