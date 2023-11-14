@@ -12,6 +12,7 @@ import numpy
 import numpyro
 import jax
 sys.path.insert(0, os.path.abspath('../..'))
+import bayespec
 
 
 project = 'BayeSpec'
@@ -35,7 +36,7 @@ extensions = [
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
+autodoc_mock_imports = ['numpy']
 
 
 # -- Options for HTML output -------------------------------------------------
