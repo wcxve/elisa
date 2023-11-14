@@ -1196,7 +1196,7 @@ class SpectralModel:
         return self.expression
 
 
-from bayespec.model.flux_model import FluxModel
+from .flux_model import FluxModel
 
 
 class SuperModel(SpectralModel):

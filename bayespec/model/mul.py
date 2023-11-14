@@ -1,0 +1,1 @@
+"""Model of multiplicative type."""

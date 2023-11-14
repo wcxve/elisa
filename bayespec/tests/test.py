@@ -1,13 +1,9 @@
-from model.add import *
-
 if __name__ == '__main__':
-    import numpy as np
-    import jax
-    import jax.numpy as jnp
-
-    BB = BlackBody(kT=1)
-    BB2 = BlackBody()
-    m = BB+BB2
+    ...
+    # BB = BlackBody()
+    # BB2 = BlackBody()
+    # m = BB+BB2
+    # TODO: syntax: m.BB.kT
 
     # Done!
     # model1 = Model1(parA=1.1, parB=None)

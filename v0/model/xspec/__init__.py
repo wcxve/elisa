@@ -20,7 +20,7 @@ class {mod_name}Op(XspecNumericGradOp):
     modname = '{mod_name}'
     optype = '{mod_type}'
 
-class {mod_name}Component(SpectralComponent):
+class {mod_name}ComponentNode(SpectralComponent):
     _comp_name = '{mod_name}'
     _config = {par_config}
     _op_class = {mod_name}Op
@@ -30,7 +30,7 @@ class {mod_name}Component(SpectralComponent):
     
 class {mod_name}(SpectralModel):
     def __init__(self, {pars_expr}, name=None, grad_method='f', eps=1e-7):
-        super().__init__([{mod_name}Component({pars_list}, name, grad_method, eps)])
+        super().__init__([{mod_name}ComponentNode({pars_list}, name, grad_method, eps)])
     """
     code = ''
     code += 'from bayespec.model.base import SpectralComponent, SpectralModel\n'
@@ -60,4 +60,4 @@ class {mod_name}(SpectralModel):
 
 del path
 
-from bayespec.model.xspec.model import *
+from .model import *

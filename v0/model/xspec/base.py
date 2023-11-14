@@ -2,7 +2,7 @@ import numpy as np
 import pytensor
 import pytensor.tensor as pt
 import xspec_models_cxc as xspec_models
-from bayespec.model.base import NumericGradOp
+from ..base import NumericGradOp
 
 
 class XspecNumericGradOp(NumericGradOp):

@@ -9,18 +9,18 @@ import pymc as pm
 import pytensor.tensor as pt
 import scienceplots
 import xarray as xr
-from bayespec.data import Data
-from bayespec.likelihood import chi, cstat, pstat, pgstat, wstat, fpstat
-from bayespec.model.base import SpectralModel
-from bayespec.plot import (
+from .data import Data
+from .likelihood import chi, cstat, pstat, pgstat, wstat, fpstat
+from .model.base import SpectralModel
+from .plot import (
     _plot_data, _plot_ldata,
     _plot_ufspec, _plot_eufspec, _plot_eeufspec,
     _plot_icounts, _plot_icounts_residual,
     _plot_residuals, _plot_delchi, _plot_ratio,
     _plot_deviance, _plot_sign_deviance, _plot_sign_deviance2
 )
-from bayespec.plot import plot_corner, plot_ppc
-from bayespec.sampling import sample_numpyro_nuts, sample_posterior_predictive
+from .plot import plot_corner, plot_ppc
+from .sampling import sample_numpyro_nuts, sample_posterior_predictive
 from iminuit import Minuit
 from jacobi import propagate
 from numdifftools import Gradient, Jacobian, Hessian
@@ -2025,19 +2025,22 @@ if __name__ == '__main__':
               f'{path}/LE_optbmin5.fits',
               f'{path}/LE_phabkg20s_g0_0-94.pha',
               f'{path}/LE_rsp.rsp',
-              group_type='bmin', group_scale=25)
+              group_type='bmin',
+              group_scale=25)
 
     ME = Data([10, 35],
               f'{path}/ME_optbmin5.fits',
               f'{path}/ME_phabkg20s_g0_0-53.pha',
               f'{path}/ME_rsp.rsp',
-              group_type='bmin', group_scale=25)
+              group_type='bmin',
+              group_scale=25)
 
     HE = Data([28, 250],
               f'{path}/HE_optbmin5.fits',
               f'{path}/HE_phabkg20s_g0_0-12.pha',
               f'{path}/HE_rsp.rsp',
-              group_type='bmin', group_scale=25)
+              group_type='bmin',
+              group_scale=25)
 
     from bayespec import BlackBodyRad, CutoffPowerlaw, OTTB, Powerlaw, xs, EnergyFlux, UniformParameter
     wabs = xs.wabs(2.79)
@@ -2052,7 +2055,7 @@ if __name__ == '__main__':
     # src.CPL.Ec.log = True
     # src.CPL.norm.log = True
     # src.PL.norm = src.PL.PhoIndex + src.PL.PhoIndex
-    # src.PL.norm.log = 1
+    src.PL.norm.log = 1
     # src = BlackBodyRad()
     # src.BBrad.norm.log = 1
     # src.BBrad.kT.log = 1
@@ -2063,12 +2066,12 @@ if __name__ == '__main__':
     # src.BBrad_2.kT = src.BBrad.kT * UniformParameter('factor', 0.5, 0.001, 0.999, log=1)
     infer = Infer([LE, ME, HE], wabs*src, 'wstat')
     # infer.bootstrap()
-    # infer.mcmc_nuts()
-    # infer.plot_corner()
-    # infer.ppc()
-    # infer.plot_data('ldata sdev icnt',
-    #                 sim='ppc',
-    #                 show_pars=infer._rv['name'])
+    infer.mcmc_nuts()
+    infer.plot_corner()
+    infer.ppc()
+    infer.plot_data('ldata sdev icnt',
+                    sim='ppc',
+                    show_pars=infer._rv['name'])
 
     # test for GRB 230307A
     # path = '/Users/xuewc/Library/Containers/com.tencent.xinWeChat/Data/Library/Application Support/com.tencent.xinWeChat/2.0b4.0.9/188ccc99a439bc9cc579a929ee149d49/Message/MessageTemp/f73fb0aee92be46a90a93165d0b6ae4c/OpenData/11668/39e6f9ad32176b0685ae7020e561c41b'

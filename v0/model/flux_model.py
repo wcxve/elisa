@@ -1,7 +1,7 @@
 import numpy as np
 import pytensor.tensor as pt
 
-from bayespec.model.base import SpectralComponent, SpectralModel
+from .base import SpectralComponent, SpectralModel
 
 
 __all__ = ['EnergyFlux', 'PhotonFlux']

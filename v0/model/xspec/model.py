@@ -1,5 +1,5 @@
-from bayespec.model.base import SpectralComponent, SpectralModel
-from bayespec.model.xspec.base import XspecNumericGradOp
+from ..base import SpectralComponent, SpectralModel
+from .base import XspecNumericGradOp
 
 __all__ = ['SSS_ice', 'TBabs', 'TBfeo', 'TBgas', 'TBgrain', 'TBpcf', 'TBrel', 'TBvarabs', 'absori', 'acisabs', 'agauss', 'agnsed', 'agnslim', 'apec', 'bapec', 'bbody', 'bbodyrad', 'bexrav', 'bexriv', 'bkn2pow', 'bknpower', 'bmc', 'bremss', 'brnei', 'btapec', 'bvapec', 'bvrnei', 'bvtapec', 'bvvapec', 'bvvrnei', 'bvvtapec', 'bwcycl', 'c6mekl', 'c6pmekl', 'c6pvmkl', 'c6vmekl', 'cabs', 'carbatm', 'cemekl', 'cevmkl', 'cflow', 'cflux', 'cglumin', 'clumin', 'compLS', 'compPS', 'compST', 'compTT', 'compbb', 'compmag', 'comptb', 'compth', 'constant', 'cpflux', 'cph', 'cplinear', 'cutoffpl', 'cyclabs', 'disk', 'diskbb', 'diskir', 'diskline', 'diskm', 'disko', 'diskpbb', 'diskpn', 'dust', 'edge', 'eplogpar', 'eqpair', 'eqtherm', 'equil', 'expabs', 'expdec', 'expfac', 'ezdiskbb', 'gabs', 'gadem', 'gaussian', 'gnei', 'grad', 'grbcomp', 'grbjet', 'grbm', 'gsmooth', 'hatm', 'heilin', 'highecut', 'hrefl', 'ireflect', 'ismabs', 'ismdust', 'jet', 'kdblur', 'kdblur2', 'kerrbb', 'kerrconv', 'kerrd', 'kerrdisk', 'kyconv', 'kyrline', 'laor', 'laor2', 'log10con', 'logconst', 'logpar', 'lorentz', 'lsmooth', 'lyman', 'meka', 'mekal', 'mkcflow', 'nei', 'nlapec', 'notch', 'npshock', 'nsa', 'nsagrav', 'nsatmos', 'nsmax', 'nsmaxg', 'nsx', 'nteea', 'nthComp', 'olivineabs', 'optxagn', 'optxagnf', 'partcov', 'pcfabs', 'pegpwrlw', 'pexmon', 'pexrav', 'pexriv', 'phabs', 'plabs', 'plcabs', 'polconst', 'pollin', 'polpow', 'posm', 'powerlaw', 'pshock', 'pwab', 'qsosed', 'raymond', 'rdblur', 'redden', 'redge', 'reflect', 'refsch', 'rfxconv', 'rgsxsrc', 'rnei', 'sedov', 'simpl', 'sirf', 'slimbh', 'smaug', 'smedge', 'snapec', 'spexpcut', 'spline', 'srcut', 'sresc', 'ssa', 'step', 'swind1', 'tapec', 'thcomp', 'uvred', 'vapec', 'varabs', 'vashift', 'vbremss', 'vcph', 'vequil', 'vgadem', 'vgnei', 'vmcflow', 'vmeka', 'vmekal', 'vmshift', 'vnei', 'vnpshock', 'voigt', 'vphabs', 'vpshock', 'vraymond', 'vrnei', 'vsedov', 'vtapec', 'vvapec', 'vvgnei', 'vvnei', 'vvnpshock', 'vvpshock', 'vvrnei', 'vvsedov', 'vvtapec', 'vvwdem', 'vwdem', 'wabs', 'wdem', 'wndabs', 'xilconv', 'xion', 'xscat', 'zTBabs', 'zagauss', 'zashift', 'zbabs', 'zbbody', 'zbknpower', 'zbremss', 'zcutoffpl', 'zdust', 'zedge', 'zgauss', 'zhighect', 'zigm', 'zkerrbb', 'zlogpar', 'zmshift', 'zpcfabs', 'zphabs', 'zpowerlw', 'zredden', 'zsmdust', 'zvarabs', 'zvfeabs', 'zvphabs', 'zwabs', 'zwndabs', 'zxipab', 'zxipcf']
 
@@ -15,11 +15,11 @@ class SSS_iceComponent(SpectralComponent):
     def __init__(self, clumps, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class SSS_ice(SpectralModel):
     def __init__(self, clumps=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([SSS_iceComponent(clumps, name, grad_method, eps)])
-    
+
 
 class TBabsOp(XspecNumericGradOp):
     modname = 'TBabs'
@@ -32,11 +32,11 @@ class TBabsComponent(SpectralComponent):
     def __init__(self, nH, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class TBabs(SpectralModel):
     def __init__(self, nH=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([TBabsComponent(nH, name, grad_method, eps)])
-    
+
 
 class TBfeoOp(XspecNumericGradOp):
     modname = 'TBfeo'
@@ -49,11 +49,11 @@ class TBfeoComponent(SpectralComponent):
     def __init__(self, nH, O, Fe, redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class TBfeo(SpectralModel):
     def __init__(self, nH=None, O=None, Fe=None, redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([TBfeoComponent(nH, O, Fe, redshift, name, grad_method, eps)])
-    
+
 
 class TBgasOp(XspecNumericGradOp):
     modname = 'TBgas'
@@ -66,11 +66,11 @@ class TBgasComponent(SpectralComponent):
     def __init__(self, nH, redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class TBgas(SpectralModel):
     def __init__(self, nH=None, redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([TBgasComponent(nH, redshift, name, grad_method, eps)])
-    
+
 
 class TBgrainOp(XspecNumericGradOp):
     modname = 'TBgrain'
@@ -83,11 +83,11 @@ class TBgrainComponent(SpectralComponent):
     def __init__(self, nH, h2, rho, amin, amax, PL, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class TBgrain(SpectralModel):
     def __init__(self, nH=None, h2=None, rho=None, amin=None, amax=None, PL=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([TBgrainComponent(nH, h2, rho, amin, amax, PL, name, grad_method, eps)])
-    
+
 
 class TBpcfOp(XspecNumericGradOp):
     modname = 'TBpcf'
@@ -100,11 +100,11 @@ class TBpcfComponent(SpectralComponent):
     def __init__(self, nH, pcf, redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class TBpcf(SpectralModel):
     def __init__(self, nH=None, pcf=None, redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([TBpcfComponent(nH, pcf, redshift, name, grad_method, eps)])
-    
+
 
 class TBrelOp(XspecNumericGradOp):
     modname = 'TBrel'
@@ -117,11 +117,11 @@ class TBrelComponent(SpectralComponent):
     def __init__(self, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, H2, rho, amin, amax, PL, H_dep, He_dep, C_dep, N_dep, O_dep, Ne_dep, Na_dep, Mg_dep, Al_dep, Si_dep, S_dep, Cl_dep, Ar_dep, Ca_dep, Cr_dep, Fe_dep, Co_dep, Ni_dep, redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class TBrel(SpectralModel):
     def __init__(self, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Cl=None, Ar=None, Ca=None, Cr=None, Fe=None, Co=None, Ni=None, H2=None, rho=None, amin=None, amax=None, PL=None, H_dep=None, He_dep=None, C_dep=None, N_dep=None, O_dep=None, Ne_dep=None, Na_dep=None, Mg_dep=None, Al_dep=None, Si_dep=None, S_dep=None, Cl_dep=None, Ar_dep=None, Ca_dep=None, Cr_dep=None, Fe_dep=None, Co_dep=None, Ni_dep=None, redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([TBrelComponent(nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, H2, rho, amin, amax, PL, H_dep, He_dep, C_dep, N_dep, O_dep, Ne_dep, Na_dep, Mg_dep, Al_dep, Si_dep, S_dep, Cl_dep, Ar_dep, Ca_dep, Cr_dep, Fe_dep, Co_dep, Ni_dep, redshift, name, grad_method, eps)])
-    
+
 
 class TBvarabsOp(XspecNumericGradOp):
     modname = 'TBvarabs'
@@ -134,11 +134,11 @@ class TBvarabsComponent(SpectralComponent):
     def __init__(self, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, H2, rho, amin, amax, PL, H_dep, He_dep, C_dep, N_dep, O_dep, Ne_dep, Na_dep, Mg_dep, Al_dep, Si_dep, S_dep, Cl_dep, Ar_dep, Ca_dep, Cr_dep, Fe_dep, Co_dep, Ni_dep, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class TBvarabs(SpectralModel):
     def __init__(self, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Cl=None, Ar=None, Ca=None, Cr=None, Fe=None, Co=None, Ni=None, H2=None, rho=None, amin=None, amax=None, PL=None, H_dep=None, He_dep=None, C_dep=None, N_dep=None, O_dep=None, Ne_dep=None, Na_dep=None, Mg_dep=None, Al_dep=None, Si_dep=None, S_dep=None, Cl_dep=None, Ar_dep=None, Ca_dep=None, Cr_dep=None, Fe_dep=None, Co_dep=None, Ni_dep=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([TBvarabsComponent(nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, H2, rho, amin, amax, PL, H_dep, He_dep, C_dep, N_dep, O_dep, Ne_dep, Na_dep, Mg_dep, Al_dep, Si_dep, S_dep, Cl_dep, Ar_dep, Ca_dep, Cr_dep, Fe_dep, Co_dep, Ni_dep, Redshift, name, grad_method, eps)])
-    
+
 
 class absoriOp(XspecNumericGradOp):
     modname = 'absori'
@@ -151,11 +151,11 @@ class absoriComponent(SpectralComponent):
     def __init__(self, PhoIndex, nH, Temp_abs, xi, Redshift, Fe_abund, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class absori(SpectralModel):
     def __init__(self, PhoIndex=None, nH=None, Temp_abs=None, xi=None, Redshift=None, Fe_abund=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([absoriComponent(PhoIndex, nH, Temp_abs, xi, Redshift, Fe_abund, name, grad_method, eps)])
-    
+
 
 class acisabsOp(XspecNumericGradOp):
     modname = 'acisabs'
@@ -168,11 +168,11 @@ class acisabsComponent(SpectralComponent):
     def __init__(self, Tdays, norm, tauinf, tefold, nC, nH, nO, nN, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class acisabs(SpectralModel):
     def __init__(self, Tdays=None, norm=None, tauinf=None, tefold=None, nC=None, nH=None, nO=None, nN=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([acisabsComponent(Tdays, norm, tauinf, tefold, nC, nH, nO, nN, name, grad_method, eps)])
-    
+
 
 class agaussOp(XspecNumericGradOp):
     modname = 'agauss'
@@ -185,11 +185,11 @@ class agaussComponent(SpectralComponent):
     def __init__(self, LineE, Sigma, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class agauss(SpectralModel):
     def __init__(self, LineE=None, Sigma=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([agaussComponent(LineE, Sigma, norm, name, grad_method, eps)])
-    
+
 
 class agnsedOp(XspecNumericGradOp):
     modname = 'agnsed'
@@ -202,11 +202,11 @@ class agnsedComponent(SpectralComponent):
     def __init__(self, mass, dist, logmdot, astar, cosi, kTe_hot, kTe_warm, Gamma_hot, Gamma_warm, R_hot, R_warm, logrout, Htmax, reprocess, redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class agnsed(SpectralModel):
     def __init__(self, mass=None, dist=None, logmdot=None, astar=None, cosi=None, kTe_hot=None, kTe_warm=None, Gamma_hot=None, Gamma_warm=None, R_hot=None, R_warm=None, logrout=None, Htmax=None, reprocess=None, redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([agnsedComponent(mass, dist, logmdot, astar, cosi, kTe_hot, kTe_warm, Gamma_hot, Gamma_warm, R_hot, R_warm, logrout, Htmax, reprocess, redshift, norm, name, grad_method, eps)])
-    
+
 
 class agnslimOp(XspecNumericGradOp):
     modname = 'agnslim'
@@ -219,11 +219,11 @@ class agnslimComponent(SpectralComponent):
     def __init__(self, mass, dist, logmdot, astar, cosi, kTe_hot, kTe_warm, Gamma_hot, Gamma_warm, R_hot, R_warm, logrout, rin, redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class agnslim(SpectralModel):
     def __init__(self, mass=None, dist=None, logmdot=None, astar=None, cosi=None, kTe_hot=None, kTe_warm=None, Gamma_hot=None, Gamma_warm=None, R_hot=None, R_warm=None, logrout=None, rin=None, redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([agnslimComponent(mass, dist, logmdot, astar, cosi, kTe_hot, kTe_warm, Gamma_hot, Gamma_warm, R_hot, R_warm, logrout, rin, redshift, norm, name, grad_method, eps)])
-    
+
 
 class apecOp(XspecNumericGradOp):
     modname = 'apec'
@@ -236,11 +236,11 @@ class apecComponent(SpectralComponent):
     def __init__(self, kT, Abundanc, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class apec(SpectralModel):
     def __init__(self, kT=None, Abundanc=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([apecComponent(kT, Abundanc, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class bapecOp(XspecNumericGradOp):
     modname = 'bapec'
@@ -253,11 +253,11 @@ class bapecComponent(SpectralComponent):
     def __init__(self, kT, Abundanc, Redshift, Velocity, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bapec(SpectralModel):
     def __init__(self, kT=None, Abundanc=None, Redshift=None, Velocity=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bapecComponent(kT, Abundanc, Redshift, Velocity, norm, name, grad_method, eps)])
-    
+
 
 class bbodyOp(XspecNumericGradOp):
     modname = 'bbody'
@@ -270,11 +270,11 @@ class bbodyComponent(SpectralComponent):
     def __init__(self, kT, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bbody(SpectralModel):
     def __init__(self, kT=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bbodyComponent(kT, norm, name, grad_method, eps)])
-    
+
 
 class bbodyradOp(XspecNumericGradOp):
     modname = 'bbodyrad'
@@ -287,11 +287,11 @@ class bbodyradComponent(SpectralComponent):
     def __init__(self, kT, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bbodyrad(SpectralModel):
     def __init__(self, kT=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bbodyradComponent(kT, norm, name, grad_method, eps)])
-    
+
 
 class bexravOp(XspecNumericGradOp):
     modname = 'bexrav'
@@ -304,11 +304,11 @@ class bexravComponent(SpectralComponent):
     def __init__(self, Gamma1, breakE, Gamma2, foldE, rel_refl, cosIncl, abund, Fe_abund, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bexrav(SpectralModel):
     def __init__(self, Gamma1=None, breakE=None, Gamma2=None, foldE=None, rel_refl=None, cosIncl=None, abund=None, Fe_abund=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bexravComponent(Gamma1, breakE, Gamma2, foldE, rel_refl, cosIncl, abund, Fe_abund, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class bexrivOp(XspecNumericGradOp):
     modname = 'bexriv'
@@ -321,11 +321,11 @@ class bexrivComponent(SpectralComponent):
     def __init__(self, Gamma1, breakE, Gamma2, foldE, rel_refl, Redshift, abund, Fe_abund, cosIncl, T_disk, xi, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bexriv(SpectralModel):
     def __init__(self, Gamma1=None, breakE=None, Gamma2=None, foldE=None, rel_refl=None, Redshift=None, abund=None, Fe_abund=None, cosIncl=None, T_disk=None, xi=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bexrivComponent(Gamma1, breakE, Gamma2, foldE, rel_refl, Redshift, abund, Fe_abund, cosIncl, T_disk, xi, norm, name, grad_method, eps)])
-    
+
 
 class bkn2powOp(XspecNumericGradOp):
     modname = 'bkn2pow'
@@ -338,11 +338,11 @@ class bkn2powComponent(SpectralComponent):
     def __init__(self, PhoIndx1, BreakE1, PhoIndx2, BreakE2, PhoIndx3, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bkn2pow(SpectralModel):
     def __init__(self, PhoIndx1=None, BreakE1=None, PhoIndx2=None, BreakE2=None, PhoIndx3=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bkn2powComponent(PhoIndx1, BreakE1, PhoIndx2, BreakE2, PhoIndx3, norm, name, grad_method, eps)])
-    
+
 
 class bknpowerOp(XspecNumericGradOp):
     modname = 'bknpower'
@@ -355,11 +355,11 @@ class bknpowerComponent(SpectralComponent):
     def __init__(self, PhoIndx1, BreakE, PhoIndx2, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bknpower(SpectralModel):
     def __init__(self, PhoIndx1=None, BreakE=None, PhoIndx2=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bknpowerComponent(PhoIndx1, BreakE, PhoIndx2, norm, name, grad_method, eps)])
-    
+
 
 class bmcOp(XspecNumericGradOp):
     modname = 'bmc'
@@ -372,11 +372,11 @@ class bmcComponent(SpectralComponent):
     def __init__(self, kT, alpha, log_A, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bmc(SpectralModel):
     def __init__(self, kT=None, alpha=None, log_A=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bmcComponent(kT, alpha, log_A, norm, name, grad_method, eps)])
-    
+
 
 class bremssOp(XspecNumericGradOp):
     modname = 'bremss'
@@ -389,11 +389,11 @@ class bremssComponent(SpectralComponent):
     def __init__(self, kT, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bremss(SpectralModel):
     def __init__(self, kT=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bremssComponent(kT, norm, name, grad_method, eps)])
-    
+
 
 class brneiOp(XspecNumericGradOp):
     modname = 'brnei'
@@ -406,11 +406,11 @@ class brneiComponent(SpectralComponent):
     def __init__(self, kT, kT_init, Abundanc, Tau, Redshift, Velocity, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class brnei(SpectralModel):
     def __init__(self, kT=None, kT_init=None, Abundanc=None, Tau=None, Redshift=None, Velocity=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([brneiComponent(kT, kT_init, Abundanc, Tau, Redshift, Velocity, norm, name, grad_method, eps)])
-    
+
 
 class btapecOp(XspecNumericGradOp):
     modname = 'btapec'
@@ -423,11 +423,11 @@ class btapecComponent(SpectralComponent):
     def __init__(self, kT, kTi, Abundanc, Redshift, Velocity, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class btapec(SpectralModel):
     def __init__(self, kT=None, kTi=None, Abundanc=None, Redshift=None, Velocity=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([btapecComponent(kT, kTi, Abundanc, Redshift, Velocity, norm, name, grad_method, eps)])
-    
+
 
 class bvapecOp(XspecNumericGradOp):
     modname = 'bvapec'
@@ -440,11 +440,11 @@ class bvapecComponent(SpectralComponent):
     def __init__(self, kT, He, C, N, O, Ne, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, Velocity, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bvapec(SpectralModel):
     def __init__(self, kT=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, Velocity=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bvapecComponent(kT, He, C, N, O, Ne, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, Velocity, norm, name, grad_method, eps)])
-    
+
 
 class bvrneiOp(XspecNumericGradOp):
     modname = 'bvrnei'
@@ -457,11 +457,11 @@ class bvrneiComponent(SpectralComponent):
     def __init__(self, kT, kT_init, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, Redshift, Velocity, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bvrnei(SpectralModel):
     def __init__(self, kT=None, kT_init=None, H=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Tau=None, Redshift=None, Velocity=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bvrneiComponent(kT, kT_init, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, Redshift, Velocity, norm, name, grad_method, eps)])
-    
+
 
 class bvtapecOp(XspecNumericGradOp):
     modname = 'bvtapec'
@@ -474,11 +474,11 @@ class bvtapecComponent(SpectralComponent):
     def __init__(self, kT, kTi, He, C, N, O, Ne, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, Velocity, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bvtapec(SpectralModel):
     def __init__(self, kT=None, kTi=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, Velocity=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bvtapecComponent(kT, kTi, He, C, N, O, Ne, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, Velocity, norm, name, grad_method, eps)])
-    
+
 
 class bvvapecOp(XspecNumericGradOp):
     modname = 'bvvapec'
@@ -491,11 +491,11 @@ class bvvapecComponent(SpectralComponent):
     def __init__(self, kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, Velocity, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bvvapec(SpectralModel):
     def __init__(self, kT=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Redshift=None, Velocity=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bvvapecComponent(kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, Velocity, norm, name, grad_method, eps)])
-    
+
 
 class bvvrneiOp(XspecNumericGradOp):
     modname = 'bvvrnei'
@@ -508,11 +508,11 @@ class bvvrneiComponent(SpectralComponent):
     def __init__(self, kT, kT_init, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, Redshift, Velocity, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bvvrnei(SpectralModel):
     def __init__(self, kT=None, kT_init=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Tau=None, Redshift=None, Velocity=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bvvrneiComponent(kT, kT_init, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, Redshift, Velocity, norm, name, grad_method, eps)])
-    
+
 
 class bvvtapecOp(XspecNumericGradOp):
     modname = 'bvvtapec'
@@ -525,11 +525,11 @@ class bvvtapecComponent(SpectralComponent):
     def __init__(self, kT, kTi, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, Velocity, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bvvtapec(SpectralModel):
     def __init__(self, kT=None, kTi=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Redshift=None, Velocity=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bvvtapecComponent(kT, kTi, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, Velocity, norm, name, grad_method, eps)])
-    
+
 
 class bwcyclOp(XspecNumericGradOp):
     modname = 'bwcycl'
@@ -542,11 +542,11 @@ class bwcyclComponent(SpectralComponent):
     def __init__(self, Radius, Mass, csi, delta, B, Mdot, Te, r0, D, BBnorm, CYCnorm, FFnorm, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class bwcycl(SpectralModel):
     def __init__(self, Radius=None, Mass=None, csi=None, delta=None, B=None, Mdot=None, Te=None, r0=None, D=None, BBnorm=None, CYCnorm=None, FFnorm=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([bwcyclComponent(Radius, Mass, csi, delta, B, Mdot, Te, r0, D, BBnorm, CYCnorm, FFnorm, norm, name, grad_method, eps)])
-    
+
 
 class c6meklOp(XspecNumericGradOp):
     modname = 'c6mekl'
@@ -559,11 +559,11 @@ class c6meklComponent(SpectralComponent):
     def __init__(self, CPcoef1, CPcoef2, CPcoef3, CPcoef4, CPcoef5, CPcoef6, nH, abundanc, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class c6mekl(SpectralModel):
     def __init__(self, CPcoef1=None, CPcoef2=None, CPcoef3=None, CPcoef4=None, CPcoef5=None, CPcoef6=None, nH=None, abundanc=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([c6meklComponent(CPcoef1, CPcoef2, CPcoef3, CPcoef4, CPcoef5, CPcoef6, nH, abundanc, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class c6pmeklOp(XspecNumericGradOp):
     modname = 'c6pmekl'
@@ -576,11 +576,11 @@ class c6pmeklComponent(SpectralComponent):
     def __init__(self, CPcoef1, CPcoef2, CPcoef3, CPcoef4, CPcoef5, CPcoef6, nH, abundanc, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class c6pmekl(SpectralModel):
     def __init__(self, CPcoef1=None, CPcoef2=None, CPcoef3=None, CPcoef4=None, CPcoef5=None, CPcoef6=None, nH=None, abundanc=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([c6pmeklComponent(CPcoef1, CPcoef2, CPcoef3, CPcoef4, CPcoef5, CPcoef6, nH, abundanc, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class c6pvmklOp(XspecNumericGradOp):
     modname = 'c6pvmkl'
@@ -593,11 +593,11 @@ class c6pvmklComponent(SpectralComponent):
     def __init__(self, CPcoef1, CPcoef2, CPcoef3, CPcoef4, CPcoef5, CPcoef6, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class c6pvmkl(SpectralModel):
     def __init__(self, CPcoef1=None, CPcoef2=None, CPcoef3=None, CPcoef4=None, CPcoef5=None, CPcoef6=None, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([c6pvmklComponent(CPcoef1, CPcoef2, CPcoef3, CPcoef4, CPcoef5, CPcoef6, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class c6vmeklOp(XspecNumericGradOp):
     modname = 'c6vmekl'
@@ -610,11 +610,11 @@ class c6vmeklComponent(SpectralComponent):
     def __init__(self, CPcoef1, CPcoef2, CPcoef3, CPcoef4, CPcoef5, CPcoef6, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class c6vmekl(SpectralModel):
     def __init__(self, CPcoef1=None, CPcoef2=None, CPcoef3=None, CPcoef4=None, CPcoef5=None, CPcoef6=None, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([c6vmeklComponent(CPcoef1, CPcoef2, CPcoef3, CPcoef4, CPcoef5, CPcoef6, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class cabsOp(XspecNumericGradOp):
     modname = 'cabs'
@@ -627,11 +627,11 @@ class cabsComponent(SpectralComponent):
     def __init__(self, nH, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cabs(SpectralModel):
     def __init__(self, nH=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cabsComponent(nH, name, grad_method, eps)])
-    
+
 
 class carbatmOp(XspecNumericGradOp):
     modname = 'carbatm'
@@ -644,11 +644,11 @@ class carbatmComponent(SpectralComponent):
     def __init__(self, T, NSmass, NSrad, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class carbatm(SpectralModel):
     def __init__(self, T=None, NSmass=None, NSrad=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([carbatmComponent(T, NSmass, NSrad, norm, name, grad_method, eps)])
-    
+
 
 class cemeklOp(XspecNumericGradOp):
     modname = 'cemekl'
@@ -661,11 +661,11 @@ class cemeklComponent(SpectralComponent):
     def __init__(self, alpha, Tmax, nH, abundanc, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cemekl(SpectralModel):
     def __init__(self, alpha=None, Tmax=None, nH=None, abundanc=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cemeklComponent(alpha, Tmax, nH, abundanc, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class cevmklOp(XspecNumericGradOp):
     modname = 'cevmkl'
@@ -678,11 +678,11 @@ class cevmklComponent(SpectralComponent):
     def __init__(self, alpha, Tmax, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cevmkl(SpectralModel):
     def __init__(self, alpha=None, Tmax=None, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cevmklComponent(alpha, Tmax, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class cflowOp(XspecNumericGradOp):
     modname = 'cflow'
@@ -695,11 +695,11 @@ class cflowComponent(SpectralComponent):
     def __init__(self, slope, lowT, highT, Abundanc, redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cflow(SpectralModel):
     def __init__(self, slope=None, lowT=None, highT=None, Abundanc=None, redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cflowComponent(slope, lowT, highT, Abundanc, redshift, norm, name, grad_method, eps)])
-    
+
 
 class cfluxOp(XspecNumericGradOp):
     modname = 'cflux'
@@ -712,11 +712,11 @@ class cfluxComponent(SpectralComponent):
     def __init__(self, Emin, Emax, lg10Flux, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cflux(SpectralModel):
     def __init__(self, Emin=None, Emax=None, lg10Flux=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cfluxComponent(Emin, Emax, lg10Flux, name, grad_method, eps)])
-    
+
 
 class cgluminOp(XspecNumericGradOp):
     modname = 'cglumin'
@@ -729,11 +729,11 @@ class cgluminComponent(SpectralComponent):
     def __init__(self, Emin, Emax, Distance, lg10Lum, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cglumin(SpectralModel):
     def __init__(self, Emin=None, Emax=None, Distance=None, lg10Lum=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cgluminComponent(Emin, Emax, Distance, lg10Lum, name, grad_method, eps)])
-    
+
 
 class cluminOp(XspecNumericGradOp):
     modname = 'clumin'
@@ -746,11 +746,11 @@ class cluminComponent(SpectralComponent):
     def __init__(self, Emin, Emax, Redshift, lg10Lum, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class clumin(SpectralModel):
     def __init__(self, Emin=None, Emax=None, Redshift=None, lg10Lum=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cluminComponent(Emin, Emax, Redshift, lg10Lum, name, grad_method, eps)])
-    
+
 
 class compLSOp(XspecNumericGradOp):
     modname = 'compLS'
@@ -763,11 +763,11 @@ class compLSComponent(SpectralComponent):
     def __init__(self, kT, tau, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class compLS(SpectralModel):
     def __init__(self, kT=None, tau=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([compLSComponent(kT, tau, norm, name, grad_method, eps)])
-    
+
 
 class compPSOp(XspecNumericGradOp):
     modname = 'compPS'
@@ -780,11 +780,11 @@ class compPSComponent(SpectralComponent):
     def __init__(self, kTe, EleIndex, Gmin, Gmax, kTbb, tau_y, geom, HovR_cyl, cosIncl, cov_frac, rel_refl, Fe_ab_re, Me_ab, xi, Tdisk, Betor10, Rin, Rout, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class compPS(SpectralModel):
     def __init__(self, kTe=None, EleIndex=None, Gmin=None, Gmax=None, kTbb=None, tau_y=None, geom=None, HovR_cyl=None, cosIncl=None, cov_frac=None, rel_refl=None, Fe_ab_re=None, Me_ab=None, xi=None, Tdisk=None, Betor10=None, Rin=None, Rout=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([compPSComponent(kTe, EleIndex, Gmin, Gmax, kTbb, tau_y, geom, HovR_cyl, cosIncl, cov_frac, rel_refl, Fe_ab_re, Me_ab, xi, Tdisk, Betor10, Rin, Rout, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class compSTOp(XspecNumericGradOp):
     modname = 'compST'
@@ -797,11 +797,11 @@ class compSTComponent(SpectralComponent):
     def __init__(self, kT, tau, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class compST(SpectralModel):
     def __init__(self, kT=None, tau=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([compSTComponent(kT, tau, norm, name, grad_method, eps)])
-    
+
 
 class compTTOp(XspecNumericGradOp):
     modname = 'compTT'
@@ -814,11 +814,11 @@ class compTTComponent(SpectralComponent):
     def __init__(self, Redshift, T0, kT, taup, approx, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class compTT(SpectralModel):
     def __init__(self, Redshift=None, T0=None, kT=None, taup=None, approx=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([compTTComponent(Redshift, T0, kT, taup, approx, norm, name, grad_method, eps)])
-    
+
 
 class compbbOp(XspecNumericGradOp):
     modname = 'compbb'
@@ -831,11 +831,11 @@ class compbbComponent(SpectralComponent):
     def __init__(self, kT, kTe, tau, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class compbb(SpectralModel):
     def __init__(self, kT=None, kTe=None, tau=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([compbbComponent(kT, kTe, tau, norm, name, grad_method, eps)])
-    
+
 
 class compmagOp(XspecNumericGradOp):
     modname = 'compmag'
@@ -848,11 +848,11 @@ class compmagComponent(SpectralComponent):
     def __init__(self, kTbb, kTe, tau, eta, beta0, r0, A, betaflag, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class compmag(SpectralModel):
     def __init__(self, kTbb=None, kTe=None, tau=None, eta=None, beta0=None, r0=None, A=None, betaflag=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([compmagComponent(kTbb, kTe, tau, eta, beta0, r0, A, betaflag, norm, name, grad_method, eps)])
-    
+
 
 class comptbOp(XspecNumericGradOp):
     modname = 'comptb'
@@ -865,11 +865,11 @@ class comptbComponent(SpectralComponent):
     def __init__(self, kTs, gamma, alpha, delta, kTe, log_A, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class comptb(SpectralModel):
     def __init__(self, kTs=None, gamma=None, alpha=None, delta=None, kTe=None, log_A=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([comptbComponent(kTs, gamma, alpha, delta, kTe, log_A, norm, name, grad_method, eps)])
-    
+
 
 class compthOp(XspecNumericGradOp):
     modname = 'compth'
@@ -882,11 +882,11 @@ class compthComponent(SpectralComponent):
     def __init__(self, theta, showbb, kT_bb, RefOn, tau_p, radius, g_min, g_max, G_inj, pairinj, cosIncl, Refl, Fe_abund, Ab_met, T_disk, xi, Beta, Rin, Rout, redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class compth(SpectralModel):
     def __init__(self, theta=None, showbb=None, kT_bb=None, RefOn=None, tau_p=None, radius=None, g_min=None, g_max=None, G_inj=None, pairinj=None, cosIncl=None, Refl=None, Fe_abund=None, Ab_met=None, T_disk=None, xi=None, Beta=None, Rin=None, Rout=None, redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([compthComponent(theta, showbb, kT_bb, RefOn, tau_p, radius, g_min, g_max, G_inj, pairinj, cosIncl, Refl, Fe_abund, Ab_met, T_disk, xi, Beta, Rin, Rout, redshift, norm, name, grad_method, eps)])
-    
+
 
 class constantOp(XspecNumericGradOp):
     modname = 'constant'
@@ -899,11 +899,11 @@ class constantComponent(SpectralComponent):
     def __init__(self, factor, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class constant(SpectralModel):
     def __init__(self, factor=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([constantComponent(factor, name, grad_method, eps)])
-    
+
 
 class cpfluxOp(XspecNumericGradOp):
     modname = 'cpflux'
@@ -916,11 +916,11 @@ class cpfluxComponent(SpectralComponent):
     def __init__(self, Emin, Emax, Flux, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cpflux(SpectralModel):
     def __init__(self, Emin=None, Emax=None, Flux=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cpfluxComponent(Emin, Emax, Flux, name, grad_method, eps)])
-    
+
 
 class cphOp(XspecNumericGradOp):
     modname = 'cph'
@@ -933,11 +933,11 @@ class cphComponent(SpectralComponent):
     def __init__(self, peakT, Abund, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cph(SpectralModel):
     def __init__(self, peakT=None, Abund=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cphComponent(peakT, Abund, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class cplinearOp(XspecNumericGradOp):
     modname = 'cplinear'
@@ -950,11 +950,11 @@ class cplinearComponent(SpectralComponent):
     def __init__(self, energy00, energy01, energy02, energy03, energy04, energy05, energy06, energy07, energy08, energy09, log_rate00, log_rate01, log_rate02, log_rate03, log_rate04, log_rate05, log_rate06, log_rate07, log_rate08, log_rate09, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cplinear(SpectralModel):
     def __init__(self, energy00=None, energy01=None, energy02=None, energy03=None, energy04=None, energy05=None, energy06=None, energy07=None, energy08=None, energy09=None, log_rate00=None, log_rate01=None, log_rate02=None, log_rate03=None, log_rate04=None, log_rate05=None, log_rate06=None, log_rate07=None, log_rate08=None, log_rate09=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cplinearComponent(energy00, energy01, energy02, energy03, energy04, energy05, energy06, energy07, energy08, energy09, log_rate00, log_rate01, log_rate02, log_rate03, log_rate04, log_rate05, log_rate06, log_rate07, log_rate08, log_rate09, norm, name, grad_method, eps)])
-    
+
 
 class cutoffplOp(XspecNumericGradOp):
     modname = 'cutoffpl'
@@ -967,11 +967,11 @@ class cutoffplComponent(SpectralComponent):
     def __init__(self, PhoIndex, HighECut, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cutoffpl(SpectralModel):
     def __init__(self, PhoIndex=None, HighECut=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cutoffplComponent(PhoIndex, HighECut, norm, name, grad_method, eps)])
-    
+
 
 class cyclabsOp(XspecNumericGradOp):
     modname = 'cyclabs'
@@ -984,11 +984,11 @@ class cyclabsComponent(SpectralComponent):
     def __init__(self, Depth0, E0, Width0, Depth2, Width2, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class cyclabs(SpectralModel):
     def __init__(self, Depth0=None, E0=None, Width0=None, Depth2=None, Width2=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([cyclabsComponent(Depth0, E0, Width0, Depth2, Width2, name, grad_method, eps)])
-    
+
 
 class diskOp(XspecNumericGradOp):
     modname = 'disk'
@@ -1001,11 +1001,11 @@ class diskComponent(SpectralComponent):
     def __init__(self, accrate, CenMass, Rinn, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class disk(SpectralModel):
     def __init__(self, accrate=None, CenMass=None, Rinn=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([diskComponent(accrate, CenMass, Rinn, norm, name, grad_method, eps)])
-    
+
 
 class diskbbOp(XspecNumericGradOp):
     modname = 'diskbb'
@@ -1018,11 +1018,11 @@ class diskbbComponent(SpectralComponent):
     def __init__(self, Tin, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class diskbb(SpectralModel):
     def __init__(self, Tin=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([diskbbComponent(Tin, norm, name, grad_method, eps)])
-    
+
 
 class diskirOp(XspecNumericGradOp):
     modname = 'diskir'
@@ -1035,11 +1035,11 @@ class diskirComponent(SpectralComponent):
     def __init__(self, kT_disk, Gamma, kT_e, LcovrLd, fin, rirr, fout, logrout, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class diskir(SpectralModel):
     def __init__(self, kT_disk=None, Gamma=None, kT_e=None, LcovrLd=None, fin=None, rirr=None, fout=None, logrout=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([diskirComponent(kT_disk, Gamma, kT_e, LcovrLd, fin, rirr, fout, logrout, norm, name, grad_method, eps)])
-    
+
 
 class disklineOp(XspecNumericGradOp):
     modname = 'diskline'
@@ -1052,11 +1052,11 @@ class disklineComponent(SpectralComponent):
     def __init__(self, LineE, Betor10, Rin_M, Rout_M, Incl, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class diskline(SpectralModel):
     def __init__(self, LineE=None, Betor10=None, Rin_M=None, Rout_M=None, Incl=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([disklineComponent(LineE, Betor10, Rin_M, Rout_M, Incl, norm, name, grad_method, eps)])
-    
+
 
 class diskmOp(XspecNumericGradOp):
     modname = 'diskm'
@@ -1069,11 +1069,11 @@ class diskmComponent(SpectralComponent):
     def __init__(self, accrate, NSmass, Rinn, alpha, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class diskm(SpectralModel):
     def __init__(self, accrate=None, NSmass=None, Rinn=None, alpha=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([diskmComponent(accrate, NSmass, Rinn, alpha, norm, name, grad_method, eps)])
-    
+
 
 class diskoOp(XspecNumericGradOp):
     modname = 'disko'
@@ -1086,11 +1086,11 @@ class diskoComponent(SpectralComponent):
     def __init__(self, accrate, NSmass, Rinn, alpha, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class disko(SpectralModel):
     def __init__(self, accrate=None, NSmass=None, Rinn=None, alpha=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([diskoComponent(accrate, NSmass, Rinn, alpha, norm, name, grad_method, eps)])
-    
+
 
 class diskpbbOp(XspecNumericGradOp):
     modname = 'diskpbb'
@@ -1103,11 +1103,11 @@ class diskpbbComponent(SpectralComponent):
     def __init__(self, Tin, p, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class diskpbb(SpectralModel):
     def __init__(self, Tin=None, p=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([diskpbbComponent(Tin, p, norm, name, grad_method, eps)])
-    
+
 
 class diskpnOp(XspecNumericGradOp):
     modname = 'diskpn'
@@ -1120,11 +1120,11 @@ class diskpnComponent(SpectralComponent):
     def __init__(self, T_max, R_in, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class diskpn(SpectralModel):
     def __init__(self, T_max=None, R_in=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([diskpnComponent(T_max, R_in, norm, name, grad_method, eps)])
-    
+
 
 class dustOp(XspecNumericGradOp):
     modname = 'dust'
@@ -1137,11 +1137,11 @@ class dustComponent(SpectralComponent):
     def __init__(self, Frac, Halosz, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class dust(SpectralModel):
     def __init__(self, Frac=None, Halosz=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([dustComponent(Frac, Halosz, name, grad_method, eps)])
-    
+
 
 class edgeOp(XspecNumericGradOp):
     modname = 'edge'
@@ -1154,11 +1154,11 @@ class edgeComponent(SpectralComponent):
     def __init__(self, edgeE, MaxTau, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class edge(SpectralModel):
     def __init__(self, edgeE=None, MaxTau=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([edgeComponent(edgeE, MaxTau, name, grad_method, eps)])
-    
+
 
 class eplogparOp(XspecNumericGradOp):
     modname = 'eplogpar'
@@ -1171,11 +1171,11 @@ class eplogparComponent(SpectralComponent):
     def __init__(self, Ep, beta, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class eplogpar(SpectralModel):
     def __init__(self, Ep=None, beta=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([eplogparComponent(Ep, beta, norm, name, grad_method, eps)])
-    
+
 
 class eqpairOp(XspecNumericGradOp):
     modname = 'eqpair'
@@ -1188,11 +1188,11 @@ class eqpairComponent(SpectralComponent):
     def __init__(self, l_hovl_s, l_bb, kT_bb, l_ntol_h, tau_p, radius, g_min, g_max, G_inj, pairinj, cosIncl, Refl, Fe_abund, Ab_met, T_disk, xi, Beta, Rin, Rout, redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class eqpair(SpectralModel):
     def __init__(self, l_hovl_s=None, l_bb=None, kT_bb=None, l_ntol_h=None, tau_p=None, radius=None, g_min=None, g_max=None, G_inj=None, pairinj=None, cosIncl=None, Refl=None, Fe_abund=None, Ab_met=None, T_disk=None, xi=None, Beta=None, Rin=None, Rout=None, redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([eqpairComponent(l_hovl_s, l_bb, kT_bb, l_ntol_h, tau_p, radius, g_min, g_max, G_inj, pairinj, cosIncl, Refl, Fe_abund, Ab_met, T_disk, xi, Beta, Rin, Rout, redshift, norm, name, grad_method, eps)])
-    
+
 
 class eqthermOp(XspecNumericGradOp):
     modname = 'eqtherm'
@@ -1205,11 +1205,11 @@ class eqthermComponent(SpectralComponent):
     def __init__(self, l_hovl_s, l_bb, kT_bb, l_ntol_h, tau_p, radius, g_min, g_max, G_inj, pairinj, cosIncl, Refl, Fe_abund, Ab_met, T_disk, xi, Beta, Rin, Rout, redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class eqtherm(SpectralModel):
     def __init__(self, l_hovl_s=None, l_bb=None, kT_bb=None, l_ntol_h=None, tau_p=None, radius=None, g_min=None, g_max=None, G_inj=None, pairinj=None, cosIncl=None, Refl=None, Fe_abund=None, Ab_met=None, T_disk=None, xi=None, Beta=None, Rin=None, Rout=None, redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([eqthermComponent(l_hovl_s, l_bb, kT_bb, l_ntol_h, tau_p, radius, g_min, g_max, G_inj, pairinj, cosIncl, Refl, Fe_abund, Ab_met, T_disk, xi, Beta, Rin, Rout, redshift, norm, name, grad_method, eps)])
-    
+
 
 class equilOp(XspecNumericGradOp):
     modname = 'equil'
@@ -1222,11 +1222,11 @@ class equilComponent(SpectralComponent):
     def __init__(self, kT, Abundanc, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class equil(SpectralModel):
     def __init__(self, kT=None, Abundanc=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([equilComponent(kT, Abundanc, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class expabsOp(XspecNumericGradOp):
     modname = 'expabs'
@@ -1239,11 +1239,11 @@ class expabsComponent(SpectralComponent):
     def __init__(self, LowECut, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class expabs(SpectralModel):
     def __init__(self, LowECut=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([expabsComponent(LowECut, name, grad_method, eps)])
-    
+
 
 class expdecOp(XspecNumericGradOp):
     modname = 'expdec'
@@ -1256,11 +1256,11 @@ class expdecComponent(SpectralComponent):
     def __init__(self, factor, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class expdec(SpectralModel):
     def __init__(self, factor=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([expdecComponent(factor, norm, name, grad_method, eps)])
-    
+
 
 class expfacOp(XspecNumericGradOp):
     modname = 'expfac'
@@ -1273,11 +1273,11 @@ class expfacComponent(SpectralComponent):
     def __init__(self, Ampl, Factor, StartE, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class expfac(SpectralModel):
     def __init__(self, Ampl=None, Factor=None, StartE=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([expfacComponent(Ampl, Factor, StartE, name, grad_method, eps)])
-    
+
 
 class ezdiskbbOp(XspecNumericGradOp):
     modname = 'ezdiskbb'
@@ -1290,11 +1290,11 @@ class ezdiskbbComponent(SpectralComponent):
     def __init__(self, T_max, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class ezdiskbb(SpectralModel):
     def __init__(self, T_max=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([ezdiskbbComponent(T_max, norm, name, grad_method, eps)])
-    
+
 
 class gabsOp(XspecNumericGradOp):
     modname = 'gabs'
@@ -1307,11 +1307,11 @@ class gabsComponent(SpectralComponent):
     def __init__(self, LineE, Sigma, Strength, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class gabs(SpectralModel):
     def __init__(self, LineE=None, Sigma=None, Strength=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([gabsComponent(LineE, Sigma, Strength, name, grad_method, eps)])
-    
+
 
 class gademOp(XspecNumericGradOp):
     modname = 'gadem'
@@ -1324,11 +1324,11 @@ class gademComponent(SpectralComponent):
     def __init__(self, Tmean, Tsigma, nH, abundanc, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class gadem(SpectralModel):
     def __init__(self, Tmean=None, Tsigma=None, nH=None, abundanc=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([gademComponent(Tmean, Tsigma, nH, abundanc, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class gaussianOp(XspecNumericGradOp):
     modname = 'gaussian'
@@ -1341,11 +1341,11 @@ class gaussianComponent(SpectralComponent):
     def __init__(self, LineE, Sigma, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class gaussian(SpectralModel):
     def __init__(self, LineE=None, Sigma=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([gaussianComponent(LineE, Sigma, norm, name, grad_method, eps)])
-    
+
 
 class gneiOp(XspecNumericGradOp):
     modname = 'gnei'
@@ -1358,11 +1358,11 @@ class gneiComponent(SpectralComponent):
     def __init__(self, kT, Abundanc, Tau, meankT, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class gnei(SpectralModel):
     def __init__(self, kT=None, Abundanc=None, Tau=None, meankT=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([gneiComponent(kT, Abundanc, Tau, meankT, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class gradOp(XspecNumericGradOp):
     modname = 'grad'
@@ -1375,11 +1375,11 @@ class gradComponent(SpectralComponent):
     def __init__(self, D, i, Mass, Mdot, TclovTef, refflag, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class grad(SpectralModel):
     def __init__(self, D=None, i=None, Mass=None, Mdot=None, TclovTef=None, refflag=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([gradComponent(D, i, Mass, Mdot, TclovTef, refflag, norm, name, grad_method, eps)])
-    
+
 
 class grbcompOp(XspecNumericGradOp):
     modname = 'grbcomp'
@@ -1392,11 +1392,11 @@ class grbcompComponent(SpectralComponent):
     def __init__(self, kTs, gamma, kTe, tau, beta, fbflag, log_A, z, a_boost, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class grbcomp(SpectralModel):
     def __init__(self, kTs=None, gamma=None, kTe=None, tau=None, beta=None, fbflag=None, log_A=None, z=None, a_boost=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([grbcompComponent(kTs, gamma, kTe, tau, beta, fbflag, log_A, z, a_boost, norm, name, grad_method, eps)])
-    
+
 
 class grbjetOp(XspecNumericGradOp):
     modname = 'grbjet'
@@ -1409,11 +1409,11 @@ class grbjetComponent(SpectralComponent):
     def __init__(self, thobs, thjet, gamma, r12, p1, p2, E0, delta, index_pl, ecut, ktbb, model, redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class grbjet(SpectralModel):
     def __init__(self, thobs=None, thjet=None, gamma=None, r12=None, p1=None, p2=None, E0=None, delta=None, index_pl=None, ecut=None, ktbb=None, model=None, redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([grbjetComponent(thobs, thjet, gamma, r12, p1, p2, E0, delta, index_pl, ecut, ktbb, model, redshift, norm, name, grad_method, eps)])
-    
+
 
 class grbmOp(XspecNumericGradOp):
     modname = 'grbm'
@@ -1426,11 +1426,11 @@ class grbmComponent(SpectralComponent):
     def __init__(self, alpha, beta, tem, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class grbm(SpectralModel):
     def __init__(self, alpha=None, beta=None, tem=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([grbmComponent(alpha, beta, tem, norm, name, grad_method, eps)])
-    
+
 
 class gsmoothOp(XspecNumericGradOp):
     modname = 'gsmooth'
@@ -1443,11 +1443,11 @@ class gsmoothComponent(SpectralComponent):
     def __init__(self, Sig_6keV, Index, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class gsmooth(SpectralModel):
     def __init__(self, Sig_6keV=None, Index=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([gsmoothComponent(Sig_6keV, Index, name, grad_method, eps)])
-    
+
 
 class hatmOp(XspecNumericGradOp):
     modname = 'hatm'
@@ -1460,11 +1460,11 @@ class hatmComponent(SpectralComponent):
     def __init__(self, T, NSmass, NSrad, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class hatm(SpectralModel):
     def __init__(self, T=None, NSmass=None, NSrad=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([hatmComponent(T, NSmass, NSrad, norm, name, grad_method, eps)])
-    
+
 
 class heilinOp(XspecNumericGradOp):
     modname = 'heilin'
@@ -1477,11 +1477,11 @@ class heilinComponent(SpectralComponent):
     def __init__(self, nHeI, b, z, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class heilin(SpectralModel):
     def __init__(self, nHeI=None, b=None, z=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([heilinComponent(nHeI, b, z, name, grad_method, eps)])
-    
+
 
 class highecutOp(XspecNumericGradOp):
     modname = 'highecut'
@@ -1494,11 +1494,11 @@ class highecutComponent(SpectralComponent):
     def __init__(self, cutoffE, foldE, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class highecut(SpectralModel):
     def __init__(self, cutoffE=None, foldE=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([highecutComponent(cutoffE, foldE, name, grad_method, eps)])
-    
+
 
 class hreflOp(XspecNumericGradOp):
     modname = 'hrefl'
@@ -1511,11 +1511,11 @@ class hreflComponent(SpectralComponent):
     def __init__(self, thetamin, thetamax, thetaobs, Feabun, FeKedge, Escfrac, covfac, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class hrefl(SpectralModel):
     def __init__(self, thetamin=None, thetamax=None, thetaobs=None, Feabun=None, FeKedge=None, Escfrac=None, covfac=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([hreflComponent(thetamin, thetamax, thetaobs, Feabun, FeKedge, Escfrac, covfac, Redshift, name, grad_method, eps)])
-    
+
 
 class ireflectOp(XspecNumericGradOp):
     modname = 'ireflect'
@@ -1528,11 +1528,11 @@ class ireflectComponent(SpectralComponent):
     def __init__(self, rel_refl, Redshift, abund, Fe_abund, cosIncl, T_disk, xi, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class ireflect(SpectralModel):
     def __init__(self, rel_refl=None, Redshift=None, abund=None, Fe_abund=None, cosIncl=None, T_disk=None, xi=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([ireflectComponent(rel_refl, Redshift, abund, Fe_abund, cosIncl, T_disk, xi, name, grad_method, eps)])
-    
+
 
 class ismabsOp(XspecNumericGradOp):
     modname = 'ismabs'
@@ -1545,11 +1545,11 @@ class ismabsComponent(SpectralComponent):
     def __init__(self, H, He_II, C_I, C_II, C_III, N_I, N_II, N_III, O_I, O_II, O_III, Ne_I, Ne_II, Ne_III, Mg_I, Mg_II, Mg_III, Si_I, Si_II, Si_III, S_I, S_II, S_III, Ar_I, Ar_II, Ar_III, Ca_I, Ca_II, Ca_III, Fe, redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class ismabs(SpectralModel):
     def __init__(self, H=None, He_II=None, C_I=None, C_II=None, C_III=None, N_I=None, N_II=None, N_III=None, O_I=None, O_II=None, O_III=None, Ne_I=None, Ne_II=None, Ne_III=None, Mg_I=None, Mg_II=None, Mg_III=None, Si_I=None, Si_II=None, Si_III=None, S_I=None, S_II=None, S_III=None, Ar_I=None, Ar_II=None, Ar_III=None, Ca_I=None, Ca_II=None, Ca_III=None, Fe=None, redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([ismabsComponent(H, He_II, C_I, C_II, C_III, N_I, N_II, N_III, O_I, O_II, O_III, Ne_I, Ne_II, Ne_III, Mg_I, Mg_II, Mg_III, Si_I, Si_II, Si_III, S_I, S_II, S_III, Ar_I, Ar_II, Ar_III, Ca_I, Ca_II, Ca_III, Fe, redshift, name, grad_method, eps)])
-    
+
 
 class ismdustOp(XspecNumericGradOp):
     modname = 'ismdust'
@@ -1562,11 +1562,11 @@ class ismdustComponent(SpectralComponent):
     def __init__(self, msil, mgra, redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class ismdust(SpectralModel):
     def __init__(self, msil=None, mgra=None, redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([ismdustComponent(msil, mgra, redshift, name, grad_method, eps)])
-    
+
 
 class jetOp(XspecNumericGradOp):
     modname = 'jet'
@@ -1579,11 +1579,11 @@ class jetComponent(SpectralComponent):
     def __init__(self, mass, Dco, log_mdot, thetaobs, BulkG, phi, zdiss, B, logPrel, gmin_inj, gbreak, gmax, s1, s2, z, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class jet(SpectralModel):
     def __init__(self, mass=None, Dco=None, log_mdot=None, thetaobs=None, BulkG=None, phi=None, zdiss=None, B=None, logPrel=None, gmin_inj=None, gbreak=None, gmax=None, s1=None, s2=None, z=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([jetComponent(mass, Dco, log_mdot, thetaobs, BulkG, phi, zdiss, B, logPrel, gmin_inj, gbreak, gmax, s1, s2, z, norm, name, grad_method, eps)])
-    
+
 
 class kdblurOp(XspecNumericGradOp):
     modname = 'kdblur'
@@ -1596,11 +1596,11 @@ class kdblurComponent(SpectralComponent):
     def __init__(self, Index, Rin_G, Rout_G, Incl, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class kdblur(SpectralModel):
     def __init__(self, Index=None, Rin_G=None, Rout_G=None, Incl=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([kdblurComponent(Index, Rin_G, Rout_G, Incl, name, grad_method, eps)])
-    
+
 
 class kdblur2Op(XspecNumericGradOp):
     modname = 'kdblur2'
@@ -1613,11 +1613,11 @@ class kdblur2Component(SpectralComponent):
     def __init__(self, Index, Rin_G, Rout_G, Incl, Rbreak, Index1, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class kdblur2(SpectralModel):
     def __init__(self, Index=None, Rin_G=None, Rout_G=None, Incl=None, Rbreak=None, Index1=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([kdblur2Component(Index, Rin_G, Rout_G, Incl, Rbreak, Index1, name, grad_method, eps)])
-    
+
 
 class kerrbbOp(XspecNumericGradOp):
     modname = 'kerrbb'
@@ -1630,11 +1630,11 @@ class kerrbbComponent(SpectralComponent):
     def __init__(self, eta, a, i, Mbh, Mdd, Dbh, hd, rflag, lflag, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class kerrbb(SpectralModel):
     def __init__(self, eta=None, a=None, i=None, Mbh=None, Mdd=None, Dbh=None, hd=None, rflag=None, lflag=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([kerrbbComponent(eta, a, i, Mbh, Mdd, Dbh, hd, rflag, lflag, norm, name, grad_method, eps)])
-    
+
 
 class kerrconvOp(XspecNumericGradOp):
     modname = 'kerrconv'
@@ -1647,11 +1647,11 @@ class kerrconvComponent(SpectralComponent):
     def __init__(self, Index1, Index2, r_br_g, a, Incl, Rin_ms, Rout_ms, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class kerrconv(SpectralModel):
     def __init__(self, Index1=None, Index2=None, r_br_g=None, a=None, Incl=None, Rin_ms=None, Rout_ms=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([kerrconvComponent(Index1, Index2, r_br_g, a, Incl, Rin_ms, Rout_ms, name, grad_method, eps)])
-    
+
 
 class kerrdOp(XspecNumericGradOp):
     modname = 'kerrd'
@@ -1664,11 +1664,11 @@ class kerrdComponent(SpectralComponent):
     def __init__(self, distance, TcoloTeff, M, Mdot, Incl, Rin, Rout, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class kerrd(SpectralModel):
     def __init__(self, distance=None, TcoloTeff=None, M=None, Mdot=None, Incl=None, Rin=None, Rout=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([kerrdComponent(distance, TcoloTeff, M, Mdot, Incl, Rin, Rout, norm, name, grad_method, eps)])
-    
+
 
 class kerrdiskOp(XspecNumericGradOp):
     modname = 'kerrdisk'
@@ -1681,11 +1681,11 @@ class kerrdiskComponent(SpectralComponent):
     def __init__(self, lineE, Index1, Index2, r_br_g, a, Incl, Rin_ms, Rout_ms, z, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class kerrdisk(SpectralModel):
     def __init__(self, lineE=None, Index1=None, Index2=None, r_br_g=None, a=None, Incl=None, Rin_ms=None, Rout_ms=None, z=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([kerrdiskComponent(lineE, Index1, Index2, r_br_g, a, Incl, Rin_ms, Rout_ms, z, norm, name, grad_method, eps)])
-    
+
 
 class kyconvOp(XspecNumericGradOp):
     modname = 'kyconv'
@@ -1698,11 +1698,11 @@ class kyconvComponent(SpectralComponent):
     def __init__(self, a, theta_o, rin, ms, rout, alpha, beta, rb, zshift, limb, ne_loc, normal, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class kyconv(SpectralModel):
     def __init__(self, a=None, theta_o=None, rin=None, ms=None, rout=None, alpha=None, beta=None, rb=None, zshift=None, limb=None, ne_loc=None, normal=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([kyconvComponent(a, theta_o, rin, ms, rout, alpha, beta, rb, zshift, limb, ne_loc, normal, name, grad_method, eps)])
-    
+
 
 class kyrlineOp(XspecNumericGradOp):
     modname = 'kyrline'
@@ -1715,11 +1715,11 @@ class kyrlineComponent(SpectralComponent):
     def __init__(self, a, theta_o, rin, ms, rout, Erest, alpha, beta, rb, zshift, limb, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class kyrline(SpectralModel):
     def __init__(self, a=None, theta_o=None, rin=None, ms=None, rout=None, Erest=None, alpha=None, beta=None, rb=None, zshift=None, limb=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([kyrlineComponent(a, theta_o, rin, ms, rout, Erest, alpha, beta, rb, zshift, limb, norm, name, grad_method, eps)])
-    
+
 
 class laorOp(XspecNumericGradOp):
     modname = 'laor'
@@ -1732,11 +1732,11 @@ class laorComponent(SpectralComponent):
     def __init__(self, lineE, Index, Rin_G, Rout_G, Incl, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class laor(SpectralModel):
     def __init__(self, lineE=None, Index=None, Rin_G=None, Rout_G=None, Incl=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([laorComponent(lineE, Index, Rin_G, Rout_G, Incl, norm, name, grad_method, eps)])
-    
+
 
 class laor2Op(XspecNumericGradOp):
     modname = 'laor2'
@@ -1749,11 +1749,11 @@ class laor2Component(SpectralComponent):
     def __init__(self, lineE, Index, Rin_G, Rout_G, Incl, Rbreak, Index1, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class laor2(SpectralModel):
     def __init__(self, lineE=None, Index=None, Rin_G=None, Rout_G=None, Incl=None, Rbreak=None, Index1=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([laor2Component(lineE, Index, Rin_G, Rout_G, Incl, Rbreak, Index1, norm, name, grad_method, eps)])
-    
+
 
 class log10conOp(XspecNumericGradOp):
     modname = 'log10con'
@@ -1766,11 +1766,11 @@ class log10conComponent(SpectralComponent):
     def __init__(self, log10fac, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class log10con(SpectralModel):
     def __init__(self, log10fac=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([log10conComponent(log10fac, name, grad_method, eps)])
-    
+
 
 class logconstOp(XspecNumericGradOp):
     modname = 'logconst'
@@ -1783,11 +1783,11 @@ class logconstComponent(SpectralComponent):
     def __init__(self, logfact, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class logconst(SpectralModel):
     def __init__(self, logfact=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([logconstComponent(logfact, name, grad_method, eps)])
-    
+
 
 class logparOp(XspecNumericGradOp):
     modname = 'logpar'
@@ -1800,11 +1800,11 @@ class logparComponent(SpectralComponent):
     def __init__(self, alpha, beta, pivotE, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class logpar(SpectralModel):
     def __init__(self, alpha=None, beta=None, pivotE=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([logparComponent(alpha, beta, pivotE, norm, name, grad_method, eps)])
-    
+
 
 class lorentzOp(XspecNumericGradOp):
     modname = 'lorentz'
@@ -1817,11 +1817,11 @@ class lorentzComponent(SpectralComponent):
     def __init__(self, LineE, Width, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class lorentz(SpectralModel):
     def __init__(self, LineE=None, Width=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([lorentzComponent(LineE, Width, norm, name, grad_method, eps)])
-    
+
 
 class lsmoothOp(XspecNumericGradOp):
     modname = 'lsmooth'
@@ -1834,11 +1834,11 @@ class lsmoothComponent(SpectralComponent):
     def __init__(self, Sig_6keV, Index, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class lsmooth(SpectralModel):
     def __init__(self, Sig_6keV=None, Index=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([lsmoothComponent(Sig_6keV, Index, name, grad_method, eps)])
-    
+
 
 class lymanOp(XspecNumericGradOp):
     modname = 'lyman'
@@ -1851,11 +1851,11 @@ class lymanComponent(SpectralComponent):
     def __init__(self, n, b, z, ZA, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class lyman(SpectralModel):
     def __init__(self, n=None, b=None, z=None, ZA=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([lymanComponent(n, b, z, ZA, name, grad_method, eps)])
-    
+
 
 class mekaOp(XspecNumericGradOp):
     modname = 'meka'
@@ -1868,11 +1868,11 @@ class mekaComponent(SpectralComponent):
     def __init__(self, kT, nH, Abundanc, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class meka(SpectralModel):
     def __init__(self, kT=None, nH=None, Abundanc=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([mekaComponent(kT, nH, Abundanc, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class mekalOp(XspecNumericGradOp):
     modname = 'mekal'
@@ -1885,11 +1885,11 @@ class mekalComponent(SpectralComponent):
     def __init__(self, kT, nH, Abundanc, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class mekal(SpectralModel):
     def __init__(self, kT=None, nH=None, Abundanc=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([mekalComponent(kT, nH, Abundanc, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class mkcflowOp(XspecNumericGradOp):
     modname = 'mkcflow'
@@ -1902,11 +1902,11 @@ class mkcflowComponent(SpectralComponent):
     def __init__(self, lowT, highT, Abundanc, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class mkcflow(SpectralModel):
     def __init__(self, lowT=None, highT=None, Abundanc=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([mkcflowComponent(lowT, highT, Abundanc, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class neiOp(XspecNumericGradOp):
     modname = 'nei'
@@ -1919,11 +1919,11 @@ class neiComponent(SpectralComponent):
     def __init__(self, kT, Abundanc, Tau, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nei(SpectralModel):
     def __init__(self, kT=None, Abundanc=None, Tau=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([neiComponent(kT, Abundanc, Tau, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class nlapecOp(XspecNumericGradOp):
     modname = 'nlapec'
@@ -1936,11 +1936,11 @@ class nlapecComponent(SpectralComponent):
     def __init__(self, kT, Abundanc, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nlapec(SpectralModel):
     def __init__(self, kT=None, Abundanc=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([nlapecComponent(kT, Abundanc, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class notchOp(XspecNumericGradOp):
     modname = 'notch'
@@ -1953,11 +1953,11 @@ class notchComponent(SpectralComponent):
     def __init__(self, LineE, Width, CvrFract, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class notch(SpectralModel):
     def __init__(self, LineE=None, Width=None, CvrFract=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([notchComponent(LineE, Width, CvrFract, name, grad_method, eps)])
-    
+
 
 class npshockOp(XspecNumericGradOp):
     modname = 'npshock'
@@ -1970,11 +1970,11 @@ class npshockComponent(SpectralComponent):
     def __init__(self, kT_a, kT_b, Abundanc, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class npshock(SpectralModel):
     def __init__(self, kT_a=None, kT_b=None, Abundanc=None, Tau_l=None, Tau_u=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([npshockComponent(kT_a, kT_b, Abundanc, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class nsaOp(XspecNumericGradOp):
     modname = 'nsa'
@@ -1987,11 +1987,11 @@ class nsaComponent(SpectralComponent):
     def __init__(self, LogT_eff, M_ns, R_ns, MagField, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nsa(SpectralModel):
     def __init__(self, LogT_eff=None, M_ns=None, R_ns=None, MagField=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([nsaComponent(LogT_eff, M_ns, R_ns, MagField, norm, name, grad_method, eps)])
-    
+
 
 class nsagravOp(XspecNumericGradOp):
     modname = 'nsagrav'
@@ -2004,11 +2004,11 @@ class nsagravComponent(SpectralComponent):
     def __init__(self, LogT_eff, NSmass, NSrad, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nsagrav(SpectralModel):
     def __init__(self, LogT_eff=None, NSmass=None, NSrad=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([nsagravComponent(LogT_eff, NSmass, NSrad, norm, name, grad_method, eps)])
-    
+
 
 class nsatmosOp(XspecNumericGradOp):
     modname = 'nsatmos'
@@ -2021,11 +2021,11 @@ class nsatmosComponent(SpectralComponent):
     def __init__(self, LogT_eff, M_ns, R_ns, dist, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nsatmos(SpectralModel):
     def __init__(self, LogT_eff=None, M_ns=None, R_ns=None, dist=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([nsatmosComponent(LogT_eff, M_ns, R_ns, dist, norm, name, grad_method, eps)])
-    
+
 
 class nsmaxOp(XspecNumericGradOp):
     modname = 'nsmax'
@@ -2038,11 +2038,11 @@ class nsmaxComponent(SpectralComponent):
     def __init__(self, logTeff, redshift, specfile, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nsmax(SpectralModel):
     def __init__(self, logTeff=None, redshift=None, specfile=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([nsmaxComponent(logTeff, redshift, specfile, norm, name, grad_method, eps)])
-    
+
 
 class nsmaxgOp(XspecNumericGradOp):
     modname = 'nsmaxg'
@@ -2055,11 +2055,11 @@ class nsmaxgComponent(SpectralComponent):
     def __init__(self, logTeff, M_ns, R_ns, dist, specfile, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nsmaxg(SpectralModel):
     def __init__(self, logTeff=None, M_ns=None, R_ns=None, dist=None, specfile=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([nsmaxgComponent(logTeff, M_ns, R_ns, dist, specfile, norm, name, grad_method, eps)])
-    
+
 
 class nsxOp(XspecNumericGradOp):
     modname = 'nsx'
@@ -2072,11 +2072,11 @@ class nsxComponent(SpectralComponent):
     def __init__(self, logTeff, M_ns, R_ns, dist, specfile, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nsx(SpectralModel):
     def __init__(self, logTeff=None, M_ns=None, R_ns=None, dist=None, specfile=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([nsxComponent(logTeff, M_ns, R_ns, dist, specfile, norm, name, grad_method, eps)])
-    
+
 
 class nteeaOp(XspecNumericGradOp):
     modname = 'nteea'
@@ -2089,11 +2089,11 @@ class nteeaComponent(SpectralComponent):
     def __init__(self, l_nth, l_bb, f_refl, kT_bb, g_max, l_th, tau_p, G_inj, g_min, g_0, radius, pair_esc, cosIncl, Fe_abund, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nteea(SpectralModel):
     def __init__(self, l_nth=None, l_bb=None, f_refl=None, kT_bb=None, g_max=None, l_th=None, tau_p=None, G_inj=None, g_min=None, g_0=None, radius=None, pair_esc=None, cosIncl=None, Fe_abund=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([nteeaComponent(l_nth, l_bb, f_refl, kT_bb, g_max, l_th, tau_p, G_inj, g_min, g_0, radius, pair_esc, cosIncl, Fe_abund, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class nthCompOp(XspecNumericGradOp):
     modname = 'nthComp'
@@ -2106,11 +2106,11 @@ class nthCompComponent(SpectralComponent):
     def __init__(self, Gamma, kT_e, kT_bb, inp_type, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class nthComp(SpectralModel):
     def __init__(self, Gamma=None, kT_e=None, kT_bb=None, inp_type=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([nthCompComponent(Gamma, kT_e, kT_bb, inp_type, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class olivineabsOp(XspecNumericGradOp):
     modname = 'olivineabs'
@@ -2123,11 +2123,11 @@ class olivineabsComponent(SpectralComponent):
     def __init__(self, moliv, redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class olivineabs(SpectralModel):
     def __init__(self, moliv=None, redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([olivineabsComponent(moliv, redshift, name, grad_method, eps)])
-    
+
 
 class optxagnOp(XspecNumericGradOp):
     modname = 'optxagn'
@@ -2140,11 +2140,11 @@ class optxagnComponent(SpectralComponent):
     def __init__(self, mass, dist, logLoLEdd, astar, rcor, logrout, kT_e, tau, Gamma, fpl, fcol, tscat, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class optxagn(SpectralModel):
     def __init__(self, mass=None, dist=None, logLoLEdd=None, astar=None, rcor=None, logrout=None, kT_e=None, tau=None, Gamma=None, fpl=None, fcol=None, tscat=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([optxagnComponent(mass, dist, logLoLEdd, astar, rcor, logrout, kT_e, tau, Gamma, fpl, fcol, tscat, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class optxagnfOp(XspecNumericGradOp):
     modname = 'optxagnf'
@@ -2157,11 +2157,11 @@ class optxagnfComponent(SpectralComponent):
     def __init__(self, mass, dist, logLoLEdd, astar, rcor, logrout, kT_e, tau, Gamma, fpl, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class optxagnf(SpectralModel):
     def __init__(self, mass=None, dist=None, logLoLEdd=None, astar=None, rcor=None, logrout=None, kT_e=None, tau=None, Gamma=None, fpl=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([optxagnfComponent(mass, dist, logLoLEdd, astar, rcor, logrout, kT_e, tau, Gamma, fpl, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class partcovOp(XspecNumericGradOp):
     modname = 'partcov'
@@ -2174,11 +2174,11 @@ class partcovComponent(SpectralComponent):
     def __init__(self, CvrFract, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class partcov(SpectralModel):
     def __init__(self, CvrFract=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([partcovComponent(CvrFract, name, grad_method, eps)])
-    
+
 
 class pcfabsOp(XspecNumericGradOp):
     modname = 'pcfabs'
@@ -2191,11 +2191,11 @@ class pcfabsComponent(SpectralComponent):
     def __init__(self, nH, CvrFract, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class pcfabs(SpectralModel):
     def __init__(self, nH=None, CvrFract=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([pcfabsComponent(nH, CvrFract, name, grad_method, eps)])
-    
+
 
 class pegpwrlwOp(XspecNumericGradOp):
     modname = 'pegpwrlw'
@@ -2208,11 +2208,11 @@ class pegpwrlwComponent(SpectralComponent):
     def __init__(self, PhoIndex, eMin, eMax, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class pegpwrlw(SpectralModel):
     def __init__(self, PhoIndex=None, eMin=None, eMax=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([pegpwrlwComponent(PhoIndex, eMin, eMax, norm, name, grad_method, eps)])
-    
+
 
 class pexmonOp(XspecNumericGradOp):
     modname = 'pexmon'
@@ -2225,11 +2225,11 @@ class pexmonComponent(SpectralComponent):
     def __init__(self, PhoIndex, foldE, rel_refl, redshift, abund, Fe_abund, Incl, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class pexmon(SpectralModel):
     def __init__(self, PhoIndex=None, foldE=None, rel_refl=None, redshift=None, abund=None, Fe_abund=None, Incl=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([pexmonComponent(PhoIndex, foldE, rel_refl, redshift, abund, Fe_abund, Incl, norm, name, grad_method, eps)])
-    
+
 
 class pexravOp(XspecNumericGradOp):
     modname = 'pexrav'
@@ -2242,11 +2242,11 @@ class pexravComponent(SpectralComponent):
     def __init__(self, PhoIndex, foldE, rel_refl, Redshift, abund, Fe_abund, cosIncl, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class pexrav(SpectralModel):
     def __init__(self, PhoIndex=None, foldE=None, rel_refl=None, Redshift=None, abund=None, Fe_abund=None, cosIncl=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([pexravComponent(PhoIndex, foldE, rel_refl, Redshift, abund, Fe_abund, cosIncl, norm, name, grad_method, eps)])
-    
+
 
 class pexrivOp(XspecNumericGradOp):
     modname = 'pexriv'
@@ -2259,11 +2259,11 @@ class pexrivComponent(SpectralComponent):
     def __init__(self, PhoIndex, foldE, rel_refl, Redshift, abund, Fe_abund, cosIncl, T_disk, xi, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class pexriv(SpectralModel):
     def __init__(self, PhoIndex=None, foldE=None, rel_refl=None, Redshift=None, abund=None, Fe_abund=None, cosIncl=None, T_disk=None, xi=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([pexrivComponent(PhoIndex, foldE, rel_refl, Redshift, abund, Fe_abund, cosIncl, T_disk, xi, norm, name, grad_method, eps)])
-    
+
 
 class phabsOp(XspecNumericGradOp):
     modname = 'phabs'
@@ -2276,11 +2276,11 @@ class phabsComponent(SpectralComponent):
     def __init__(self, nH, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class phabs(SpectralModel):
     def __init__(self, nH=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([phabsComponent(nH, name, grad_method, eps)])
-    
+
 
 class plabsOp(XspecNumericGradOp):
     modname = 'plabs'
@@ -2293,11 +2293,11 @@ class plabsComponent(SpectralComponent):
     def __init__(self, index, coef, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class plabs(SpectralModel):
     def __init__(self, index=None, coef=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([plabsComponent(index, coef, name, grad_method, eps)])
-    
+
 
 class plcabsOp(XspecNumericGradOp):
     modname = 'plcabs'
@@ -2310,11 +2310,11 @@ class plcabsComponent(SpectralComponent):
     def __init__(self, nH, nmax, FeAbun, FeKedge, PhoIndex, HighECut, foldE, acrit, FAST, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class plcabs(SpectralModel):
     def __init__(self, nH=None, nmax=None, FeAbun=None, FeKedge=None, PhoIndex=None, HighECut=None, foldE=None, acrit=None, FAST=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([plcabsComponent(nH, nmax, FeAbun, FeKedge, PhoIndex, HighECut, foldE, acrit, FAST, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class polconstOp(XspecNumericGradOp):
     modname = 'polconst'
@@ -2327,11 +2327,11 @@ class polconstComponent(SpectralComponent):
     def __init__(self, A, psi, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class polconst(SpectralModel):
     def __init__(self, A=None, psi=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([polconstComponent(A, psi, name, grad_method, eps)])
-    
+
 
 class pollinOp(XspecNumericGradOp):
     modname = 'pollin'
@@ -2344,11 +2344,11 @@ class pollinComponent(SpectralComponent):
     def __init__(self, A1, Aslope, psi1, psislope, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class pollin(SpectralModel):
     def __init__(self, A1=None, Aslope=None, psi1=None, psislope=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([pollinComponent(A1, Aslope, psi1, psislope, name, grad_method, eps)])
-    
+
 
 class polpowOp(XspecNumericGradOp):
     modname = 'polpow'
@@ -2361,11 +2361,11 @@ class polpowComponent(SpectralComponent):
     def __init__(self, Anorm, Aindex, psinorm, psiindex, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class polpow(SpectralModel):
     def __init__(self, Anorm=None, Aindex=None, psinorm=None, psiindex=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([polpowComponent(Anorm, Aindex, psinorm, psiindex, name, grad_method, eps)])
-    
+
 
 class posmOp(XspecNumericGradOp):
     modname = 'posm'
@@ -2378,11 +2378,11 @@ class posmComponent(SpectralComponent):
     def __init__(self, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class posm(SpectralModel):
     def __init__(self, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([posmComponent(norm, name, grad_method, eps)])
-    
+
 
 class powerlawOp(XspecNumericGradOp):
     modname = 'powerlaw'
@@ -2395,11 +2395,11 @@ class powerlawComponent(SpectralComponent):
     def __init__(self, PhoIndex, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class powerlaw(SpectralModel):
     def __init__(self, PhoIndex=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([powerlawComponent(PhoIndex, norm, name, grad_method, eps)])
-    
+
 
 class pshockOp(XspecNumericGradOp):
     modname = 'pshock'
@@ -2412,11 +2412,11 @@ class pshockComponent(SpectralComponent):
     def __init__(self, kT, Abundanc, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class pshock(SpectralModel):
     def __init__(self, kT=None, Abundanc=None, Tau_l=None, Tau_u=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([pshockComponent(kT, Abundanc, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class pwabOp(XspecNumericGradOp):
     modname = 'pwab'
@@ -2429,11 +2429,11 @@ class pwabComponent(SpectralComponent):
     def __init__(self, nHmin, nHmax, beta, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class pwab(SpectralModel):
     def __init__(self, nHmin=None, nHmax=None, beta=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([pwabComponent(nHmin, nHmax, beta, name, grad_method, eps)])
-    
+
 
 class qsosedOp(XspecNumericGradOp):
     modname = 'qsosed'
@@ -2446,11 +2446,11 @@ class qsosedComponent(SpectralComponent):
     def __init__(self, mass, dist, logmdot, astar, cosi, redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class qsosed(SpectralModel):
     def __init__(self, mass=None, dist=None, logmdot=None, astar=None, cosi=None, redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([qsosedComponent(mass, dist, logmdot, astar, cosi, redshift, norm, name, grad_method, eps)])
-    
+
 
 class raymondOp(XspecNumericGradOp):
     modname = 'raymond'
@@ -2463,11 +2463,11 @@ class raymondComponent(SpectralComponent):
     def __init__(self, kT, Abundanc, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class raymond(SpectralModel):
     def __init__(self, kT=None, Abundanc=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([raymondComponent(kT, Abundanc, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class rdblurOp(XspecNumericGradOp):
     modname = 'rdblur'
@@ -2480,11 +2480,11 @@ class rdblurComponent(SpectralComponent):
     def __init__(self, Betor10, Rin_M, Rout_M, Incl, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class rdblur(SpectralModel):
     def __init__(self, Betor10=None, Rin_M=None, Rout_M=None, Incl=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([rdblurComponent(Betor10, Rin_M, Rout_M, Incl, name, grad_method, eps)])
-    
+
 
 class reddenOp(XspecNumericGradOp):
     modname = 'redden'
@@ -2497,11 +2497,11 @@ class reddenComponent(SpectralComponent):
     def __init__(self, E_BmV, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class redden(SpectralModel):
     def __init__(self, E_BmV=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([reddenComponent(E_BmV, name, grad_method, eps)])
-    
+
 
 class redgeOp(XspecNumericGradOp):
     modname = 'redge'
@@ -2514,11 +2514,11 @@ class redgeComponent(SpectralComponent):
     def __init__(self, edge, kT, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class redge(SpectralModel):
     def __init__(self, edge=None, kT=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([redgeComponent(edge, kT, norm, name, grad_method, eps)])
-    
+
 
 class reflectOp(XspecNumericGradOp):
     modname = 'reflect'
@@ -2531,11 +2531,11 @@ class reflectComponent(SpectralComponent):
     def __init__(self, rel_refl, Redshift, abund, Fe_abund, cosIncl, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class reflect(SpectralModel):
     def __init__(self, rel_refl=None, Redshift=None, abund=None, Fe_abund=None, cosIncl=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([reflectComponent(rel_refl, Redshift, abund, Fe_abund, cosIncl, name, grad_method, eps)])
-    
+
 
 class refschOp(XspecNumericGradOp):
     modname = 'refsch'
@@ -2548,11 +2548,11 @@ class refschComponent(SpectralComponent):
     def __init__(self, PhoIndex, foldE, rel_refl, Redshift, abund, Fe_abund, Incl, T_disk, xi, Betor10, Rin, Rout, accuracy, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class refsch(SpectralModel):
     def __init__(self, PhoIndex=None, foldE=None, rel_refl=None, Redshift=None, abund=None, Fe_abund=None, Incl=None, T_disk=None, xi=None, Betor10=None, Rin=None, Rout=None, accuracy=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([refschComponent(PhoIndex, foldE, rel_refl, Redshift, abund, Fe_abund, Incl, T_disk, xi, Betor10, Rin, Rout, accuracy, norm, name, grad_method, eps)])
-    
+
 
 class rfxconvOp(XspecNumericGradOp):
     modname = 'rfxconv'
@@ -2565,11 +2565,11 @@ class rfxconvComponent(SpectralComponent):
     def __init__(self, rel_refl, redshift, Fe_abund, cosIncl, log_xi, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class rfxconv(SpectralModel):
     def __init__(self, rel_refl=None, redshift=None, Fe_abund=None, cosIncl=None, log_xi=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([rfxconvComponent(rel_refl, redshift, Fe_abund, cosIncl, log_xi, name, grad_method, eps)])
-    
+
 
 class rgsxsrcOp(XspecNumericGradOp):
     modname = 'rgsxsrc'
@@ -2582,11 +2582,11 @@ class rgsxsrcComponent(SpectralComponent):
     def __init__(self, order, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class rgsxsrc(SpectralModel):
     def __init__(self, order=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([rgsxsrcComponent(order, name, grad_method, eps)])
-    
+
 
 class rneiOp(XspecNumericGradOp):
     modname = 'rnei'
@@ -2599,11 +2599,11 @@ class rneiComponent(SpectralComponent):
     def __init__(self, kT, kT_init, Abundanc, Tau, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class rnei(SpectralModel):
     def __init__(self, kT=None, kT_init=None, Abundanc=None, Tau=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([rneiComponent(kT, kT_init, Abundanc, Tau, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class sedovOp(XspecNumericGradOp):
     modname = 'sedov'
@@ -2616,11 +2616,11 @@ class sedovComponent(SpectralComponent):
     def __init__(self, kT_a, kT_b, Abundanc, Tau, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class sedov(SpectralModel):
     def __init__(self, kT_a=None, kT_b=None, Abundanc=None, Tau=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([sedovComponent(kT_a, kT_b, Abundanc, Tau, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class simplOp(XspecNumericGradOp):
     modname = 'simpl'
@@ -2633,11 +2633,11 @@ class simplComponent(SpectralComponent):
     def __init__(self, Gamma, FracSctr, UpScOnly, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class simpl(SpectralModel):
     def __init__(self, Gamma=None, FracSctr=None, UpScOnly=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([simplComponent(Gamma, FracSctr, UpScOnly, name, grad_method, eps)])
-    
+
 
 class sirfOp(XspecNumericGradOp):
     modname = 'sirf'
@@ -2650,11 +2650,11 @@ class sirfComponent(SpectralComponent):
     def __init__(self, tin, rin, rout, theta, incl, valpha, gamma, mdot, irrad, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class sirf(SpectralModel):
     def __init__(self, tin=None, rin=None, rout=None, theta=None, incl=None, valpha=None, gamma=None, mdot=None, irrad=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([sirfComponent(tin, rin, rout, theta, incl, valpha, gamma, mdot, irrad, norm, name, grad_method, eps)])
-    
+
 
 class slimbhOp(XspecNumericGradOp):
     modname = 'slimbh'
@@ -2667,11 +2667,11 @@ class slimbhComponent(SpectralComponent):
     def __init__(self, M, a, lumin, alpha, inc, D, f_hard, lflag, vflag, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class slimbh(SpectralModel):
     def __init__(self, M=None, a=None, lumin=None, alpha=None, inc=None, D=None, f_hard=None, lflag=None, vflag=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([slimbhComponent(M, a, lumin, alpha, inc, D, f_hard, lflag, vflag, norm, name, grad_method, eps)])
-    
+
 
 class smaugOp(XspecNumericGradOp):
     modname = 'smaug'
@@ -2684,11 +2684,11 @@ class smaugComponent(SpectralComponent):
     def __init__(self, kT_cc, kT_dt, kT_ix, kT_ir, kT_cx, kT_cr, kT_tx, kT_tr, nH_cc, nH_ff, nH_cx, nH_cr, nH_gx, nH_gr, Ab_cc, Ab_xx, Ab_rr, redshift, meshpts, rcutoff, mode, itype, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class smaug(SpectralModel):
     def __init__(self, kT_cc=None, kT_dt=None, kT_ix=None, kT_ir=None, kT_cx=None, kT_cr=None, kT_tx=None, kT_tr=None, nH_cc=None, nH_ff=None, nH_cx=None, nH_cr=None, nH_gx=None, nH_gr=None, Ab_cc=None, Ab_xx=None, Ab_rr=None, redshift=None, meshpts=None, rcutoff=None, mode=None, itype=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([smaugComponent(kT_cc, kT_dt, kT_ix, kT_ir, kT_cx, kT_cr, kT_tx, kT_tr, nH_cc, nH_ff, nH_cx, nH_cr, nH_gx, nH_gr, Ab_cc, Ab_xx, Ab_rr, redshift, meshpts, rcutoff, mode, itype, norm, name, grad_method, eps)])
-    
+
 
 class smedgeOp(XspecNumericGradOp):
     modname = 'smedge'
@@ -2701,11 +2701,11 @@ class smedgeComponent(SpectralComponent):
     def __init__(self, edgeE, MaxTau, index, width, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class smedge(SpectralModel):
     def __init__(self, edgeE=None, MaxTau=None, index=None, width=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([smedgeComponent(edgeE, MaxTau, index, width, name, grad_method, eps)])
-    
+
 
 class snapecOp(XspecNumericGradOp):
     modname = 'snapec'
@@ -2718,11 +2718,11 @@ class snapecComponent(SpectralComponent):
     def __init__(self, kT, N_SNe, R, SNIModelIndex, SNIIModelIndex, redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class snapec(SpectralModel):
     def __init__(self, kT=None, N_SNe=None, R=None, SNIModelIndex=None, SNIIModelIndex=None, redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([snapecComponent(kT, N_SNe, R, SNIModelIndex, SNIIModelIndex, redshift, norm, name, grad_method, eps)])
-    
+
 
 class spexpcutOp(XspecNumericGradOp):
     modname = 'spexpcut'
@@ -2735,11 +2735,11 @@ class spexpcutComponent(SpectralComponent):
     def __init__(self, Ecut, alpha, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class spexpcut(SpectralModel):
     def __init__(self, Ecut=None, alpha=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([spexpcutComponent(Ecut, alpha, name, grad_method, eps)])
-    
+
 
 class splineOp(XspecNumericGradOp):
     modname = 'spline'
@@ -2752,11 +2752,11 @@ class splineComponent(SpectralComponent):
     def __init__(self, Estart, Ystart, Yend, YPstart, YPend, Eend, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class spline(SpectralModel):
     def __init__(self, Estart=None, Ystart=None, Yend=None, YPstart=None, YPend=None, Eend=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([splineComponent(Estart, Ystart, Yend, YPstart, YPend, Eend, name, grad_method, eps)])
-    
+
 
 class srcutOp(XspecNumericGradOp):
     modname = 'srcut'
@@ -2769,11 +2769,11 @@ class srcutComponent(SpectralComponent):
     def __init__(self, alpha, break_, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class srcut(SpectralModel):
     def __init__(self, alpha=None, break_=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([srcutComponent(alpha, break_, norm, name, grad_method, eps)])
-    
+
 
 class srescOp(XspecNumericGradOp):
     modname = 'sresc'
@@ -2786,11 +2786,11 @@ class srescComponent(SpectralComponent):
     def __init__(self, alpha, rolloff, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class sresc(SpectralModel):
     def __init__(self, alpha=None, rolloff=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([srescComponent(alpha, rolloff, norm, name, grad_method, eps)])
-    
+
 
 class ssaOp(XspecNumericGradOp):
     modname = 'ssa'
@@ -2803,11 +2803,11 @@ class ssaComponent(SpectralComponent):
     def __init__(self, te, y, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class ssa(SpectralModel):
     def __init__(self, te=None, y=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([ssaComponent(te, y, norm, name, grad_method, eps)])
-    
+
 
 class stepOp(XspecNumericGradOp):
     modname = 'step'
@@ -2820,11 +2820,11 @@ class stepComponent(SpectralComponent):
     def __init__(self, Energy, Sigma, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class step(SpectralModel):
     def __init__(self, Energy=None, Sigma=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([stepComponent(Energy, Sigma, norm, name, grad_method, eps)])
-    
+
 
 class swind1Op(XspecNumericGradOp):
     modname = 'swind1'
@@ -2837,11 +2837,11 @@ class swind1Component(SpectralComponent):
     def __init__(self, column, log_xi, sigma, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class swind1(SpectralModel):
     def __init__(self, column=None, log_xi=None, sigma=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([swind1Component(column, log_xi, sigma, Redshift, name, grad_method, eps)])
-    
+
 
 class tapecOp(XspecNumericGradOp):
     modname = 'tapec'
@@ -2854,11 +2854,11 @@ class tapecComponent(SpectralComponent):
     def __init__(self, kT, kTi, Abundanc, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class tapec(SpectralModel):
     def __init__(self, kT=None, kTi=None, Abundanc=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([tapecComponent(kT, kTi, Abundanc, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class thcompOp(XspecNumericGradOp):
     modname = 'thcomp'
@@ -2871,11 +2871,11 @@ class thcompComponent(SpectralComponent):
     def __init__(self, Gamma_tau, kT_e, cov_frac, z, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class thcomp(SpectralModel):
     def __init__(self, Gamma_tau=None, kT_e=None, cov_frac=None, z=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([thcompComponent(Gamma_tau, kT_e, cov_frac, z, name, grad_method, eps)])
-    
+
 
 class uvredOp(XspecNumericGradOp):
     modname = 'uvred'
@@ -2888,11 +2888,11 @@ class uvredComponent(SpectralComponent):
     def __init__(self, E_BmV, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class uvred(SpectralModel):
     def __init__(self, E_BmV=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([uvredComponent(E_BmV, name, grad_method, eps)])
-    
+
 
 class vapecOp(XspecNumericGradOp):
     modname = 'vapec'
@@ -2905,11 +2905,11 @@ class vapecComponent(SpectralComponent):
     def __init__(self, kT, He, C, N, O, Ne, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vapec(SpectralModel):
     def __init__(self, kT=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vapecComponent(kT, He, C, N, O, Ne, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class varabsOp(XspecNumericGradOp):
     modname = 'varabs'
@@ -2922,11 +2922,11 @@ class varabsComponent(SpectralComponent):
     def __init__(self, H, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class varabs(SpectralModel):
     def __init__(self, H=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Cl=None, Ar=None, Ca=None, Cr=None, Fe=None, Co=None, Ni=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([varabsComponent(H, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, name, grad_method, eps)])
-    
+
 
 class vashiftOp(XspecNumericGradOp):
     modname = 'vashift'
@@ -2939,11 +2939,11 @@ class vashiftComponent(SpectralComponent):
     def __init__(self, Velocity, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vashift(SpectralModel):
     def __init__(self, Velocity=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vashiftComponent(Velocity, name, grad_method, eps)])
-    
+
 
 class vbremssOp(XspecNumericGradOp):
     modname = 'vbremss'
@@ -2956,11 +2956,11 @@ class vbremssComponent(SpectralComponent):
     def __init__(self, kT, HeovrH, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vbremss(SpectralModel):
     def __init__(self, kT=None, HeovrH=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vbremssComponent(kT, HeovrH, norm, name, grad_method, eps)])
-    
+
 
 class vcphOp(XspecNumericGradOp):
     modname = 'vcph'
@@ -2973,11 +2973,11 @@ class vcphComponent(SpectralComponent):
     def __init__(self, peakT, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vcph(SpectralModel):
     def __init__(self, peakT=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vcphComponent(peakT, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class vequilOp(XspecNumericGradOp):
     modname = 'vequil'
@@ -2990,11 +2990,11 @@ class vequilComponent(SpectralComponent):
     def __init__(self, kT, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vequil(SpectralModel):
     def __init__(self, kT=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vequilComponent(kT, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vgademOp(XspecNumericGradOp):
     modname = 'vgadem'
@@ -3007,11 +3007,11 @@ class vgademComponent(SpectralComponent):
     def __init__(self, Tmean, Tsigma, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vgadem(SpectralModel):
     def __init__(self, Tmean=None, Tsigma=None, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vgademComponent(Tmean, Tsigma, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class vgneiOp(XspecNumericGradOp):
     modname = 'vgnei'
@@ -3024,11 +3024,11 @@ class vgneiComponent(SpectralComponent):
     def __init__(self, kT, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, meankT, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vgnei(SpectralModel):
     def __init__(self, kT=None, H=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Tau=None, meankT=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vgneiComponent(kT, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, meankT, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vmcflowOp(XspecNumericGradOp):
     modname = 'vmcflow'
@@ -3041,11 +3041,11 @@ class vmcflowComponent(SpectralComponent):
     def __init__(self, lowT, highT, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vmcflow(SpectralModel):
     def __init__(self, lowT=None, highT=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vmcflowComponent(lowT, highT, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class vmekaOp(XspecNumericGradOp):
     modname = 'vmeka'
@@ -3058,11 +3058,11 @@ class vmekaComponent(SpectralComponent):
     def __init__(self, kT, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vmeka(SpectralModel):
     def __init__(self, kT=None, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vmekaComponent(kT, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vmekalOp(XspecNumericGradOp):
     modname = 'vmekal'
@@ -3075,11 +3075,11 @@ class vmekalComponent(SpectralComponent):
     def __init__(self, kT, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vmekal(SpectralModel):
     def __init__(self, kT=None, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vmekalComponent(kT, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class vmshiftOp(XspecNumericGradOp):
     modname = 'vmshift'
@@ -3092,11 +3092,11 @@ class vmshiftComponent(SpectralComponent):
     def __init__(self, Velocity, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vmshift(SpectralModel):
     def __init__(self, Velocity=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vmshiftComponent(Velocity, name, grad_method, eps)])
-    
+
 
 class vneiOp(XspecNumericGradOp):
     modname = 'vnei'
@@ -3109,11 +3109,11 @@ class vneiComponent(SpectralComponent):
     def __init__(self, kT, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vnei(SpectralModel):
     def __init__(self, kT=None, H=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Tau=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vneiComponent(kT, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vnpshockOp(XspecNumericGradOp):
     modname = 'vnpshock'
@@ -3126,11 +3126,11 @@ class vnpshockComponent(SpectralComponent):
     def __init__(self, kT_a, kT_b, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vnpshock(SpectralModel):
     def __init__(self, kT_a=None, kT_b=None, H=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Tau_l=None, Tau_u=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vnpshockComponent(kT_a, kT_b, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class voigtOp(XspecNumericGradOp):
     modname = 'voigt'
@@ -3143,11 +3143,11 @@ class voigtComponent(SpectralComponent):
     def __init__(self, LineE, Sigma, Gamma, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class voigt(SpectralModel):
     def __init__(self, LineE=None, Sigma=None, Gamma=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([voigtComponent(LineE, Sigma, Gamma, norm, name, grad_method, eps)])
-    
+
 
 class vphabsOp(XspecNumericGradOp):
     modname = 'vphabs'
@@ -3160,11 +3160,11 @@ class vphabsComponent(SpectralComponent):
     def __init__(self, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vphabs(SpectralModel):
     def __init__(self, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Cl=None, Ar=None, Ca=None, Cr=None, Fe=None, Co=None, Ni=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vphabsComponent(nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, name, grad_method, eps)])
-    
+
 
 class vpshockOp(XspecNumericGradOp):
     modname = 'vpshock'
@@ -3177,11 +3177,11 @@ class vpshockComponent(SpectralComponent):
     def __init__(self, kT, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vpshock(SpectralModel):
     def __init__(self, kT=None, H=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Tau_l=None, Tau_u=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vpshockComponent(kT, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vraymondOp(XspecNumericGradOp):
     modname = 'vraymond'
@@ -3194,11 +3194,11 @@ class vraymondComponent(SpectralComponent):
     def __init__(self, kT, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vraymond(SpectralModel):
     def __init__(self, kT=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vraymondComponent(kT, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vrneiOp(XspecNumericGradOp):
     modname = 'vrnei'
@@ -3211,11 +3211,11 @@ class vrneiComponent(SpectralComponent):
     def __init__(self, kT, kT_init, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vrnei(SpectralModel):
     def __init__(self, kT=None, kT_init=None, H=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Tau=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vrneiComponent(kT, kT_init, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vsedovOp(XspecNumericGradOp):
     modname = 'vsedov'
@@ -3228,11 +3228,11 @@ class vsedovComponent(SpectralComponent):
     def __init__(self, kT_a, kT_b, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vsedov(SpectralModel):
     def __init__(self, kT_a=None, kT_b=None, H=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Tau=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vsedovComponent(kT_a, kT_b, H, He, C, N, O, Ne, Mg, Si, S, Ar, Ca, Fe, Ni, Tau, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vtapecOp(XspecNumericGradOp):
     modname = 'vtapec'
@@ -3245,11 +3245,11 @@ class vtapecComponent(SpectralComponent):
     def __init__(self, kT, kTi, He, C, N, O, Ne, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vtapec(SpectralModel):
     def __init__(self, kT=None, kTi=None, He=None, C=None, N=None, O=None, Ne=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vtapecComponent(kT, kTi, He, C, N, O, Ne, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vvapecOp(XspecNumericGradOp):
     modname = 'vvapec'
@@ -3262,11 +3262,11 @@ class vvapecComponent(SpectralComponent):
     def __init__(self, kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vvapec(SpectralModel):
     def __init__(self, kT=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vvapecComponent(kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vvgneiOp(XspecNumericGradOp):
     modname = 'vvgnei'
@@ -3279,11 +3279,11 @@ class vvgneiComponent(SpectralComponent):
     def __init__(self, kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, meankT, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vvgnei(SpectralModel):
     def __init__(self, kT=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Tau=None, meankT=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vvgneiComponent(kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, meankT, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vvneiOp(XspecNumericGradOp):
     modname = 'vvnei'
@@ -3296,11 +3296,11 @@ class vvneiComponent(SpectralComponent):
     def __init__(self, kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vvnei(SpectralModel):
     def __init__(self, kT=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Tau=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vvneiComponent(kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vvnpshockOp(XspecNumericGradOp):
     modname = 'vvnpshock'
@@ -3313,11 +3313,11 @@ class vvnpshockComponent(SpectralComponent):
     def __init__(self, kT_a, kT_b, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vvnpshock(SpectralModel):
     def __init__(self, kT_a=None, kT_b=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Tau_l=None, Tau_u=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vvnpshockComponent(kT_a, kT_b, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vvpshockOp(XspecNumericGradOp):
     modname = 'vvpshock'
@@ -3330,11 +3330,11 @@ class vvpshockComponent(SpectralComponent):
     def __init__(self, kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vvpshock(SpectralModel):
     def __init__(self, kT=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Tau_l=None, Tau_u=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vvpshockComponent(kT, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau_l, Tau_u, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vvrneiOp(XspecNumericGradOp):
     modname = 'vvrnei'
@@ -3347,11 +3347,11 @@ class vvrneiComponent(SpectralComponent):
     def __init__(self, kT, kT_init, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vvrnei(SpectralModel):
     def __init__(self, kT=None, kT_init=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Tau=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vvrneiComponent(kT, kT_init, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vvsedovOp(XspecNumericGradOp):
     modname = 'vvsedov'
@@ -3364,11 +3364,11 @@ class vvsedovComponent(SpectralComponent):
     def __init__(self, kT_a, kT_b, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vvsedov(SpectralModel):
     def __init__(self, kT_a=None, kT_b=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Tau=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vvsedovComponent(kT_a, kT_b, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Tau, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vvtapecOp(XspecNumericGradOp):
     modname = 'vvtapec'
@@ -3381,11 +3381,11 @@ class vvtapecComponent(SpectralComponent):
     def __init__(self, kT, kTi, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vvtapec(SpectralModel):
     def __init__(self, kT=None, kTi=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vvtapecComponent(kT, kTi, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class vvwdemOp(XspecNumericGradOp):
     modname = 'vvwdem'
@@ -3398,11 +3398,11 @@ class vvwdemComponent(SpectralComponent):
     def __init__(self, Tmax, beta, inv_slope, nH, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vvwdem(SpectralModel):
     def __init__(self, Tmax=None, beta=None, inv_slope=None, nH=None, H=None, He=None, Li=None, Be=None, B=None, C=None, N=None, O=None, F=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, P=None, S=None, Cl=None, Ar=None, K=None, Ca=None, Sc=None, Ti=None, V=None, Cr=None, Mn=None, Fe=None, Co=None, Ni=None, Cu=None, Zn=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vvwdemComponent(Tmax, beta, inv_slope, nH, H, He, Li, Be, B, C, N, O, F, Ne, Na, Mg, Al, Si, P, S, Cl, Ar, K, Ca, Sc, Ti, V, Cr, Mn, Fe, Co, Ni, Cu, Zn, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class vwdemOp(XspecNumericGradOp):
     modname = 'vwdem'
@@ -3415,11 +3415,11 @@ class vwdemComponent(SpectralComponent):
     def __init__(self, Tmax, beta, inv_slope, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class vwdem(SpectralModel):
     def __init__(self, Tmax=None, beta=None, inv_slope=None, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Ar=None, Ca=None, Fe=None, Ni=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([vwdemComponent(Tmax, beta, inv_slope, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Ar, Ca, Fe, Ni, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class wabsOp(XspecNumericGradOp):
     modname = 'wabs'
@@ -3432,11 +3432,11 @@ class wabsComponent(SpectralComponent):
     def __init__(self, nH, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class wabs(SpectralModel):
     def __init__(self, nH=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([wabsComponent(nH, name, grad_method, eps)])
-    
+
 
 class wdemOp(XspecNumericGradOp):
     modname = 'wdem'
@@ -3449,11 +3449,11 @@ class wdemComponent(SpectralComponent):
     def __init__(self, Tmax, beta, inv_slope, nH, abundanc, Redshift, switch, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class wdem(SpectralModel):
     def __init__(self, Tmax=None, beta=None, inv_slope=None, nH=None, abundanc=None, Redshift=None, switch=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([wdemComponent(Tmax, beta, inv_slope, nH, abundanc, Redshift, switch, norm, name, grad_method, eps)])
-    
+
 
 class wndabsOp(XspecNumericGradOp):
     modname = 'wndabs'
@@ -3466,11 +3466,11 @@ class wndabsComponent(SpectralComponent):
     def __init__(self, nH, WindowE, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class wndabs(SpectralModel):
     def __init__(self, nH=None, WindowE=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([wndabsComponent(nH, WindowE, name, grad_method, eps)])
-    
+
 
 class xilconvOp(XspecNumericGradOp):
     modname = 'xilconv'
@@ -3483,11 +3483,11 @@ class xilconvComponent(SpectralComponent):
     def __init__(self, rel_refl, redshift, Fe_abund, cosIncl, log_xi, cutoff, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class xilconv(SpectralModel):
     def __init__(self, rel_refl=None, redshift=None, Fe_abund=None, cosIncl=None, log_xi=None, cutoff=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([xilconvComponent(rel_refl, redshift, Fe_abund, cosIncl, log_xi, cutoff, name, grad_method, eps)])
-    
+
 
 class xionOp(XspecNumericGradOp):
     modname = 'xion'
@@ -3500,11 +3500,11 @@ class xionComponent(SpectralComponent):
     def __init__(self, height, lxovrld, rate, cosAng, inner, outer, index, Redshift, Feabun, E_cut, Ref_type, Rel_smear, Geometry, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class xion(SpectralModel):
     def __init__(self, height=None, lxovrld=None, rate=None, cosAng=None, inner=None, outer=None, index=None, Redshift=None, Feabun=None, E_cut=None, Ref_type=None, Rel_smear=None, Geometry=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([xionComponent(height, lxovrld, rate, cosAng, inner, outer, index, Redshift, Feabun, E_cut, Ref_type, Rel_smear, Geometry, name, grad_method, eps)])
-    
+
 
 class xscatOp(XspecNumericGradOp):
     modname = 'xscat'
@@ -3517,11 +3517,11 @@ class xscatComponent(SpectralComponent):
     def __init__(self, NH, Xpos, Rext, DustModel, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class xscat(SpectralModel):
     def __init__(self, NH=None, Xpos=None, Rext=None, DustModel=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([xscatComponent(NH, Xpos, Rext, DustModel, name, grad_method, eps)])
-    
+
 
 class zTBabsOp(XspecNumericGradOp):
     modname = 'zTBabs'
@@ -3534,11 +3534,11 @@ class zTBabsComponent(SpectralComponent):
     def __init__(self, nH, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zTBabs(SpectralModel):
     def __init__(self, nH=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zTBabsComponent(nH, Redshift, name, grad_method, eps)])
-    
+
 
 class zagaussOp(XspecNumericGradOp):
     modname = 'zagauss'
@@ -3551,11 +3551,11 @@ class zagaussComponent(SpectralComponent):
     def __init__(self, LineE, Sigma, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zagauss(SpectralModel):
     def __init__(self, LineE=None, Sigma=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zagaussComponent(LineE, Sigma, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class zashiftOp(XspecNumericGradOp):
     modname = 'zashift'
@@ -3568,11 +3568,11 @@ class zashiftComponent(SpectralComponent):
     def __init__(self, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zashift(SpectralModel):
     def __init__(self, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zashiftComponent(Redshift, name, grad_method, eps)])
-    
+
 
 class zbabsOp(XspecNumericGradOp):
     modname = 'zbabs'
@@ -3585,11 +3585,11 @@ class zbabsComponent(SpectralComponent):
     def __init__(self, nH, nHeI, nHeII, z, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zbabs(SpectralModel):
     def __init__(self, nH=None, nHeI=None, nHeII=None, z=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zbabsComponent(nH, nHeI, nHeII, z, name, grad_method, eps)])
-    
+
 
 class zbbodyOp(XspecNumericGradOp):
     modname = 'zbbody'
@@ -3602,11 +3602,11 @@ class zbbodyComponent(SpectralComponent):
     def __init__(self, kT, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zbbody(SpectralModel):
     def __init__(self, kT=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zbbodyComponent(kT, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class zbknpowerOp(XspecNumericGradOp):
     modname = 'zbknpower'
@@ -3619,11 +3619,11 @@ class zbknpowerComponent(SpectralComponent):
     def __init__(self, PhoIndx1, BreakE, PhoIndx2, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zbknpower(SpectralModel):
     def __init__(self, PhoIndx1=None, BreakE=None, PhoIndx2=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zbknpowerComponent(PhoIndx1, BreakE, PhoIndx2, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class zbremssOp(XspecNumericGradOp):
     modname = 'zbremss'
@@ -3636,11 +3636,11 @@ class zbremssComponent(SpectralComponent):
     def __init__(self, kT, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zbremss(SpectralModel):
     def __init__(self, kT=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zbremssComponent(kT, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class zcutoffplOp(XspecNumericGradOp):
     modname = 'zcutoffpl'
@@ -3653,11 +3653,11 @@ class zcutoffplComponent(SpectralComponent):
     def __init__(self, PhoIndex, HighECut, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zcutoffpl(SpectralModel):
     def __init__(self, PhoIndex=None, HighECut=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zcutoffplComponent(PhoIndex, HighECut, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class zdustOp(XspecNumericGradOp):
     modname = 'zdust'
@@ -3670,11 +3670,11 @@ class zdustComponent(SpectralComponent):
     def __init__(self, method, E_BmV, Rv, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zdust(SpectralModel):
     def __init__(self, method=None, E_BmV=None, Rv=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zdustComponent(method, E_BmV, Rv, Redshift, name, grad_method, eps)])
-    
+
 
 class zedgeOp(XspecNumericGradOp):
     modname = 'zedge'
@@ -3687,11 +3687,11 @@ class zedgeComponent(SpectralComponent):
     def __init__(self, edgeE, MaxTau, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zedge(SpectralModel):
     def __init__(self, edgeE=None, MaxTau=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zedgeComponent(edgeE, MaxTau, Redshift, name, grad_method, eps)])
-    
+
 
 class zgaussOp(XspecNumericGradOp):
     modname = 'zgauss'
@@ -3704,11 +3704,11 @@ class zgaussComponent(SpectralComponent):
     def __init__(self, LineE, Sigma, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zgauss(SpectralModel):
     def __init__(self, LineE=None, Sigma=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zgaussComponent(LineE, Sigma, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class zhighectOp(XspecNumericGradOp):
     modname = 'zhighect'
@@ -3721,11 +3721,11 @@ class zhighectComponent(SpectralComponent):
     def __init__(self, cutoffE, foldE, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zhighect(SpectralModel):
     def __init__(self, cutoffE=None, foldE=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zhighectComponent(cutoffE, foldE, Redshift, name, grad_method, eps)])
-    
+
 
 class zigmOp(XspecNumericGradOp):
     modname = 'zigm'
@@ -3738,11 +3738,11 @@ class zigmComponent(SpectralComponent):
     def __init__(self, redshift, model, lyman_limit, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zigm(SpectralModel):
     def __init__(self, redshift=None, model=None, lyman_limit=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zigmComponent(redshift, model, lyman_limit, name, grad_method, eps)])
-    
+
 
 class zkerrbbOp(XspecNumericGradOp):
     modname = 'zkerrbb'
@@ -3755,11 +3755,11 @@ class zkerrbbComponent(SpectralComponent):
     def __init__(self, eta, a, i, Mbh, Mdd, z, fcol, rflag, lflag, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zkerrbb(SpectralModel):
     def __init__(self, eta=None, a=None, i=None, Mbh=None, Mdd=None, z=None, fcol=None, rflag=None, lflag=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zkerrbbComponent(eta, a, i, Mbh, Mdd, z, fcol, rflag, lflag, norm, name, grad_method, eps)])
-    
+
 
 class zlogparOp(XspecNumericGradOp):
     modname = 'zlogpar'
@@ -3772,11 +3772,11 @@ class zlogparComponent(SpectralComponent):
     def __init__(self, alpha, beta, pivotE, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zlogpar(SpectralModel):
     def __init__(self, alpha=None, beta=None, pivotE=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zlogparComponent(alpha, beta, pivotE, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class zmshiftOp(XspecNumericGradOp):
     modname = 'zmshift'
@@ -3789,11 +3789,11 @@ class zmshiftComponent(SpectralComponent):
     def __init__(self, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zmshift(SpectralModel):
     def __init__(self, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zmshiftComponent(Redshift, name, grad_method, eps)])
-    
+
 
 class zpcfabsOp(XspecNumericGradOp):
     modname = 'zpcfabs'
@@ -3806,11 +3806,11 @@ class zpcfabsComponent(SpectralComponent):
     def __init__(self, nH, CvrFract, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zpcfabs(SpectralModel):
     def __init__(self, nH=None, CvrFract=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zpcfabsComponent(nH, CvrFract, Redshift, name, grad_method, eps)])
-    
+
 
 class zphabsOp(XspecNumericGradOp):
     modname = 'zphabs'
@@ -3823,11 +3823,11 @@ class zphabsComponent(SpectralComponent):
     def __init__(self, nH, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zphabs(SpectralModel):
     def __init__(self, nH=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zphabsComponent(nH, Redshift, name, grad_method, eps)])
-    
+
 
 class zpowerlwOp(XspecNumericGradOp):
     modname = 'zpowerlw'
@@ -3840,11 +3840,11 @@ class zpowerlwComponent(SpectralComponent):
     def __init__(self, PhoIndex, Redshift, norm, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zpowerlw(SpectralModel):
     def __init__(self, PhoIndex=None, Redshift=None, norm=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zpowerlwComponent(PhoIndex, Redshift, norm, name, grad_method, eps)])
-    
+
 
 class zreddenOp(XspecNumericGradOp):
     modname = 'zredden'
@@ -3857,11 +3857,11 @@ class zreddenComponent(SpectralComponent):
     def __init__(self, E_BmV, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zredden(SpectralModel):
     def __init__(self, E_BmV=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zreddenComponent(E_BmV, Redshift, name, grad_method, eps)])
-    
+
 
 class zsmdustOp(XspecNumericGradOp):
     modname = 'zsmdust'
@@ -3874,11 +3874,11 @@ class zsmdustComponent(SpectralComponent):
     def __init__(self, E_BmV, ExtIndex, Rv, redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zsmdust(SpectralModel):
     def __init__(self, E_BmV=None, ExtIndex=None, Rv=None, redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zsmdustComponent(E_BmV, ExtIndex, Rv, redshift, name, grad_method, eps)])
-    
+
 
 class zvarabsOp(XspecNumericGradOp):
     modname = 'zvarabs'
@@ -3891,11 +3891,11 @@ class zvarabsComponent(SpectralComponent):
     def __init__(self, H, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zvarabs(SpectralModel):
     def __init__(self, H=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Cl=None, Ar=None, Ca=None, Cr=None, Fe=None, Co=None, Ni=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zvarabsComponent(H, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, Redshift, name, grad_method, eps)])
-    
+
 
 class zvfeabsOp(XspecNumericGradOp):
     modname = 'zvfeabs'
@@ -3908,11 +3908,11 @@ class zvfeabsComponent(SpectralComponent):
     def __init__(self, nH, metals, FEabun, FEKedge, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zvfeabs(SpectralModel):
     def __init__(self, nH=None, metals=None, FEabun=None, FEKedge=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zvfeabsComponent(nH, metals, FEabun, FEKedge, Redshift, name, grad_method, eps)])
-    
+
 
 class zvphabsOp(XspecNumericGradOp):
     modname = 'zvphabs'
@@ -3925,11 +3925,11 @@ class zvphabsComponent(SpectralComponent):
     def __init__(self, nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zvphabs(SpectralModel):
     def __init__(self, nH=None, He=None, C=None, N=None, O=None, Ne=None, Na=None, Mg=None, Al=None, Si=None, S=None, Cl=None, Ar=None, Ca=None, Cr=None, Fe=None, Co=None, Ni=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zvphabsComponent(nH, He, C, N, O, Ne, Na, Mg, Al, Si, S, Cl, Ar, Ca, Cr, Fe, Co, Ni, Redshift, name, grad_method, eps)])
-    
+
 
 class zwabsOp(XspecNumericGradOp):
     modname = 'zwabs'
@@ -3942,11 +3942,11 @@ class zwabsComponent(SpectralComponent):
     def __init__(self, nH, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zwabs(SpectralModel):
     def __init__(self, nH=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zwabsComponent(nH, Redshift, name, grad_method, eps)])
-    
+
 
 class zwndabsOp(XspecNumericGradOp):
     modname = 'zwndabs'
@@ -3959,11 +3959,11 @@ class zwndabsComponent(SpectralComponent):
     def __init__(self, nH, WindowE, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zwndabs(SpectralModel):
     def __init__(self, nH=None, WindowE=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zwndabsComponent(nH, WindowE, Redshift, name, grad_method, eps)])
-    
+
 
 class zxipabOp(XspecNumericGradOp):
     modname = 'zxipab'
@@ -3976,11 +3976,11 @@ class zxipabComponent(SpectralComponent):
     def __init__(self, nHmin, nHmax, beta, log_xi, redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zxipab(SpectralModel):
     def __init__(self, nHmin=None, nHmax=None, beta=None, log_xi=None, redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zxipabComponent(nHmin, nHmax, beta, log_xi, redshift, name, grad_method, eps)])
-    
+
 
 class zxipcfOp(XspecNumericGradOp):
     modname = 'zxipcf'
@@ -3993,8 +3993,7 @@ class zxipcfComponent(SpectralComponent):
     def __init__(self, Nh, log_xi, CvrFract, Redshift, name, grad_method, eps):
         kwargs = {k: v for k, v in locals().items() if k not in ('self', '__class__')}
         super().__init__(**kwargs)
-    
+
 class zxipcf(SpectralModel):
     def __init__(self, Nh=None, log_xi=None, CvrFract=None, Redshift=None, name=None, grad_method='f', eps=1e-7):
         super().__init__([zxipcfComponent(Nh, log_xi, CvrFract, Redshift, name, grad_method, eps)])
-    

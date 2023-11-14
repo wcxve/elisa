@@ -1,1 +1,1 @@
-# bayespec
+# BayeSpec

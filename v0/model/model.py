@@ -1,5 +1,5 @@
 import pytensor.tensor as pt
-from bayespec.model.base import AutoGradOp, SpectralComponent, SpectralModel
+from .base import AutoGradOp, SpectralComponent, SpectralModel
 
 __all__ = [
     'Band', 'BandEp',
