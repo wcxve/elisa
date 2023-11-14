@@ -5,7 +5,7 @@
 #    - time-dependent model
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from typing import Callable, Union
 
 import jax.numpy as jnp
@@ -649,18 +649,18 @@ class SuperModel(Model):
         raise TypeError('item assignment not supported')
 
 
-class ComponentMeta(type(Model)):
+class ComponentMeta(ABCMeta):
     """Metaclass to avoid cumbersome code for ``__init__`` of subclass."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(cls, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
         # if subclass has ``default`` defined correctly, override its __init__
-        if hasattr(self, '_default') and isinstance(self._default, tuple):
-            name = self.__name__.lower()
+        if hasattr(cls, '_default') and isinstance(cls._default, tuple):
+            name = cls.__name__.lower()
 
             # >>> construct __init__ function >>>
-            default = self._default
+            default = cls._default
             init_def = 'self, '
             init_body = ''
             par_body = '('
@@ -675,9 +675,8 @@ class ComponentMeta(type(Model)):
             init_def += 'fmt=None'
             init_body += f'fmt=fmt'
 
-            if hasattr(self, '_extra_kw') \
-                    and isinstance(self._extra_kw, tuple):
-                for kw in self._extra_kw:
+            if hasattr(cls, '_extra_kw') and isinstance(cls._extra_kw, tuple):
+                for kw in cls._extra_kw:
                     # FIXME: repr may fail!
                     init_def += f', {kw[0]}={repr(kw[1])}'
                     init_body += f', {kw[0]}={kw[0]}'
@@ -694,8 +693,8 @@ class ComponentMeta(type(Model)):
             exec(func_code, tmp)
             init_func = tmp['__init__']
             init_func.__qualname__ = f'{name}.__init__'
-            self.__init__ = init_func
-            self._get_args = tmp[name]
+            cls.__init__ = init_func
+            cls._get_args = tmp[name]
 
 
 class Component(Model, ABC, metaclass=ComponentMeta):
