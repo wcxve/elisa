@@ -15,7 +15,7 @@ build:
     # golang: "1.20"
   jobs:
     pre_build:
-     - sphinx-apidoc -o ./source ../bayespec
+     - sphinx-apidoc -o docs/source bayespec
 
 # Build documentation in the "docs/" directory with Sphinx
 sphinx:
