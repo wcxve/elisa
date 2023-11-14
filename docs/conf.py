@@ -11,9 +11,7 @@ import sys
 import numpy
 import numpyro
 import jax
-sys.path.insert(0, os.path.abspath('./../../bayespec'))
-print(sys.path[0])
-import bayespec
+sys.path.insert(0, os.path.abspath('../..'))
 
 
 project = 'BayeSpec'

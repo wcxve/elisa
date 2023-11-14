@@ -1,5 +1,5 @@
-from bayespec.model.base import UniformParameter, generate_parameter
-from bayespec.model.add import BlackBody, Powerlaw
+from ..model.base import UniformParameter, generate_parameter
+from ..model.add import BlackBody, Powerlaw
 
 
 if __name__ == '__main__':
