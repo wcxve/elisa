@@ -6,10 +6,10 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-import sys
-import pathlib
-path = pathlib.Path(__file__)
-sys.path.append(path.parent.parent.as_posix())
+# import sys
+# import pathlib
+# path = pathlib.Path(__file__)
+# sys.path.append(path.parent.parent.as_posix())
 
 
 project = 'BayeSpec'
