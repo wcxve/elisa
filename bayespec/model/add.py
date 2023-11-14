@@ -52,8 +52,8 @@ class NumIntAdditive(AdditiveComponent, ABC):
         if value not in methods:
             methods = '"' + '", "'.join(methods) + '"'
             raise ValueError(
-                f'available numerical integral options are: {methods}, but got'
-                f' "{value}"'
+                f'available numerical integral options are: {methods}, '
+                f'but got "{value}"'
             )
 
         self._method = value
