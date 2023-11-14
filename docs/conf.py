@@ -31,7 +31,7 @@ extensions = [
     'numpydoc.numpydoc'
 ]
 
-# templates_path = ['_templates']
+templates_path = ['_templates']
 exclude_patterns = ['_build']
 
 
