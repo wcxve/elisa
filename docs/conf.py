@@ -40,3 +40,5 @@ exclude_patterns = ['_build']
 
 html_theme = 'sphinx_rtd_theme'
 # html_static_path = ['_static']
+
+numpydoc_attributes_as_param_list = False
