@@ -10,7 +10,7 @@ Welcome to BayeSpec's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   modules
+   source/modules
 
 Indices and tables
 ==================
