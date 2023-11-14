@@ -1,11 +1,10 @@
-import jax
-import numpyro
-import numpyro.distributions as dist
-import jax.numpy as jnp
-from numpyro import infer
-
-
 if __name__ == '__main__':
+    import jax
+    import numpyro
+    import numpyro.distributions as dist
+    import jax.numpy as jnp
+    from numpyro import infer
+
     def linear_model(x, yerr, y=None):
         theta = numpyro.sample("theta", dist.Uniform(-0.5 * jnp.pi, 0.5 * jnp.pi))
         b_perp = numpyro.sample("b_perp", dist.Normal(0, 1))

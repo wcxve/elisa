@@ -1,8 +1,6 @@
-from ..model.base import UniformParameter, generate_parameter
-from ..model.add import BlackBody, Powerlaw
-
-
 if __name__ == '__main__':
+    from bayespec.model.base import UniformParameter, generate_parameter
+    from bayespec.model.add import BlackBody, Powerlaw
     from numpyro.distributions import Normal
     a = UniformParameter('a', 'a', 1.0, 0, 2)
     b = UniformParameter('b', 'b', 1.0, 0, 2)

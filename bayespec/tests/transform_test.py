@@ -1,12 +1,12 @@
-import jax
-import numpy as np
-import numpyro
-from numpyro.distributions import Uniform, Normal
-from numpyro.infer import MCMC, NUTS
-from numpyro.infer.util import constrain_fn, unconstrain_fn, log_density, log_likelihood
-
-
 if __name__ == '__main__':
+    import jax
+    import numpy as np
+    import numpyro
+    from numpyro.distributions import Uniform, Normal
+    from numpyro.infer import MCMC, NUTS
+    from numpyro.infer.util import constrain_fn, unconstrain_fn, log_density, \
+        log_likelihood
+
     numpyro.set_host_device_count(4)
     jax.config.update("jax_enable_x64", True)
 
