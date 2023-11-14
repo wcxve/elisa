@@ -36,7 +36,7 @@ extensions = [
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-autodoc_mock_imports = ['numpy']
+autodoc_mock_imports = ['jax', 'numpyro']
 
 
 # -- Options for HTML output -------------------------------------------------
