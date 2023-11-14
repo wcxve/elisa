@@ -1,0 +1,6 @@
+numpy
+jax
+numpyro
+sphinx
+sphinx_rtd_theme
+numpydoc
