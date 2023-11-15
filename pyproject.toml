@@ -46,7 +46,7 @@ path = "src/elisa/__init__.py"
 test = []
 docs = [
   "sphinx",
-  "sphinx-book-theme",
+  "sphinx_rtd_theme",
   "numpydoc"
 ]
 dev = ['ipython', 'black', 'ruff']
