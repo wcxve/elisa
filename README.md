@@ -4,11 +4,14 @@
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-libs.svg)](https://pypi.org/project/elisa-libs)
 [![Documentation Status](https://readthedocs.org/projects/elisa-libs/badge/?version=latest)](https://elisa-libs.readthedocs.io/en/latest/?badge=latest)
 
+**Efficient and fast library for spectral analysis in X/γ-ray astrophysics.**
+
 -----
 
 **Table of Contents**
 
 - [Installation](#installation)
+- [Documentation](#documentation)
 - [License](#license)
 
 ## Installation
@@ -26,6 +29,10 @@ The latest version
 ```console
 pip install git+https://github.com/wcxve/elisa
 ```
+
+## Documentation
+
+Read the documentation at: https://elisa-libs.readthedocs.io
 
 ## License
 

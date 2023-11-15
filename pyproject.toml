@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "elisa"
 dynamic = ["version"]
-description = "Effective and fast library for spectral analysis in X/γ-ray astrophysics."
+description = "Efficient and fast library for spectral analysis in X/γ-ray astrophysics."
 readme = "README.md"
 requires-python = ">=3.8, <3.12"
 license = "GPL-3.0-or-later"
