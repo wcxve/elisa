@@ -2010,7 +2010,7 @@ if __name__ == '__main__':
     #     name='CsI'
     # )
     #
-    # from bayespec import xs, CutoffPowerlaw, UniformParameter
+    # from elisa import xs, CutoffPowerlaw, UniformParameter
     # src = CutoffPowerlaw() + xs.posm()
     # # src.CPL.norm.log = True
     # src.CPL.norm = src.posm.norm * UniformParameter('f', 10, 1e-5, 1e5, log=1)
@@ -2042,7 +2042,7 @@ if __name__ == '__main__':
               group_type='bmin',
               group_scale=25)
 
-    from bayespec import BlackBodyRad, CutoffPowerlaw, OTTB, Powerlaw, xs, EnergyFlux, UniformParameter
+    from elisa import BlackBodyRad, CutoffPowerlaw, OTTB, Powerlaw, xs, EnergyFlux, UniformParameter
     wabs = xs.wabs(2.79)
     src = [
         xs.powerlaw(),
@@ -2107,7 +2107,7 @@ if __name__ == '__main__':
     # src.cutoffpl.HighECut.max = 3000
     # # src.CPL.norm.log=1
     # # src.CPL.Ec.log=1
-    # from bayespec import Constant
+    # from elisa import Constant
     # f1 = Constant()*src
     # f1.constant.name='B05'
     # f2 = Constant()*src

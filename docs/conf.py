@@ -6,16 +6,17 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-import sys
 import pathlib
+import sys
+
 path = pathlib.Path(__file__)
 sys.path.append(path.parent.parent.as_posix())
+import elisa  # noqa: E402
 
-
-project = 'BayeSpec'
+project = 'Elisa'
 copyright = '2023, Wang-Chen Xue & contributors'
 author = 'Wang-Chen Xue'
-release = '0.0.1'
+release = elisa.__version__
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

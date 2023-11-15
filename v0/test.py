@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pickle
 
-from bayespec import Data, Infer, BlackBodyRad, Comptonized, CutoffPowerlaw, \
+from elisa import Data, Infer, BlackBodyRad, Comptonized, CutoffPowerlaw, \
     OTTB, Powerlaw, xs, UniformParameter, EnergyFlux
 from pyda.stats.significance import significance_lima
 

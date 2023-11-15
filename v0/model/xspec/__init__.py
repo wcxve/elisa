@@ -33,8 +33,8 @@ class {mod_name}(SpectralModel):
         super().__init__([{mod_name}ComponentNode({pars_list}, name, grad_method, eps)])
     """
     code = ''
-    code += 'from bayespec.model.base import SpectralComponent, SpectralModel\n'
-    code += 'from bayespec.model.xspec.base import XspecNumericGradOp\n'
+    code += 'from elisa.model.base import SpectralComponent, SpectralModel\n'
+    code += 'from elisa.model.xspec.base import XspecNumericGradOp\n'
     code += f'\n__all__ = {all_models}\n'
     for m in _xsmodels.list_models():
         mod_type = _xsmodels.info(m).modeltype.name.lower()
