@@ -13,6 +13,8 @@
 
 ## Installation
 
+The package is still under heavy development, please DO NOT install it right now.
+
 The stable version
 
 ```console
@@ -22,7 +24,7 @@ pip install elisa-libs
 The latest version
 
 ```console
-pip install git+https://github.com/wcxve/Elisa
+pip install git+https://github.com/wcxve/elisa
 ```
 
 ## License
