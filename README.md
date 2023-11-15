@@ -36,4 +36,4 @@ Read the documentation at: https://elisa-libs.readthedocs.io
 
 ## License
 
-`Elisa` is distributed under the terms of the [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html) license.
+`elisa` is distributed under the terms of the [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html) license.
