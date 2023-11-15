@@ -10,7 +10,7 @@ import pathlib
 import sys
 
 path = pathlib.Path(__file__)
-sys.path.append(path.parent.parent.as_posix())
+sys.path.append(path.parent.parent.as_posix() + '/src')
 import elisa  # noqa: E402
 
 project = 'Elisa'
