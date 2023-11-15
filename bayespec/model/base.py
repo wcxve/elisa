@@ -36,7 +36,7 @@ class Parameter:
     """
 
     def __init__(self, node: ParameterNodeType):
-        if not isinstance(node, ParameterNodeType):
+        if not isinstance(node, (ParameterNode, ParameterOperationNode)):
             raise ValueError(
                 'node must be ParameterNode or ParameterOperationNode'
             )
@@ -373,7 +373,7 @@ class Model(ABC):
         node: ModelNodeType,
         params: dict[str, Parameter] | None
     ):
-        if not isinstance(node, ModelNodeType):
+        if not isinstance(node, (ModelNode, ModelOperationNode)):
             raise ValueError(
                 'node must be ModelNode or ModelOperationNode'
             )
@@ -458,7 +458,7 @@ class Model(ABC):
             self._node.predecessor[idx] = param._node
 
         else:
-            if isinstance(param, float | int):
+            if isinstance(param, (float, int)):
                 p = self._params[name]
                 if isinstance(p, UniformParameter):
                     p.frozen = True
@@ -718,7 +718,7 @@ class Component(Model, ABC, metaclass=ComponentMeta):
                 # specified by user
                 params_dict[param_name] = param
 
-            elif isinstance(param, float | int):
+            elif isinstance(param, (float, int)):
                 # frozen to the value given by user
                 p = UniformParameter(*cfg)
                 p.default = param

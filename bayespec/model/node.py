@@ -318,7 +318,7 @@ class ParameterNode(Node):
             )
 
         if determ is not None:
-            if not isinstance(determ, list | tuple):
+            if not isinstance(determ, (list, tuple)):
                 raise ValueError('deterministic must be list or tuple')
 
             if len(determ) != 2 \
@@ -458,7 +458,7 @@ class ModelNode(Node):
             self._params = tuple()
         else:
             for v in params.values():
-                if not isinstance(v, ParameterNode | ParameterOperationNode):
+                if not isinstance(v, (ParameterNode, ParameterOperationNode)):
                     raise ValueError(f'{v} is not Parameter type')
 
             self._params = tuple(params.keys())

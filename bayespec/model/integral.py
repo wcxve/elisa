@@ -1,4 +1,4 @@
-"""Numerical method for additive models integral.
+"""Numerical method for additive continnum integral.
 
 Various numerical integral method is defined here, calculating integral whose
 closed form expressions do not exist.
@@ -32,7 +32,7 @@ def _(egrid, {def_str}):
 """
 
 
-_template: dict[str, str] = {
+_template: dict = {
     'default': _trapezoid,
     'trapezoid': _trapezoid,
     'simpson': _simpson
@@ -58,6 +58,6 @@ def integral(f: Callable, method: str) -> Callable:
     return tmp['_']
 
 
-def list_methods() -> tuple[str]:
+def list_methods() -> tuple:
     """List available numerical integral options."""
     return tuple(_template.keys())

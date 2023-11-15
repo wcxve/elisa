@@ -1,4 +1,5 @@
 """Model of additive type."""
+from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Callable
@@ -59,7 +60,7 @@ class NumIntAdditive(AdditiveComponent, ABC):
         self._method = value
 
         if hasattr(self, '_node'):
-            self._node.attrs['func'] = self.func
+            self._node.attrs['func'] = self._integral
 
     @property
     def _integral(self) -> Callable:
