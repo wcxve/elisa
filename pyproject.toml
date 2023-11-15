@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "elisa"
+name = "elisa-lib"
 dynamic = ["version"]
 description = "Efficient and fast library for spectral analysis in X/γ-ray astrophysics."
 readme = "README.md"

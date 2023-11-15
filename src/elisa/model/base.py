@@ -12,11 +12,11 @@ import jax.numpy as jnp
 from numpyro.distributions import Distribution, LogUniform, Uniform
 
 from .node import (
-    ParameterNode,
-    ParameterOperationNode,
+    LabelSpace,
     ModelNode,
     ModelOperationNode,
-    LabelSpace
+    ParameterNode,
+    ParameterOperationNode,
 )
 
 ModelNodeType = Union[ModelNode, ModelOperationNode]
