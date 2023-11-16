@@ -38,7 +38,7 @@ class Parameter:
     def __init__(self, node: ParameterNodeType):
         if not isinstance(node, (ParameterNode, ParameterOperationNode)):
             raise ValueError(
-                'node must be ParameterNode or ParameterOperationNode'
+                "node must be ParameterNode or ParameterOperationNode"
             )
 
         self._node = node
