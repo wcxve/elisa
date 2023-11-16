@@ -322,7 +322,7 @@ class ParameterNode(Node):
                 raise ValueError('deterministic must be list or tuple')
 
             if len(determ) != 2 \
-                    or not isinstance(determ[0], list | tuple)\
+                    or not isinstance(determ[0], (list, tuple))\
                     or not callable(determ[1]):
                 raise ValueError(
                     'deterministic should contain a tuple and a function'

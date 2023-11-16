@@ -1,4 +1,6 @@
 if __name__ == '__main__':
+    import os
+    os.sys.path.append(os.path.abspath('../src'))
     from elisa.model.base import UniformParameter, generate_parameter
     from elisa.model.add import BlackBody, Powerlaw
     from numpyro.distributions import Normal
@@ -26,4 +28,3 @@ if __name__ == '__main__':
 
     # super_model = SuperModel()
     # super_model() ->
-
