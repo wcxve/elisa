@@ -25,7 +25,7 @@ dependencies = [
     "arviz",
     "astropy",
     "jax",
-    "numpy<=1.24.4",  # compitable with numba==0.58.0, can be removed
+    "numpy",
 #    "numpy<=1.24.4 ; sys_platform != 'darwin' or platform_machine != 'arm64'",
 #    "numpy @ https://github.com/numpy/numpy/releases/download/v1.24.4/numpy-1.24.4.tar.gz ; sys_platform == 'darwin' and platform_machine == 'arm64'",
     "numpyro",
