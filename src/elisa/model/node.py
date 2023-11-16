@@ -393,8 +393,8 @@ class ParameterOperationNode(OperationNode):
         rh = self.predecessor[1].site
 
         info = {
-            'sample': lh['sample'] | rh['sample'],
-            'deterministic': lh['deterministic'] | rh['deterministic'],
+            'sample': {**lh['sample'], **rh['sample']},
+            'deterministic': {**lh['deterministic'], **rh['deterministic']},
         }
         deterministic = info['deterministic']
 
@@ -625,13 +625,13 @@ class ModelOperationNode(OperationNode):
     def params(self) -> dict[str, ParameterNodeType]:
         """Parameter dict."""
         lh, rh = self.predecessor
-        return lh.params | rh.params
+        return {**lh.params, **rh.params}
 
     @property
     def comps(self) -> dict[str, ModelNode]:
         """Model component dict."""
         lh, rh = self.predecessor
-        return lh.comps | rh.comps
+        return {**lh.comps, **rh.comps}
 
     @property
     def func(self) -> Callable:
