@@ -13,7 +13,10 @@ from scipy.stats import norm
 
 
 class Data:
-    """Class to load observation data and telescope response.
+    """Class to load data.
+
+    Load the observation data and corresponding telescope response, and handle
+    the grouping of spectrum and response matrix.
 
     Parameters
     ----------
