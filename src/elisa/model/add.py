@@ -1,6 +1,7 @@
 """Model of additive type."""
 from __future__ import annotations
 
+
 from abc import ABC, abstractmethod
 from typing import Callable
 
@@ -18,20 +19,32 @@ class AdditiveComponent(Component, ABC):
         """Model type is additive."""
         return 'add'
 
-    @property
-    def _func(self) -> Callable:
+    def _func_generator(self, func_name: str) -> Callable:
         """Return function that integrates continnum over energy grid."""
-        return self._integral
+        return self._integral_generator(func_name)
 
-    @property
     @abstractmethod
-    def _integral(self) -> Callable:
+    def _integral_generator(self, func_name: str) -> Callable:
         """Overriden by subclass."""
         pass
 
 
+class AnaIntAdditive(AdditiveComponent, ABC):
+    """Prototype class with analytical integral to define additive model."""
+
+    def _integral_generator(self, func_name: str) -> Callable:
+        """Copy integral function."""
+        return self._integral
+
+    @staticmethod
+    @abstractmethod
+    def _integral(*args, **kwargs):
+        """Analytical integral over egrid, overriden by subclass."""
+        pass
+
+
 class NumIntAdditive(AdditiveComponent, ABC):
-    """Prototype class with numerical integral to define additive component."""
+    """Prototype class with numerical integral to define additive model."""
 
     _extra_kw: tuple[tuple] = (('method', 'default'),)
 
@@ -59,13 +72,10 @@ class NumIntAdditive(AdditiveComponent, ABC):
 
         self._method = value
 
-        if hasattr(self, '_node'):
-            self._node.attrs['func'] = self._integral
-
-    @property
-    def _integral(self) -> Callable:
+    def _integral_generator(self, func_name: str) -> Callable:
         """Wrap continnum function with numerical integral method."""
-        return integral(self._continnum, self._method)
+        f = integral(self._continnum, func_name, self._method)
+        return f
 
     @staticmethod
     @abstractmethod
@@ -88,7 +98,7 @@ class BlackBody(NumIntAdditive):
         return norm * 8.0525 * e * e / (kT * kT * kT * kT * jnp.expm1(e / kT))
 
 
-class Powerlaw(AdditiveComponent):
+class Powerlaw(AnaIntAdditive):
     """TODO"""
 
     _default = (
@@ -96,14 +106,9 @@ class Powerlaw(AdditiveComponent):
         ('norm', '$K$', 1.0, 1e-10, 1e10, False, False),
     )
 
-    @property
-    def _integral(self) -> Callable:
-
-        def powerlaw(egrid, PhoIndex, norm):
-            """Powerlaw integral."""
-            # here we ignore the case of PhoIndex == 1.0
-            tmp = 1.0 - PhoIndex
-            f = norm / tmp * jnp.power(egrid, tmp)
-            return f[1:] - f[:-1]
-
-        return powerlaw
+    @staticmethod
+    def _integral(egrid, PhoIndex, norm):
+        # here we ignore the case of PhoIndex == 1.0
+        tmp = 1.0 - PhoIndex
+        f = norm / tmp * jnp.power(egrid, tmp)
+        return f[1:] - f[:-1]

@@ -4,6 +4,7 @@ import warnings
 import numpy as np
 import xarray as xr
 from astropy.io import fits
+from scipy.stats import norm
 
 __all__ = ['Data']
 
@@ -15,14 +16,14 @@ class Data:
         backfile=None, respfile=None, ancrfile=None, name=None,
         is_spec_poisson=None, is_back_poisson=None,
         ignore_bad=True, keep_channel_info=False,
-        group_type=None, group_scale=None
+        group=None, scale=None
     ):
         self._extract_spec(specfile, is_spec_poisson)
         self._set_name(name)
         self._extract_back(backfile, is_back_poisson)
         self._extract_resp(respfile, ancrfile)
         self._filter_channel(
-            erange, ignore_bad, keep_channel_info, group_type, group_scale
+            erange, ignore_bad, keep_channel_info, group, scale
         )
 
     def _extract_spec(self, specfile, is_spec_poisson):
@@ -284,8 +285,14 @@ class Data:
 
         # extract response matrix
         resp_matrix = resp_['MATRIX']
+
+        # warp around na of matrix
         if resp_matrix.dtype == np.dtype('O'):
-            resp_matrix = np.array(resp_matrix.tolist(), dtype=np.float64)
+            tmp = resp_matrix.tolist()
+            lens = np.array([len(i) for i in tmp])
+            mask = np.arange(len(ch_ebins)) < lens[:, None]
+            resp_matrix = np.zeros(mask.shape, dtype=np.float64)
+            resp_matrix[mask] = np.concatenate(tmp)
 
         if ancrfile.lower() in ['none', '']:
             pass
@@ -337,15 +344,20 @@ class Data:
         factor = np.where(good_quality, 1.0, 0.0)
 
         if group_type != None:
-            if group_type not in ['bmin', 'nmin']:
+            if group_type not in ['bmin', 'berr']:
                 raise ValueError(
-                    'current supported grouping method is "bmin"'
+                    'current supported grouping method is "bmin" and "berr"'
                 )
             else:
                 if group_type == 'bmin' and \
                         not (self.has_back and self.back_poisson):
                     raise ValueError(
                         'Poisson background data is required for "bmin" '
+                        'grouping method'
+                    )
+                elif group_type == 'berr' and not self.has_back:
+                    raise ValueError(
+                        'background data is required for "berr" '
                         'grouping method'
                     )
 
@@ -365,6 +377,9 @@ class Data:
 
             # now group the noticed channel
             if group_type == 'bmin':
+                if group_scale is None:
+                    group_scale = 1
+
                 filtered_back = factor * self._back_counts
                 flag = False
                 for mask in chmask:
@@ -381,6 +396,39 @@ class Data:
                         f'some grouped {self.name} channel has background '
                         f'counts less than {group_scale}'
                     )
+
+            elif group_type == 'berr':
+                if group_scale is None:
+                    group_scale = 0.15
+
+                if group_scale > 0.15:
+                    raise ValueError('berr group scale must be less than 0.15')
+
+                n_sigma = norm.isf(group_scale, 0, 1)
+
+                filtered_back = factor * self._back_counts
+                filtered_error = factor * self._back_error
+                flag = False
+                for mask in chmask:
+                    back_i = filtered_back[mask]
+                    error_i = filtered_error[mask]
+                    grp_flag = _error_grouping_flag(back_i, error_i, n_sigma)
+                    grouping[mask] = grp_flag
+
+                    idx = np.flatnonzero(grp_flag)
+                    grp_counts = np.add.reduceat(back_i, idx)
+                    grp_error = np.sqrt(np.add.reduceat(error_i*error_i, idx))
+
+                    if np.any(grp_counts - n_sigma * grp_error < 0.0):
+                        flag = True
+
+                if flag:
+                    warnings.warn(
+                        f'some grouped {self.name} channel still has large '
+                        f'background error that covers negative value '
+                        f'with probability larger than {group_scale}'
+                    )
+
 
             # transform grouping flag to index
             self._grouping = np.flatnonzero(grouping)
@@ -555,7 +603,7 @@ def _counts_grouping_idx(counts, group_scale):
 
         if i == n_minus_1:
             if group_counts < group_scale:
-                # if the last grousp does not have enough counts,
+                # if the last group does not have enough counts,
                 # then combine the last two groups to ensure all
                 # groups meet the scale requirement
                 ngroup -= 1
@@ -573,7 +621,49 @@ def _counts_grouping_idx(counts, group_scale):
 
 def _counts_grouping_flag(counts, group_scale):
     idx = _counts_grouping_idx(counts, group_scale)
-    flag = np.zeros(len(counts), dtype=np.int64)
+    flag = np.zeros(len(counts), dtype=int)
+    flag[idx] = 1
+
+    return flag
+
+
+def _error_grouping_idx(counts, error, n_sigma):
+    n = len(counts)
+    n_minus_1 = n - 1
+    grouping = np.empty(n, np.int64)
+    grouping[0] = 0
+
+    grp_counts = 0.0
+    grp_error2 = 0.0
+    ngroup = 1
+
+    for i, (ci, ei) in enumerate(zip(counts, error)):
+        grp_counts += ci
+        grp_error2 += ei * ei
+        x = grp_counts - n_sigma * np.sqrt(grp_error2)
+
+        if i == n_minus_1:
+            if x < 0.0:
+                # if the error of last group is not small enough,
+                # then combine the last two groups to ensure all
+                # groups meet the scale requirement
+                ngroup -= 1
+
+            break
+
+        if x > 0.0:
+            grouping[ngroup] = i + 1
+
+            grp_counts = 0.0
+            grp_error2 = 0.0
+            ngroup += 1
+
+    return grouping[:ngroup]
+
+
+def _error_grouping_flag(counts, error, n_sigma):
+    idx = _error_grouping_idx(counts, error, n_sigma)
+    flag = np.zeros(len(counts), dtype=int)
     flag[idx] = 1
 
     return flag
@@ -602,3 +692,11 @@ def _gehrels_error2(n):
 
 def _gehrels_error3(n):
     return (_gehrels_upper(n) - _gehrels_lower(n)) / 2.0
+
+
+if __name__ == '__main__':
+    det = 'n7'
+    spec = f'/Users/xuewc/BurstData/GRB231115A/GBM/{det}.pha'
+    back = f'/Users/xuewc/BurstData/GRB231115A/GBM/{det}.bak'
+    resp = f'/Users/xuewc/BurstData/GRB231115A/GBM/{det}.rsp'
+    d = Data((8, 900), spec, back, resp, name=det)

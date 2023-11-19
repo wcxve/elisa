@@ -15,7 +15,7 @@ __all__ = ['integral', 'list_methods']
 
 _trapezoid = """
 @wraps(func)
-def _(egrid, {def_str}):
+def {name}(egrid, {def_str}):
     de = egrid[1:] - egrid[:-1]
     f_grid = func(egrid, {call_str})
     return (f_grid[:-1] + f_grid[1:]) / 2.0 * de
@@ -23,7 +23,7 @@ def _(egrid, {def_str}):
 
 _simpson = """
 @wraps(func)
-def _(egrid, {def_str}):
+def {name}(egrid, {def_str}):
     de = egrid[1:] - egrid[:-1]
     e_mid = (egrid[:-1] + egrid[1:]) / 2.0
     f_grid = func(egrid, {call_str})
@@ -39,7 +39,7 @@ _template: dict = {
 }
 
 
-def integral(f: Callable, method: str) -> Callable:
+def integral(f: Callable, name: str, method: str) -> Callable:
     """Wrap the integrand with specified numerical integral method."""
 
     if method not in _template:
@@ -53,9 +53,10 @@ def integral(f: Callable, method: str) -> Callable:
     def_str = ', '.join(params)
     call_str = ', '.join(map(lambda s: f'{s}={s}', params))
     tmp = {'wraps': wraps, 'func': f}
-    exec(_template[method].format(def_str=def_str, call_str=call_str), tmp)
+    temp = _template[method]
+    exec(temp.format(name=name, def_str=def_str, call_str=call_str), tmp)
 
-    return tmp['_']
+    return tmp[name]
 
 
 def list_methods() -> tuple:

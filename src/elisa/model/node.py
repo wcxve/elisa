@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from functools import reduce, update_wrapper
 from typing import Any, Callable, Union
+from types import FunctionType
 from uuid import uuid4
 
 from numpyro.distributions import Distribution
@@ -253,13 +255,13 @@ class ParameterNode(Node):
         self,
         name: str,
         fmt: str,
-        default: float,
-        distribution: Distribution,
+        default: float | int,
+        distribution: Distribution | float | int,
         deterministic: tuple | None = None
     ):
         self._validate_input(distribution, deterministic)
 
-        self._validate_default(default, distribution)
+        self._validate_default(distribution, default)
 
         attrs = dict(
             default=default,
@@ -289,7 +291,7 @@ class ParameterNode(Node):
     def default(self, value: float):
         """Default value of the parameter."""
         value = float(value)
-        self._validate_default(value, self.attrs['distribution'])
+        self._validate_default(self.attrs['distribution'], value)
         self.attrs['default'] = value
 
     @property
@@ -310,11 +312,14 @@ class ParameterNode(Node):
         return info
 
     @staticmethod
-    def _validate_input(dist: Distribution, determ: tuple | None) -> None:
+    def _validate_input(
+        dist: Distribution | float | int,
+        determ: tuple | None
+    ) -> None:
         """Validate if input is correct."""
-        if not isinstance(dist, Distribution):
+        if not isinstance(dist, (Distribution, float, int)):
             raise ValueError(
-                'distribution must be instance of numpyro Distribution'
+                'dist must be a numpyro Distribution instance, or a float'
             )
 
         if determ is not None:
@@ -334,10 +339,18 @@ class ParameterNode(Node):
                 )
 
     @staticmethod
-    def _validate_default(default: float, distribution: Distribution) -> None:
+    def _validate_default(
+        dist: Distribution | float | int,
+        default: float | int,
+    ) -> None:
         """Validate if default is in distribution domain."""
-        if not distribution._validate_sample(default):
-            raise ValueError('default value outside the distribution domain')
+        if isinstance(dist, Distribution):
+            if not dist._validate_sample(default):
+                raise ValueError('default value outside the dist domain')
+
+        else:  # isinstance(dist, (float, int))
+            if dist != default:
+                raise ValueError('default value and fixed dist are different')
 
 
 class ParameterOperationNode(OperationNode):
@@ -420,8 +433,8 @@ class ModelNode(Node):
         Model type.
     params : dict
         A str-parameter mapping that defines the parameters of the model.
-    func : callable
-        Evaluation function of model.
+    func_generator : callable
+        Generator of model function.
     is_ncon : bool
         Whether model is normalization convolution type.
 
@@ -447,7 +460,7 @@ class ModelNode(Node):
         fmt: str,
         mtype: str,
         params: dict[str, ParameterNodeType],
-        func: Callable,
+        func_generator: Callable,
         is_ncon: bool
     ):
         if mtype not in {'add', 'mul', 'con'}:
@@ -455,18 +468,18 @@ class ModelNode(Node):
 
         if params is None:
             predecessor = None
-            self._params = tuple()
+            self._params_name = tuple()
         else:
             for v in params.values():
                 if not isinstance(v, (ParameterNode, ParameterOperationNode)):
                     raise ValueError(f'{v} is not Parameter type')
 
-            self._params = tuple(params.keys())
+            self._params_name = tuple(params.keys())
             predecessor = list(params.values())
 
         attrs = dict(
             mtype=mtype,
-            func=func,
+            func_generator=func_generator,
             is_ncon=is_ncon
         )
 
@@ -489,24 +502,50 @@ class ModelNode(Node):
         return 'model'
 
     @property
-    def params(self) -> dict[str, ParameterNodeType]:
+    def params(self) -> dict[str, str]:
         """Parameter dict."""
         return {
             self.name: {
-                name: p for name, p in zip(self._params, self.predecessor)
+                pname: node.name
+                for pname, node in zip(self._params_name, self.predecessor)
             }
         }
 
     @property
-    def comps(self) -> dict[str, ModelNode]:
-        """Model component dict."""
-        return {self.name: self}
+    def comps(self) -> tuple:
+        """Model components name."""
+        return (self.name,)
 
     @property
-    def func(self) -> Callable:
-        """Model evaluation function."""
-        model_name = str(self.name)
-        func = self.attrs['func']
+    def site(self) -> dict:
+        """Sample and deterministic site information of :mod:`numpyro`."""
+        sites = [p.site for p in self.predecessor]
+
+        sample = [s['sample'] for s in sites]
+        sample = reduce(lambda i, j: {**i, **j}, sample)
+
+        deterministic = [s['deterministic'] for s in sites]
+        deterministic = reduce(lambda i, j: {**i, **j}, deterministic)
+
+        return {'sample': sample, 'deterministic': deterministic}
+
+    def generate_func(self, mapping: dict[str, str]) -> Callable:
+        """Wrap model evaluation function."""
+        model_name = str(mapping[self.name])
+        func = self.attrs['func_generator'](model_name)
+
+        # from https://stackoverflow.com/a/13503277
+        copy = FunctionType(
+            code=func.__code__,
+            globals=func.__globals__,
+            name=model_name,
+            argdefs=func.__defaults__,
+            closure=func.__closure__
+        )
+        copy = update_wrapper(copy, func)
+        copy.__kwdefaults__ = func.__kwdefaults__
+        func = copy
+
         mtype = self.attrs['mtype']
 
         # notation: p=params, e=egrid, f=flux, ff=flux_func
@@ -631,15 +670,26 @@ class ModelOperationNode(OperationNode):
     def comps(self) -> dict[str, ModelNode]:
         """Model component dict."""
         lh, rh = self.predecessor
-        return {**lh.comps, **rh.comps}
+        return lh.comps + rh.comps
 
     @property
-    def func(self) -> Callable:
-        """Model evaluation function."""
+    def site(self) -> dict:
+        """Sample and deterministic site information of :mod:`numpyro`."""
+        lh, rh = self.predecessor
+        lh = lh.site
+        rh = rh.site
+
+        sample = {**lh['sample'], **rh['sample']}
+        deterministic = {**lh['deterministic'], **rh['deterministic']}
+
+        return {'sample': sample, 'deterministic': deterministic}
+
+    def generate_func(self, mapping: dict[str, str]) -> Callable:
+        """Wrap model evaluation function."""
         op = self.attrs['name']
         lh, rh = self.predecessor
-        m1 = lh.func
-        m2 = rh.func
+        m1 = lh.generate_func(mapping)
+        m2 = rh.generate_func(mapping)
         type1 = lh.attrs['mtype']
         type2 = rh.attrs['mtype']
 
@@ -852,7 +902,7 @@ class LabelSpace:
                             str_ = f'$_{num}$'
                         id_to_str[f'{label}_{id_}'] = f'{label}{str_}'
 
-            else:  # push predecessors of operation to the node stack
+            else:  # push predecessors to the node stack
                 node_stack = i.predecessor + node_stack
 
         return id_to_str

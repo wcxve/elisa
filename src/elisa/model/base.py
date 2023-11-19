@@ -62,11 +62,6 @@ class Parameter:
         """Parameter default value."""
         self._node.default = value
 
-    @property
-    def _site(self) -> dict:
-        """Sample and deterministic site information of :mod:`numpyro`."""
-        return self._node.site
-
 
 class SuperParameter(Parameter):
     """Class to handle operation on parameters.
@@ -270,7 +265,8 @@ class UniformParameter(Parameter):
         if config['log'] != log_flag:
             if log_flag and config['min'] <= 0.0:
                 raise ValueError(
-                    f'{self} cannot be parameterized into log-uniform'
+                    'parameterization into log-uniform failed due to '
+                    'non-positive minimum'
                 )
 
             config['log'] = log_flag
@@ -298,7 +294,7 @@ class UniformParameter(Parameter):
 
         if _min <= 0.0 and config['log']:
             raise ValueError(
-                f'new min ({_min}) must be positive for {self}'
+                f'min ({_min}) must be positive for LogUniform'
             )
 
         if _min > _max:
@@ -408,9 +404,9 @@ class Model(ABC):
         return SuperModel(self, other, '*')
 
     def __setattr__(self, key, value):
-        if hasattr(self, '_params') \
-                and self._params is not None \
-                and key in self._params:
+        if hasattr(self, '_params_name') \
+                and self._params_name is not None \
+                and key in self._params_name:
             self._set_param(key, value)
 
         super().__setattr__(key, value)
@@ -478,21 +474,28 @@ class Model(ABC):
     @property
     def _wrapped_func(self) -> Callable:
         """Model evaluation function."""
-        mapping = self._label.mapping['name']
+        f = self._node.generate_func(self._label.mapping['name'])
 
-        f = self._node.func
-
+        # TODO: eliminate *args and **kwargs
         def func(egrid, params, *args, **kwargs):
             """Model function wrapper."""
-            p = {k: params[v] for k, v in mapping.items()}
-            return f(p, egrid, *args, **kwargs)
+            return f(params, egrid, *args, **kwargs)
 
         return func
 
     @property
-    def _site(self) -> Callable:
-        """Function that returns :mod:`numpyro` sample and deterministic."""
-        ...
+    def _model_info(self) -> tuple:
+        """Model information.
+
+        Returns sample and deterministic site information of :mod:`numpyro`,
+        model parameter configure based on site, model function and id mapping.
+        """
+        site = self._node.site
+        params = self._node.params
+        func = self._wrapped_func
+        mapping = self._label.mapping
+
+        return site, params, func, mapping
 
     # def set_params(self, params: dict[str, Parameter]) -> None:
     #     """Set parameters."""
@@ -511,25 +514,10 @@ class Model(ABC):
     #     params_node = list(map(lambda v: v._node, params.values()))
     #     self._params = params
     #     self._node.predecessor = params_node
-
-    # @property
-    # def func(self) -> Callable:
-    #     """Model evaluation function."""
-    #     return self._node.func
     #
     # @property
     # def additives(self):
     #     return ...
-    #
-    # @property
-    # def params(self):
-    #     """Get parameter configure."""
-    #
-    #     name_map = self._label._label_map['name']
-    #
-    #     return {
-    #         name_map[k]: v for k, v in self._node.params.items()
-    #     }
     #
     # def flux(self):
     #     ...
@@ -551,42 +539,6 @@ class Model(ABC):
     #
     # def fmt(self):
     #     ...
-    #
-    # def _build_func(self) -> Callable:
-    #     """Get the model evaluation function."""
-    #
-    #     # mapping: component_num -> component_id
-    #     id_map = {v: k for k, v in self._label.mapping['name'].items()}
-    #
-    #     # default parameter configure
-    #     default = {
-    #         c: {
-    #             name: param.default for name, param in params.items()
-    #         } for c, params in self._params.items()
-    #     }
-    #
-    #     def get_params(params):
-    #         """Get parameters with id."""
-    #         if params is None:
-    #             # set to default if None
-    #             params = default
-    #
-    #         else:
-    #             # get params
-    #             params = {
-    #                 k: v | params[k] if k in params else v
-    #                 for k, v in default.items()
-    #             }
-    #
-    #         # map to component_id
-    #         return {id_map[k]: v for k, v in params.items()}
-    #
-    #     # wrap the function from ModelNode or ModelOperationNode
-    #     f = self._node.func
-    #
-    #     def func(egrid, params, *args, **kwargs):
-    #         """Model function wrapper."""
-    #         return f(get_params(params), egrid, *args, **kwargs)
 
 
 class SuperModel(Model):
@@ -746,16 +698,15 @@ class Component(Model, ABC, metaclass=ComponentMeta):
             fmt=fmt,
             mtype=mtype,
             params={k: v._node for k, v in params_dict.items()},
-            func=self._func,
+            func_generator=self._func_generator,
             is_ncon=is_ncon
         )
 
         super().__init__(component, params_dict)
 
-    @property
     @abstractmethod
-    def _func(self) -> Callable:
-        """Model evaluation function, overriden by subclass."""
+    def _func_generator(self, func_name: str) -> Callable:
+        """Model function generator, overriden by subclass."""
         pass
 
     @property
@@ -867,57 +818,6 @@ def generate_model(
 #
 #
 # class Model(metaclass=ComponentMeta):
-#     """TODO: docstring"""
-#
-#     type: str
-#     _node: ComponentNodeType
-#
-#     def __init__(self, node: ComponentNodeType):
-#         if not isinstance(node, (ComponentNode, ComponentOperationNode)):
-#             raise TypeError('input node must be "component" type')
-#
-#         self._node = node
-#         self._type = node.attrs['subtype']
-#         self._label = LabelSpace(node)
-#         self._comps = []
-#
-#     def __add__(self, other: Model):
-#         return Model(self._node + other._node)
-#
-#     def __mul__(self, other: Model):
-#         return Model(self._node * other._node)
-#
-#     def __getitem__(self, key: str):
-#         """Get a parameter of component."""
-#         if '.' not in key:
-#             raise ValueError('key format should be "component.parameter"')
-#
-#         c, p = key.split('.')
-#
-#         name_map = {v: k for k, v in self._label._label_map['name'].items()}
-#
-#         if c not in name_map:
-#             raise ValueError(f'No component "{c}" in model "{self}"')
-#
-#         return self._node.comps[name_map[c]][p]
-#
-#     def __setitem__(self, key: str, value: Parameter):
-#         """Set a parameter of component."""
-#         if '.' not in key:
-#             raise ValueError('key format should be "component.parameter"')
-#
-#         c, p = key.split('.')
-#
-#         name_map = {v: k for k, v in self._label._label_map['name'].items()}
-#
-#         if c not in name_map:
-#             raise ValueError(f'No component "{c}" in model "{self}"')
-#
-#         self._node.comps[name_map[c]][p] = value
-#
-#     def __repr__(self):
-#         return self.expression
-#
 #     def _get_param(self, key):
 #         """Check and return component and parameter key."""
 #
@@ -934,21 +834,6 @@ def generate_model(
 #         return self._node.comps[name_map[c]], p
 #
 #     @property
-#     def type(self):
-#         """Model type: add, mul, or con"""
-#         return self._type
-#
-#     @property
-#     def params(self):
-#         """Get parameter configure."""
-#
-#         name_map = self._label._label_map['name']
-#
-#         return {
-#             name_map[k]: v for k, v in self._node.params.items()
-#         }
-#
-#     @property
 #     def comps(self):
 #         """Additive type of compositions of subcomponents."""
 #
@@ -961,16 +846,6 @@ def generate_model(
 #                 raise NotImplementedError
 #
 #             return self._comps
-#
-#     @property
-#     def expression(self):
-#         """Get model expression in plain format."""
-#         return self._label.name
-#
-#     @property
-#     def expression_tex(self):
-#         """Get model expression in LaTex format."""
-#         return self._label.fmt
 #
 #     # def flux(self, params, e_range, energy=True, ngrid=1000, log=True):
 #     #     """Evaluate model by
@@ -1019,42 +894,4 @@ def generate_model(
 #             ...
 #         else:
 #             ...
-#
-#     def _build_func(self) -> Callable:
-#         """Get the model evaluation function."""
-#
-#         # mapping: component_num -> component_id
-#         id_map = {v: k for k, v in self._label._label_map['name'].items()}
-#
-#         # default parameter configure
-#         default = {
-#             c: {
-#                 name: param.default for name, param in params.items()
-#             } for c, params in self.params.items()
-#         }
-#
-#         def get_params(params):
-#             """Get parameters with id."""
-#             if params is None:
-#                 # set to default if None
-#                 params = default
-#
-#             else:
-#                 # get params
-#                 params = {
-#                     k: v | params[k] if k in params else v
-#                     for k, v in default.items()
-#                 }
-#
-#             # map to component_id
-#             return {id_map[k]: v for k, v in params.items()}
-#
-#         # wrap the function from ComponentNode or ComponentOperationNode
-#         f = self._node.func
-#
-#         def func(egrid, params, *args, **kwargs):
-#             """Model evaluation wrapper."""
-#             return f(get_params(params), egrid, *args, **kwargs)
-#
-#         return func
 #
