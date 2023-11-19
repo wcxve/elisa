@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import warnings
 
@@ -548,9 +550,8 @@ class Data:
             back_counts = back_counts[any_good_in_group]
 
             back_error = np.where(good_quality, self._back_error, 0)
-            back_error = np.sqrt(
-                np.add.reduceat(back_error * back_error, self._grouping)
-            )
+            back_var = np.add.reduceat(back_error * back_error, self._grouping)
+            back_error = np.sqrt(back_var)
             back_error = back_error[any_good_in_group]
 
             self.back_counts = back_counts[chmask]
@@ -564,8 +565,8 @@ class Data:
         delta = self.ch_emax - self.ch_emin
         self.net_spec = self.spec_counts / self.spec_exposure / delta
         self.net_error = self.spec_error / self.spec_exposure / delta
-        error_gehrels = _gehrels_error1(self.spec_counts)
-        self.net_error_gehrels = error_gehrels / self.spec_exposure / delta
+        # error_gehrels = _gehrels_error1(self.spec_counts)
+        # self.net_error_gehrels = error_gehrels / self.spec_exposure / delta
         self.net_counts = self.spec_counts
 
         if self.has_back:
@@ -576,17 +577,17 @@ class Data:
             err2 = self.back_error / self.back_exposure / delta
             self.net_error = np.sqrt(err1*err1 + err2*err2)
 
-            err1 = self.net_error_gehrels
-            err2 = _gehrels_error1(self.back_counts)
-            err2 /= self.back_exposure * delta
-            self.net_error_gehrels = np.sqrt(err1*err1 + err2*err2)
+            # err1 = self.net_error_gehrels
+            # err2 = _gehrels_error1(self.back_counts)
+            # err2 /= self.back_exposure * delta
+            # self.net_error_gehrels = np.sqrt(err1*err1 + err2*err2)
 
             self.net_counts = self.net_counts - back_rate * self.spec_exposure
 
         self.data['net_counts'] = ('channel', self.net_counts)
         self.data['net_spec'] = ('channel', self.net_spec)
         self.data['net_error'] = ('channel', self.net_error)
-        self.data['net_error_gehrels'] = ('channel', self.net_error_gehrels)
+        # self.data['net_error_gehrels'] = ('channel', self.net_error_gehrels)
 
 
 def _counts_grouping_idx(counts, group_scale):
