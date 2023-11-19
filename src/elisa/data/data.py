@@ -9,7 +9,7 @@ import xarray as xr
 from astropy.io import fits
 from scipy.stats import norm
 
-__all__ = ['Data']
+# __all__ = ['Data']
 
 
 class Data:
@@ -17,36 +17,36 @@ class Data:
 
     Parameters
     ----------
-    erange : tuple, list, or list/tuple of list/tuple
-        Energy range of interested.
+    erange : list, or list of list
+        Energy range of interested, e.g., ``erange=[(10., 20.), (50., 200.)]``.
     specfile : str
         Spectrum file path. For type II pha file, the row specifier must be in
         the end of path, e.g., ``specfile="./spec.phaii{1}"``.
     backfile : str or None, optional
-        Background file path. Read from spectrum header when it is None. For
-        type II pha file, the row specifier must be in the end of path, e.g.,
-        ``backfile="./back.phaii{1}"``.
+        Background file path. Read from the spectrum header when it is None.
+        For type II pha file, the row specifier must be in the end of path,
+        e.g., ``backfile="./back.phaii{1}"``.
     respfile : str or None, optional
-        Response file path. Read from spectrum header when it is None.
-        The path must be given if ``RESPFILE`` is undefined in spectrum header.
+        Response file path. Read from the spectrum header when it is None.
+        The path must be given if ``RESPFILE`` is undefined in the header.
     ancrfile : str or None, optional
-        Ancillary response path. Read from spectrum header when it is None.
+        Ancillary response path. Read from the spectrum header when it is None.
     name : str or None, optional
-        Data name. Read from spectrum header when it is None. The name must be
-        given when ``DETNAM``, ``INSTRUME`` and ``TELESCOP`` are all undefined
-        in spectrum header.
+        Data name. Read from the spectrum header when it is None. The name must
+        be given when ``DETNAM``, ``INSTRUME`` and ``TELESCOP`` are all
+        undefined in the spectrum header.
     group : str or None, optional
         Grouping method to be applied to the data.
     scale : float or None, optional
         Grouping scale to be applied to the data. Ignored when group is None.
     is_spec_poisson : bool or None, optional
-        Whether the spectral data follows counting statistics. Read from
+        Whether the spectral data follows counting statistics. Read from the
         spectrum header when it is None. Must be given when ``POISSERR`` is
-        undefined in spectrum header.
+        undefined in the header.
     is_back_poisson : bool or None, optional
-        Whether the background data follows counting statistics. Read from
+        Whether the background data follows counting statistics. Read from the
         background header when it is None. Must be given when ``POISSERR`` is
-        undefined in background header.
+        undefined in the header.
     ignore_bad : bool, optional
         Whether to ignore channels whose ``QUALITY`` are 5.
         The default is True. The possible values for ``QUALITY`` are
