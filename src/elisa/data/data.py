@@ -266,6 +266,13 @@ class Spectrum:
             Channel with a grouping flag of 1 with all successive channels with
             grouping flags of -1 are combined.
 
+        Notes
+        -----
+        If there are some bad channels indicated in `good` in a channel group,
+        this may cause an inconsistency of in a spectral plot, i.e., the error
+        bar of a channel group will cover these bad channels, whilst these bad
+        channels are never used in fitting.
+
         """
         bad = (1, 5) if self._ignore_bad else (1,)
         good = ~np.isin(self._quality, bad)
@@ -367,7 +374,6 @@ class Response:
 
             matrix *= arf[:, None]
 
-        # self._ph_channel = tuple(range(len(matrix)))
         self._ph_egrid = ph_egrid
         self._channel = self.__channel = channel
         self._channel_egrid = self.__channel_egrid = ch_egrid
@@ -386,7 +392,7 @@ class Response:
 
         Notes
         -----
-        In a channel group, if there are some bad channels indicated in `good`,
+        If there are some bad channels indicated in `good` in a channel group,
         this may cause an inconsistency of in a spectral plot, i.e., the error
         bar of a channel group will cover these bad channels, whilst these bad
         channels are never used in fitting.
@@ -438,11 +444,6 @@ class Response:
             matrix = np.add.reduceat(self.__matrix * to_zero, grouping, axis=1)
             any_good_in_group = np.add.reduceat(good, grouping) != 0
             self._matrix = matrix[:, any_good_in_group]
-
-    # @property
-    # def ph_channel(self) -> tuple:
-    #     """Photon channel numbers."""
-    #     return self._ph_channel
 
     @property
     def ph_egrid(self) -> np.ndarray:
