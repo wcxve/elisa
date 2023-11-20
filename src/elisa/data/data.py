@@ -273,12 +273,12 @@ class Spectrum:
 
     @property
     def counts(self) -> np.ndarray:
-        """Counts in each measured channel."""
+        """Counts in each measuring channel."""
         return self._counts
 
     @property
     def error(self) -> np.ndarray:
-        """Uncertainty of counts in each measured channel."""
+        """Uncertainty of counts in each measuring channel."""
         return self._error
 
     @property
@@ -387,8 +387,8 @@ class Response:
         Notes
         -----
         In a channel group, if there are some bad channels indicated in `good`,
-        this may cause an inconsistency of spectral plot, i.e., the error bar
-        of a channel group will cover these bad channels, whilst these bad
+        this may cause an inconsistency of in a spectral plot, i.e., the error
+        bar of a channel group will cover these bad channels, whilst these bad
         channels are never used in fitting.
 
         """
