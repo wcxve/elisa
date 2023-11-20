@@ -12,7 +12,7 @@ from astropy.io import fits
 
 
 class Data:
-    """Class to store observation data.
+    """Class to store information of an observation.
 
     Load the observation spectrum, the telescope response and the possible
     background, and handle the grouping of spectrum and response.
@@ -37,6 +37,8 @@ class Data:
         self._spec = spec
         self._back = back
         self._resp = resp
+
+        # TODO: warn on different quality flag of spec and back
 
     @classmethod
     def from_file(
@@ -107,7 +109,7 @@ class Data:
 
 
 class Spectrum:
-    """Class to store spectrum data.
+    """Class to store and group spectrum data.
 
     Parameters
     ----------
@@ -206,7 +208,7 @@ class Spectrum:
             if np.any(diff > 1e-8 * counts):
                 msg = f'spectrum ({specfile}) has non-integer counts, '
                 msg += 'which may lead to wrong result'
-                warnings.warn(msg, stacklevel=2)
+                warnings.warn(msg, Warning, stacklevel=2)
 
         else:  # check if error are positive
             mask = error <= 0.0
@@ -214,7 +216,7 @@ class Spectrum:
                 error[mask] = 1e-10
                 msg = f'spectrum ({specfile}) has non-positive errors, '
                 msg += 'which are reset to 1e-10'
-                warnings.warn(msg, stacklevel=2)
+                warnings.warn(msg, Warning, stacklevel=2)
 
         # search name in header
         if name is None:
