@@ -64,16 +64,16 @@ class Data:
             Spectrum file path. For type II pha file, the row specifier must be
             given in the end of path, e.g., ``specfile="./spec.pha2{1}"``.
         backfile : str or None, optional
-            Background file path. Read from the spectrum header if None.
+            Background file path. Read from the `specfile` header if None.
             For type II pha file, the row specifier must be given in the end of
             path, e.g., ``backfile="./back.pha2{1}"``.
         respfile : str or None, optional
-            Response file path. Read from the spectrum header if None.
+            Response file path. Read from the `specfile` header if None.
             The path must be given if ``RESPFILE`` is undefined in the header.
         ancrfile : str or None, optional
-            Ancillary response path. Read from the spectrum header if None.
+            Ancillary response path. Read from the `specfile` header if None.
         name : str or None, optional
-            Data name. Read from the spectrum header if None. The name must
+            Data name. Read from the `specfile` header if None. The name must
             be given if ``DETNAM``, ``INSTRUME`` and ``TELESCOP`` are all
             undefined in the header.
         group : str or None, optional
@@ -83,11 +83,11 @@ class Data:
             None.
         poisson_spec : bool or None, optional
             Whether the spectrum data follows counting statistics, which is
-            first read from the spectrum header. This value will be used and
+            first read from the `specfile` header. This value will be used and
             must be set if ``POISSERR`` is undefined in the header.
         poisson_back : bool or None, optional
             Whether the background data follows counting statistics, which is
-            first read from the background header. This value will be used and
+            first read from the `backfile` header. This value will be used and
             must be set if ``POISSERR`` is undefined in the header.
         ignore_bad : bool, optional
             Whether to ignore channels whose ``QUALITY`` are 5.
@@ -115,8 +115,8 @@ class Spectrum:
         Spectrum file path. For type II pha file, the row specifier must be
         given in the end of path, e.g., ``specfile="./spec.pha2{1}"``.
     name : str or None, optional
-        Data name. Read from ``DETNAM``, ``INSTRUME`` or ``TELESCOP`` defined
-        in the header if None. If all these field are empty, default to ``''``.
+        Data name. Read from ``DETNAM``, ``INSTRUME`` or ``TELESCOP`` in the
+        `specfile` header if None. If these are all empty, defaults to ``''``.
     ignore_bad : bool, optional
         Whether to ignore channels whose ``QUALITY`` are 5.
         The default is True. The possible values for ``QUALITY`` are
@@ -127,8 +127,8 @@ class Spectrum:
             * -1: reason for bad flag unknown
     poisson : bool or None, optional
         Whether the spectrum data follows counting statistics, which is first
-        read from the spectrum header. This value will be used and must be set
-        if ``POISSERR`` is undefined in the header.
+        read from the `specfile` header. This value will be used and must be
+        set if ``POISSERR`` is undefined in the header.
 
     """
 
@@ -298,7 +298,7 @@ class Spectrum:
 
     @property
     def name(self) -> str:
-        """``DETNAM``, ``INSTRUME`` or ``TELESCOP`` defined in header."""
+        """``DETNAM``, ``INSTRUME`` or ``TELESCOP`` in `specfile` header."""
         return self._name
 
     @property
