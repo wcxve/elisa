@@ -82,13 +82,13 @@ class Data:
             Grouping scale to be applied. Only takes effect if `group` is not
             None.
         poisson_spec : bool or None, optional
-            Whether the spectrum data follows counting statistics, which is
-            first read from the `specfile` header. This value will be used and
-            must be set if ``POISSERR`` is undefined in the header.
+            Whether the spectrum data follows counting statistics, reading from
+            the `specfile` header. This value must be set if ``POISSERR`` is
+            undefined in the header.
         poisson_back : bool or None, optional
-            Whether the background data follows counting statistics, which is
-            first read from the `backfile` header. This value will be used and
-            must be set if ``POISSERR`` is undefined in the header.
+            Whether the background data follows counting statistics, reading
+            from the `backfile` header. This value must be set if ``POISSERR``
+            is undefined in the header.
         ignore_bad : bool, optional
             Whether to ignore channels whose ``QUALITY`` are 5.
             The default is True. The possible values for ``QUALITY`` are
@@ -126,9 +126,9 @@ class Spectrum:
             *  5: defined bad by user
             * -1: reason for bad flag unknown
     poisson : bool or None, optional
-        Whether the spectrum data follows counting statistics, which is first
-        read from the `specfile` header. This value will be used and must be
-        set if ``POISSERR`` is undefined in the header.
+        Whether the spectrum data follows counting statistics, reading from the
+        `specfile` header. This value must be set if ``POISSERR`` is undefined
+        in the header.
 
     """
 
