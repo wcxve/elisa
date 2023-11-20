@@ -14,17 +14,17 @@ from astropy.io import fits
 class Data:
     """Class to store observation data.
 
-    Store the observation spectrum, the telescope response and the possible
+    Load the observation spectrum, the telescope response and the possible
     background, and handle the grouping of spectrum and response.
 
     Parameters
     ----------
     spec : Spectrum
         The :class:`Spectrum` instance containing spectrum data.
-    back : Spectrum
-        The :class:`Spectrum` instance containing background data.
     resp : Response, optional
         The :class:`Response` instance containing telescope response.
+    back : Spectrum
+        The :class:`Spectrum` instance containing background data.
 
     """
 
@@ -54,7 +54,8 @@ class Data:
         ignore_bad: bool = True,
         record_channel: bool = False
     ) -> Data:
-        """
+        """Load observation data, telescope response and possible background.
+
         Parameters
         ----------
         erange : array_like
