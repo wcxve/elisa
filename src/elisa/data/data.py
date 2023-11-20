@@ -253,12 +253,11 @@ class Spectrum:
         self._exposure = exposure
         self._poisson = poisson
         self._quality = quality
+        self._ignore_bad = ignore_bad
 
-        bad = (1, 5) if ignore_bad else (1,)
-        good = ~np.isin(quality, bad)
-        self.group(grouping, good)
+        self.group(grouping)
 
-    def group(self, grouping: np.ndarray, good: np.ndarray | None = None):
+    def group(self, grouping: np.ndarray):
         """Group spectrum channel.
 
         Parameters
@@ -266,10 +265,10 @@ class Spectrum:
         grouping : array_like
             Channel with a grouping flag of 1 with all successive channels with
             grouping flags of -1 are combined.
-        good : array_like or None, optional
-            Quality flag indicating which channel to be used in analysis.
 
         """
+        bad = (1, 5) if self._ignore_bad else (1,)
+        good = ~np.isin(self._quality, bad)
         ...
 
     @property
@@ -447,7 +446,7 @@ class Response:
 
     @property
     def ph_egrid(self) -> np.ndarray:
-        """Photon egrid."""
+        """Photon energy grid."""
         return self._ph_egrid
 
     @property
