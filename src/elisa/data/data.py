@@ -268,10 +268,10 @@ class Spectrum:
 
         Notes
         -----
-        If there are some bad channels indicated in `good` in a channel group,
-        this may cause an inconsistency of in a spectral plot, i.e., the error
-        bar of a channel group will cover these bad channels, whilst these bad
-        channels are never used in fitting.
+        If there are some bad channels in a channel group, this may cause an
+        inconsistency of in a spectral plot, i.e., the error bar of a channel
+        group will cover these bad channels, whilst these bad channels are
+        never used in fitting.
 
         """
         bad = (1, 5) if self._ignore_bad else (1,)
