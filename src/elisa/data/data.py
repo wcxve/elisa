@@ -21,9 +21,9 @@ class Data:
     ----------
     spec : Spectrum
         The :class:`Spectrum` instance containing spectrum data.
-    resp : Response, optional
+    resp : Response
         The :class:`Response` instance containing telescope response.
-    back : Spectrum
+    back : Spectrum, optional
         The :class:`Spectrum` instance containing background data.
 
     """
