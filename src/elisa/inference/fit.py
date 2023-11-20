@@ -10,10 +10,22 @@ from .likelihood import *
 # [model_num^model]
 
 
-class FitContext(ABC):
-    """Base fitting context."""
+class BaseFit(ABC):
+    """Fitting context.
 
-    _stat_option = {'chi2', 'cstat', 'pstat', 'pgstat', 'wstat'}
+    Parameters
+    ----------
+    data : Data or list of Data
+        The observation data.
+    model : Model or list of Model
+        The model used  to fit the data.
+    stat : str or list of str
+        The likelihood option for the data and model.
+    seed : int
+
+    """
+
+    _stat_option: set[str] = {'chi2', 'cstat', 'pstat', 'pgstat', 'wstat'}
 
     def __init__(
         self,
@@ -22,8 +34,8 @@ class FitContext(ABC):
         stat: str | list[str],
         seed: int = 42
     ):
-        dms = self._sanity_check(data, model, stat)
-        self._data, self._model, self._stat = dms
+        data, model, stat = self._sanity_check(data, model, stat)
+        # self._data, self._model, self._stat
         self._seed = int(seed)
 
     @abstractmethod
@@ -85,16 +97,12 @@ class FitContext(ABC):
         return data_list, model_list, stat_list
 
 
-class MaxLikeFit(FitContext):
-    """Maximum likelihood fitting context."""
-
+class MaxLikeFit(BaseFit):
     def fit(self):
         ...
 
 
-class BayesianFit(FitContext):
-    """Bayesian fitting context."""
-
+class BayesianFit(BaseFit):
     def fit(self):
         ...
 

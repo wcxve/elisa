@@ -5,4 +5,4 @@ from elisa.data.data import Data
 
 m = Powerlaw()
 
-MaxLikeFit([Data()], m, ['chi2'])
+MaxLikeFit([Data([1, 20], '')], m, ['chi2'])
