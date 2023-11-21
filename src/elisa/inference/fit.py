@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from ..data.data import Data
+from ..data.ogip import Data
 from ..model.base import Model
 from .likelihood import *
 
