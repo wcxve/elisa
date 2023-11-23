@@ -8,43 +8,72 @@ import warnings
 import numpy as np
 from astropy.io import fits
 
-# __all__ = ['Data']
+__all__ = ['Data']
 # TODO: support creating Data object from array
 
 
 class Data:
-    """Class to read information of an observation in OGIP/92-007 standard.
+    """Class to load observation data stored in OGIP/92-007 format.
 
     Load the observation spectrum, the telescope response and the possible
     background, and handle the grouping of spectrum and response.
 
     Parameters
     ----------
-    spec : Spectrum
-        The :class:`Spectrum` instance containing spectrum data.
-    resp : Response
-        The :class:`Response` instance containing telescope response.
-    back : Spectrum, optional
-        The :class:`Spectrum` instance containing background data.
+    erange : array_like
+        Energy range of interested, e.g., ``erange=[(0.5, 2), (5, 200)]``.
+    specfile : str
+        Spectrum file path. For type II pha file, the row specifier must be
+        given in the end of path, e.g., ``specfile="./spec.pha2{1}"``.
+    backfile : str or None, optional
+        Background file path. Read from the `specfile` header if None.
+        For type II pha file, the row specifier must be given in the end of
+        path, e.g., ``backfile="./back.pha2{1}"``.
+    respfile : str or None, optional
+        Response file path. Read from the `specfile` header if None.
+        The path must be given if ``RESPFILE`` is undefined in the header.
+    ancrfile : str or None, optional
+        Ancillary response path. Read from the `specfile` header if None.
+    name : str or None, optional
+        Data name. Read from the `specfile` header if None. The name must
+        be given if ``DETNAM``, ``INSTRUME`` and ``TELESCOP`` are all
+        undefined in the header.
+    group : str or None, optional
+        Grouping method to be applied to the spectrum and background.
+    scale : float or None, optional
+        Grouping scale to be applied. Only takes effect if `group` is not
+        None.
+    spec_poisson : bool or None, optional
+        Whether the spectrum data follows counting statistics, reading from
+        the `specfile` header. This value must be set if ``POISSERR`` is
+        undefined in the header.
+    back_poisson : bool or None, optional
+        Whether the background data follows counting statistics, reading
+        from the `backfile` header. This value must be set if ``POISSERR``
+        is undefined in the header.
+    ignore_bad : bool, optional
+        Whether to ignore channels whose ``QUALITY`` are 5.
+        The default is True. The possible values for ``QUALITY`` are
+            *  0: good
+            *  1: defined bad by software
+            *  2: defined dubious by software
+            *  5: defined bad by user
+            * -1: reason for bad flag unknown
+    record_channel : bool, optional
+        Whether to record channel information in the label of grouped
+        channel. Only takes effect if `group` is not None or spectral data
+        has ``GROUPING`` defined. The default is True.
+    corrfile : str or None, optional
+        Correction file applied to `specfile`. Read from the `specfile`
+        header if None. The default is None.
+    corrnorm : float or None, optional
+        Scaling factor to be applied to `corrfile`. Read from the
+        `specfile` header if None. The default is None.
 
     """
 
     def __init__(
         self,
-        spec: Spectrum,
-        resp: Response,
-        back: Spectrum | None = None
-    ):
-        self._spec = spec
-        self._back = back
-        self._resp = resp
-
-        # TODO: warn on different quality flag of spec and back
-        # TODO: merge backscale and areascale into exposure scale
-
-    @classmethod
-    def from_file(
-        cls,
         erange: list,
         specfile: str,
         backfile: str | None = None,
@@ -53,69 +82,167 @@ class Data:
         name: str | None = None,
         group: str | None = None,
         scale: float | int | None = None,
-        poisson_spec: bool | None = None,
-        poisson_back: bool | None = None,
+        spec_poisson: bool | None = None,
+        back_poisson: bool | None = None,
         ignore_bad: bool = True,
         record_channel: bool = False,
         corrfile: str | None = None,
         corrnorm: str | None = None
-    ) -> Data:
-        """Load observation data, telescope response and possible background.
+    ):
+        spec = Spectrum(specfile, spec_poisson)
+
+        # check data name
+        if name:
+            self.name = str(name)
+        elif spec.name:
+            self.name = spec.name
+        else:
+            raise ValueError('name is required for data')
+
+        # check ancillary response file
+        if not ancrfile:
+            ancrfile = spec.ancrfile
+
+        # check response file
+        if respfile:
+            resp = Response(respfile, ancrfile)
+        elif spec.respfile:
+            resp = Response(spec.respfile, ancrfile)
+        else:
+            raise ValueError('respfile is required for data')
+
+        # check background file
+        if backfile:
+            back = Spectrum(backfile, back_poisson)
+        elif spec.backfile:
+            back = Spectrum(spec.backfile, back_poisson)
+        else:
+            back = None
+
+        # bad quality
+        bad = (1, 5) if ignore_bad else (1,)
+
+        # check if quality of spectrum and background are matched
+        good = ~np.isin(spec.quality, bad)
+        if back:
+            back_good = ~np.isin(back.quality, bad)
+            if not np.all(good == back_good):
+                good &= back_good
+                msg = 'ignore bad channels defined by the union of spectrum '
+                msg += 'and background quality'
+                warnings.warn(msg, Warning, stacklevel=2)
+
+        # check correction file
+        # use poisson=True to bypass stat_err check, which takes no effect
+        if corrfile:
+            corr = Spectrum(corrfile, True)
+        elif spec.corrfile:
+            corr = Spectrum(spec.corrfile, True)
+        else:
+            corr = None
+
+        # check correction scale
+        if corr:
+            if corrnorm:
+                spec._corr_scale = corrnorm
+
+        self._spec = spec
+        self._back = back
+        self._resp = resp
+        self._corr = corr
+        self._erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
+        self._record_channel = bool(record_channel)
+
+        if group:
+            self.group(group, scale)
+
+    def group(self, method: str, scale: float):
+        """Group spectrum channel.
 
         Parameters
         ----------
-        erange : array_like
-            Energy range of interested, e.g., ``erange=[(0.5, 2), (5, 200)]``.
-        specfile : str
-            Spectrum file path. For type II pha file, the row specifier must be
-            given in the end of path, e.g., ``specfile="./spec.pha2{1}"``.
-        backfile : str or None, optional
-            Background file path. Read from the `specfile` header if None.
-            For type II pha file, the row specifier must be given in the end of
-            path, e.g., ``backfile="./back.pha2{1}"``.
-        respfile : str or None, optional
-            Response file path. Read from the `specfile` header if None.
-            The path must be given if ``RESPFILE`` is undefined in the header.
-        ancrfile : str or None, optional
-            Ancillary response path. Read from the `specfile` header if None.
-        name : str or None, optional
-            Data name. Read from the `specfile` header if None. The name must
-            be given if ``DETNAM``, ``INSTRUME`` and ``TELESCOP`` are all
-            undefined in the header.
-        group : str or None, optional
-            Grouping method to be applied to the spectrum and background.
-        scale : float or None, optional
-            Grouping scale to be applied. Only takes effect if `group` is not
-            None.
-        poisson_spec : bool or None, optional
-            Whether the spectrum data follows counting statistics, reading from
-            the `specfile` header. This value must be set if ``POISSERR`` is
-            undefined in the header.
-        poisson_back : bool or None, optional
-            Whether the background data follows counting statistics, reading
-            from the `backfile` header. This value must be set if ``POISSERR``
-            is undefined in the header.
-        ignore_bad : bool, optional
-            Whether to ignore channels whose ``QUALITY`` are 5.
-            The default is True. The possible values for ``QUALITY`` are
-                *  0: good
-                *  1: defined bad by software
-                *  2: defined dubious by software
-                *  5: defined bad by user
-                * -1: reason for bad flag unknown
-        record_channel : bool, optional
-            Whether to record channel information in the label of grouped
-            channel. Only takes effect if `group` is not None or spectral data
-            has ``GROUPING`` defined. The default is True.
-        corrfile : str or None, optional
-            Correction file applied to `specfile`. Read from the `specfile`
-            header if None. The default is None.
-        corrnorm : float or None, optional
-            Scaling factor to be applied to `corrfile`. Read from the
-            `specfile` header if None. The default is None.
+        method : str
+            Grouping method.
+        scale : float
+            Grouping scale applied to the grouping `method`.
+
+        Raises
+        ------
+        NotImplementedError
+            Grouping is not yet implemented for spectrum with ``AREASCAL``
+            and/or ``BACKSCAL`` array.
+
+        Notes
+        -----
+        If there are ignored channels in a channel group, this may cause an
+        inconsistency in a spectral plot, i.e., the error bar of a channel
+        group will cover these bad channels, whilst these bad channels are
+        never used in fitting.
 
         """
-        ...
+
+    # 'name': self.name,
+    # 'spec_counts': ('channel', self.spec_counts),
+    # 'spec_error': ('channel', self.spec_error),
+    # 'spec_poisson': self.spec_poisson,
+    # 'spec_exposure': self.spec_exposure,
+    # 'ph_ebins': self.ph_ebins,
+    # 'ch_emin': ('channel', self.ch_emin),
+    # 'ch_emax': ('channel', self.ch_emax),
+    # 'ch_emid': ('channel', self.ch_emid),
+    # 'ch_emid_geom': ('channel', self.ch_emid_geom),
+    # 'ch_width': ('channel', self.ch_width),
+    # 'ch_error': (('edge', 'channel'), self.ch_error),
+    # 'resp_matrix': (['channel_in', 'channel'], self.resp_matrix),
+    # self.data['back_counts'] = ('channel', self.back_counts)
+    # self.data['back_error'] = ('channel', self.back_error)
+    # self.data['back_poisson'] = self.back_poisson
+    # self.data['back_exposure'] = self.back_exposure
+    @property
+    def spec_counts(self) -> np.ndarray:
+        """Spectrum counts."""
+        return self._spec.counts
+
+    @property
+    def spec_stat_err(self) -> np.ndarray:
+        """Statistical uncertainty of spectrum counts."""
+        return self._spec.stat_err
+
+    @property
+    def spec_sys_err(self) -> np.ndarray:
+        """Systematic error of spectrum counts."""
+        return self._spec.sys_err
+
+    @property
+    def spec_poisson(self) -> bool:
+        """Whether spectrum data follows counting statistics."""
+        return self._spec.poisson
+
+    @property
+    def spec_exposure(self) -> float:
+        """Spectrum exposure."""
+        return self._spec.exposure
+
+    @property
+    def has_back(self) -> bool:
+        """Whether data includes a background data."""
+        return True if self._back else False
+
+    @property
+    def back_counts(self) -> np.ndarray:
+        """Background counts."""
+        return self._back.counts / self._back.exposure
+
+    @property
+    def back_stat_err(self) -> np.ndarray:
+        """Statistical uncertainty of background counts."""
+        return self._back.stat_err
+
+    @property
+    def rate(self) -> np.ndarray:
+        """Counting rate with background and area scaling corrected."""
+        eff_expo = self._exposure * self.area_scale * self.back_scale
+        return self._counts / eff_expo
 
 
 class Spectrum:
@@ -126,29 +253,16 @@ class Spectrum:
     specfile : str
         Spectrum file path. For type II pha file, the row specifier must be
         given in the end of path, e.g., ``specfile="./spec.pha2{1}"``.
-    name : str or None, optional
-        Data name. Read from ``DETNAM``, ``INSTRUME`` or ``TELESCOP`` in the
-        `specfile` header if None. If these are all empty, defaults to ``''``.
-    ignore_bad : bool, optional
-        Whether to ignore channels whose ``QUALITY`` are 5.
-        The default is True. The possible values for ``QUALITY`` are
-            *  0: good
-            *  1: defined bad by software
-            *  2: defined dubious by software
-            *  5: defined bad by user
-            * -1: reason for bad flag unknown
     poisson : bool or None, optional
-        Whether the spectrum data follows counting statistics, reading from the
-        `specfile` header. This value must be set if ``POISSERR`` is undefined
-        in the header.
+        Whether the spectrum data follows counting statistics, reading from
+        the `specfile` header. This value must be set if ``POISSERR`` is
+        undefined in the header.
 
     """
 
     def __init__(
         self,
         specfile: str,
-        name: str | None = None,
-        ignore_bad: bool = True,
         poisson: bool | None = None
     ):
         # test if file is '/path/to/specfile{n}'
@@ -167,6 +281,7 @@ class Spectrum:
             data = hdul['SPECTRUM'].data
 
         # check if data is type II
+        # TODO: more robust way to detect a type II data
         if not type_ii:
             msg = f'row id must be provided for type II spectrum {specfile}'
 
@@ -232,7 +347,7 @@ class Spectrum:
                     msg = f'"STAT_ERR" in {specfile} is assumed for "RATE"'
                     warnings.warn(msg, Warning, stacklevel=2)
 
-        # get fractional systematic error of counts
+        # get systematic error of counts
         sys_err = get_field('SYS_ERR', 0)
         if np.shape(sys_err) == () and sys_err == 0:
             sys_err = np.zeros(len(counts))
@@ -277,14 +392,13 @@ class Spectrum:
             warnings.warn(msg, Warning, stacklevel=2)
 
         # search name in header
-        if name is None:
-            excluded_name = ('', 'none', 'unknown')
-            for key in ('DETNAM', 'INSTRUME', 'TELESCOP'):
-                name = str(header.get(key, ''))
-                if name.lower() not in excluded_name:
-                    break
-                else:
-                    name = ''
+        excluded_name = ('', 'none', 'unknown')
+        for key in ('DETNAM', 'INSTRUME', 'TELESCOP'):
+            name = str(header.get(key, ''))
+            if name.lower() not in excluded_name:
+                break
+            else:
+                name = ''
         self._name = str(name)
 
         excluded_file = ('none', 'None', 'NONE')
@@ -302,13 +416,20 @@ class Spectrum:
         self._corrfile = get_field('CORRFILE', '', excluded_file)
 
         # get background scaling factor
-        self._back_scale = np.float64(get_field('BACKSCAL', 1.0))
+        back_scale = np.float64(get_field('BACKSCAL', 1.0))
+        if isinstance(back_scale, np.ndarray):
+            back_scale = np.array(back_scale, dtype=np.float64, order='C')
+        else:
+            back_scale = np.float64(back_scale)
+        self._back_scale = back_scale
 
         # get area scaling factor
         area_scale = get_field('AREASCAL', 1.0)
         if isinstance(area_scale, np.ndarray):
             area_scale = np.array(area_scale, dtype=np.float64, order='C')
-        self._area_scale = np.float64(area_scale)
+        else:
+            area_scale = np.float64(area_scale)
+        self._area_scale = area_scale
 
         # get correction scaling factor
         self._corr_scale = np.float64(get_field('CORRSCAL', 0.0))
@@ -317,35 +438,71 @@ class Spectrum:
         self._data = data
         self._counts = self.__counts = counts
         self._stat_err = self.__stat_err = stat_err
-        self._sys_err = self.__sys_err = sys_err
+        self._sys_err = self.__sys_err = sys_err * counts  # to sys error
         self._grouping = grouping
         self._exposure = exposure
+        self._eff_exposure = exposure * area_scale * back_scale
         self._poisson = poisson
         self._quality = quality
-        self._ignore_bad = ignore_bad
 
-        self.group(grouping)
-
-    def group(self, grouping: np.ndarray):
+    def group(self, grouping: np.ndarray, noticed: np.ndarray | None):
         """Group spectrum channel.
 
         Parameters
         ----------
-        grouping : array_like
-            Channel with a grouping flag of 1 with all successive channels with
-            grouping flags of -1 are combined.
+        grouping : np.ndarray
+            Channel with a grouping flag of 1 with all successive channels
+            with grouping flags of -1 are combined.
+        noticed : np.ndarray or None, optional
+            Flag indicating which channel to be used in grouping.
+
+        Raises
+        ------
+        NotImplementedError
+            Grouping is not yet implemented for spectrum with ``AREASCAL``
+            and/or ``BACKSCAL`` array.
 
         Notes
         -----
-        If there are some bad channels in a channel group, this may cause an
-        inconsistency of in a spectral plot, i.e., the error bar of a channel
+        If there are ignored channels in a channel group, this may cause an
+        inconsistency in a spectral plot, i.e., the error bar of a channel
         group will cover these bad channels, whilst these bad channels are
         never used in fitting.
 
         """
-        bad = (1, 5) if self._ignore_bad else (1,)
-        good = ~np.isin(self._quality, bad)
-        ...
+        if not () == np.shape(self.area_scale) == np.shape(self.back_scale):
+            msg = 'grouping is not implemented yet for the spectrum with '
+            msg += '``AREASCAL`` and/or ``BACKSCAL`` array'
+            raise NotImplementedError(msg)
+
+        l0 = len(self.__counts)
+        if noticed is None:
+            noticed = np.full(l0, True)
+        else:
+            l1 = len(grouping)
+            l2 = len(noticed)
+            if not l0 == l1 == l2:
+                msg = f'length of grouping ({l1}) and noticed ({l2}) must be '
+                msg += f'matched to spectrum channel ({l0})'
+                raise ValueError(msg)
+
+            noticed = np.array(noticed, dtype=bool)
+
+        factor = noticed.astype(np.float64)
+        non_empty = np.add.reduceat(factor, self._grouping) != 0
+        grouping = np.flatnonzero(grouping != 1)
+
+        counts = np.add.reduceat(factor * self.__counts, grouping)[non_empty]
+
+        stat_var = factor * np.sqrt(self.__stat_err)
+        stat_err = np.sqrt(np.add.reduceat(stat_var, grouping))[non_empty]
+
+        sys_var = factor * np.sqrt(self.__sys_err)
+        sys_err = np.sqrt(np.add.reduceat(sys_var, grouping))[non_empty]
+
+        self._counts = counts
+        self._stat_err = stat_err
+        self._sys_err = sys_err
 
     @property
     def counts(self) -> np.ndarray:
@@ -359,7 +516,7 @@ class Spectrum:
 
     @property
     def sys_err(self) -> np.ndarray:
-        """Fractional systematic error of counts in each measuring channel."""
+        """Systematic error of counts in each measuring channel."""
         return self._sys_err
 
     @property
@@ -376,6 +533,11 @@ class Spectrum:
     def exposure(self) -> float:
         """Exposure time of the spectrum, in unit of second."""
         return self._exposure
+
+    @property
+    def eff_exposure(self) -> float | np.ndarray:
+        """Effective exposure, corrected with area and background scaling."""
+        return self._eff_exposure
 
     @property
     def poisson(self) -> bool:
@@ -408,7 +570,7 @@ class Spectrum:
         return self._corrfile
 
     @property
-    def back_scale(self) -> float:
+    def back_scale(self) -> float | np.ndarray:
         """Background scaling factor."""
         return self._back_scale
 
@@ -456,12 +618,14 @@ class Response:
         matrix = resp['MATRIX']
 
         # wrap around N/A of matrix
-        if matrix.dtype == np.dtype('O'):
-            tmp = matrix.tolist()
-            lens = np.array([len(i) for i in tmp])
-            mask = np.arange(len(ch_egrid)) < lens[:, None]
-            matrix = np.zeros(matrix.shape)
-            matrix[mask] = np.concatenate(tmp, dtype=np.float64)
+        nch = len(ch_egrid)
+        nch_matrix = np.array([len(i) for i in matrix])
+        if np.any(nch_matrix != nch):
+            # inhomogeneous matrix due to zero elements being discarded
+            mask = np.arange(nch) < nch_matrix[:, None]
+            matrix_flatten = np.concatenate(matrix, dtype=np.float64)
+            matrix = np.zeros(mask.shape)
+            matrix[mask] = matrix_flatten
 
         if ancrfile:
             with fits.open(ancrfile) as arf_hdul:
@@ -478,32 +642,25 @@ class Response:
         self._channel_egrid = self.__channel_egrid = ch_egrid
         self._matrix = self.__matrix = matrix
 
-    def group(self, grouping: np.ndarray, good: np.ndarray | None = None):
+    def group(self, grouping: np.ndarray, noticed: np.ndarray | None = None):
         """Group response matrix.
 
         Parameters
         ----------
-        grouping : array_like
-            Channel with a grouping flag of 1 with all successive channels with
-            grouping flags of -1 are combined.
-        good : array_like or None, optional
-            Quality flag indicating which channel to be used in analysis.
-
-        Notes
-        -----
-        If there are some bad channels indicated in `good` in a channel group,
-        this may cause an inconsistency of in a spectral plot, i.e., the error
-        bar of a channel group will cover these bad channels, whilst these bad
-        channels are never used in fitting.
+        grouping : np.ndarray
+            Channel with a grouping flag of 1 with all successive channels
+            with grouping flags of -1 are combined.
+        noticed : np.ndarray or None, optional
+            Flag indicating which channel to be used in grouping.
 
         """
         l0 = len(self.__channel)
 
-        if good is None:
-            good = np.full(l0, True)
+        if noticed is None:
+            noticed = np.full(l0, True)
 
         l1 = len(grouping)
-        l2 = len(good)
+        l2 = len(noticed)
         if not l0 == l1 == l2:
             msg = f'length of grouping ({l1}) and good ({l2}) must match to '
             msg += f'original channel ({l0})'
@@ -512,12 +669,12 @@ class Response:
         grouping = np.flatnonzero(grouping == 1)  # transform to index
 
         if len(grouping) == l0:  # case of no group, apply good mask
-            self._channel = self.__channel[good]
-            self._channel_egrid = self.__channel_egrid[good]
-            self._matrix = self.__matrix[:, good]
+            self._channel = self.__channel[noticed]
+            self._channel_egrid = self.__channel_egrid[noticed]
+            self._matrix = self.__matrix[:, noticed]
 
         else:
-            any_good_in_group = np.add.reduceat(good, grouping) != 0
+            non_empty = np.add.reduceat(noticed, grouping) != 0
 
             edge_indices = np.append(grouping, l0)
             channel = self.__channel
@@ -527,10 +684,10 @@ class Response:
             group_emax = []
 
             for i in range(len(grouping)):
-                if not any_good_in_group[i]:
+                if not non_empty[i]:
                     continue
                 slice_i = slice(edge_indices[i], edge_indices[i + 1])
-                quality_slice = good[slice_i]
+                quality_slice = noticed[slice_i]
                 channel_slice = channel[slice_i]
                 group_channel.append(channel_slice[quality_slice].astype(str))
                 group_emin.append(min(emin[slice_i]))
@@ -539,10 +696,9 @@ class Response:
             self._channel = tuple(map(lambda g: tuple(g), group_channel))
             self._channel_egrid = np.column_stack([group_emin, group_emax])
 
-            to_zero = np.where(good, 1.0, 0.0)
+            to_zero = np.where(noticed, 1.0, 0.0)
             matrix = np.add.reduceat(self.__matrix * to_zero, grouping, axis=1)
-            any_good_in_group = np.add.reduceat(good, grouping) != 0
-            self._matrix = matrix[:, any_good_in_group]
+            self._matrix = matrix[:, non_empty]
 
     @property
     def ph_egrid(self) -> np.ndarray:
