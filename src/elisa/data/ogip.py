@@ -1,12 +1,21 @@
-"""Handle data loading."""
+"""Handle OGIP/92-007 format data loading."""
 from __future__ import annotations
 
-import os
 import re
 import warnings
 
 import numpy as np
 from astropy.io import fits
+from numpy.typing import ArrayLike, NDArray
+from .grouping import (
+    group_const,
+    group_min,
+    group_sig,
+    group_pos,
+    group_opt,
+    group_optmin,
+    group_optsig
+)
 
 __all__ = ['Data']
 # TODO: support creating Data object from array
@@ -39,10 +48,18 @@ class Data:
         be given if ``DETNAM``, ``INSTRUME`` and ``TELESCOP`` are all
         undefined in the header.
     group : str or None, optional
-        Grouping method to be applied to the spectrum and background.
+        Method to group spectrum and background adaptively, these options are
+        available so that each channel group has:
+            * const: `scale` number channels
+            * min: counts >= `scale` for src + bkg
+            * sig: src significance >= `scale`-sigma
+            * opt: optimal binning, see Kaastra & Bleeker (2016, A&A)
+            * optmin: opt with counts >= `scale` for src + bkg
+            * optsig: opt with src significance >= `scale`-sigma
+            * bmin: counts >= `scale` for bkg (useful for W-stat)
+            * bpos: bkg < 0 with probability < `scale` (useful for PG-stat)
     scale : float or None, optional
-        Grouping scale to be applied. Only takes effect if `group` is not
-        None.
+        Grouping scale. Only takes effect if `group` is not None.
     spec_poisson : bool or None, optional
         Whether the spectrum data follows counting statistics, reading from
         the `specfile` header. This value must be set if ``POISSERR`` is
@@ -70,11 +87,15 @@ class Data:
         Scaling factor to be applied to `corrfile`. Read from the
         `specfile` header if None. The default is None.
 
+    Notes
+    -----
+    Reading and applying correction to data is not yet supported.
+
     """
 
     def __init__(
         self,
-        erange: list,
+        erange: ArrayLike,
         specfile: str,
         backfile: str | None = None,
         respfile: str | None = None,
@@ -93,9 +114,9 @@ class Data:
 
         # check data name
         if name:
-            self.name = str(name)
+            name = str(name)
         elif spec.name:
-            self.name = spec.name
+            name = spec.name
         else:
             raise ValueError('name is required for data')
 
@@ -123,48 +144,116 @@ class Data:
         bad = (1, 5) if ignore_bad else (1,)
 
         # check if quality of spectrum and background are matched
-        good = ~np.isin(spec.quality, bad)
+        good_quality = ~np.isin(spec.quality, bad)
         if back:
             back_good = ~np.isin(back.quality, bad)
-            if not np.all(good == back_good):
-                good &= back_good
+            if not np.all(good_quality == back_good):
+                good_quality &= back_good
                 msg = 'ignore bad channels defined by the union of spectrum '
                 msg += 'and background quality'
                 warnings.warn(msg, Warning, stacklevel=2)
 
+        # corrfile and corrnorm not supported yet
+        if corrfile or corrnorm:
+            msg = 'correction to data is not yet supported.'
+            warnings.warn(msg, Warning, stacklevel=2)
+
         # check correction file
         # use poisson=True to bypass stat_err check, which takes no effect
-        if corrfile:
-            corr = Spectrum(corrfile, True)
-        elif spec.corrfile:
-            corr = Spectrum(spec.corrfile, True)
-        else:
-            corr = None
+        # if corrfile:
+        #     corr = Spectrum(corrfile, True)
+        # elif spec.corrfile:
+        #     corr = Spectrum(spec.corrfile, True)
+        # else:
+        #     corr = None
 
         # check correction scale
-        if corr:
-            if corrnorm:
-                spec._corr_scale = corrnorm
+        # if corr:
+        #     if corrnorm:
+        #         spec._corr_scale = corrnorm
 
         self._spec = spec
-        self._back = back
         self._resp = resp
-        self._corr = corr
+        self._back = back
+        # self._corr = corr
+
+        self._name = name
         self._erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
+        self._good_quality = good_quality
         self._record_channel = bool(record_channel)
 
-        if group:
-            self.group(group, scale)
+        # response attributes
+        self._ph_egrid = resp.ph_egrid
+        self._channel = None
+        self._ch_emin = None
+        self._ch_emax = None
+        self._ch_emid = None
+        self._ch_mean = None
+        self._ch_width = None
+        self._ch_error = None
+        self._matrix = None
 
-    def group(self, method: str, scale: float):
-        """Group spectrum channel.
+        # NOTE:
+        # grouping of area/background scale is not supported currently,
+        # so we hard code effexpo here, but it should be moved into _set_data
+        # once grouping of area/background scale is implemented.
+
+        # spectrum attributes
+        self._spec_exposure = spec.exposure
+        self._spec_effexpo = spec.exposure * spec.area_scale * spec.back_scale
+        self._spec_poisson = spec.poisson
+        self._spec_counts = None
+        self._spec_error = None
+
+        self._has_back = True if back else False
+
+        # background attributes
+        if self._has_back:
+            self._back_exposure = back.exposure
+            self._back_effexpo = back.exposure*back.area_scale*back.back_scale
+            self._back_poisson = back.poisson
+        else:
+            self._back_exposure = None
+            self._back_effexpo = None
+            self._back_poisson = None
+        self._back_counts = None
+        self._back_error = None
+
+        # net spectrum attributes
+        self._net_counts = None
+        self._net_spec = None
+        self._net_error = None
+
+        if group:
+            # group spectrum and set the other attributes therein
+            self.group(group, scale)
+        else:
+            # set the other attributes
+            self._set_data(spec.grouping)
+
+    def group(self, method: str, scale: float | int):
+        """Adaptively group the spectrum.
 
         Parameters
         ----------
         method : str
-            Grouping method.
+            Method to group spectrum and background adaptively, these options
+            are available so that each channel group has:
+                * const: `scale` number channels
+                * min: counts >= `scale` for src + bkg
+                * sig: src significance >= `scale`-sigma
+                * opt: optimal binning, see Kaastra & Bleeker (2016, A&A)
+                * optmin: opt with counts >= `scale` for src + bkg
+                * optsig: opt with src significance >= `scale`-sigma
+                * bmin: counts >= `scale` for bkg (useful for W-stat)
+                * bpos: bkg < 0 with probability < `scale` (useful for PG-stat)
         scale : float
-            Grouping scale applied to the grouping `method`.
+            Grouping scale.
+
+        Warnings
+        --------
+        GroupWarning
+            Warn if grouping scale is not met for any channel.
 
         Raises
         ------
@@ -180,69 +269,214 @@ class Data:
         never used in fitting.
 
         """
+        ch_emin, ch_emax = self._resp._raw_channel_egrid.T
+        ch_mask = self._channel_mask(ch_emin, ch_emax)
+        spec_counts = self._spec._raw_counts[ch_mask]
+        spec_error = self._spec._raw_error[ch_mask]
 
-    # 'name': self.name,
-    # 'spec_counts': ('channel', self.spec_counts),
-    # 'spec_error': ('channel', self.spec_error),
-    # 'spec_poisson': self.spec_poisson,
-    # 'spec_exposure': self.spec_exposure,
-    # 'ph_ebins': self.ph_ebins,
-    # 'ch_emin': ('channel', self.ch_emin),
-    # 'ch_emax': ('channel', self.ch_emax),
-    # 'ch_emid': ('channel', self.ch_emid),
-    # 'ch_emid_geom': ('channel', self.ch_emid_geom),
-    # 'ch_width': ('channel', self.ch_width),
-    # 'ch_error': (('edge', 'channel'), self.ch_error),
-    # 'resp_matrix': (['channel_in', 'channel'], self.resp_matrix),
-    # self.data['back_counts'] = ('channel', self.back_counts)
-    # self.data['back_error'] = ('channel', self.back_error)
-    # self.data['back_poisson'] = self.back_poisson
-    # self.data['back_exposure'] = self.back_exposure
+        if method == 'const':
+            result = group_const()
+
+        elif method == 'min':
+            result = group_min(spec_counts, scale)
+
+        elif method == 'sig':
+            result = group_sig()
+
+        elif method == 'opt':
+            result = group_opt()
+
+        elif method == 'optmin':
+            result = group_optmin()
+
+        elif method == 'optsig':
+            result = group_optsig()
+
+        elif method == 'bmin':
+            if self.has_back and self.back_poisson:
+                back_counts = self._back._raw_counts[ch_mask]
+            else:
+                msg = 'Poisson background is required for "bmin" method'
+                raise ValueError(msg)
+            result = group_min(back_counts, scale)
+
+        elif method == 'bpos':
+            if self.has_back:
+                back_counts = self._back._raw_counts[ch_mask]
+                back_error = self._back._raw_error[ch_mask]
+            else:
+                msg = 'background data is required for "bpos" method'
+                raise ValueError(msg)
+
+            result = group_pos(back_counts, back_error, scale)
+
+        else:
+            supported = (
+                'const', 'min', 'sig', 'opt', 'optmin', 'optsig', 'bmin',
+                'bpos'
+            )
+            msg = f'supported grouping method are: {", ".join(supported)}'
+            raise ValueError(msg)
+
+        grouping, success = result
+
+        if not success:
+            msg = f'"{method}" grouping failed in some {self._name} channels'
+            warnings.warn(msg, GroupWaring)
+
+        self._set_data(grouping)
+
+    def _set_data(self, grouping: NDArray):
+        """Set data according to quality, grouping, and energy range."""
+        self._spec.group(grouping, self._good_quality)
+        self._resp.group(grouping, self._good_quality)
+
+        if self._record_channel:
+            groups_channel = np.array(
+                [f'{self.name}_Ch{"+".join(c)}' for c in self._resp.channel]
+            )
+        else:
+            non_empty = np.add.reduceat(self._good_quality, grouping) != 0
+            groups_channel = np.array(
+                [f'{self.name}_Ch{c}' for c in np.flatnonzero(non_empty)]
+            )
+
+        ch_emin = self._resp.ch_emin
+        ch_emax = self._resp.ch_emax
+        ch_mask = self._channel_mask(ch_emin, ch_emax)
+
+        # response attribute
+        self._channel = groups_channel[ch_mask]
+        self._ch_emin = ch_emin[ch_mask]
+        self._ch_emax = ch_emax[ch_mask]
+        resp = self._resp
+        self._ch_emid = resp.ch_emid[ch_mask]
+        self._ch_mean = resp.ch_mean[ch_mask]
+        self._ch_width = resp.ch_width[ch_mask]
+        self._ch_error = resp.ch_error[:, ch_mask]
+        self._matrix = resp.matrix[:, ch_mask]
+
+        # spectrum attribute
+        spec = self._spec
+        self._spec_counts = spec.counts[ch_mask]
+        self._spec_error = spec.error[ch_mask]
+
+        # background attribute
+        if self._has_back:
+            self._back.group(grouping, self._good_quality)
+            back = self._back
+            self._back_counts = back.counts[ch_mask]
+            self._back_error = back.error[ch_mask]
+
+        # net spectrum attribute
+        unit = 1.0 / (self._ch_width * self._spec_exposure)
+        if self._has_back:
+            ratio = self._spec_effexpo / self._back_effexpo
+            net = self._spec_counts - ratio * self._back_counts
+            spec = net * unit
+            var = np.square(self._spec_error)
+            var += np.square(ratio * self._back_error)
+            var *= np.square(unit)
+            self._net_counts = net
+            self._net_spec = spec
+            self._net_error = np.sqrt(var)
+
+        else:
+            self._net_counts = self._spec_counts
+            self._net_spec = self._net_counts * unit
+            self._net_error = self._spec_error * unit
+
+        # correction attribute
+        # if self._corr:
+        #     self._corr.group(grouping, self._good_quality)
+
+    def _channel_mask(self, ch_emin: NDArray, ch_emax: NDArray) -> NDArray:
+        """Return channel mask given energy grid and erange of interest."""
+        emin = np.expand_dims(self._erange[:, 0], axis=1)
+        emax = np.expand_dims(self._erange[:, 1], axis=1)
+        ch_mask = (emin <= ch_emin) & (ch_emax <= emax)
+        ch_mask = np.any(ch_mask, axis=0)
+        return ch_mask
+
+    @property
+    def name(self) -> str:
+        """Data name."""
+        return self._name
+
     @property
     def spec_counts(self) -> np.ndarray:
-        """Spectrum counts."""
-        return self._spec.counts
+        """Spectrum counts in each measuring channel."""
+        return self._spec_counts
 
     @property
-    def spec_stat_err(self) -> np.ndarray:
-        """Statistical uncertainty of spectrum counts."""
-        return self._spec.stat_err
-
-    @property
-    def spec_sys_err(self) -> np.ndarray:
-        """Systematic error of spectrum counts."""
-        return self._spec.sys_err
+    def spec_error(self) -> np.ndarray:
+        """Uncertainty of spectrum counts."""
+        return self._spec_error
 
     @property
     def spec_poisson(self) -> bool:
         """Whether spectrum data follows counting statistics."""
-        return self._spec.poisson
+        return self._spec_poisson
 
     @property
     def spec_exposure(self) -> float:
         """Spectrum exposure."""
-        return self._spec.exposure
+        return self._spec_exposure
+
+    @property
+    def spec_effexpo(self) -> float | np.ndarray:
+        """Effective exposure of spectrum."""
+        return self._spec_effexpo
 
     @property
     def has_back(self) -> bool:
-        """Whether data includes a background data."""
-        return True if self._back else False
+        """Whether spectrum data includes background."""
+        return self._has_back
 
     @property
-    def back_counts(self) -> np.ndarray:
-        """Background counts."""
-        return self._back.counts / self._back.exposure
+    def back_counts(self) -> np.ndarray | None:
+        """Background counts in each measuring channel."""
+        return self._back_counts
 
     @property
-    def back_stat_err(self) -> np.ndarray:
-        """Statistical uncertainty of background counts."""
-        return self._back.stat_err
+    def back_error(self) -> np.ndarray | None:
+        """Uncertainty of background counts."""
+        return self._back_error
 
     @property
-    def rate(self) -> np.ndarray:
-        """Counting rate with background and area scaling corrected."""
-        eff_expo = self._exposure * self.area_scale * self.back_scale
-        return self._counts / eff_expo
+    def back_poisson(self) -> bool | None:
+        """Whether background data follows counting statistics."""
+        return self._back_poisson
+
+    @property
+    def back_exposure(self) -> float | None:
+        """Background exposure."""
+        return self._back_exposure
+
+    @property
+    def back_effexpo(self) -> float | np.ndarray | None:
+        """Effective exposure of background."""
+        return self._back_effexpo
+
+    @property
+    def net_counts(self) -> np.ndarray:
+        """Net counts in each measuring channel."""
+        return self._net_counts
+
+    @property
+    def net_spec(self) -> np.ndarray:
+        """Net counts per second per keV."""
+        return self._net_spec
+
+    @property
+    def net_error(self) -> np.ndarray:
+        """Uncertainty of net spectrum."""
+        return self._net_error
+
+    @property
+    def channel(self) -> np.ndarray:
+        """Channel information."""
+        return self._channel
 
 
 class Spectrum:
@@ -280,17 +514,18 @@ class Spectrum:
             header = hdul['SPECTRUM'].header
             data = hdul['SPECTRUM'].data
 
-        # check if data is type II
         # TODO: more robust way to detect a type II data
+        # check if data is type II
         if not type_ii:
             msg = f'row id must be provided for type II spectrum {specfile}'
 
-            if 'DETCHANS' in header:
-                if int(header.get('DETCHANS')) != len(data):
-                    raise ValueError(msg)
-
-            elif header.get('HDUCLAS4', '') == 'TYPE:II':
+            nchan = len(data)
+            if int(header.get('DETCHANS', nchan)) != nchan:
                 raise ValueError(msg)
+
+            if header.get('HDUCLAS4', '') == 'TYPE:II':
+                raise ValueError(msg)
+
         else:
             data = data[spec_id].array  # set data to the specified row
 
@@ -345,9 +580,9 @@ class Spectrum:
 
                 if 'COUNTS' in data.names:
                     msg = f'"STAT_ERR" in {specfile} is assumed for "RATE"'
-                    warnings.warn(msg, Warning, stacklevel=2)
+                    warnings.warn(msg, Warning, stacklevel=3)
 
-        # get systematic error of counts
+        # get fractional systematic error of counts
         sys_err = get_field('SYS_ERR', 0)
         if np.shape(sys_err) == () and sys_err == 0:
             sys_err = np.zeros(len(counts))
@@ -373,7 +608,7 @@ class Spectrum:
             if np.any(diff > 1e-8 * counts):
                 msg = f'spectrum ({specfile}) has non-integer counts, '
                 msg += 'which may lead to wrong result'
-                warnings.warn(msg, Warning, stacklevel=2)
+                warnings.warn(msg, Warning, stacklevel=3)
 
         # check if statistical error are positive
         mask = stat_err < 0.0
@@ -381,15 +616,20 @@ class Spectrum:
             stat_err[mask] = 0.0
             msg = f'spectrum ({specfile}) has some statistical errors < 0, '
             msg += 'which are reset to 0'
-            warnings.warn(msg, Warning, stacklevel=2)
+            warnings.warn(msg, Warning, stacklevel=3)
 
-        # check if fractional systematic error are positive
+        # check if systematic error are positive
         mask = sys_err < 0.0
         if np.any(mask):
             sys_err[mask] = 0.0
             msg = f'spectrum ({specfile}) has some systematic errors < 0, '
             msg += 'which are reset to 0'
-            warnings.warn(msg, Warning, stacklevel=2)
+            warnings.warn(msg, Warning, stacklevel=3)
+
+        # total error of counts
+        stat_var = np.square(stat_err)
+        sys_var = np.square(sys_err * counts)
+        error = np.sqrt(stat_var + sys_var)
 
         # search name in header
         excluded_name = ('', 'none', 'unknown')
@@ -436,9 +676,8 @@ class Spectrum:
 
         self._header = header
         self._data = data
-        self._counts = self.__counts = counts
-        self._stat_err = self.__stat_err = stat_err
-        self._sys_err = self.__sys_err = sys_err * counts  # to sys error
+        self._counts = self._raw_counts = counts
+        self._error = self._raw_error = error
         self._grouping = grouping
         self._exposure = exposure
         self._eff_exposure = exposure * area_scale * back_scale
@@ -475,7 +714,7 @@ class Spectrum:
             msg += '``AREASCAL`` and/or ``BACKSCAL`` array'
             raise NotImplementedError(msg)
 
-        l0 = len(self.__counts)
+        l0 = len(self._raw_counts)
         if noticed is None:
             noticed = np.full(l0, True)
         else:
@@ -490,19 +729,16 @@ class Spectrum:
 
         factor = noticed.astype(np.float64)
         non_empty = np.add.reduceat(factor, self._grouping) != 0
-        grouping = np.flatnonzero(grouping != 1)
+        grouping = np.flatnonzero(grouping == 1)
 
-        counts = np.add.reduceat(factor * self.__counts, grouping)[non_empty]
+        counts = np.add.reduceat(factor * self._raw_counts, grouping)[non_empty]
 
-        stat_var = factor * np.sqrt(self.__stat_err)
-        stat_err = np.sqrt(np.add.reduceat(stat_var, grouping))[non_empty]
-
-        sys_var = factor * np.sqrt(self.__sys_err)
-        sys_err = np.sqrt(np.add.reduceat(sys_var, grouping))[non_empty]
+        var = factor * self._raw_error * self._raw_error
+        var = np.add.reduceat(var, grouping)[non_empty]
+        error = np.sqrt(var)
 
         self._counts = counts
-        self._stat_err = stat_err
-        self._sys_err = sys_err
+        self._error = error
 
     @property
     def counts(self) -> np.ndarray:
@@ -510,14 +746,9 @@ class Spectrum:
         return self._counts
 
     @property
-    def stat_err(self) -> np.ndarray:
-        """Statistical uncertainty of counts in each measuring channel."""
-        return self._stat_err
-
-    @property
-    def sys_err(self) -> np.ndarray:
-        """Systematic error of counts in each measuring channel."""
-        return self._sys_err
+    def error(self) -> np.ndarray:
+        """Uncertainty of counts in each measuring channel."""
+        return self._error
 
     @property
     def grouping(self) -> np.ndarray:
@@ -606,7 +837,7 @@ class Response:
             elif 'SPECRESP MATRIX' in rsp_hdul:
                 resp = rsp_hdul['SPECRESP MATRIX'].data
 
-        channel = tuple(ebounds['CHANNEL'])
+        channel = ebounds['CHANNEL']
 
         # assume ph_egrid is continuous
         ph_egrid = np.append(resp['ENERG_LO'], resp['ENERG_HI'][-1])
@@ -621,7 +852,8 @@ class Response:
         nch = len(ch_egrid)
         nch_matrix = np.array([len(i) for i in matrix])
         if np.any(nch_matrix != nch):
-            # inhomogeneous matrix due to zero elements being discarded
+            # inhomogeneous matrix is due to zero elements being discarded
+            # here we put zeros back in
             mask = np.arange(nch) < nch_matrix[:, None]
             matrix_flatten = np.concatenate(matrix, dtype=np.float64)
             matrix = np.zeros(mask.shape)
@@ -638,9 +870,9 @@ class Response:
             matrix *= arf[:, None]
 
         self._ph_egrid = ph_egrid
-        self._channel = self.__channel = channel
-        self._channel_egrid = self.__channel_egrid = ch_egrid
-        self._matrix = self.__matrix = matrix
+        self._channel = self._raw_channel = channel
+        self._channel_egrid = self._raw_channel_egrid = ch_egrid
+        self._matrix = self._raw_matrix = matrix
 
     def group(self, grouping: np.ndarray, noticed: np.ndarray | None = None):
         """Group response matrix.
@@ -654,7 +886,7 @@ class Response:
             Flag indicating which channel to be used in grouping.
 
         """
-        l0 = len(self.__channel)
+        l0 = len(self._raw_channel)
 
         if noticed is None:
             noticed = np.full(l0, True)
@@ -669,16 +901,16 @@ class Response:
         grouping = np.flatnonzero(grouping == 1)  # transform to index
 
         if len(grouping) == l0:  # case of no group, apply good mask
-            self._channel = self.__channel[noticed]
-            self._channel_egrid = self.__channel_egrid[noticed]
-            self._matrix = self.__matrix[:, noticed]
+            self._channel = self._raw_channel[noticed]
+            self._channel_egrid = self._raw_channel_egrid[noticed]
+            self._matrix = self._raw_matrix[:, noticed]
 
         else:
             non_empty = np.add.reduceat(noticed, grouping) != 0
 
             edge_indices = np.append(grouping, l0)
-            channel = self.__channel
-            emin, emax = self.__channel_egrid.T
+            channel = self._raw_channel
+            emin, emax = self._raw_channel_egrid.T
             group_channel = []
             group_emin = []
             group_emax = []
@@ -697,7 +929,7 @@ class Response:
             self._channel_egrid = np.column_stack([group_emin, group_emax])
 
             to_zero = np.where(noticed, 1.0, 0.0)
-            matrix = np.add.reduceat(self.__matrix * to_zero, grouping, axis=1)
+            matrix = np.add.reduceat(self._raw_matrix * to_zero, grouping, axis=1)
             self._matrix = matrix[:, non_empty]
 
     @property
@@ -745,3 +977,7 @@ class Response:
     def matrix(self) -> np.ndarray:
         """Response matrix."""
         return self._matrix
+
+
+class GroupWaring(Warning):
+    """Issued by grouping scale not being met for all channels."""

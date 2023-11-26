@@ -1,4 +1,4 @@
-"""Numerical method for additive continnum integral.
+"""Numerical method for continnum integral.
 
 Various numerical integral method is defined here, calculating integral whose
 closed form expressions do not exist.

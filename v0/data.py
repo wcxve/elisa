@@ -10,6 +10,7 @@ from scipy.stats import norm
 
 __all__ = ['Data']
 
+
 class Data:
     # TODO: extract rsp2 file
     # Currently need to manually specified in respfile and ancrfile.

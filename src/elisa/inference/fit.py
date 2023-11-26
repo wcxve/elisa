@@ -47,7 +47,12 @@ class BaseFit(ABC):
         """List of available likelihood options."""
         return cls._stat_option
 
-    def _sanity_check(self, data, model, stat):
+    def _sanity_check(
+        self,
+        data: Data | list[Data],
+        model: Model | list[Model],
+        stat: str | list[str]
+    ):
         """Check if data, model, and stat are correct and return lists."""
         def get_list(inputs, name, itype, tname):
             """Check the model/data/stat, and return a list."""
@@ -97,7 +102,7 @@ class BaseFit(ABC):
         return data_list, model_list, stat_list
 
 
-class MaxLikeFit(BaseFit):
+class LikelihoodFit(BaseFit):
     def fit(self):
         ...
 
@@ -109,5 +114,5 @@ class BayesianFit(BaseFit):
 
 if __name__ == '__main__':
     bayes = BayesianFit(model=[], data=[], stat=[])
-    ml = MaxLikeFit(model=[], data=[], stat=[])
+    ml = LikelihoodFit(model=[], data=[], stat=[])
 

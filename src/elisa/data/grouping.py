@@ -1,111 +1,163 @@
+"""Various method for grouping spectrum."""
 from __future__ import annotations
 
+from typing import Tuple
+
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
+from scipy.stats import norm
+
+__all__ = [
+    'group_const',
+    'group_min',
+    'group_sig',
+    'group_pos',
+    'group_opt',
+    'group_optmin',
+    'group_optsig',
+]
+
+GroupResultType = Tuple[NDArray, bool]
 
 
-def counts():
-    ...
+def group_min(data: ArrayLike, n: int) -> GroupResultType:
+    """Group data by containing at least `n` counts in each channel.
 
+    Parameters
+    ----------
+    data: array_like
+        Counts array.
+    n: int
+        Minimum number of counts in each channel after grouping.
 
-def error():
-    ...
+    Returns
+    -------
+    flag : ndarray
+        Grouping flag.
+    success: bool
+        Whether the scale is met for all grouped channels.
 
-
-def significance():
-    ...
-
-
-def constant():
-    ...
-
-
-def optimal():
-    ...
-
-
-def optimal_counts():
-    ...
-
-
-def optimal_significance():
-    ...
-
-
-def _counts_grouping_idx(counts, group_scale):
-    n = len(counts)
-    n_minus_1 = n - 1
-    grouping = np.empty(n, np.int64)
-    grouping[0] = 0
+    """
+    nd = len(data)
+    nc_minus_1 = nd - 1
+    idx = np.empty(nd, np.int64)
+    idx[0] = 0
 
     group_counts = 0
-    ngroup = 1
+    ng = 1
 
-    for i, ci in enumerate(counts):
-        group_counts += ci
+    for i, di in enumerate(data):
+        group_counts += di
 
-        if i == n_minus_1:
-            if group_counts < group_scale:
+        if i == nc_minus_1:
+            if group_counts < n:
                 # if the last group does not have enough counts,
                 # then combine the last two groups to ensure all
-                # groups meet the scale requirement
-                ngroup -= 1
+                # groups meet the counts requirement
+                ng -= 1
 
             break
 
-        if group_counts >= group_scale:
-            grouping[ngroup] = i + 1
+        if group_counts >= n:
+            idx[ng] = i + 1
 
             group_counts = 0
-            ngroup += 1
+            ng += 1
 
-    return grouping[:ngroup]
+    idx = idx[:ng]
+    if np.all(np.add.reduceat(data, idx) >= n):
+        success = True
+    else:
+        success = False
 
-
-def _counts_grouping_flag(counts, group_scale):
-    idx = _counts_grouping_idx(counts, group_scale)
-    flag = np.zeros(len(counts), dtype=int)
+    flag = np.full(nd, -1, dtype=int)
     flag[idx] = 1
 
-    return flag
+    return flag, success
 
 
-def _error_grouping_idx(counts, error, n_sigma):
-    n = len(counts)
-    n_minus_1 = n - 1
-    grouping = np.empty(n, np.int64)
-    grouping[0] = 0
+def group_pos(data: ArrayLike, error: ArrayLike, p: float) -> GroupResultType:
+    """Group data by limiting the negative part of counts CDF is less than `p`.
 
-    grp_counts = 0.0
-    grp_error2 = 0.0
-    ngroup = 1
+    Parameters
+    ----------
+    data: array_like
+        Counts array.
+    error : array_like
+        Uncertainty of data.
+    p: float
+        Maximum area of negative part of CDF in each channel after grouping.
+        Must be less than 1.
 
-    for i, (ci, ei) in enumerate(zip(counts, error)):
-        grp_counts += ci
-        grp_error2 += ei * ei
-        x = grp_counts - n_sigma * np.sqrt(grp_error2)
+    Returns
+    -------
+    flag : ndarray
+        Grouping flag.
+    success: bool
+        Whether the scale is met for all grouped channels.
 
-        if i == n_minus_1:
+    """
+    n_sigma = norm.isf(p)
+
+    nd = len(data)
+    nc_minus_1 = nd - 1
+    idx = np.empty(nd, np.int64)
+    idx[0] = 0
+
+    grp_data = 0.0
+    grp_var = 0.0
+    ng = 1
+
+    for i, (ci, ei) in enumerate(zip(data, error)):
+        grp_data += ci
+        grp_var += ei * ei
+        x = grp_data - n_sigma * np.sqrt(grp_var)
+
+        if i == nc_minus_1:
             if x < 0.0:
                 # if the error of last group is not small enough,
                 # then combine the last two groups to ensure all
                 # groups meet the scale requirement
-                ngroup -= 1
+                ng -= 1
 
             break
 
         if x > 0.0:
-            grouping[ngroup] = i + 1
+            idx[ng] = i + 1
 
-            grp_counts = 0.0
-            grp_error2 = 0.0
-            ngroup += 1
+            grp_data = 0.0
+            grp_var = 0.0
+            ng += 1
 
-    return grouping[:ngroup]
+    idx = idx[:ng]
+    grp_data = np.add.reduceat(data, idx)
+    grp_err = np.sqrt(np.add.reduceat(np.square(error), idx))
+    if np.all(grp_data - n_sigma * grp_err > 0):
+        success = True
+    else:
+        success = False
 
-
-def _error_grouping_flag(counts, error, n_sigma):
-    idx = _error_grouping_idx(counts, error, n_sigma)
-    flag = np.zeros(len(counts), dtype=int)
+    flag = np.full(nd, -1, dtype=int)
     flag[idx] = 1
 
-    return flag
+    return flag, success
+
+
+def group_sig() -> GroupResultType:
+    ...
+
+
+def group_const() -> GroupResultType:
+    ...
+
+
+def group_opt() -> GroupResultType:
+    ...
+
+
+def group_optmin() -> GroupResultType:
+    ...
+
+
+def group_optsig() -> GroupResultType:
+    ...

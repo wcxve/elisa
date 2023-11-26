@@ -563,7 +563,7 @@ def _plot_icounts(
     icounts = counts.cumsum()
 
     other = [data.ph_ebins, data.ch_emin, data.ch_emax, data.resp_matrix]
-    model_counts = model.counts(pars, *other, data.spec_exposure)
+    model_counts = model.counts(pars, data.spec_exposure)
     model_icounts = model_counts.cumsum()
 
     total_counts = model_icounts[-1]
@@ -607,7 +607,7 @@ def _plot_icounts_residual(
 
     counts = data.net_counts
     other = [data.ph_ebins, data.ch_emin, data.ch_emax, data.resp_matrix]
-    model_counts = model.counts(pars, *other, data.spec_exposure)
+    model_counts = model.counts(pars, data.spec_exposure)
 
     total_counts = model_counts.sum()
     icounts = counts.cumsum() / total_counts
@@ -624,7 +624,7 @@ def _plot_icounts_residual(
 
     if data_sim is not None and pars_fit is not None:
         sim_icounts = data_sim.cumsum(1)
-        sim_imodel = model.counts(pars_fit, *other, data.spec_exposure).cumsum(1)
+        sim_imodel = model.counts(pars_fit, data.spec_exposure).cumsum(1)
         sim_total = sim_imodel[:, -1:]
         sim_icounts /= sim_total
         sim_imodel /= sim_total
