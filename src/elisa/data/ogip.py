@@ -6,7 +6,6 @@ import warnings
 
 import numpy as np
 from astropy.io import fits
-from numpy.typing import ArrayLike, NDArray
 from .grouping import (
     group_const,
     group_min,
@@ -19,6 +18,8 @@ from .grouping import (
 
 __all__ = ['Data']
 # TODO: support creating Data object from array
+
+NDArray = np.ndarray
 
 
 class Data:
@@ -95,7 +96,7 @@ class Data:
 
     def __init__(
         self,
-        erange: ArrayLike,
+        erange: list,
         specfile: str,
         backfile: str | None = None,
         respfile: str | None = None,
@@ -250,8 +251,8 @@ class Data:
         scale : float
             Grouping scale.
 
-        Warnings
-        --------
+        Warns
+        -----
         GroupWarning
             Warn if grouping scale is not met for any channel.
 

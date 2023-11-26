@@ -1,10 +1,9 @@
 """Various method for grouping spectrum."""
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Tuple  # deprecated in py39+
 
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
 from scipy.stats import norm
 
 __all__ = [
@@ -17,10 +16,11 @@ __all__ = [
     'group_optsig',
 ]
 
-GroupResultType = Tuple[NDArray, bool]
+GroupResultType = Tuple[np.ndarray, bool]
+NDArray = np.ndarray
 
 
-def group_min(data: ArrayLike, n: int) -> GroupResultType:
+def group_min(data: NDArray, n: int) -> GroupResultType:
     """Group data by containing at least `n` counts in each channel.
 
     Parameters
@@ -76,7 +76,7 @@ def group_min(data: ArrayLike, n: int) -> GroupResultType:
     return flag, success
 
 
-def group_pos(data: ArrayLike, error: ArrayLike, p: float) -> GroupResultType:
+def group_pos(data: NDArray, error: NDArray, p: float) -> GroupResultType:
     """Group data by limiting the negative part of counts CDF is less than `p`.
 
     Parameters
