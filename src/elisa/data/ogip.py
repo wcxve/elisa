@@ -31,7 +31,7 @@ class Data:
     Parameters
     ----------
     erange : array_like
-        Energy range of interested, e.g., ``erange=[(0.5, 2), (5, 200)]``.
+        Energy range of interest in keV, e.g., ``erange=[(0.5, 2), (5, 200)]``.
     specfile : str
         Spectrum file path. For type II pha file, the row specifier must be
         given in the end of path, e.g., ``specfile="./spec.pha2{1}"``.
@@ -405,12 +405,12 @@ class Data:
         return self._name
 
     @property
-    def spec_counts(self) -> np.ndarray:
+    def spec_counts(self) -> NDArray:
         """Spectrum counts in each measuring channel."""
         return self._spec_counts
 
     @property
-    def spec_error(self) -> np.ndarray:
+    def spec_error(self) -> NDArray:
         """Uncertainty of spectrum counts."""
         return self._spec_error
 
@@ -425,7 +425,7 @@ class Data:
         return self._spec_exposure
 
     @property
-    def spec_effexpo(self) -> float | np.ndarray:
+    def spec_effexpo(self) -> float | NDArray:
         """Effective exposure of spectrum."""
         return self._spec_effexpo
 
@@ -435,12 +435,12 @@ class Data:
         return self._has_back
 
     @property
-    def back_counts(self) -> np.ndarray | None:
+    def back_counts(self) -> NDArray | None:
         """Background counts in each measuring channel."""
         return self._back_counts
 
     @property
-    def back_error(self) -> np.ndarray | None:
+    def back_error(self) -> NDArray | None:
         """Uncertainty of background counts."""
         return self._back_error
 
@@ -455,27 +455,27 @@ class Data:
         return self._back_exposure
 
     @property
-    def back_effexpo(self) -> float | np.ndarray | None:
+    def back_effexpo(self) -> float | NDArray | None:
         """Effective exposure of background."""
         return self._back_effexpo
 
     @property
-    def net_counts(self) -> np.ndarray:
+    def net_counts(self) -> NDArray:
         """Net counts in each measuring channel."""
         return self._net_counts
 
     @property
-    def net_spec(self) -> np.ndarray:
+    def net_spec(self) -> NDArray:
         """Net counts per second per keV."""
         return self._net_spec
 
     @property
-    def net_error(self) -> np.ndarray:
+    def net_error(self) -> NDArray:
         """Uncertainty of net spectrum."""
         return self._net_error
 
     @property
-    def channel(self) -> np.ndarray:
+    def channel(self) -> NDArray:
         """Channel information."""
         return self._channel
 
@@ -658,7 +658,7 @@ class Spectrum:
 
         # get background scaling factor
         back_scale = np.float64(get_field('BACKSCAL', 1.0))
-        if isinstance(back_scale, np.ndarray):
+        if isinstance(back_scale, NDArray):
             back_scale = np.array(back_scale, dtype=np.float64, order='C')
         else:
             back_scale = np.float64(back_scale)
@@ -666,7 +666,7 @@ class Spectrum:
 
         # get area scaling factor
         area_scale = get_field('AREASCAL', 1.0)
-        if isinstance(area_scale, np.ndarray):
+        if isinstance(area_scale, NDArray):
             area_scale = np.array(area_scale, dtype=np.float64, order='C')
         else:
             area_scale = np.float64(area_scale)
@@ -685,15 +685,15 @@ class Spectrum:
         self._poisson = poisson
         self._quality = quality
 
-    def group(self, grouping: np.ndarray, noticed: np.ndarray | None):
+    def group(self, grouping: NDArray, noticed: NDArray | None):
         """Group spectrum channel.
 
         Parameters
         ----------
-        grouping : np.ndarray
+        grouping : ndarray
             Channel with a grouping flag of 1 with all successive channels
             with grouping flags of -1 are combined.
-        noticed : np.ndarray or None, optional
+        noticed : ndarray or None, optional
             Flag indicating which channel to be used in grouping.
 
         Raises
@@ -742,22 +742,22 @@ class Spectrum:
         self._error = error
 
     @property
-    def counts(self) -> np.ndarray:
+    def counts(self) -> NDArray:
         """Counts in each measuring channel."""
         return self._counts
 
     @property
-    def error(self) -> np.ndarray:
+    def error(self) -> NDArray:
         """Uncertainty of counts in each measuring channel."""
         return self._error
 
     @property
-    def grouping(self) -> np.ndarray:
+    def grouping(self) -> NDArray:
         """Grouping flag for channel."""
         return self._grouping
 
     @property
-    def quality(self) -> np.ndarray:
+    def quality(self) -> NDArray:
         """Quality flag indicating which channel to be used in analysis."""
         return self._quality
 
@@ -767,7 +767,7 @@ class Spectrum:
         return self._exposure
 
     @property
-    def eff_exposure(self) -> float | np.ndarray:
+    def eff_exposure(self) -> float | NDArray:
         """Effective exposure, corrected with area and background scaling."""
         return self._eff_exposure
 
@@ -802,12 +802,12 @@ class Spectrum:
         return self._corrfile
 
     @property
-    def back_scale(self) -> float | np.ndarray:
+    def back_scale(self) -> float | NDArray:
         """Background scaling factor."""
         return self._back_scale
 
     @property
-    def area_scale(self) -> float | np.ndarray:
+    def area_scale(self) -> float | NDArray:
         """Area scaling factor."""
         return self._area_scale
 
@@ -875,15 +875,15 @@ class Response:
         self._channel_egrid = self._raw_channel_egrid = ch_egrid
         self._matrix = self._raw_matrix = matrix
 
-    def group(self, grouping: np.ndarray, noticed: np.ndarray | None = None):
+    def group(self, grouping: NDArray, noticed: NDArray | None = None):
         """Group response matrix.
 
         Parameters
         ----------
-        grouping : np.ndarray
+        grouping : ndarray
             Channel with a grouping flag of 1 with all successive channels
             with grouping flags of -1 are combined.
-        noticed : np.ndarray or None, optional
+        noticed : ndarray or None, optional
             Flag indicating which channel to be used in grouping.
 
         """
@@ -934,7 +934,7 @@ class Response:
             self._matrix = matrix[:, non_empty]
 
     @property
-    def ph_egrid(self) -> np.ndarray:
+    def ph_egrid(self) -> NDArray:
         """Photon energy grid."""
         return self._ph_egrid
 
@@ -944,38 +944,38 @@ class Response:
         return self._channel
 
     @property
-    def ch_emin(self) -> np.ndarray:
+    def ch_emin(self) -> NDArray:
         """Left edge of measured energy grid."""
         return self._channel_egrid[:, 0]
 
     @property
-    def ch_emax(self) -> np.ndarray:
+    def ch_emax(self) -> NDArray:
         """Right edge of measured energy grid."""
         return self._channel_egrid[:, 1]
 
     @property
-    def ch_emid(self) -> np.ndarray:
+    def ch_emid(self) -> NDArray:
         """Middle of measured energy grid."""
         return np.mean(self._channel_egrid, axis=1)
 
     @property
-    def ch_width(self) -> np.ndarray:
+    def ch_width(self) -> NDArray:
         """Width of measured energy grid."""
         return self._channel_egrid[:, 1] - self._channel_egrid[:, 0]
 
     @property
-    def ch_mean(self) -> np.ndarray:
+    def ch_mean(self) -> NDArray:
         """Geometric mean of measured energy grid."""
         return np.sqrt(np.prod(self._channel_egrid, axis=1))
 
     @property
-    def ch_error(self) -> np.ndarray:
+    def ch_error(self) -> NDArray:
         """Width between left/right and geometric mean of energy grid."""
         mean = self.ch_mean
         return np.abs([self.ch_emin - mean, self.ch_emax - mean])
 
     @property
-    def matrix(self) -> np.ndarray:
+    def matrix(self) -> NDArray:
         """Response matrix."""
         return self._matrix
 
