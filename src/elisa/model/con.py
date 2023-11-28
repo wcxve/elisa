@@ -8,6 +8,8 @@ import jax.numpy as jnp
 
 from .base import Component
 
+__all__ = []
+
 
 class ConvolutionComponent(Component, ABC):
     """Prototype class to define multiplicative component."""
