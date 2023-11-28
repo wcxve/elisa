@@ -4,6 +4,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Callable
 
+import jax.numpy as jnp
+
 from .base import Component
 
 
@@ -15,19 +17,23 @@ class MultiplicativeComponent(Component, ABC):
         """Model type is multiplicative."""
         return 'mul'
 
-    def _func_generator(self) -> Callable:
+    @property
+    def _func(self) -> Callable:
         """Return function that integrates continnum over energy grid."""
-        return self._continum(func_name)
+        return self._continum
+
+    @staticmethod
+    @abstractmethod
+    def _continum(*args):
+        """Continnum to be evaluated over energy grids."""
+        pass
 
 
-class Constant(Component):
+class Constant(MultiplicativeComponent):
     _default = (
         ('factor', 'A', 1.0, 1e-5, 1e5, False, False),
     )
 
     @staticmethod
-    def _integral(egrid, PhoIndex, norm):
-        # here we ignore the case of PhoIndex == 1.0
-        tmp = 1.0 - PhoIndex
-        f = norm / tmp * jnp.power(egrid, tmp)
-        return f[1:] - f[:-1]
+    def _continum(egrid, factor):
+        return jnp.full(egrid.size - 1, factor)
