@@ -152,7 +152,7 @@ class OperationNode(Node, ABC):
     def __init__(self, lh: Node, rh: Node, op: str):
         self._check_type(lh, rh, op)
 
-        fmt = r'$\times$' if op == '*' else op
+        fmt = r'\times' if op == '*' else op
 
         super().__init__(
             name=op,
@@ -899,7 +899,7 @@ class LabelSpace:
                         if label_type == 'name':
                             str_ = f'{num}'
                         else:
-                            str_ = f'$_{num}$'
+                            str_ = f'_{num}'
                         id_to_str[f'{label}_{id_}'] = f'{label}{str_}'
 
             else:  # push predecessors to the node stack

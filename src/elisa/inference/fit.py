@@ -52,7 +52,7 @@ class BaseFit(ABC):
         self._stat = {d.name: s for d, s in zip(data, stat)}
         self._seed = int(seed)
 
-    def _sample_func(self) -> Callable:
+    def _generate_sample(self) -> Callable:
         samples = (
             m._model_info['site']['sample']
             for m in self._model.values()
@@ -70,7 +70,7 @@ class BaseFit(ABC):
 
         return sample_func
 
-    def _deterministic_func(self) -> Callable:
+    def _generate_deterministic(self) -> Callable:
         deterministic = (
             m._model_info['site']['deterministic']
             for m in self._model.values()
@@ -86,12 +86,14 @@ class BaseFit(ABC):
             site = {}
             remains = list(deterministic.items())
             while remains:
-                determ, (arg_names, func) = remains[0]
+                i = remains.pop(0)
+                determ, (arg_names, func) = i
                 all_site = {**sample_dict, **site}
                 if all(arg_name in all_site for arg_name in arg_names):
                     args = (all_site[arg_name] for arg_name in arg_names)
                     site[determ] = func(*args)
-                    remains.pop(0)
+                else:
+                    remains.append(i)
 
             return site
 

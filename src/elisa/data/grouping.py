@@ -1,8 +1,6 @@
 """Various method for grouping spectrum."""
 from __future__ import annotations
 
-from typing import Tuple  # deprecated in py39+
-
 import numpy as np
 from scipy.stats import norm
 
@@ -16,7 +14,7 @@ __all__ = [
     'group_optsig',
 ]
 
-GroupResultType = Tuple[np.ndarray, bool]
+GroupResultType = tuple[np.ndarray, bool]
 NDArray = np.ndarray
 
 

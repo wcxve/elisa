@@ -15,7 +15,7 @@ g = e*f
 m1 = BlackBody(fmt='BB')
 m2 = BlackBody(fmt='BB')
 m2.kT = m1.kT * UniformParameter('f', 'f', 0.5, 0.001, 1, log=True)
-m3 = m1 + m2
+m3 = m2 + m1
 det = 'n7'
 spec = f'/Users/xuewc/ObsData/GRB231115A/GBM/{det}.pha'
 back = f'/Users/xuewc/ObsData/GRB231115A/GBM/{det}.bak'
@@ -23,12 +23,14 @@ resp = f'/Users/xuewc/ObsData/GRB231115A/GBM/{det}.rsp'
 d = Data((8, 900), spec, back, resp, name=det, group='bpos', scale=0.001)
 
 f = LikelihoodFit(d, m3, 'pgstat')
-sample_func = f._sample_func()
-determ_func = f._deterministic_func()
+sample_func = f._generate_sample()
+determ_func = f._generate_deterministic()
 
 def model():
     sample_site = sample_func()
     determ_func(sample_site)
+    x = numpyro.sample('x', Normal())
+    numpyro.deterministic('_x', x)
 
 import jax
 jax.config.update("jax_enable_x64", True)
