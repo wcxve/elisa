@@ -699,15 +699,16 @@ class Component(Model, ABC, metaclass=ComponentMeta):
             fmt=fmt,
             mtype=mtype,
             params={k: v._node for k, v in params_dict.items()},
-            func_generator=self._func_generator,
+            func=self._func,
             is_ncon=is_ncon
         )
 
         super().__init__(component, params_dict)
 
+    @property
     @abstractmethod
-    def _func_generator(self, func_name: str) -> Callable:
-        """Model function generator, overriden by subclass."""
+    def _func(self) -> Callable:
+        """Return model evaluation function, overriden by subclass."""
         pass
 
     @property

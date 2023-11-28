@@ -18,27 +18,14 @@ class AdditiveComponent(Component, ABC):
         """Model type is additive."""
         return 'add'
 
-    def _func_generator(self, func_name: str) -> Callable:
+    @property
+    def _func(self) -> Callable:
         """Return function that integrates continnum over energy grid."""
-        return self._integral_generator(func_name)
-
-    @abstractmethod
-    def _integral_generator(self, func_name: str) -> Callable:
-        """Overriden by subclass."""
-        pass
-
-
-class AnaIntAdditive(AdditiveComponent, ABC):
-    """Prototype class with analytical integral to define additive model."""
-
-    def _integral_generator(self, func_name: str) -> Callable:
-        """Copy integral function."""
         return self._integral
 
-    @staticmethod
     @abstractmethod
-    def _integral(*args, **kwargs):
-        """Analytical integral over egrid, overriden by subclass."""
+    def _integral(self, *args) -> Callable:
+        """Overriden by subclass."""
         pass
 
 
@@ -71,9 +58,11 @@ class NumIntAdditive(AdditiveComponent, ABC):
 
         self._method = value
 
-    def _integral_generator(self, func_name: str) -> Callable:
+    @property
+    def _integral(self) -> Callable:
         """Wrap continnum function with numerical integral method."""
-        f = integral(self._continnum, func_name, self._method)
+        name = self.__class__.__name__.lower()
+        f = integral(self._continnum, name, self._method)
         return f
 
     @staticmethod
@@ -97,7 +86,7 @@ class BlackBody(NumIntAdditive):
         return K * 8.0525 * e * e / (kT * kT * kT * kT * jnp.expm1(e / kT))
 
 
-class Powerlaw(AnaIntAdditive):
+class Powerlaw(AdditiveComponent):
     """TODO"""
 
     _default = (
@@ -107,7 +96,7 @@ class Powerlaw(AnaIntAdditive):
 
     @staticmethod
     def _integral(egrid, alpha, K):
-        # here we ignore the case of PhoIndex == 1.0
+        # we ignore the case of PhoIndex = 1.0
         tmp = 1.0 - alpha
         f = K / tmp * jnp.power(egrid, tmp)
         return f[1:] - f[:-1]

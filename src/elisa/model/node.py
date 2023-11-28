@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from functools import reduce, update_wrapper
-from types import FunctionType
+from functools import reduce, wraps
+from inspect import signature
 from typing import Any, Callable, Union
 from uuid import uuid4
 
@@ -433,7 +433,7 @@ class ModelNode(Node):
         Model type.
     params : dict
         A str-parameter mapping that defines the parameters of the model.
-    func_generator : callable
+    func : callable
         Generator of model function.
     is_ncon : bool
         Whether model is normalization convolution type.
@@ -460,7 +460,7 @@ class ModelNode(Node):
         fmt: str,
         mtype: str,
         params: dict[str, ParameterNodeType],
-        func_generator: Callable,
+        func: Callable,
         is_ncon: bool
     ):
         if mtype not in {'add', 'mul', 'con'}:
@@ -479,7 +479,7 @@ class ModelNode(Node):
 
         attrs = dict(
             mtype=mtype,
-            func_generator=func_generator,
+            func=func,
             is_ncon=is_ncon
         )
 
@@ -532,20 +532,14 @@ class ModelNode(Node):
     def generate_func(self, mapping: dict[str, str]) -> Callable:
         """Wrap model evaluation function."""
         model_name = str(mapping[self.name])
-        func = self.attrs['func_generator'](model_name)
 
-        # from https://stackoverflow.com/a/13503277
-        copy = FunctionType(
-            code=func.__code__,
-            globals=func.__globals__,
-            name=model_name,
-            argdefs=func.__defaults__,
-            closure=func.__closure__
-        )
-        copy = update_wrapper(copy, func)
-        copy.__kwdefaults__ = func.__kwdefaults__
-        copy.__qualname__ = model_name
-        func = copy
+        func = self.attrs['func']
+        params = ', '.join(signature(func).parameters.keys())
+        func_code = '@wraps(func)\n'
+        func_code += f'def {model_name}({params}): return func({params})'
+        tmp = {'wraps': wraps, 'func': func}
+        exec(func_code, tmp)
+        func = tmp[model_name]
 
         mtype = self.attrs['mtype']
 

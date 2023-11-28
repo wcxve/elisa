@@ -5,9 +5,8 @@ closed form expressions do not exist.
 
 """
 
-import inspect
-
 from functools import wraps
+from inspect import signature
 from typing import Callable
 
 __all__ = ['integral', 'list_methods']
@@ -49,7 +48,7 @@ def integral(f: Callable, name: str, method: str) -> Callable:
             f'"{method}"'
         )
 
-    params = list(inspect.signature(f).parameters.keys())[1:]
+    params = list(signature(f).parameters.keys())[1:]
     def_str = ', '.join(params)
     call_str = ', '.join(map(lambda s: f'{s}={s}', params))
     tmp = {'wraps': wraps, 'func': f}
