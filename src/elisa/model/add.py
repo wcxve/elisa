@@ -1,4 +1,4 @@
-"""Model of additive type."""
+"""Models of additive type."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -87,27 +87,27 @@ class BlackBody(NumIntAdditive):
     """TODO: docstring"""
 
     _default = (
-        ('kT', '$kT$', 3.0, 0.0001, 200.0, False, False),
-        ('norm', '$K$', 1.0, 1e-10, 1e10, False, False),
+        ('kT', 'kT', 3.0, 0.0001, 200.0, False, False),
+        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
-    def _continnum(egrid, kT, norm):
+    def _continnum(egrid, kT, K):
         e = egrid
-        return norm * 8.0525 * e * e / (kT * kT * kT * kT * jnp.expm1(e / kT))
+        return K * 8.0525 * e * e / (kT * kT * kT * kT * jnp.expm1(e / kT))
 
 
 class Powerlaw(AnaIntAdditive):
     """TODO"""
 
     _default = (
-        ('PhoIndex', r'$\alpha$', 1.01, -3.0, 10.0, False, False),
-        ('norm', '$K$', 1.0, 1e-10, 1e10, False, False),
+        ('alpha', r'\alpha', 1.01, -3.0, 10.0, False, False),
+        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
-    def _integral(egrid, PhoIndex, norm):
+    def _integral(egrid, alpha, K):
         # here we ignore the case of PhoIndex == 1.0
-        tmp = 1.0 - PhoIndex
-        f = norm / tmp * jnp.power(egrid, tmp)
+        tmp = 1.0 - alpha
+        f = K / tmp * jnp.power(egrid, tmp)
         return f[1:] - f[:-1]

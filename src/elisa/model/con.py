@@ -1,1 +1,1 @@
-"""Model of convolution type."""
+"""Models of convolution type."""

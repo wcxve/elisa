@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from functools import reduce, update_wrapper
-from typing import Any, Callable, Union
 from types import FunctionType
+from typing import Any, Callable, Union
 from uuid import uuid4
 
 from numpyro.distributions import Distribution
@@ -544,6 +544,7 @@ class ModelNode(Node):
         )
         copy = update_wrapper(copy, func)
         copy.__kwdefaults__ = func.__kwdefaults__
+        copy.__qualname__ = model_name
         func = copy
 
         mtype = self.attrs['mtype']

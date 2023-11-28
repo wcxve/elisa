@@ -122,7 +122,7 @@ class BaseFit(ABC):
             elif isinstance(inputs, (list, tuple)):
                 if not inputs:
                     raise ValueError(f'{name} list is empty')
-                if not all(map(lambda i: isinstance(i, itype), inputs)):
+                if not all(isinstance(i, itype) for i in inputs):
                     raise ValueError(f'all {name} must be {tname} instance')
                 input_list = list(inputs)
             else:
@@ -133,13 +133,21 @@ class BaseFit(ABC):
         model_list = get_list(model, 'model', Model, 'Model')
         stat_list = get_list(stat, 'stat', str, 'str')
 
-        # check stat option
-        flag = list(map(lambda i: (i in self._stat_options), stat_list))
+        # check if model type is additive
+        flag = list(i.type == 'add' for i in model_list)
         if not all(flag):
-            unexpect = (j for i, j in enumerate(stat_list) if not flag[i])
-            unexpect = ', '.join(f"'{i}'" for i in unexpect)
+            err = (j for i, j in enumerate(model_list) if not flag[i])
+            err = ', '.join(f"'{i}'" for i in err)
+            msg = f'got models which are not additive type: {err}'
+            raise ValueError(msg)
+
+        # check stat option
+        flag = list(i in self._stat_options for i in stat_list)
+        if not all(flag):
+            err = (j for i, j in enumerate(stat_list) if not flag[i])
+            err = ', '.join(f"'{i}'" for i in err)
             supported = ', '.join(f"'{i}'" for i in self._stat_options)
-            msg = f'got unexpected stat: {unexpect}; supported are {supported}'
+            msg = f'got unexpected stat: {err}; supported are {supported}'
             raise ValueError(msg)
 
         nd = len(data_list)

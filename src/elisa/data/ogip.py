@@ -300,10 +300,7 @@ class Data:
         def apply_map(func, *args):
             """map the apply function and return success flag."""
             return all(
-                map(
-                    lambda mask: apply_grouping(func, mask, *args),
-                    ch_mask
-                )
+                apply_grouping(func, mask, *args) for mask in ch_mask
             )
 
         if method == 'const':
@@ -1027,7 +1024,7 @@ class Response:
                 group_emin.append(min(emin[slice_i]))
                 group_emax.append(max(emax[slice_i]))
 
-            self._channel = tuple(map(lambda g: tuple(g), group_channel))
+            self._channel = tuple(tuple(g) for g in group_channel)
             self._channel_egrid = np.column_stack([group_emin, group_emax])
 
             a = np.where(noticed, 1.0, 0.0)

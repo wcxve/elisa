@@ -1,8 +1,8 @@
 from elisa.model.base import UniformParameter, generate_parameter
-from elisa.model.add import BlackBody
+from elisa.model.add import BlackBody, Powerlaw
 from elisa.data.ogip import Data
 from elisa.inference.fit import LikelihoodFit
-from numpyro.distributions import Normal
+from numpyro.distributions import Normal, LogNormal
 
 a = UniformParameter('a', 'a', 1.0, 0.1, 2, log=1)
 b = UniformParameter('b', 'b', 1.0, 0.1, 2, log=1, frozen=1)
@@ -29,7 +29,7 @@ determ_func = f._generate_deterministic()
 def model():
     sample_site = sample_func()
     determ_func(sample_site)
-    x = numpyro.sample('x', Normal())
+    x = numpyro.sample('x', LogNormal())
     numpyro.deterministic('_x', x)
 
 import jax
@@ -50,3 +50,10 @@ sampler = infer.MCMC(
 )
 sampler.run(jax.random.PRNGKey(0))
 idata = az.from_numpyro(sampler)
+import corner
+corner.corner(
+    idata,
+    axes_scale=['linear', 'linear', 'log', 'log', 'linear', 'log'],
+    quantiles=[0.15865, 0.5, 0.84135],
+    show_titles=True
+)
