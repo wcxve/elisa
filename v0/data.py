@@ -279,8 +279,9 @@ class Data:
                 self._channel = ebounds['CHANNEL']
 
         # a simple wrap around for zero elements for some response files
-        mask = [np.any(i['MATRIX'] > 0.0) for i in resp]
-        resp_ = resp[mask]
+        # mask = [np.any(i['MATRIX'] > 0.0) for i in resp]
+        # resp_ = resp[mask]
+        resp_ = resp
 
         # assumes ph_ebins is continuous
         ph_ebins = np.append(resp_['ENERG_LO'], resp_['ENERG_HI'][-1])
@@ -347,9 +348,9 @@ class Data:
         factor = np.where(good_quality, 1.0, 0.0)
 
         if group_type != None:
-            if group_type not in ['bmin', 'berr']:
+            if group_type not in ['bmin', 'bpos']:
                 raise ValueError(
-                    'current supported grouping method is "bmin" and "berr"'
+                    'current supported grouping method is "bmin" and "bpos"'
                 )
             else:
                 if group_type == 'bmin' and \
@@ -360,7 +361,7 @@ class Data:
                     )
                 elif group_type == 'berr' and not self.has_back:
                     raise ValueError(
-                        'background data is required for "berr" '
+                        'background data is required for "bpos" '
                         'grouping method'
                     )
 
@@ -400,12 +401,12 @@ class Data:
                         f'counts less than {group_scale}'
                     )
 
-            elif group_type == 'berr':
+            elif group_type == 'bpos':
                 if group_scale is None:
                     group_scale = 0.15
 
                 if group_scale > 0.15:
-                    raise ValueError('berr group scale must be less than 0.15')
+                    raise ValueError('bpos group scale must be less than 0.15')
 
                 n_sigma = norm.isf(group_scale, 0, 1)
 

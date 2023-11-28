@@ -484,18 +484,19 @@ class Model(ABC):
         return func
 
     @property
-    def _model_info(self) -> tuple:
+    def _model_info(self) -> dict:
         """Model information.
 
         Returns sample and deterministic site information of :mod:`numpyro`,
         model parameter configure based on site, model function and id mapping.
         """
-        site = self._node.site
-        params = self._node.params
-        func = self._wrapped_func
-        mapping = self._label.mapping
-
-        return site, params, func, mapping
+        info = dict(
+            site=self._node.site,
+            params=self._node.params,
+            func=self._wrapped_func,
+            mapping=self._label.mapping,
+        )
+        return info
 
     # def set_params(self, params: dict[str, Parameter]) -> None:
     #     """Set parameters."""

@@ -144,20 +144,20 @@ def group_pos(data: NDArray, error: NDArray, p: float) -> GroupResultType:
 
 
 def group_sig() -> GroupResultType:
-    ...
+    raise NotImplementedError
 
 
 def group_const() -> GroupResultType:
-    ...
+    raise NotImplementedError
 
 
 def group_opt() -> GroupResultType:
-    ...
+    raise NotImplementedError
 
 
 def group_optmin() -> GroupResultType:
-    ...
+    raise NotImplementedError
 
 
 def group_optsig() -> GroupResultType:
-    ...
+    raise NotImplementedError

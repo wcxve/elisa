@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from functools import reduce
+from typing import Callable
+
+import jax
+import numpyro
 
 from ..data.ogip import Data
 from ..model.base import Model
-from .likelihood import *
+from .likelihood import chi2, cstat, pstat, pgstat, wstat
 
 # [model_num^model]
 
@@ -25,7 +30,13 @@ class BaseFit(ABC):
 
     """
 
-    _stat_option: set[str] = {'chi2', 'cstat', 'pstat', 'pgstat', 'wstat'}
+    _stat_options = {
+        'chi2': chi2,
+        'cstat': cstat,
+        'pstat': pstat,
+        'pgstat': pgstat,
+        'wstat': wstat
+    }
 
     def __init__(
         self,
@@ -35,17 +46,65 @@ class BaseFit(ABC):
         seed: int = 42
     ):
         data, model, stat = self._sanity_check(data, model, stat)
-        # self._data, self._model, self._stat
+
+        self._data = {d.name: d for d in data}
+        self._model = {d.name: m for d, m in zip(data, model)}
+        self._stat = {d.name: s for d, s in zip(data, stat)}
         self._seed = int(seed)
 
+    def _sample_func(self) -> Callable:
+        samples = (
+            m._model_info['site']['sample']
+            for m in self._model.values()
+        )
+
+        samples = reduce(lambda i, j: {**i, **j}, samples)
+
+        def sample_func():
+            """Return numpyro sample site dict."""
+            site = {
+                name: numpyro.sample(name, dist)
+                for name, dist in samples.items()
+            }
+            return site
+
+        return sample_func
+
+    def _deterministic_func(self) -> Callable:
+        deterministic = (
+            m._model_info['site']['deterministic']
+            for m in self._model.values()
+        )
+
+        deterministic = reduce(
+            lambda i, j: {**i, **j},
+            deterministic
+        )
+
+        def deterministic_func(sample_dict):
+            """Return numpyro deterministic site dict."""
+            site = {}
+            remains = list(deterministic.items())
+            while remains:
+                determ, (arg_names, func) = remains[0]
+                all_site = {**sample_dict, **site}
+                if all(arg_name in all_site for arg_name in arg_names):
+                    args = (all_site[arg_name] for arg_name in arg_names)
+                    site[determ] = func(*args)
+                    remains.pop(0)
+
+            return site
+
+        return deterministic_func
+
     @abstractmethod
-    def fit(self, *args, **kwargs):
+    def run(self, *args, **kwargs):
         ...
 
     @classmethod
-    def stat_option(cls) -> set[str]:
+    def stat_options(cls) -> list:
         """List of available likelihood options."""
-        return cls._stat_option
+        return list(cls._stat_options.keys())
 
     def _sanity_check(
         self,
@@ -73,11 +132,11 @@ class BaseFit(ABC):
         stat_list = get_list(stat, 'stat', str, 'str')
 
         # check stat option
-        flag = list(map(lambda i: (i in self._stat_option), stat_list))
+        flag = list(map(lambda i: (i in self._stat_options), stat_list))
         if not all(flag):
             unexpect = (j for i, j in enumerate(stat_list) if not flag[i])
             unexpect = ', '.join(f"'{i}'" for i in unexpect)
-            supported = ', '.join(f"'{i}'" for i in self._stat_option)
+            supported = ', '.join(f"'{i}'" for i in self._stat_options)
             msg = f'got unexpected stat: {unexpect}; supported are {supported}'
             raise ValueError(msg)
 
@@ -103,16 +162,10 @@ class BaseFit(ABC):
 
 
 class LikelihoodFit(BaseFit):
-    def fit(self):
+    def run(self):
         ...
 
 
 class BayesianFit(BaseFit):
-    def fit(self):
+    def run(self):
         ...
-
-
-if __name__ == '__main__':
-    bayes = BayesianFit(model=[], data=[], stat=[])
-    ml = LikelihoodFit(model=[], data=[], stat=[])
-

@@ -80,7 +80,7 @@ class Data:
     record_channel : bool, optional
         Whether to record channel information in the label of grouped
         channel. Only takes effect if `group` is not None or spectral data
-        has ``GROUPING`` defined. The default is True.
+        has ``GROUPING`` defined. The default is False.
     corrfile : str or None, optional
         Correction file applied to `specfile`. Read from the `specfile`
         header if None. The default is None.
@@ -96,7 +96,7 @@ class Data:
 
     def __init__(
         self,
-        erange: list,
+        erange: list | tuple,
         specfile: str,
         backfile: str | None = None,
         respfile: str | None = None,
@@ -133,6 +133,11 @@ class Data:
         else:
             raise ValueError('respfile is required for data')
 
+        if len(spec._raw_counts) != len(resp._raw_channel):
+            msg = f'specfile ({specfile}) and respfile ({respfile}) are not '
+            msg += 'matched'
+            raise ValueError(msg)
+
         # check background file
         if backfile:
             back = Spectrum(backfile, back_poisson)
@@ -140,6 +145,11 @@ class Data:
             back = Spectrum(spec.backfile, back_poisson)
         else:
             back = None
+
+        if back and len(spec._raw_counts) != len(back._raw_counts):
+            msg = f'specfile ({specfile}) and backfile ({backfile}) are not '
+            msg += 'matched'
+            raise ValueError(msg)
 
         # bad quality
         bad = (1, 5) if ignore_bad else (1,)
@@ -192,7 +202,7 @@ class Data:
         self._ch_mean = None
         self._ch_width = None
         self._ch_error = None
-        self._matrix = None
+        self._resp_matrix = None
 
         # NOTE:
         # grouping of area/background scale is not supported currently,
@@ -224,6 +234,10 @@ class Data:
         self._net_counts = None
         self._net_spec = None
         self._net_error = None
+
+        # other attributes
+        self._grouping = None
+        self._ch_mask = None
 
         if group:
             # group spectrum and set the other attributes therein
@@ -271,45 +285,62 @@ class Data:
 
         """
         ch_emin, ch_emax = self._resp._raw_channel_egrid.T
-        ch_mask = self._channel_mask(ch_emin, ch_emax)
-        spec_counts = self._spec._raw_counts[ch_mask]
-        spec_error = self._spec._raw_error[ch_mask]
+        ch_mask = self._channel_mask(ch_emin, ch_emax)  # shape = (nchan, 2)
+        spec_counts = self._spec._raw_counts
+        # spec_error = self._spec._raw_error
+        grouping = np.full(len(spec_counts), 1, dtype=np.int64)
+
+        def apply_grouping(group_func, mask, *args):
+            """function operating the grouping array defined above."""
+            data = (i[mask] * self._good_quality[mask] for i in args)
+            grouping_flag, grouping_success = group_func(*data, scale)
+            grouping[mask] = grouping_flag
+            return grouping_success
+
+        def apply_map(func, *args):
+            """map the apply function and return success flag."""
+            return all(
+                map(
+                    lambda mask: apply_grouping(func, mask, *args),
+                    ch_mask
+                )
+            )
 
         if method == 'const':
-            result = group_const()
+            success = group_const()
 
         elif method == 'min':
-            result = group_min(spec_counts, scale)
+            success = apply_map(group_min, spec_counts)
 
         elif method == 'sig':
-            result = group_sig()
+            success = group_sig()
 
         elif method == 'opt':
-            result = group_opt()
+            success = group_opt()
 
         elif method == 'optmin':
-            result = group_optmin()
+            success = group_optmin()
 
         elif method == 'optsig':
-            result = group_optsig()
+            success = group_optsig()
 
         elif method == 'bmin':
             if self.has_back and self.back_poisson:
-                back_counts = self._back._raw_counts[ch_mask]
+                back_counts = self._back._raw_counts
             else:
                 msg = 'Poisson background is required for "bmin" method'
                 raise ValueError(msg)
-            result = group_min(back_counts, scale)
+            success = apply_map(group_min, back_counts)
 
         elif method == 'bpos':
             if self.has_back:
-                back_counts = self._back._raw_counts[ch_mask]
-                back_error = self._back._raw_error[ch_mask]
+                back_counts = self._back._raw_counts
+                back_error = self._back._raw_error
             else:
                 msg = 'background data is required for "bpos" method'
                 raise ValueError(msg)
 
-            result = group_pos(back_counts, back_error, scale)
+            success = apply_map(group_pos, back_counts, back_error)
 
         else:
             supported = (
@@ -318,8 +349,6 @@ class Data:
             )
             msg = f'supported grouping method are: {", ".join(supported)}'
             raise ValueError(msg)
-
-        grouping, success = result
 
         if not success:
             msg = f'"{method}" grouping failed in some {self._name} channels'
@@ -331,20 +360,23 @@ class Data:
         """Set data according to quality, grouping, and energy range."""
         self._spec.group(grouping, self._good_quality)
         self._resp.group(grouping, self._good_quality)
+        self._grouping = grouping
 
         if self._record_channel:
             groups_channel = np.array(
                 [f'{self.name}_Ch{"+".join(c)}' for c in self._resp.channel]
             )
         else:
-            non_empty = np.add.reduceat(self._good_quality, grouping) != 0
+            grp_idx = np.flatnonzero(grouping == 1)  # transform to index
+            non_empty = np.add.reduceat(self._good_quality, grp_idx) != 0
             groups_channel = np.array(
                 [f'{self.name}_Ch{c}' for c in np.flatnonzero(non_empty)]
             )
 
         ch_emin = self._resp.ch_emin
         ch_emax = self._resp.ch_emax
-        ch_mask = self._channel_mask(ch_emin, ch_emax)
+        ch_mask = self._channel_mask(ch_emin, ch_emax)  # shape = (nchan, 2)
+        ch_mask = np.any(ch_mask, axis=0)
 
         # response attribute
         self._channel = groups_channel[ch_mask]
@@ -355,7 +387,7 @@ class Data:
         self._ch_mean = resp.ch_mean[ch_mask]
         self._ch_width = resp.ch_width[ch_mask]
         self._ch_error = resp.ch_error[:, ch_mask]
-        self._matrix = resp.matrix[:, ch_mask]
+        self._resp_matrix = resp.matrix[:, ch_mask]
 
         # spectrum attribute
         spec = self._spec
@@ -395,9 +427,9 @@ class Data:
         """Return channel mask given energy grid and erange of interest."""
         emin = np.expand_dims(self._erange[:, 0], axis=1)
         emax = np.expand_dims(self._erange[:, 1], axis=1)
-        ch_mask = (emin <= ch_emin) & (ch_emax <= emax)
-        ch_mask = np.any(ch_mask, axis=0)
-        return ch_mask
+        mask1 = np.less_equal(emin, ch_emin)
+        mask2 = np.less_equal(ch_emax, emax)
+        return np.bitwise_and(mask1, mask2)
 
     @property
     def name(self) -> str:
@@ -475,9 +507,49 @@ class Data:
         return self._net_error
 
     @property
+    def ph_egrid(self) -> NDArray:
+        """Photon energy grid of response matrix."""
+        return self._ph_egrid
+
+    @property
     def channel(self) -> NDArray:
-        """Channel information."""
+        """Measured channel information."""
         return self._channel
+
+    @property
+    def ch_emin(self) -> NDArray:
+        """Left edge of measured energy grid."""
+        return self._ch_emin
+
+    @property
+    def ch_emax(self) -> NDArray:
+        """Right edge of measured energy grid."""
+        return self._ch_emax
+
+    @property
+    def ch_emid(self) -> NDArray:
+        """Middle of measured energy grid."""
+        return self._ch_emid
+
+    @property
+    def ch_width(self) -> NDArray:
+        """Width of measured energy grid."""
+        return self._ch_width
+
+    @property
+    def ch_mean(self) -> NDArray:
+        """Geometric mean of measured energy grid."""
+        return self._ch_mean
+
+    @property
+    def ch_error(self) -> NDArray:
+        """Width between left/right and geometric mean of channel grid."""
+        return self._ch_error
+
+    @property
+    def resp_matrix(self) -> NDArray:
+        """Response matrix."""
+        return self._resp_matrix
 
 
 class Spectrum:
@@ -729,13 +801,14 @@ class Spectrum:
             noticed = np.array(noticed, dtype=bool)
 
         factor = noticed.astype(np.float64)
-        non_empty = np.add.reduceat(factor, self._grouping) != 0
-        grouping = np.flatnonzero(grouping == 1)
+        grp_idx = np.flatnonzero(grouping == 1)  # transform to index
+        non_empty = np.add.reduceat(factor, grp_idx) != 0
 
-        counts = np.add.reduceat(factor * self._raw_counts, grouping)[non_empty]
+        counts = np.add.reduceat(factor * self._raw_counts, grp_idx)
+        counts = counts[non_empty]
 
         var = factor * self._raw_error * self._raw_error
-        var = np.add.reduceat(var, grouping)[non_empty]
+        var = np.add.reduceat(var, grp_idx)[non_empty]
         error = np.sqrt(var)
 
         self._counts = counts
@@ -855,11 +928,12 @@ class Response:
         if np.any(nch_matrix != nch):
             # inhomogeneous matrix is due to zero elements being discarded
             # here we put zeros back in
-            mask = np.arange(nch) < nch_matrix[:, None]
+            mask = np.less(np.arange(nch), nch_matrix[:, None])
             matrix_flatten = np.concatenate(matrix, dtype=np.float64)
             matrix = np.zeros(mask.shape)
             matrix[mask] = matrix_flatten
 
+        # read in ancrfile if exists
         if ancrfile:
             with fits.open(ancrfile) as arf_hdul:
                 arf = arf_hdul['SPECRESP'].data['SPECRESP']
@@ -869,6 +943,33 @@ class Response:
                 raise ValueError(msg)
 
             matrix *= arf[:, None]
+
+        # drop the zero entries at the beginning or end of photon energy grid
+        zero_mask = np.all(np.less_equal(matrix, 0.0), axis=1)
+        if zero_mask.any():
+            n_entries = len(ph_egrid) - 1
+            last_idx = len(ph_egrid) - 2
+            idx = np.flatnonzero(zero_mask)
+            diff = np.diff(idx)
+            if len(diff) == 0:  # only one zero entry
+                idx = idx[0]
+                if idx in (0, last_idx):  # the beginning/end of grid
+                    matrix = matrix[~zero_mask]
+                    if idx == 0:
+                        ph_egrid = ph_egrid[1:]
+                    else:
+                        ph_egrid = ph_egrid[:-1]
+            else:
+                splits = np.split(idx, np.nonzero(np.diff(idx) > 1)[0] + 1)
+                zeros_mask2 = np.full(n_entries, False)
+                for s in splits:
+                    if np.isin(s, (0, last_idx)).any():
+                        # drop only if at beginning or ending part of the grid
+                        zeros_mask2[s] = True
+
+                elo = ph_egrid[:-1][~zeros_mask2]
+                ehi = ph_egrid[1:][~zeros_mask2]
+                ph_egrid = np.append(elo, ehi[-1])
 
         self._ph_egrid = ph_egrid
         self._channel = self._raw_channel = channel
@@ -899,24 +1000,24 @@ class Response:
             msg += f'original channel ({l0})'
             raise ValueError(msg)
 
-        grouping = np.flatnonzero(grouping == 1)  # transform to index
+        grp_idx = np.flatnonzero(grouping == 1)  # transform to index
 
-        if len(grouping) == l0:  # case of no group, apply good mask
+        if len(grp_idx) == l0:  # case of no group, apply good mask
             self._channel = self._raw_channel[noticed]
             self._channel_egrid = self._raw_channel_egrid[noticed]
             self._matrix = self._raw_matrix[:, noticed]
 
         else:
-            non_empty = np.add.reduceat(noticed, grouping) != 0
+            non_empty = np.add.reduceat(noticed, grp_idx) != 0
 
-            edge_indices = np.append(grouping, l0)
+            edge_indices = np.append(grp_idx, l0)
             channel = self._raw_channel
             emin, emax = self._raw_channel_egrid.T
             group_channel = []
             group_emin = []
             group_emax = []
 
-            for i in range(len(grouping)):
+            for i in range(len(grp_idx)):
                 if not non_empty[i]:
                     continue
                 slice_i = slice(edge_indices[i], edge_indices[i + 1])
@@ -929,8 +1030,8 @@ class Response:
             self._channel = tuple(map(lambda g: tuple(g), group_channel))
             self._channel_egrid = np.column_stack([group_emin, group_emax])
 
-            to_zero = np.where(noticed, 1.0, 0.0)
-            matrix = np.add.reduceat(self._raw_matrix * to_zero, grouping, axis=1)
+            a = np.where(noticed, 1.0, 0.0)
+            matrix = np.add.reduceat(a * self._raw_matrix, grp_idx, axis=1)
             self._matrix = matrix[:, non_empty]
 
     @property
@@ -940,7 +1041,7 @@ class Response:
 
     @property
     def channel(self) -> tuple:
-        """Measured signal channel numbers."""
+        """Measured channel numbers."""
         return self._channel
 
     @property
