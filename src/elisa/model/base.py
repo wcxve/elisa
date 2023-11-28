@@ -706,7 +706,7 @@ class Component(Model, ABC, metaclass=ComponentMeta):
         super().__init__(component, params_dict)
 
     @abstractmethod
-    def _func_(self, func_name: str) -> Callable:
+    def _func_generator(self, func_name: str) -> Callable:
         """Model function generator, overriden by subclass."""
         pass
 
