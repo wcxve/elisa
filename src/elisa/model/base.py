@@ -22,7 +22,7 @@ from .node import (
 ModelNodeType = Union[ModelNode, ModelOperationNode]
 ParameterNodeType = Union[ParameterNode, ParameterOperationNode]
 
-# __all__ = ['UniformParameter', ]
+__all__ = ['UniformParameter', 'generate_parameter', 'generate_model']
 
 
 class Parameter:

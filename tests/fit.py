@@ -1,4 +1,3 @@
-from elisa.model.base import UniformParameter, generate_parameter
 from elisa.data.ogip import Data
 from elisa.inference.fit import LikelihoodFit
 from numpyro.distributions import Normal, LogNormal
