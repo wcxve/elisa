@@ -32,7 +32,7 @@ class AdditiveComponent(Component, ABC):
 class NumIntAdditive(AdditiveComponent, ABC):
     """Prototype class with numerical integral to define additive model."""
 
-    _extra_kw: tuple[tuple] = (('method', 'default'),)
+    _extra_kw = (('method', 'default'),)
 
     def __init__(self, method='default', **kwargs):
         self.method = str(method)
@@ -62,8 +62,7 @@ class NumIntAdditive(AdditiveComponent, ABC):
     def _integral(self) -> Callable:
         """Wrap continnum function with numerical integral method."""
         name = self.__class__.__name__.lower()
-        f = integral(self._continnum, name, self._method)
-        return f
+        return integral(self._continnum, name, self._method)
 
     @staticmethod
     @abstractmethod

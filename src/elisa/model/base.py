@@ -629,10 +629,18 @@ class ComponentMeta(ABCMeta):
             init_body += f'fmt=fmt'
 
             if hasattr(cls, '_extra_kw') and isinstance(cls._extra_kw, tuple):
+                pos_args = []
                 for kw in cls._extra_kw:
                     # FIXME: repr may fail!
-                    init_def += f', {kw[0]}={repr(kw[1])}'
+                    if kw[1] is not None:
+                        init_def += f', {kw[0]}={repr(kw[1])}'
+                    else:
+                        pos_args.append(kw[0])
                     init_body += f', {kw[0]}={kw[0]}'
+
+                if pos_args:
+                    s = init_def
+                    init_def = s[:6] + ', '.join(pos_args) + ', ' + s[6:]
 
             func_code = f'def __init__({init_def}):\n    '
             func_code += f'super(type(self), type(self))'

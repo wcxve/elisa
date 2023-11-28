@@ -20,11 +20,11 @@ class MultiplicativeComponent(Component, ABC):
     @property
     def _func(self) -> Callable:
         """Return function that integrates continnum over energy grid."""
-        return self._continum
+        return self._continnum
 
     @staticmethod
     @abstractmethod
-    def _continum(*args):
+    def _continnum(*args):
         """Continnum to be evaluated over energy grids."""
         pass
 
@@ -35,5 +35,5 @@ class Constant(MultiplicativeComponent):
     )
 
     @staticmethod
-    def _continum(egrid, factor):
+    def _continnum(egrid, factor):
         return jnp.full(egrid.size - 1, factor)

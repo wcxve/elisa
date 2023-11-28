@@ -532,18 +532,20 @@ class ModelNode(Node):
     def generate_func(self, mapping: dict[str, str]) -> Callable:
         """Wrap model evaluation function."""
         model_name = str(mapping[self.name])
-
+        mtype = self.attrs['mtype']
         func = self.attrs['func']
-        params = ', '.join(signature(func).parameters.keys())
+
+        params = list(signature(func).parameters.keys())
+        if self.attrs['is_ncon']:  # exclude flux_input and flux_func
+            params = params[:-2]
+        params = ', '.join(params)
         func_code = '@wraps(func)\n'
         func_code += f'def {model_name}({params}): return func({params})'
         tmp = {'wraps': wraps, 'func': func}
         exec(func_code, tmp)
         func = tmp[model_name]
 
-        mtype = self.attrs['mtype']
-
-        # notation: p=params, e=egrid, f=flux, ff=flux_func
+        # notation: p=params, e=egrid, f=flux_input, ff=flux_func
         # params structure should be {model_id: {param1: ..., param2: ...}}
         if mtype == 'add':
             def wrapper_add(p, e, *_):
@@ -563,7 +565,12 @@ class ModelNode(Node):
             if self.attrs['is_ncon']:
                 def wrapper_ncon(p, _=None, f=None, ff=None):
                     """Evaluate ncon model, f and ff must be provided."""
-                    return func(ff, f, **p[model_name])
+                    other_kwargs = dict(
+                        flux_input=f,
+                        flux_func=ff,
+                        func_params=p
+                    )
+                    return func(**p[model_name], **other_kwargs)
 
                 return wrapper_ncon
 
