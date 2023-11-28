@@ -4,6 +4,7 @@ from elisa.data.ogip import Data
 from elisa.inference.fit import LikelihoodFit
 from numpyro.distributions import Normal, LogNormal
 from elisa.model.ncon import PhFlux, EnFlux
+from elisa.model.mul import Constant
 
 a = UniformParameter('a', 'a', 1.0, 0.1, 2, log=1)
 b = UniformParameter('b', 'b', 1.0, 0.1, 2, log=1, frozen=1)
@@ -12,7 +13,7 @@ d = a+b
 e = c*d
 f = generate_parameter('f', 'f', 2.0, Normal())
 g = e*f
-m=PhFlux(1,10)*Powerlaw()
+m=Constant()*Powerlaw()*PhFlux(1,10)
 m1 = BlackBody(fmt='BB')
 m2 = BlackBody(fmt='BB')
 m2.kT = m1.kT * UniformParameter('f', 'f', 0.5, 0.001, 1, log=True)

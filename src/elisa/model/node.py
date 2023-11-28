@@ -4,6 +4,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from functools import reduce, wraps
 from inspect import signature
+from re import sub
 from typing import Any, Callable, Union
 from uuid import uuid4
 
@@ -604,29 +605,35 @@ class ModelOperationNode(OperationNode):
         mtype1 = lh.attrs['mtype']
         mtype2 = rh.attrs['mtype']
 
+        name1 = sub(r'_[a-zA-Z0-9]{32}', '', f'"{lh.name}"')
+        name2 = sub(r'_[a-zA-Z0-9]{32}', '', f'"{rh.name}"')
+
         # check if operand is legal for the op
         if op == '+':
             if mtype1 != 'add':
-                raise TypeError(f'{lh} is not additive')
+                raise TypeError(f'{name1} is not additive')
 
             if mtype2 != 'add':
-                raise TypeError(f'{rh} is not additive')
+                raise TypeError(f'{name2} is not additive')
 
         else:  # op == '*'
             if mtype1 == 'add':
                 if mtype2 == 'add':
                     raise TypeError(
-                        f'unsupported types for *: {lh} (add) and {rh} (add)'
+                        f'unsupported types for *: {name1} (add) and {name2} '
+                        '(add)'
                     )
                 elif mtype2 == 'con':
                     raise TypeError(
-                        f'unsupported order for *: {lh} (add) and {rh} (con)'
+                        f'unsupported order for *: {name1} (add) and {name2} '
+                        '(con)'
                     )
 
             if lh.attrs['is_ncon'] and rh.attrs['is_ncon']:
                 raise TypeError(
-                    f'unsupported types for *: {lh} (ncon) and {rh} (ncon), '
-                    f'norm convolution can only be used once for one component'
+                    f'unsupported types for *: {name1} (ncon) and {name2} '
+                    '(ncon), norm convolution can only be used once for one '
+                    'component'
                 )
 
         is_ncon = False
@@ -736,13 +743,13 @@ class ModelOperationNode(OperationNode):
                     return wrapper_ncon_add
 
                 elif type2 == 'mul':
-                    def wrapper_ncon_mul(e, p, f, ff):
+                    def wrapper_ncon_mul(p, e, f, ff):
                         """ncon * mul"""
-                        def m2_ff(e_, p_, *_):
+                        def m2_ff(p_, e_, *_):
                             """mul * add, this will be * by ncon"""
-                            return m2(e_, p_) * ff(e_, p_)
+                            return m2(p_, e_) * ff(p_, e_)
 
-                        return m1(p, e, m2(e, p) * f, m2_ff)
+                        return m1(p, e, m2(p, e) * f, m2_ff)
 
                     return wrapper_ncon_mul
 
