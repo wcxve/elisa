@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from functools import reduce, wraps
+from functools import reduce
 from inspect import signature
 from re import sub
 from typing import Any, Callable, Union
@@ -540,9 +540,8 @@ class ModelNode(Node):
         if self.attrs['is_ncon']:  # exclude flux_input and flux_func
             params = params[:-2]
         params = ', '.join(params)
-        func_code = '@wraps(func)\n'
-        func_code += f'def {model_name}({params}): return func({params})'
-        tmp = {'wraps': wraps, 'func': func}
+        func_code = f'def {model_name}({params}): return func({params})'
+        tmp = {'func': func}
         exec(func_code, tmp)
         func = tmp[model_name]
 

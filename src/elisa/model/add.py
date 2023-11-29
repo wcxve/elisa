@@ -5,7 +5,6 @@ from abc import ABC, abstractmethod
 from typing import Callable
 
 import jax.numpy as jnp
-from jax import lax
 
 from .base import Component
 from .integral import integral, list_methods
@@ -125,13 +124,15 @@ class Band(NumIntAdditive):
         # workaround for beta > alpha, as in xspec
         amb_ = alpha - beta
         inv_Ec = 1.0 / Ec
-        amb = lax.switch(lax.lt(amb_, inv_Ec), inv_Ec, amb_)
+        amb = jnp.where(jnp.less(amb_, inv_Ec), inv_Ec, amb_)
         Ebreak = Ec*amb
-        return K * jnp.exp(lax.switch(
-            lax.lt(egrid, Ebreak),
+
+        log_func = jnp.where(
+            jnp.less(egrid, Ebreak),
             alpha * jnp.log(egrid / Epiv) - egrid / Ec,
             amb * jnp.log(amb * Ec / Epiv) - amb + beta * jnp.log(egrid / Epiv)
-        ))
+        )
+        return K * jnp.exp(log_func)
 
 
 class BandEp(NumIntAdditive):
@@ -154,13 +155,14 @@ class BandEp(NumIntAdditive):
         # workaround for beta > alpha, as in xspec
         amb_ = alpha - beta
         inv_Ec = 1.0 / Ec
-        amb = lax.switch(lax.lt(amb_, inv_Ec), inv_Ec, amb_)
+        amb = jnp.where(jnp.less(amb_, inv_Ec), inv_Ec, amb_)
 
-        return K * jnp.exp(lax.switch(
-            lax.lt(e, Ebreak),
+        log_func = jnp.where(
+            jnp.less(e, Ebreak),
             alpha * jnp.log(e / Epiv) - e / Ec,
             amb * jnp.log(amb * Ec / Epiv) - amb + beta * jnp.log(e / Epiv)
-        ))
+        )
+        return K * jnp.exp(log_func)
 
 
 class Comptonized(NumIntAdditive):

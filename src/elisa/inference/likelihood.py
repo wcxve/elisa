@@ -47,10 +47,10 @@ def pgstat_background(
     f = a * variance * n + e * s
     c = a * e - s
     d = jnp.sqrt(c * c + 4.0 * a * f)
-    b = lax.switch(
-        lax.bitwise_or(lax.ge(e, 0.0), lax.ge(f, 0.0)),
-        lax.switch(
-            lax.gt(n, 0.0),
+    b = jnp.where(
+        jnp.bitwise_or(jnp.greater_equal(e, 0.0), jnp.greater_equal(f, 0.0)),
+        jnp.where(
+            jnp.greater(n, 0.0),
             (c + d) / (2 * a),
             e
         ),
@@ -86,13 +86,13 @@ def wstat_background(
     """
     c = a * (n_on + n_off) - (a + 1) * s
     d = jnp.sqrt(c * c + 4 * a * (a + 1) * n_off * s)
-    b = lax.switch(
-        lax.eq(n_on, 0),
+    b = jnp.where(
+        jnp.equal(n_on, 0),
         n_off / (1 + a),
-        lax.switch(
-            lax.eq(n_off, 0),
-            lax.switch(
-                lax.le(s, a / (a + 1) * n_on),
+        jnp.where(
+            jnp.equal(n_off, 0),
+            jnp.where(
+                jnp.less_equal(s, a / (a + 1) * n_on),
                 n_on / (1 + a) - s / a,
                 0.0
             ),
