@@ -1,7 +1,7 @@
 [project]
 name = "elisa-lib"
 dynamic = ["version"]
-description = "An efficient and fast library for spectral analysis in X/γ-ray astrophysics."
+description = "An efficient and fast library for spectral analysis in high-energy astrophysics."
 readme = "README.md"
 requires-python = ">=3.9, <3.12"
 license = "GPL-3.0-or-later"

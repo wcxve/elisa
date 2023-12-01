@@ -4,7 +4,7 @@
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-lib.svg)](https://pypi.org/project/elisa-lib)
 [![Documentation Status](https://readthedocs.org/projects/elisa-lib/badge/?version=latest)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
 
-**An efficient and fast library for spectral analysis in X/γ-ray astrophysics.**
+**An efficient and fast library for spectral analysis in high-energy astrophysics.**
 
 -----
 

@@ -52,6 +52,9 @@ class BaseFit(ABC):
         self._stat = {d.name: s for d, s in zip(data, stat)}
         self._seed = int(seed)
 
+        params = ...
+        params_aux = ...
+
     def _generate_sample(self) -> Callable:
         samples = (
             m._model_info['site']['sample']

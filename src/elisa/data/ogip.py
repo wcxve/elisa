@@ -1005,7 +1005,7 @@ class Response:
             self._matrix = self._raw_matrix[:, noticed]
 
         else:
-            non_empty = np.add.reduceat(noticed, grp_idx) != 0
+            non_empty = np.greater(np.add.reduceat(noticed, grp_idx), 0)
 
             edge_indices = np.append(grp_idx, l0)
             channel = self._raw_channel
