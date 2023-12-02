@@ -143,7 +143,7 @@ class PoissonWithGoodness(Poisson):
 
 
 def chi2(name, model, spec, error):
-    with numpyro.plate('data', len(spec)):
+    with numpyro.plate(name, len(spec)):
         numpyro.sample(
             name=f'{name}_Non',
             fn=NormalWithGoodness(model, error),
@@ -152,7 +152,7 @@ def chi2(name, model, spec, error):
 
 
 def cstat(name, model, spec):
-    with numpyro.plate('data', len(spec)):
+    with numpyro.plate(name, len(spec)):
         numpyro.sample(
             name=f'{name}_Non',
             fn=PoissonWithGoodness(model),
@@ -161,7 +161,7 @@ def cstat(name, model, spec):
 
 
 def pstat(name, model, spec, back, ratio):
-    with numpyro.plate('data', len(spec)):
+    with numpyro.plate(name, len(spec)):
         numpyro.sample(
             name=f'{name}_Non',
             fn=PoissonWithGoodness(model + ratio * back),
@@ -171,7 +171,7 @@ def pstat(name, model, spec, back, ratio):
 
 def pgstat(name, model, spec, back, back_error, ratio):
     b = pgstat_background(model, spec, back, back_error, ratio)
-    with numpyro.plate('data', len(spec)):
+    with numpyro.plate(name, len(spec)):
         numpyro.sample(
             name=f'{name}_Non',
             fn=PoissonWithGoodness(model + ratio * b),
@@ -187,7 +187,7 @@ def pgstat(name, model, spec, back, back_error, ratio):
 
 def wstat(name, model, spec, back, ratio):
     b = wstat_background(model, spec, back, ratio)
-    with numpyro.plate('data', len(spec)):
+    with numpyro.plate(name, len(spec)):
         numpyro.sample(
             name=f'{name}_Non',
             fn=PoissonWithGoodness(model + ratio * b),

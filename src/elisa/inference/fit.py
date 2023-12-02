@@ -52,6 +52,7 @@ class BaseFit(ABC):
         self._stat = {d.name: s for d, s in zip(data, stat)}
         self._seed = int(seed)
 
+
         params = ...
         params_aux = ...
 
@@ -61,7 +62,7 @@ class BaseFit(ABC):
             for m in self._model.values()
         )
 
-        samples = reduce(lambda i, j: {**i, **j}, samples)
+        samples = reduce(lambda i, j: i | j, samples)
 
         def sample_func():
             """Return numpyro sample site dict."""
@@ -80,7 +81,7 @@ class BaseFit(ABC):
         )
 
         deterministic = reduce(
-            lambda i, j: {**i, **j},
+            lambda i, j: i | j,
             deterministic
         )
 
@@ -91,10 +92,10 @@ class BaseFit(ABC):
             while remains:
                 i = remains.pop(0)
                 determ, (arg_names, func) = i
-                all_site = {**sample_dict, **site}
+                all_site = sample_dict | site
                 if all(arg_name in all_site for arg_name in arg_names):
                     args = (all_site[arg_name] for arg_name in arg_names)
-                    site[determ] = func(*args)
+                    site[determ] = numpyro.deterministic(determ, func(*args))
                 else:
                     remains.append(i)
 
@@ -102,7 +103,73 @@ class BaseFit(ABC):
 
         return deterministic_func
 
-    @abstractmethod
+    def _generate_stat_func_args(self) -> dict:
+        args = {}
+        for name, data in self._data.items():
+            stat = self._stat[name]
+            if stat == 'chi2':
+                args[name] = (data.net_counts, data.net_error)
+            elif stat == 'cstat':
+                args[name] = (data.spec_counts,)
+            elif stat == 'pstat':
+                ratio = data.spec_effexpo / data.back_effexpo
+                args[name] = (data.spec_counts, data.back_counts, ratio)
+            elif stat == 'pgstat':
+                ratio = data.spec_effexpo / data.back_effexpo
+                args[name] = (
+                    data.spec_counts, data.back_counts, data.back_error, ratio
+                )
+            elif stat == 'wstat':
+                ratio = data.spec_effexpo / data.back_effexpo
+                args[name] = (data.spec_counts, data.back_counts, ratio)
+
+        return args
+
+    def _generate_numpyro_model(self) -> Callable:
+        sample_func = self._generate_sample()
+        deterministic_func = self._generate_deterministic()
+
+        names = list(self._data.keys())
+        data = {}
+        model_func = {}
+        model_info = {}
+        stat_func = {}
+        for name in names:
+            data[name] = self._data[name]
+            model_func[name] = self._model[name]._wrapped_func
+            model_info[name] = self._model[name]._model_info
+            stat_func[name] = self._stat_options[self._stat[name]]
+        func_args = self._generate_stat_func_args()
+
+        def numpyro_model():
+            """The numpyro model."""
+            sample = sample_func()
+            determ = deterministic_func(sample)
+            params = sample | determ
+
+            for name in names:
+                d = data[name]
+                ph_egird = d.ph_egrid
+                resp_matrix = d.resp_matrix
+                expo = d.spec_effexpo
+                mfunc = model_func[name]
+                loglike = stat_func[name]
+                loglike_args = func_args[name]
+
+                minfo = model_info[name]
+                m_mapping = minfo['mapping']['name']
+                p_mapping = minfo['params']
+                params_i = {
+                    m_mapping[m_id]: jax.tree_map(lambda k: params[k], p_dict)
+                    for m_id, p_dict in p_mapping.items()
+                }
+
+                model_counts = mfunc(ph_egird, params_i) @ resp_matrix * expo
+                loglike(name, model_counts, *loglike_args)
+
+        return numpyro_model
+
+    # @abstractmethod
     def run(self, *args, **kwargs):
         ...
 
@@ -170,6 +237,42 @@ class BaseFit(ABC):
         elif ns != nd:
             msg = f'number of data ({nd}) and stat ({ns}) are not matched'
             raise ValueError(msg)
+
+        # check if correctly using stat
+        def check_data_stat(data, stat):
+            """Check if data type and likelihood are matched."""
+            name = data.name
+            if stat != 'chi2' and not data.spec_poisson:
+                stat_h = stat[:stat.index('stat')].upper()
+                msg = f'Poisson data is required for using {stat_h}-statistics'
+                raise ValueError(msg)
+
+            if stat == 'cstat' and data.has_back:
+                back = 'Poisson' if data.back_poisson else 'Gaussian'
+                stat1 = 'W' if data.back_poisson else 'PG'
+                stat2 = 'w' if data.back_poisson else 'pg'
+                msg = 'C-statistics is not valid for Poisson data with '
+                msg += f'{back} background, use {stat1}-statistics'
+                msg += f'({stat2}stat) for {name} instead'
+                raise ValueError(msg)
+
+            elif stat == 'pstat' and not data.has_back:
+                msg = 'Background is required for P-statistics'
+                raise ValueError(msg)
+
+            elif stat == 'pgstat' and not data.has_back:
+                msg = 'Background is required for PG-statistics'
+                raise ValueError(msg)
+
+            elif stat == 'wstat':
+                if not data.spec_poisson:
+                    msg = 'Poisson data is required for W-statistics'
+                    raise ValueError(msg)
+                if not (data.has_back and data.back_poisson):
+                    msg = 'Poisson background is required for W-statistics'
+                    raise ValueError(msg)
+
+        map(check_data_stat, zip(data_list, stat_list))
 
         return data_list, model_list, stat_list
 

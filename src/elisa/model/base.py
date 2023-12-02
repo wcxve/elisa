@@ -577,7 +577,7 @@ class SuperModel(Model):
 
         super().__init__(node, None)
 
-        comps = {**lh._comps, **rh._comps}
+        comps = lh._comps | rh._comps
         names = self._label.mapping['name']
         for k in names:
             setattr(self, names[k], comps[k])

@@ -10,7 +10,7 @@ d = a+b
 e = c*d
 f = generate_parameter('f', 'f', 2.0, Normal())
 g = e*f
-m=Constant()*PhFlux(1,10)*Powerlaw()
+m = Constant()*PhFlux(1,10)*Powerlaw()
 m1 = BlackBody(fmt='BB')
 m2 = BlackBody(fmt='BB')
 m2.kT = m1.kT * UniformParameter('f', 'f', 0.5, 0.001, 1, log=True)

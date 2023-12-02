@@ -407,8 +407,8 @@ class ParameterOperationNode(OperationNode):
         rh = self.predecessor[1].site
 
         info = {
-            'sample': {**lh['sample'], **rh['sample']},
-            'deterministic': {**lh['deterministic'], **rh['deterministic']},
+            'sample': lh['sample'] | rh['sample'],
+            'deterministic': lh['deterministic'] | rh['deterministic'],
         }
         deterministic = info['deterministic']
 
@@ -523,10 +523,10 @@ class ModelNode(Node):
         sites = [p.site for p in self.predecessor]
 
         sample = [s['sample'] for s in sites]
-        sample = reduce(lambda i, j: {**i, **j}, sample)
+        sample = reduce(lambda i, j: i | j, sample)
 
         deterministic = [s['deterministic'] for s in sites]
-        deterministic = reduce(lambda i, j: {**i, **j}, deterministic)
+        deterministic = reduce(lambda i, j: i | j, deterministic)
 
         return {'sample': sample, 'deterministic': deterministic}
 
@@ -672,7 +672,7 @@ class ModelOperationNode(OperationNode):
     def params(self) -> dict[str, ParameterNodeType]:
         """Parameter dict."""
         lh, rh = self.predecessor
-        return {**lh.params, **rh.params}
+        return lh.params |rh.params
 
     @property
     def comps(self) -> dict[str, ModelNode]:
@@ -687,8 +687,8 @@ class ModelOperationNode(OperationNode):
         lh = lh.site
         rh = rh.site
 
-        sample = {**lh['sample'], **rh['sample']}
-        deterministic = {**lh['deterministic'], **rh['deterministic']}
+        sample = lh['sample'] | rh['sample']
+        deterministic = lh['deterministic'] | rh['deterministic']
 
         return {'sample': sample, 'deterministic': deterministic}
 

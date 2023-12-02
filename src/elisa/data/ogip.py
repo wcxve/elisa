@@ -232,8 +232,9 @@ class Data:
 
         # net spectrum attributes
         self._net_counts = None
-        self._net_spec = None
         self._net_error = None
+        self._ce = None
+        self._ce_error = None
 
         # other attributes
         self._grouping = None
@@ -403,18 +404,21 @@ class Data:
         if self._has_back:
             ratio = self._spec_effexpo / self._back_effexpo
             net = self._spec_counts - ratio * self._back_counts
-            spec = net * unit
             var = np.square(self._spec_error)
             var += np.square(ratio * self._back_error)
-            var *= np.square(unit)
+            net_error = np.sqrt(var)
+            ce = net * unit
+            ce_error = net_error * unit
             self._net_counts = net
-            self._net_spec = spec
-            self._net_error = np.sqrt(var)
+            self._net_error = net_error
+            self._ce = ce
+            self._ce_error = ce_error
 
         else:
             self._net_counts = self._spec_counts
-            self._net_spec = self._net_counts * unit
-            self._net_error = self._spec_error * unit
+            self._net_error = self._spec_error
+            self._ce = self._net_counts * unit
+            self._ce_error = self._spec_error * unit
 
         # correction attribute
         # if self._corr:
@@ -494,14 +498,19 @@ class Data:
         return self._net_counts
 
     @property
-    def net_spec(self) -> NDArray:
-        """Net counts per second per keV."""
-        return self._net_spec
+    def net_error(self) -> NDArray:
+        """Uncertainty of net counts in each measuring channel."""
+        return self._net_error
 
     @property
-    def net_error(self) -> NDArray:
-        """Uncertainty of net spectrum."""
-        return self._net_error
+    def ce(self) -> NDArray:
+        """Net counts per second per keV."""
+        return self._ce
+
+    @property
+    def ce_error(self) -> NDArray:
+        """Uncertainty of net counts per second per keV."""
+        return self._ce_error
 
     @property
     def ph_egrid(self) -> NDArray:
@@ -929,6 +938,8 @@ class Response:
             matrix_flatten = np.concatenate(matrix, dtype=np.float64)
             matrix = np.zeros(mask.shape)
             matrix[mask] = matrix_flatten
+
+        matrix = np.asarray(matrix, dtype=np.float64, order='C')
 
         # read in ancrfile if exists
         if ancrfile:
