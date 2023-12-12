@@ -60,6 +60,7 @@ build-backend = "hatchling.build"
 [tool.hatch]
 metadata.allow-direct-references = true
 version.path = "src/elisa/__init__.py"
+build.targets.wheel.packages = ["src/elisa"]
 
 [[tool.hatch.envs.all.matrix]]
 python = ["3.9", "3.10", "3.11"]
