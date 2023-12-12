@@ -23,6 +23,8 @@ from ..model.base import Model
 from .likelihood import chi2, cstat, pstat, pgstat, wstat
 from .nested_sampling import NestedSampler
 
+__all__ = ['LikelihoodFit', 'BayesianFit']
+
 
 def _likelihood_func(data: Data, stat: str) -> Callable:
     """Wrap likelihood function."""
