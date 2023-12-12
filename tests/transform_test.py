@@ -3,6 +3,7 @@ import numpy as np
 import numpyro
 from numpyro.distributions import Uniform, Normal
 from numpyro.infer import MCMC, NUTS
+from numpyro.infer.initialization import init_to_value
 from numpyro.infer.util import constrain_fn, unconstrain_fn, log_density, \
     log_likelihood
 
@@ -11,21 +12,22 @@ jax.config.update("jax_enable_x64", True)
 
 def model(data):
     mu = numpyro.sample('mu', Uniform(0, 3.1))
+    def f(mu):
+        jax.debug.print('{}', mu)
+        return mu
     with numpyro.plate('data', len(data)):
-        numpyro.sample('y', Normal(mu, 1.0), obs=data)
+        numpyro.sample('y', Normal(f(mu), 1.0), obs=data)
 
 data = np.random.normal(2.1, 1, size=20)
 
 sampler = MCMC(
-    NUTS(model),
-    num_warmup=2000,
-    num_samples=2000,
-    num_chains=2,
+    NUTS(model, init_strategy=init_to_value(values={'mu': 2.0})),
+    num_warmup=10,
+    num_samples=10,
+    num_chains=1,
     progress_bar=True,
 )
-# sampler.run(jax.random.PRNGKey(0), data)
-
-
+sampler.run(jax.random.PRNGKey(0), data)
 
 to_unconstrain = jax.jit(lambda params: unconstrain_fn(model, (data,), {}, params))
 to_constrain = jax.jit(lambda params: constrain_fn(model, (data,), {}, params))

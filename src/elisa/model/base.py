@@ -174,8 +174,7 @@ class UniformParameter(Parameter):
 
         self._check_and_set_values()
 
-        distribution, deterministic = self._get_distribution_deterministic()
-        node = ParameterNode(name, fmt, default, distribution, deterministic)
+        node = ParameterNode(name, fmt, default, self._get_distribution())
         super().__init__(node)
 
     def __repr__(self):
@@ -249,7 +248,7 @@ class UniformParameter(Parameter):
 
         if self._config['frozen'] != flag:
             self._config['frozen'] = flag
-            self._reset_distribution_deterministic()
+            self._reset_distribution()
 
     @property
     def log(self) -> bool:
@@ -271,7 +270,7 @@ class UniformParameter(Parameter):
 
             config['log'] = log_flag
 
-            self._reset_distribution_deterministic()
+            self._reset_distribution()
 
     def _check_and_set_values(self, default=None, min=None, max=None) -> None:
         """Check and set parameter configure."""
@@ -323,32 +322,25 @@ class UniformParameter(Parameter):
             config['max'] = float(max)
 
         if (min is not None) or (max is not None):
-            self._reset_distribution_deterministic()
+            self._reset_distribution()
 
-    def _get_distribution_deterministic(self) -> tuple:
-        """Get distribution and deterministic for :class:`ParameterNode`."""
+    def _get_distribution(self) -> Distribution | float:
+        """Get distribution for :class:`ParameterNode`."""
         config = self._config
 
         if config['frozen']:
-            distribution = config['default']  # TODO: use a Delta distribution?
+            distribution = config['default']
         else:
             if config['log']:
                 distribution = LogUniform(config['min'], config['max'])
             else:
                 distribution = Uniform(config['min'], config['max'])
 
-        if not config['frozen'] and config['log']:
-            deterministic = ((r'\ln({name})',), lambda p: jnp.log(p))
-        else:
-            deterministic = None
+        return distribution
 
-        return distribution, deterministic
-
-    def _reset_distribution_deterministic(self) -> None:
-        """Reset distribution and deterministic after configuring parameter."""
-        distribution, deterministic = self._get_distribution_deterministic()
-        self._node.attrs['distribution'] = distribution
-        self._node.attrs['deterministic'] = deterministic
+    def _reset_distribution(self) -> None:
+        """Reset distribution after configuring parameter."""
+        self._node.attrs['distribution'] = self._get_distribution()
 
 
 class Model(ABC):
@@ -393,6 +385,7 @@ class Model(ABC):
             self._comps = {node.name: self}  # use name_id to mark model
             self._params = params
             self._params_name = tuple(params.keys())
+            self._params_fmt = {i._node.name: i.fmt for i in params.values()}
 
     def __repr__(self):
         return self._label.name
@@ -490,11 +483,17 @@ class Model(ABC):
         Returns sample and deterministic site information of :mod:`numpyro`,
         model parameter configure based on site, model function and id mapping.
         """
+        site = self._node.site
+        mapping = self._label.mapping
         info = dict(
-            site=self._node.site,
+            sample=site['sample'],
+            deterministic=site['deterministic'],
+            default=site['default'],
             params=self._node.params,
             func=self._wrapped_func,
-            mapping=self._label.mapping,
+            name=mapping['name'],
+            fmt=mapping['fmt'],
+            pfmt=self._params_fmt
         )
         return info
 
@@ -583,6 +582,7 @@ class SuperModel(Model):
             setattr(self, names[k], comps[k])
         self._comps = comps
         self._comps_name = tuple(names.values())
+        self._params_fmt = lh._params_fmt | rh._params_fmt
 
     def __setattr__(self, key, value):
         if hasattr(self, '_comps_name') and key in self._comps_name:
@@ -771,7 +771,7 @@ def generate_parameter(
         The generated parameter.
 
     """
-    node = ParameterNode(name, fmt, default, distribution, None)
+    node = ParameterNode(name, fmt, default, distribution)
 
     return Parameter(node)
 

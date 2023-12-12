@@ -114,8 +114,8 @@ class Band(NumIntAdditive):
     _default = (
         ('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
         ('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
-        ('Ec', r'\E_{\rm c}', 300.0, 10.0, 10000.0, False, False),
-        ('K', 'K', 1, 1e-10, 1e10, False, False),
+        ('Ec', r'E_\mathrm{c}', 300.0, 10.0, 10000.0, False, False),
+        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -141,8 +141,8 @@ class BandEp(NumIntAdditive):
     _default = (
         ('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
         ('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
-        ('Ep', r'\E_{\rm p}', 300.0, 10.0, 10000.0, False, False),
-        ('K', 'K', 1, 1e-10, 1e10, False, False),
+        ('Ep', r'E_\mathrm{p}', 300.0, 10.0, 10000.0, False, False),
+        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -170,8 +170,8 @@ class Comptonized(NumIntAdditive):
 
     _default = (
         ('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
-        ('Ep', r'E_{\rm p}', 15.0, 0.01, 10000.0, False, False),
-        ('K', 'K', 1, 1e-10, 1e10, False, False),
+        ('Ep', r'E_\mathrm{p}', 15.0, 0.01, 10000.0, False, False),
+        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -185,8 +185,8 @@ class CutoffPowerlaw(NumIntAdditive):
 
     _default = (
         ('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
-        ('Ec', r'E_{\rm c}', 15.0, 0.01, 10000.0, False, False),
-        ('K', 'K', 1, 1e-10, 1e10, False, False),
+        ('Ec', r'E_\mathrm{c}', 15.0, 0.01, 10000.0, False, False),
+        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -200,7 +200,7 @@ class OTTB(NumIntAdditive):
 
     _default = (
         ('kT', 'kT', 30.0, 0.1, 1000.0, False, False),
-        ('K', 'K', 1, 1e-10, 1e10, False, False),
+        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod

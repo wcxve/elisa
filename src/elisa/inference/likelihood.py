@@ -142,7 +142,7 @@ class PoissonWithGoodness(Poisson):
             return logp - gof
 
 
-def chi2(name, model, spec, error):
+def chi2(model, name, spec, error):
     with numpyro.plate(name, len(spec)):
         numpyro.sample(
             name=f'{name}_Non',
@@ -151,7 +151,7 @@ def chi2(name, model, spec, error):
         )
 
 
-def cstat(name, model, spec):
+def cstat(model, name, spec):
     with numpyro.plate(name, len(spec)):
         numpyro.sample(
             name=f'{name}_Non',
@@ -160,7 +160,7 @@ def cstat(name, model, spec):
         )
 
 
-def pstat(name, model, spec, back, ratio):
+def pstat(model, name, spec, back, ratio):
     with numpyro.plate(name, len(spec)):
         numpyro.sample(
             name=f'{name}_Non',
@@ -169,7 +169,7 @@ def pstat(name, model, spec, back, ratio):
         )
 
 
-def pgstat(name, model, spec, back, back_error, ratio):
+def pgstat(model, name, spec, back, back_error, ratio):
     b = pgstat_background(model, spec, back, back_error, ratio)
     with numpyro.plate(name, len(spec)):
         numpyro.sample(
@@ -185,7 +185,7 @@ def pgstat(name, model, spec, back, back_error, ratio):
         )
 
 
-def wstat(name, model, spec, back, ratio):
+def wstat(model, name, spec, back, ratio):
     b = wstat_background(model, spec, back, ratio)
     with numpyro.plate(name, len(spec)):
         numpyro.sample(

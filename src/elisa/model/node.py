@@ -243,12 +243,8 @@ class ParameterNode(Node):
         Tex format of the parameter.
     default : float
         Default value of the parameter.
-    distribution : Distribution
-        Instance of :class:`numpyro.distributions.Distribution`.
-    deterministic : tuple, optional
-        Information required to call :meth:`numpyro.deterministic`. It is a
-        tuple with two elements, the first is a tuple of str and the second is
-        a function, whose arguments is the same length of the tuple.
+    distribution : Distribution, float, or int
+        Instance of :class:`numpyro.distributions.Distribution` or number.
 
     """
 
@@ -258,16 +254,14 @@ class ParameterNode(Node):
         fmt: str,
         default: float | int,
         distribution: Distribution | float | int,
-        deterministic: tuple | None = None
     ):
-        self._validate_input(distribution, deterministic)
+        self._validate_input(distribution)
 
         self._validate_default(distribution, default)
 
         attrs = dict(
             default=default,
             distribution=distribution,
-            deterministic=deterministic
         )
 
         super().__init__(name=name, fmt=fmt, attrs=attrs)
@@ -302,42 +296,19 @@ class ParameterNode(Node):
 
         info = {
             'sample': {name: self.attrs['distribution']},
-            'deterministic': {}
+            'deterministic': {},
+            'default': {name: self.default}
         }
-
-        if self.attrs['deterministic'] is not None:
-            (deterministic_fmt,), func = self.attrs['deterministic']
-            deterministic_fmt = deterministic_fmt.format(name=name)
-            info['deterministic'][deterministic_fmt] = ((name,), func)
 
         return info
 
     @staticmethod
-    def _validate_input(
-        dist: Distribution | float | int,
-        determ: tuple | None
-    ) -> None:
+    def _validate_input(dist: Distribution | float | int) -> None:
         """Validate if input is correct."""
         if not isinstance(dist, (Distribution, float, int)):
             raise ValueError(
                 'dist must be a numpyro Distribution instance, or a float'
             )
-
-        if determ is not None:
-            if not isinstance(determ, (list, tuple)):
-                raise ValueError('deterministic must be list or tuple')
-
-            if len(determ) != 2 \
-                    or not isinstance(determ[0], (list, tuple))\
-                    or not callable(determ[1]):
-                raise ValueError(
-                    'deterministic should contain a tuple and a function'
-                )
-
-            if not all(isinstance(i, str) for i in determ[0]):
-                raise ValueError(
-                    'elements of deterministic[0] should be str'
-                )
 
     @staticmethod
     def _validate_default(
@@ -409,6 +380,7 @@ class ParameterOperationNode(OperationNode):
         info = {
             'sample': lh['sample'] | rh['sample'],
             'deterministic': lh['deterministic'] | rh['deterministic'],
+            'default': lh['default'] | rh['default']
         }
         deterministic = info['deterministic']
 
@@ -528,7 +500,14 @@ class ModelNode(Node):
         deterministic = [s['deterministic'] for s in sites]
         deterministic = reduce(lambda i, j: i | j, deterministic)
 
-        return {'sample': sample, 'deterministic': deterministic}
+        default = [s['default'] for s in sites]
+        default = reduce(lambda i, j: i | j, default)
+
+        return {
+            'sample': sample,
+            'deterministic': deterministic,
+            'default': default
+        }
 
     def generate_func(self, mapping: dict[str, str]) -> Callable:
         """Wrap model evaluation function."""
@@ -689,8 +668,13 @@ class ModelOperationNode(OperationNode):
 
         sample = lh['sample'] | rh['sample']
         deterministic = lh['deterministic'] | rh['deterministic']
+        default = lh['default'] | rh['default']
 
-        return {'sample': sample, 'deterministic': deterministic}
+        return {
+            'sample': sample,
+            'deterministic': deterministic,
+            'default': default
+        }
 
     def generate_func(self, mapping: dict[str, str]) -> Callable:
         """Wrap model evaluation function."""
@@ -889,13 +873,14 @@ class LabelSpace:
             i = node_stack.pop(0)
 
             if not i.attrs['is_operation']:
+                name = i.attrs['name']
                 label = i.attrs[label_type]
                 id_ = i.attrs['id']
 
                 # check label collision
                 if label not in label_space:  # no label collision found
                     label_space[label] = [id_]  # record label and node id
-                    id_to_str[f'{label}_{id_}'] = label
+                    id_to_str[f'{name}_{id_}'] = label
 
                 else:  # there is a label collision
                     same_label_nodes = label_space[label]
@@ -905,10 +890,10 @@ class LabelSpace:
                         num = len(same_label_nodes)
 
                         if label_type == 'name':
-                            str_ = f'{num}'
+                            str_ = str(num)
                         else:
-                            str_ = f'_{num}'
-                        id_to_str[f'{label}_{id_}'] = f'{label}{str_}'
+                            str_ = '_{%d}' % num
+                        id_to_str[f'{name}_{id_}'] = label + str_
 
             else:  # push predecessors to the node stack
                 node_stack = i.predecessor + node_stack

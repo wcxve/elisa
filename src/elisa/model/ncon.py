@@ -103,7 +103,7 @@ class NormalizationConvolution(Component, ABC):
 
 class PhFlux(NormalizationConvolution):
     _default = (
-        ('flux', r'\mathcal{F}_{\rm ph}', 1, 0.01, 1e10, False, False),
+        ('flux', r'\mathcal{F}_\mathrm{ph}', 1, 0.01, 1e10, False, False),
     )
 
     @staticmethod
@@ -114,7 +114,7 @@ class PhFlux(NormalizationConvolution):
 
 class EnFlux(NormalizationConvolution):
     _default = (
-        ('eflux', r'\mathcal{F}_{\rm en}', 1e-12, 1e-30, 1e30, False, True),
+        ('eflux', r'\mathcal{F}_\mathrm{en}', 1e-12, 1e-30, 1e30, False, True),
     )
 
     @staticmethod
