@@ -6,9 +6,8 @@
 from __future__ import annotations
 
 from abc import ABC, ABCMeta, abstractmethod
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
-import jax.numpy as jnp
 from numpyro.distributions import Distribution, LogUniform, Uniform
 
 from .node import (
@@ -125,11 +124,6 @@ class SuperParameter(Parameter):
         """Parameter default value, get only."""
         return self._node.default
 
-    @property
-    def expression(self) -> str:
-        """Expression of the super parameter."""
-        return repr(self)
-
 
 class UniformParameter(Parameter):
     """The default class to handle parameter definition.
@@ -174,25 +168,25 @@ class UniformParameter(Parameter):
 
         self._check_and_set_values()
 
-        node = ParameterNode(name, fmt, default, self._get_distribution())
+        node = ParameterNode(
+            name=name,
+            fmt=fmt,
+            default=default,
+            distribution=self._get_distribution(),
+            min=self._config['min'],
+            max=self._config['max'],
+            dist_expr=self.get_expression()
+        )
         super().__init__(node)
 
     def __repr__(self):
-        name = self._node.attrs["name"]
-        default = self._config["default"]
+        name = self._node.attrs['name']
+        expr = self.get_expression()
 
         if self._config['frozen']:
-            s = f'{name} = {default}'
+            s = f'{name} = {expr}'
         else:
-            min = self._config["min"]
-            max = self._config["max"]
-
-            if self._config['log']:
-                dist = f'LogUniform(min={min}, max={max}, default={default})'
-            else:
-                dist = f'Uniform(min={min}, max={max}, default={default})'
-
-            s = f'{name} ~ {dist}'
+            s = f'{name} ~ {expr}'
 
         return s
 
@@ -338,12 +332,48 @@ class UniformParameter(Parameter):
 
         return distribution
 
+    def get_expression(self) -> str:
+        """Get distribution expression for :class:`ParameterNode`."""
+        default = self._config["default"]
+
+        if self._config['frozen']:
+            expr = str(default)
+        else:
+            min = f'{self._config["min"]:.4g}'
+            max = f'{self._config["max"]:.4g}'
+
+            if self._config['log']:
+                # expr = f'LogUniform(min={min}, max={max}, default={default})'
+                expr = f'LogUniform(min={min}, max={max})'
+            else:
+                # expr = f'Uniform(min={min}, max={max}, default={default})'
+                expr = f'Uniform(min={min}, max={max})'
+
+        return expr
+
     def _reset_distribution(self) -> None:
         """Reset distribution after configuring parameter."""
         self._node.attrs['distribution'] = self._get_distribution()
+        self._node.attrs['dist_expr'] = self.get_expression()
 
 
-class Model(ABC):
+class ModelParameterFormat(dict):
+    """Class to restore Tex format of model parameters."""
+
+    def __init__(self, fmt_dict: dict) -> None:
+        super().__init__()
+        for k, v in fmt_dict.items():
+            super().__setitem__(k, v)
+        self._keys = tuple(fmt_dict.keys())
+
+    def __setitem__(self, key: str, value: str) -> None:
+        if key in self._keys:
+            super().__setitem__(key, str(value))
+        else:
+            raise KeyError(key)
+
+
+class Model:
     """Prototype model class.
 
     Parameters
@@ -353,13 +383,15 @@ class Model(ABC):
     params : dict, or None
         A :class:`str`-:class:`Parameter` mapping that contains the parameters
         of the model. It should be None when initializing :class:`SuperModel`.
+    params_fmt : dict, or None
 
     """
 
     def __init__(
         self,
         node: ModelNodeType,
-        params: dict[str, Parameter] | None
+        params: Optional[dict[str, Parameter]] = None,
+        params_fmt: Optional[dict[str, str]] = None
     ):
         if not isinstance(node, (ModelNode, ModelOperationNode)):
             raise ValueError(
@@ -385,7 +417,16 @@ class Model(ABC):
             self._comps = {node.name: self}  # use name_id to mark model
             self._params = params
             self._params_name = tuple(params.keys())
-            self._params_fmt = {i._node.name: i.fmt for i in params.values()}
+
+            if params_fmt is not None:
+                if set(self._params_name) != set(params_fmt.keys()):
+                    raise ValueError('`params_fmt` must match `params`')
+            else:
+                params_fmt = {i: r'\mathrm{%s}' % i for i in params.keys()}
+
+            self._params_fmt = {
+                node.name: ModelParameterFormat(params_fmt)
+            }
 
     def __repr__(self):
         return self._label.name
@@ -424,6 +465,11 @@ class Model(ABC):
     def type(self) -> str:
         """Model type."""
         return self._node.attrs['mtype']
+
+    @property
+    def params_fmt(self) -> ModelParameterFormat:
+        """Model parameter format."""
+        return self._params_fmt[self._node.name]
 
     def _set_param(self, name: str, param: Parameter) -> None:
         """Set parameter.
@@ -480,20 +526,25 @@ class Model(ABC):
     def _model_info(self) -> dict:
         """Model information.
 
-        Returns sample and deterministic site information of :mod:`numpyro`,
+        Returns sample site information of :mod:`numpyro`,
         model parameter configure based on site, model function and id mapping.
         """
         site = self._node.site
         mapping = self._label.mapping
         info = dict(
             sample=site['sample'],
-            deterministic=site['deterministic'],
+            composite=site['composite'],
+            pname=site['name'],
+            pfmt=site['fmt'],
             default=site['default'],
+            min=site['min'],
+            max=site['max'],
+            dist_expr=site['dist_expr'],
             params=self._node.params,
             func=self._wrapped_func,
-            name=mapping['name'],
-            fmt=mapping['fmt'],
-            pfmt=self._params_fmt
+            mname=mapping['name'],
+            mfmt=mapping['fmt'],
+            mpfmt=self._params_fmt
         )
         return info
 
@@ -574,14 +625,19 @@ class SuperModel(Model):
         else:  # op == '*'
             node = lh._node * rh._node
 
-        super().__init__(node, None)
+        super().__init__(node)
 
         comps = lh._comps | rh._comps
         names = self._label.mapping['name']
+        _comps = {}
+        _comps_name = []
         for k in names:
             setattr(self, names[k], comps[k])
-        self._comps = comps
-        self._comps_name = tuple(names.values())
+            _comps[k] = comps[k]
+            _comps_name.append(names[k])
+
+        self._comps = _comps
+        self._comps_name = tuple(_comps_name)
         self._params_fmt = lh._params_fmt | rh._params_fmt
 
     def __setattr__(self, key, value):
@@ -600,6 +656,14 @@ class SuperModel(Model):
 
     def __setitem__(self, name, value):
         raise TypeError('item assignment not supported')
+
+    @property
+    def params_fmt(self) -> dict[str, ModelParameterFormat]:
+        """Model parameter format."""
+        return {
+            i: j._params_fmt[j._node.name]
+            for i, j in zip(self._comps_name, self._comps.values())
+        }
 
 
 class ComponentMeta(ABCMeta):
@@ -663,7 +727,7 @@ class Component(Model, ABC, metaclass=ComponentMeta):
 
     def __init__(self, fmt=None, **params):
         if fmt is None:
-            fmt = self.__class__.__name__.lower()
+            fmt = r'\mathrm{%s}' % self.__class__.__name__.lower()
 
         # parse parameters
         params_dict = {}
@@ -711,7 +775,9 @@ class Component(Model, ABC, metaclass=ComponentMeta):
             is_ncon=is_ncon
         )
 
-        super().__init__(component, params_dict)
+        params_fmt = {cfg[0]: cfg[1] for cfg in self._default}
+
+        super().__init__(component, params_dict, params_fmt)
 
     @property
     @abstractmethod
@@ -751,6 +817,9 @@ def generate_parameter(
     fmt: str,
     default: float,
     distribution: Distribution,
+    min: Optional[float] = None,
+    max: Optional[float] = None,
+    dist_expr: Optional[str] = None
 ) -> Parameter:
     """Create :class:`Parameter` instance.
 
@@ -764,6 +833,12 @@ def generate_parameter(
         Default value of the parameter.
     distribution : Distribution
         Instance of :class:`numpyro.distributions.Distribution`.
+    min : float, optional
+        Minimum value of the parameter. Defaults to None.
+    max : float, optional
+        Maximum value of the parameter. Defaults to None.
+    dist_expr : str, optional
+        Expression of the parameter distribution. Defaults to 'CustomDist'.
 
     Returns
     -------
@@ -771,7 +846,7 @@ def generate_parameter(
         The generated parameter.
 
     """
-    node = ParameterNode(name, fmt, default, distribution)
+    node = ParameterNode(name, fmt, default, distribution, min, max, dist_expr)
 
     return Parameter(node)
 

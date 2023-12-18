@@ -4,22 +4,22 @@ jax.config.update("jax_enable_x64", True)
 numpyro.set_host_device_count(4)
 from elisa.data.ogip import Data
 from elisa.inference.fit import LikelihoodFit, BayesianFit
-from numpyro.distributions import Normal, LogNormal
+from numpyro.distributions import Normal, LogNormal, Uniform
 from elisa.model import *
 import arviz as az
 
-
 a = UniformParameter('a', 'a', 1.0, 0.1, 2, log=1)
-b = UniformParameter('b', 'b', 1.0, 0.1, 2, log=1, frozen=1)
+a.max = 3
+b = UniformParameter('a', 'a', 1.0, 0.1, 2, log=1, frozen=1)
 c = UniformParameter('c', 'c', 1.0, 0, 2)
 d = a+b
 e = c*d
-f = generate_parameter('f', 'f', 2.0, Normal())
+f = generate_parameter('f', 'f', 2.0, Normal(), dist_expr='Normal(mu=0.0, sigma=1.0)')
 g = e*f
 m = Constant()*PhFlux(1,10)*Powerlaw()
-m1 = BlackBody(K=1, fmt='BB')
-m2 = BlackBody(fmt='BB')
-m2.kT = m1.kT * UniformParameter('f', 'f', 0.5, 0.001, 1, log=True)
+m1 = BlackBody(K=1, fmt=r'\mathrm{BB}')
+m2 = BlackBody(fmt=r'\mathrm{BB}')
+m2.kT = m1.kT * g
 m3 = m2 + m1
 det = 'n7'
 spec = f'/Users/xuewc/ObsData/GRB231115A/GBM/{det}.pha'
@@ -44,8 +44,10 @@ HE = Data([28, 250], f'{path}/HE_optbmin5.fits',
           )
 # model = CutoffPowerlaw(method='simpson')
 model = Powerlaw()
+# model.alpha = model.K * generate_parameter('f', 'f', 1.01, Uniform(-10, 10))
+model2 = Constant() * model
 # model.alpha.max = 5
-fit2 = LikelihoodFit([LE, ME, HE], model, 'wstat')
+fit2 = LikelihoodFit([LE, ME, HE], [model]+[model2]*2, 'wstat')
 fit3 = BayesianFit([LE, ME, HE], model, 'wstat')
 from elisa.inference.nested_sampling import reparam_loglike
 loglik, transform, names = reparam_loglike(fit2._numpyro_model, jax.random.PRNGKey(42))

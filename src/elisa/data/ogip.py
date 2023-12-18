@@ -916,6 +916,9 @@ class Response:
                 resp = rsp_hdul['MATRIX'].data
             elif 'SPECRESP MATRIX' in rsp_hdul:
                 resp = rsp_hdul['SPECRESP MATRIX'].data
+            else:
+                msg = f'Cannot read response matrix data from {respfile}'
+                raise ValueError(msg)
 
         channel = ebounds['CHANNEL']
 

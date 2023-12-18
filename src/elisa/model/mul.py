@@ -33,7 +33,7 @@ class MultiplicativeComponent(Component, ABC):
 
 class Constant(MultiplicativeComponent):
     _default = (
-        ('factor', 'A', 1.0, 1e-5, 1e5, False, False),
+        ('factor', 'a', 1.0, 1e-5, 1e5, False, False),
     )
 
     @staticmethod

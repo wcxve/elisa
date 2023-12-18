@@ -245,6 +245,12 @@ class ParameterNode(Node):
         Default value of the parameter.
     distribution : Distribution, float, or int
         Instance of :class:`numpyro.distributions.Distribution` or number.
+    min : float, optional
+        Minimum value of the parameter. The default is None.
+    max : float, optional
+        Maximum value of the parameter. The default is None.
+    dist_expr : str, optional
+        Expression of the `distribution`. The default is None.
 
     """
 
@@ -254,6 +260,9 @@ class ParameterNode(Node):
         fmt: str,
         default: float | int,
         distribution: Distribution | float | int,
+        min: float | None = None,
+        max: float | None = None,
+        dist_expr: str | None = None
     ):
         self._validate_input(distribution)
 
@@ -262,6 +271,9 @@ class ParameterNode(Node):
         attrs = dict(
             default=default,
             distribution=distribution,
+            min='' if min is None else f'{min:.4g}',
+            max='' if max is None else f'{max:.4g}',
+            dist_expr='' if dist_expr is None else str(dist_expr)
         )
 
         super().__init__(name=name, fmt=fmt, attrs=attrs)
@@ -291,13 +303,18 @@ class ParameterNode(Node):
 
     @property
     def site(self) -> dict:
-        """Sample and deterministic site information of :mod:`numpyro`."""
+        """Sample site information of :mod:`numpyro`."""
         name = self.name
 
         info = {
             'sample': {name: self.attrs['distribution']},
-            'deterministic': {},
-            'default': {name: self.default}
+            'composite': {},
+            'name': {name: self.attrs['name']},
+            'fmt': {name: self.attrs['fmt']},
+            'default': {name: self.default},
+            'min': {name: self.attrs['min']},
+            'max': {name: self.attrs['max']},
+            'dist_expr': {name: self.attrs['dist_expr']}
         }
 
         return info
@@ -368,7 +385,7 @@ class ParameterOperationNode(OperationNode):
 
     @property
     def site(self) -> dict:
-        """Sample and deterministic site information of :mod:`numpyro`."""
+        """Sample site information of :mod:`numpyro`."""
         name = self.name
 
         lh_name = self.predecessor[0].name
@@ -377,18 +394,27 @@ class ParameterOperationNode(OperationNode):
         lh = self.predecessor[0].site
         rh = self.predecessor[1].site
 
+        def get_field(key):
+            """Get union of field of all sites."""
+            return lh[key] | rh[key]
+
         info = {
-            'sample': lh['sample'] | rh['sample'],
-            'deterministic': lh['deterministic'] | rh['deterministic'],
-            'default': lh['default'] | rh['default']
+            'sample': get_field('sample'),
+            'composite': get_field('composite'),
+            'name': get_field('name'),
+            'fmt': get_field('fmt'),
+            'default': get_field('default'),
+            'min': get_field('min'),
+            'max': get_field('max'),
+            'dist_expr': get_field('dist_expr')
         }
-        deterministic = info['deterministic']
+        composite = info['composite']
 
         operand_name = (lh_name, rh_name)
         if self.attrs['name'] == '+':
-            deterministic[name] = (operand_name, lambda x, y: x + y)
+            composite[name] = (operand_name, lambda x, y: x + y)
         else:
-            deterministic[name] = (operand_name, lambda x, y: x * y)
+            composite[name] = (operand_name, lambda x, y: x * y)
 
         return info
 
@@ -491,22 +517,23 @@ class ModelNode(Node):
 
     @property
     def site(self) -> dict:
-        """Sample and deterministic site information of :mod:`numpyro`."""
+        """Sample site information of :mod:`numpyro`."""
         sites = [p.site for p in self.predecessor]
 
-        sample = [s['sample'] for s in sites]
-        sample = reduce(lambda i, j: i | j, sample)
-
-        deterministic = [s['deterministic'] for s in sites]
-        deterministic = reduce(lambda i, j: i | j, deterministic)
-
-        default = [s['default'] for s in sites]
-        default = reduce(lambda i, j: i | j, default)
+        def get_site_field(key):
+            """Get union of field of all sites."""
+            field = [s[key] for s in sites]
+            return reduce(lambda i, j: i | j, field)
 
         return {
-            'sample': sample,
-            'deterministic': deterministic,
-            'default': default
+            'sample': get_site_field('sample'),
+            'composite': get_site_field('composite'),
+            'name': get_site_field('name'),
+            'fmt': get_site_field('fmt'),
+            'default': get_site_field('default'),
+            'min': get_site_field('min'),
+            'max': get_site_field('max'),
+            'dist_expr': get_site_field('dist_expr')
         }
 
     def generate_func(self, mapping: dict[str, str]) -> Callable:
@@ -583,8 +610,8 @@ class ModelOperationNode(OperationNode):
         mtype1 = lh.attrs['mtype']
         mtype2 = rh.attrs['mtype']
 
-        name1 = sub(r'_[a-zA-Z0-9]{32}', '', f'"{lh.name}"')
-        name2 = sub(r'_[a-zA-Z0-9]{32}', '', f'"{rh.name}"')
+        name1 = sub('_[a-zA-Z0-9]{32}', '', f'"{lh.name}"')
+        name2 = sub('_[a-zA-Z0-9]{32}', '', f'"{rh.name}"')
 
         # check if operand is legal for the op
         if op == '+':
@@ -661,19 +688,24 @@ class ModelOperationNode(OperationNode):
 
     @property
     def site(self) -> dict:
-        """Sample and deterministic site information of :mod:`numpyro`."""
+        """Sample site information of :mod:`numpyro`."""
         lh, rh = self.predecessor
         lh = lh.site
         rh = rh.site
 
-        sample = lh['sample'] | rh['sample']
-        deterministic = lh['deterministic'] | rh['deterministic']
-        default = lh['default'] | rh['default']
+        def get_field(key):
+            """Get union of field of all sites."""
+            return lh[key] | rh[key]
 
         return {
-            'sample': sample,
-            'deterministic': deterministic,
-            'default': default
+            'sample': get_field('sample'),
+            'composite': get_field('composite'),
+            'name': get_field('name'),
+            'fmt': get_field('fmt'),
+            'default': get_field('default'),
+            'min': get_field('min'),
+            'max': get_field('max'),
+            'dist_expr': get_field('dist_expr')
         }
 
     def generate_func(self, mapping: dict[str, str]) -> Callable:
