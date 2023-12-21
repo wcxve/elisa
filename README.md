@@ -1,7 +1,7 @@
 # Elisa
 
-[![PyPI - Version](https://img.shields.io/pypi/v/elisa-lib.svg)](https://pypi.org/project/elisa-lib)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-lib.svg)](https://pypi.org/project/elisa-lib)
+[![PyPI - Version](https://img.shields.io/pypi/v/elisa-lib.svg)](https://pypi.org/project/elisa-lib)
 [![Documentation Status](https://readthedocs.org/projects/elisa-lib/badge/?version=latest)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
 
 **An efficient and fast library for spectral analysis in high-energy astrophysics.**
