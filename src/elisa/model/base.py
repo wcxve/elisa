@@ -538,7 +538,7 @@ class Model:
         params: dict[str, dict[str, float | jax.Array]],
         comps: bool = False
     ):
-        r"""Calculate :math:`E N_E` (or :math:`F\nu`) over `egrid`.
+        r"""Calculate :math:`E N_E` (:math:`F_\nu`) over `egrid`.
 
         Parameters
         ----------
@@ -570,7 +570,7 @@ class Model:
         params: dict[str, dict[str, float | jax.Array]],
         comps: bool = False
     ):
-        r"""Calculate :math:`E^2 N_E` (or :math:`\nu F\nu`) over `egrid`.
+        r"""Calculate :math:`E^2 N_E` (:math:`\nu F_\nu`) over `egrid`.
 
         Parameters
         ----------
@@ -604,7 +604,7 @@ class Model:
         ch_width: jax.Array,
         comps: bool = False
     ):
-        """Calculate the folded spectral model (or :math:`C_E`).
+        """Calculate the folded spectral model (:math:`C_E`).
 
         Parameters
         ----------
