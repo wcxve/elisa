@@ -470,13 +470,66 @@ class Model:
         """Model parameter format configuration."""
         return self._params_fmt[self._node.name]
 
+    def eval(
+        self,
+        egrid: jax.Array,
+        params: dict[str, dict[str, float | jax.Array]],
+    ) -> jax.Array:
+        """Evaluate the model.
+
+        Parameters
+        ----------
+        egrid : array_like
+            Energy grid over which to evaluate the model.
+        params : dict
+            Parameter dict for the model.
+
+        Returns
+        -------
+        value : jax.Array
+            The model value.
+
+        """
+        if self.type == 'con':
+            raise TypeError('convolution model not supported')
+
+        shapes = jax.tree_util.tree_flatten(
+            tree=jax.tree_map(jnp.shape, params),
+            is_leaf=lambda i: isinstance(i, tuple)
+        )[0]
+
+        if not shapes:
+            print(shapes)
+            raise ValueError('empty params')
+
+        shape = shapes[0]
+        if not all(shape == s for s in shapes[1:]):
+            print(shapes)
+            raise ValueError('all params must have the same shape')
+
+        if shape == ():
+            eval_fn = lambda f: f(egrid, params)
+        elif len(shape) == 1:
+            eval_fn = lambda f: \
+                jax.vmap(f, in_axes=(None, 0))(egrid, params)
+        elif len(shape) == 2:
+            eval_fn = lambda f: \
+                jax.vmap(
+                    jax.vmap(f, in_axes=(None, 0)),
+                    in_axes=(None, 0)
+                )(egrid, params)
+        else:
+            raise ValueError(f'params ndim should <= 2, got {len(shape)}')
+
+        return eval_fn(self._wrapped_fn)
+
     def ne(
         self,
         egrid: jax.Array,
         params: dict[str, dict[str, float | jax.Array]],
         comps: bool = False
-    ):
-        r"""Calculate :math:`N_E` over `egrid`.
+    ) -> jax.Array | dict[str, jax.Array]:
+        """Calculate :math:`N_E` over `egrid`.
 
         Parameters
         ----------
@@ -494,6 +547,10 @@ class Model:
             The :math:`N_E` over `egrid`, in unit of cm^-2 s^-1 keV^-1.
 
         """
+        if self.type != 'add':
+            msg = f'ne is undefined for {self.type} type model "{self}"'
+            raise TypeError(msg)
+
         shapes = jax.tree_util.tree_flatten(
             tree=jax.tree_map(jnp.shape, params),
             is_leaf=lambda i: isinstance(i, tuple)
@@ -512,18 +569,15 @@ class Model:
 
         if shape == ():
             eval_fn = lambda f: f(egrid, params) / de
-
         elif len(shape) == 1:
             eval_fn = lambda f: \
                 jax.vmap(f, in_axes=(None, 0))(egrid, params) / de
-
         elif len(shape) == 2:
             eval_fn = lambda f: \
                 jax.vmap(
                     jax.vmap(f, in_axes=(None, 0)),
                     in_axes=(None, 0)
                 )(egrid, params) / de
-
         else:
             raise ValueError(f'params ndim should <= 2, got {len(shape)}')
 
@@ -537,7 +591,7 @@ class Model:
         egrid: jax.Array,
         params: dict[str, dict[str, float | jax.Array]],
         comps: bool = False
-    ):
+    ) -> jax.Array | dict[str, jax.Array]:
         r"""Calculate :math:`E N_E` (:math:`F_\nu`) over `egrid`.
 
         Parameters
@@ -556,6 +610,10 @@ class Model:
             The :math:`E N_E` over `egrid`, in unit of erg cm^-2 s^-1 keV^-1.
 
         """
+        if self.type != 'add':
+            msg = f'ene is undefined for {self.type} type model "{self}"'
+            raise TypeError(msg)
+
         ne = self.ne(egrid, params, comps)
         emid = jnp.sqrt(egrid[:-1] * egrid[1:])
         fn = lambda x: emid * x * 1.602176634e-9
@@ -588,6 +646,10 @@ class Model:
             The :math:`E^2 N_E` over `egrid`, in unit of erg cm^-2 s^-1.
 
         """
+        if self.type != 'add':
+            msg = f'eene is undefined for {self.type} type model "{self}"'
+            raise TypeError(msg)
+
         ne = self.ne(egrid, params, comps)
         e2 = egrid[:-1] * egrid[1:]
         fn = lambda x: e2 * x * 1.602176634e-9
@@ -603,7 +665,7 @@ class Model:
         resp_matrix: jax.Array,
         ch_width: jax.Array,
         comps: bool = False
-    ):
+    ) -> jax.Array | dict[str, jax.Array]:
         """Calculate the folded spectral model (:math:`C_E`).
 
         Parameters
@@ -626,6 +688,10 @@ class Model:
             The folded spectral model :math:`C_E`, in unit of s^-1 keV^-1.
 
         """
+        if self.type != 'add':
+            msg = f'folded is undefined for {self.type} type model "{self}"'
+            raise TypeError(msg)
+
         ne = self.ne(ph_egrid, params, comps)
         de = jnp.diff(ph_egrid)
         fn = lambda x: (ne * de) @ resp_matrix / ch_width
@@ -643,7 +709,7 @@ class Model:
         comps: bool = False,
         ngrid: int = 1000,
         elog: bool = True
-    ):
+    ) -> jax.Array | dict[str, jax.Array]:
         """Calculate flux of the model between `emin` and `emax`.
 
         Parameters
