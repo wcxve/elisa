@@ -6,7 +6,7 @@ from typing import Callable
 
 import jax.numpy as jnp
 
-from .base import Component
+from .base import Component, ParamConfig
 
 __all__ = ['Constant']
 
@@ -32,8 +32,8 @@ class MultiplicativeComponent(Component, ABC):
 
 
 class Constant(MultiplicativeComponent):
-    _default = (
-        ('factor', 'a', 1.0, 1e-5, 1e5, False, False),
+    _config = (
+        ParamConfig('factor', 'f', 1.0, 1e-5, 1e5, False, False),
     )
 
     @staticmethod

@@ -1,35 +1,21 @@
-"""This module is copied and adapted from https://github.com/pyro-ppl/numpyro/raw/master/numpyro/contrib/nested_sampling.py"""
+"""
+Copy and adapt from
+https://github.com/pyro-ppl/numpyro/raw/master/numpyro/contrib/nested_sampling.py
+"""
 # Copyright Contributors to the Pyro project.
 # SPDX-License-Identifier: Apache-2.0
 
 from __future__ import annotations
 
+import logging
 from functools import singledispatch
 
-from jax import random
 import jax.numpy as jnp
-
-try:
-    from jaxns import (
-        ExactNestedSampler,
-        Model,
-        Prior,
-        TerminationCondition,
-        plot_cornerplot,
-        plot_diagnostics,
-        resample,
-        summary,
-    )
-except ImportError as e:
-    raise ImportError(
-        "To use this module, please install `jaxns` package. It can be"
-        " installed with `pip install jaxns` with python>=3.8"
-    ) from e
-
-import tensorflow_probability.substrates.jax as tfp
-
 import numpyro
 import numpyro.distributions as dist
+import tensorflow_probability.substrates.jax as tfp
+
+from jax import random
 from numpyro.handlers import reparam, seed, trace
 from numpyro.infer import Predictive
 from numpyro.infer.reparam import Reparam
@@ -189,6 +175,12 @@ class NestedSampler:
         self._log_weights = None
         self._results = None
 
+        # jaxns is import here because it runs jax program when importing
+        logging.disable(logging.INFO)  # temporarily disable jaxns logging
+        import jaxns
+        logging.disable(logging.NOTSET)
+        self._jaxns = jaxns
+
     def run(self, rng_key, *args, **kwargs):
         """
         Run the nested samplers and collect weighted samples.
@@ -197,6 +189,8 @@ class NestedSampler:
         :param args: The arguments needed by the `model`.
         :param kwargs: The keyword arguments needed by the `model`.
         """
+        jaxns = self._jaxns
+
         rng_sampling, rng_predictive = random.split(rng_key)
         # reparam the model so that latent sites have Uniform(0, 1) priors
         prototype_trace = trace(seed(self.model, rng_key)).get_trace(*args, **kwargs)
@@ -248,19 +242,19 @@ class NestedSampler:
             params = []
             for name in param_names:
                 shape = prototype_trace[name]["fn"].shape()
-                param = yield Prior(
+                param = yield jaxns.Prior(
                     tfpd.Uniform(low=jnp.zeros(shape), high=jnp.ones(shape)),
                     name=name + "_base",
                 )
                 params.append(param)
             return tuple(params)
 
-        model = Model(prior_model=prior_model, log_likelihood=loglik_fn)
+        model = jaxns.Model(prior_model=prior_model, log_likelihood=loglik_fn)
 
         default_constructor_kwargs = dict(
             num_live_points=model.U_ndims * 50,
-            num_parallel_samplers=1,
-            # num_parallel_workers=1,
+            # num_parallel_samplers=1,
+            num_parallel_workers=1,
             max_samples=1e4,
         )
         default_termination_kwargs = dict(live_evidence_frac=1e-4)
@@ -279,14 +273,14 @@ class NestedSampler:
             )
         )
 
-        ns = ExactNestedSampler(
+        ns = jaxns.DefaultNestedSampler(
             model=model,
             **self.constructor_kwargs,
         )
 
         termination_reason, state = ns(
             rng_sampling,
-            term_cond=TerminationCondition(**self.termination_kwargs),
+            term_cond=jaxns.TerminationCondition(**self.termination_kwargs),
         )
         results = ns.to_results(termination_reason=termination_reason, state=state)
 
@@ -311,12 +305,14 @@ class NestedSampler:
         :param int num_samples: The number of samples.
         :return: a dict of posterior samples
         """
+        jaxns = self._jaxns
+
         if self._results is None:
             raise RuntimeError(
                 "NestedSampler.run(...) method should be called first to obtain results."
             )
         weighted_samples, sample_weights = self.get_weighted_samples()
-        return resample(
+        return jaxns.resample(
             rng_key, weighted_samples, sample_weights, S=num_samples, replace=True
         )
 
@@ -335,23 +331,27 @@ class NestedSampler:
         """
         Print summary of the result. This is a wrapper of :func:`jaxns.utils.summary`.
         """
+        jaxns = self._jaxns
+
         if self._results is None:
             raise RuntimeError(
                 "NestedSampler.run(...) method should be called first to obtain results."
             )
-        summary(self._results)
+        jaxns.summary(self._results)
 
     def diagnostics(self):
         """
         Plot diagnostics of the result. This is a wrapper of :func:`jaxns.plotting.plot_diagnostics`
         and :func:`jaxns.plotting.plot_cornerplot`.
         """
+        jaxns = self._jaxns
+
         if self._results is None:
             raise RuntimeError(
                 "NestedSampler.run(...) method should be called first to obtain results."
             )
-        plot_diagnostics(self._results)
-        plot_cornerplot(self._results)
+        jaxns.plot_diagnostics(self._results)
+        jaxns.plot_cornerplot(self._results)
 
 
 def reparam_loglike(model, rng_key, *args, **kwargs):

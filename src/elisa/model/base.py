@@ -1,4 +1,4 @@
-"""Module to handle model construction."""
+"""Classes to handle model construction."""
 # TODO:
 #    - model construction and parameter binding should be separated
 #    - transformable to other PPL libs
@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from abc import ABC, ABCMeta, abstractmethod
-from typing import Callable, Optional, Union
+from typing import Callable, NamedTuple, Optional, Union
 
 from numpyro.distributions import Distribution, LogUniform, Uniform
 
@@ -267,7 +267,7 @@ class UniformParameter(Parameter):
             self._reset_distribution()
 
     def _check_and_set_values(self, default=None, min=None, max=None) -> None:
-        """Check and set parameter configure."""
+        """Check and set parameter configuration."""
         config = self._config
 
         if default is None:
@@ -333,7 +333,7 @@ class UniformParameter(Parameter):
         return distribution
 
     def get_expression(self) -> str:
-        """Get distribution expression for :class:`ParameterNode`."""
+        """Get expression of distribution."""
         default = self._config["default"]
 
         if self._config['frozen']:
@@ -409,6 +409,8 @@ class Model:
 
         self._node = node
         self._label = LabelSpace(node)
+        self._fn = None
+        self._sub_comps = None
 
         if params is not None:
             for key, value in params.items():
@@ -447,17 +449,13 @@ class Model:
 
     def __getitem__(self, name: str) -> Parameter:
         if name not in self._params:
-            raise ValueError(
-                f'{self} has no "{name}" parameter'
-            )
+            raise ValueError(f'{self} has no "{name}" parameter')
 
         return self._params[name]
 
     def __setitem__(self, name: str, param: Parameter):
         if name not in self._params:
-            raise ValueError(
-                f'{self} has no "{name}" parameter'
-            )
+            raise ValueError(f'{self} has no "{name}" parameter')
 
         setattr(self, name, param)
 
@@ -468,7 +466,7 @@ class Model:
 
     @property
     def params_fmt(self) -> ModelParameterFormat:
-        """Model parameter format."""
+        """Model parameter format configuration."""
         return self._params_fmt[self._node.name]
 
     def _set_param(self, name: str, param: Parameter) -> None:
@@ -511,24 +509,23 @@ class Model:
             )
 
     @property
-    def _wrapped_func(self) -> Callable:
+    def _wrapped_fn(self) -> Callable:
         """Model evaluation function."""
-        f = self._node.generate_func(self._label.mapping['name'])
+        if self._fn is None:
+            f = self._node.generate_func(self._label.mapping['name'])
 
-        # TODO: eliminate *args and **kwargs
-        def func(egrid, params, *args, **kwargs):
-            """Model function wrapper."""
-            return f(params, egrid, *args, **kwargs)
+            # TODO: eliminate *args and **kwargs
+            def fn(egrid, params, *args, **kwargs):
+                """Model function wrapper."""
+                return f(params, egrid, *args, **kwargs)
 
-        return func
+            self._fn = fn
+
+        return self._fn
 
     @property
     def _model_info(self) -> dict:
-        """Model information.
-
-        Returns sample site information of :mod:`numpyro`,
-        model parameter configure based on site, model function and id mapping.
-        """
+        """Model information."""
         site = self._node.site
         mapping = self._label.mapping
         info = dict(
@@ -541,12 +538,18 @@ class Model:
             max=site['max'],
             dist_expr=site['dist_expr'],
             params=self._node.params,
-            func=self._wrapped_func,
             mname=mapping['name'],
             mfmt=mapping['fmt'],
             mpfmt=self._params_fmt
         )
         return info
+
+    def _get_comps(self) -> tuple[Model, ...]:
+        """Get subcomponents."""
+        if self._sub_comps is None:
+            self._sub_comps = (self,)
+
+        return self._sub_comps
 
     # def set_params(self, params: dict[str, Parameter]) -> None:
     #     """Set parameters."""
@@ -561,14 +564,11 @@ class Model:
     #     if not all(map(lambda v: isinstance(v, Parameter), params.values())):
     #         raise ValueError('Parameter type is required')
     #
-    #     params = self._params | params
+    #     params = self._params_names | params
     #     params_node = list(map(lambda v: v._node, params.values()))
-    #     self._params = params
+    #     self._params_names = params
     #     self._node.predecessor = params_node
     #
-    # @property
-    # def additives(self):
-    #     return ...
     #
     # def flux(self):
     #     ...
@@ -582,14 +582,37 @@ class Model:
     # def eene(self):
     #     ...
     #
-    # def ce(self):
+    # def folded(self):
     #     ...
     #
-    # def counts(self):
-    #     ...
-    #
-    # def fmt(self):
-    #     ...
+
+#
+#     # def flux(self, params, e_range, energy=True, ngrid=1000, log=True):
+#     #     """Evaluate model by
+#     #         * analytic expression
+#     #         * trapezoid or Simpson's 1/3 rule given :math:`N_E`
+#     #         * Xspec model library
+#     #
+#     #     TODO: docstring
+#     #
+#     #     """
+#     #
+#     #     if self.type != 'add':
+#     #         raise TypeError(
+#     #             f'flux is undefined for "{self.type}" type model "{self}"'
+#     #         )
+#     #
+#     #     if log:  # evenly spaced grid in log space
+#     #         egrid = np.geomspace(*e_range, ngrid)
+#     #     else:  # evenly spaced grid in linear space
+#     #         egrid = np.linspace(*e_range, ngrid)
+#     #
+#     #     if energy:  # energy flux
+#     #         flux = np.sum(self.ENE(pars, ebins) * np.diff(ebins), axis=-1)
+#     #     else:  # photon flux
+#     #         flux = np.sum(self.NE(pars, ebins) * np.diff(ebins), axis=-1)
+#     #
+#     #     return flux
 
 
 class SuperModel(Model):
@@ -665,6 +688,26 @@ class SuperModel(Model):
             for i, j in zip(self._comps_name, self._comps.values())
         }
 
+    def _get_comps(self) -> tuple[Model, ...]:
+        """Get subcomponents."""
+        if self._sub_comps is None:
+            if self._op == '+':  # add + add
+                subs = self._lh._get_comps() + self._rh._get_comps()
+            elif self._lh.type == 'add':  # add * mul
+                rh = self._rh
+                subs = tuple(lh_i * rh for lh_i in self._lh._get_comps())
+            elif self._rh.type == 'add':  # mul * add, con * add
+                lh = self._lh
+                if lh.type == 'mul':  # mul * add
+                    subs = tuple(lh * rh_i for rh_i in self._rh._get_comps())
+                else:  # con * add, note that con model isn't a linear operator
+                    subs = (self,)
+            else:  # mul * mul, con * mul, mul * con, con * con
+                subs = (self,)
+
+            self._sub_comps = subs
+
+        return self._sub_comps
 
 class ComponentMeta(ABCMeta):
     """Metaclass to avoid cumbersome code for ``__init__`` of subclass."""
@@ -672,16 +715,16 @@ class ComponentMeta(ABCMeta):
     def __init__(cls, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # if subclass has ``default`` defined correctly, override its __init__
-        if hasattr(cls, '_default') and isinstance(cls._default, tuple):
+        # if subclass has ``config`` defined correctly, override its __init__
+        if hasattr(cls, '_config') and isinstance(cls._config, tuple):
             name = cls.__name__.lower()
 
             # >>> construct __init__ function >>>
-            default = cls._default
+            config = cls._config
             init_def = 'self, '
             init_body = ''
             par_body = '('
-            for cfg in default:
+            for cfg in config:
                 init_def += cfg[0] + '=None, '
                 init_body += f'{cfg[0]}={cfg[0]}, '
                 par_body += f'{cfg[0]}, '
@@ -696,7 +739,7 @@ class ComponentMeta(ABCMeta):
                 pos_args = []
                 for kw in cls._extra_kw:
                     # FIXME: repr may fail!
-                    if kw[1] is not None:
+                    if len(kw) == 2:
                         init_def += f', {kw[0]}={repr(kw[1])}'
                     else:
                         pos_args.append(kw[0])
@@ -722,6 +765,35 @@ class ComponentMeta(ABCMeta):
             cls._get_args = tmp[name]
 
 
+class ParamConfig(NamedTuple):
+    """Parameter configuration.
+
+    Parameters
+    ----------
+    name : str
+        Name of the parameter.
+    fmt : str
+        Tex format of the parameter.
+    min : float, or int
+        Minimum value of the parameter.
+    max : float, or int
+        Maximum value of the parameter.
+    frozen : bool
+        Whether the parameter is frozen.
+    log : bool
+        Whether the parameter is uniform in log scale.
+
+    """
+
+    name: str
+    fmt: str
+    default: float
+    min: float
+    max: float
+    frozen: bool
+    log: bool
+
+
 class Component(Model, ABC, metaclass=ComponentMeta):
     """The abstract spectral component class."""
 
@@ -731,12 +803,12 @@ class Component(Model, ABC, metaclass=ComponentMeta):
 
         # parse parameters
         params_dict = {}
-        for cfg in self._default:
+        for cfg in self._config:
             param_name = cfg[0]
             param = params[param_name]
 
             if param is None:
-                # use default configure
+                # use default configuration
                 params_dict[param_name] = UniformParameter(*cfg)
 
             elif isinstance(param, Parameter):
@@ -775,7 +847,7 @@ class Component(Model, ABC, metaclass=ComponentMeta):
             is_ncon=is_ncon
         )
 
-        params_fmt = {cfg[0]: cfg[1] for cfg in self._default}
+        params_fmt = {cfg[0]: cfg[1] for cfg in self._config}
 
         super().__init__(component, params_dict, params_fmt)
 
@@ -793,21 +865,17 @@ class Component(Model, ABC, metaclass=ComponentMeta):
 
     @property
     @abstractmethod
-    def _default(self) -> tuple:
-        """Default configuration of parameters, overriden by subclass.
-
-        Configuration format should be ``((name: str, fmt: str, default: float,
-        min: float, max: float, frozen: bool, log: bool), ...)``.
-
-        """
+    def _config(self) -> tuple[ParamConfig, ...]:
+        """Configuration of parameters, overriden by subclass."""
         pass
 
     @property
     def _extra_kw(self) -> tuple:
         """Extra keywords passed to ``__init__``, overriden by subclass.
 
-        Note that Element of inner tuple should respect :py:func:`repr`, or
+        Note that element of inner tuple should respect :func:`repr`, or
         ``__init__`` of :class:`ComponentMeta` may fail.
+
         """
         return tuple()
 
@@ -846,6 +914,7 @@ def generate_parameter(
         The generated parameter.
 
     """
+    dist_expr = str(dist_expr) if dist_expr is not None else 'CustomDist'
     node = ParameterNode(name, fmt, default, distribution, min, max, dist_expr)
 
     return Parameter(node)
@@ -899,84 +968,3 @@ def generate_model(
     model_node = ModelNode(name, fmt, mtype, params_node, func, is_ncon)
 
     return Model(model_node, params)
-
-#
-#
-# class Model(metaclass=ComponentMeta):
-#     def _get_param(self, key):
-#         """Check and return component and parameter key."""
-#
-#         if '.' not in key:
-#             raise ValueError('key format should be "component.parameter"')
-#
-#         c, p = key.split('.')
-#
-#         name_map = {v: k for k, v in self._label._label_map['name'].items()}
-#
-#         if c not in name_map:
-#             raise ValueError(f'No component "{c}" in model "{self}"')
-#
-#         return self._node.comps[name_map[c]], p
-#
-#     @property
-#     def comps(self):
-#         """Additive type of compositions of subcomponents."""
-#
-#         if self.type != 'add':
-#             raise TypeError(
-#                 f'"{self.type}" model has no additive sub-components'
-#             )
-#         else:
-#             if not self._comps:
-#                 raise NotImplementedError
-#
-#             return self._comps
-#
-#     # def flux(self, params, e_range, energy=True, ngrid=1000, log=True):
-#     #     """Evaluate model by
-#     #         * analytic expression
-#     #         * trapezoid or Simpson's 1/3 rule given :math:`N_E`
-#     #         * Xspec model library
-#     #
-#     #     TODO: docstring
-#     #
-#     #     """
-#     #
-#     #     if self.type != 'add':
-#     #         raise TypeError(
-#     #             f'flux is undefined for "{self.type}" type model "{self}"'
-#     #         )
-#     #
-#     #     if log:  # evenly spaced grid in log space
-#     #         egrid = np.geomspace(*e_range, ngrid)
-#     #     else:  # evenly spaced grid in linear space
-#     #         egrid = np.linspace(*e_range, ngrid)
-#     #
-#     #     if energy:  # energy flux
-#     #         flux = np.sum(self.ENE(pars, ebins) * np.diff(ebins), axis=-1)
-#     #     else:  # photon flux
-#     #         flux = np.sum(self.NE(pars, ebins) * np.diff(ebins), axis=-1)
-#     #
-#     #     return flux
-#
-#     def _build_prior(self) -> Callable:
-#         """Get the prior function which will be used in numpyro."""
-#
-#         def prior():
-#             """This should be called inside numpyro."""
-#             self
-#             ...
-#
-#         return prior
-#
-#     def __call__(self, egrid, flux=None):
-#         # TODO:
-#         return self.eval(egrid, flux)
-#
-#     def eval(self, *args, **kwargs):
-#         """TODO"""
-#         if self.type != 'con':
-#             ...
-#         else:
-#             ...
-#

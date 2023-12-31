@@ -562,8 +562,8 @@ def _plot_icounts(
     counts = data.net_counts
     icounts = counts.cumsum()
 
-    other = [data.ph_ebins, data.ch_emin, data.ch_emax, data.resp_matrix]
-    model_counts = model.counts(pars, data.spec_exposure)
+    other = [data.ph_ebins, data.ch_emin, data.ch_emax, data.resp_matrix, data.spec_exposure]
+    model_counts = model.counts(pars, *other)
     model_icounts = model_counts.cumsum()
 
     total_counts = model_icounts[-1]
@@ -606,8 +606,8 @@ def _plot_icounts_residual(
     color = color + hex(round(255 * alpha))[2:]
 
     counts = data.net_counts
-    other = [data.ph_ebins, data.ch_emin, data.ch_emax, data.resp_matrix]
-    model_counts = model.counts(pars, data.spec_exposure)
+    other = [data.ph_ebins, data.ch_emin, data.ch_emax, data.resp_matrix, data.spec_exposure]
+    model_counts = model.counts(pars, *other)
 
     total_counts = model_counts.sum()
     icounts = counts.cumsum() / total_counts

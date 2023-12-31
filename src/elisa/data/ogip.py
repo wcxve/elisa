@@ -1,11 +1,13 @@
-"""Handle OGIP/92-007 format data loading."""
+"""Containers of OGIP/92-007 format data."""
 from __future__ import annotations
 
 import re
 import warnings
 
+import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+
 from .grouping import (
     group_const,
     group_min,
@@ -23,7 +25,7 @@ NDArray = np.ndarray
 
 
 class Data:
-    """Class to load observation data stored in OGIP/92-007 format.
+    """Handle observation data in OGIP standards [1]_ [2]_ [3]_ [4]_.
 
     Load the observation spectrum, the telescope response and the possible
     background, and handle the grouping of spectrum and response.
@@ -71,7 +73,7 @@ class Data:
         is undefined in the header.
     ignore_bad : bool, optional
         Whether to ignore channels whose ``QUALITY`` are 5.
-        The default is True. The possible values for ``QUALITY`` are
+        The default is True. The possible values for spectral ``QUALITY`` are
             *  0: good
             *  1: defined bad by software
             *  2: defined dubious by software
@@ -92,6 +94,13 @@ class Data:
     -----
     Reading and applying correction to data is not yet supported.
 
+    References
+    ----------
+    .. [1] https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html
+    .. [2] https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html
+    .. [3] https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
+    .. [4] https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html
+
     """
 
     def __init__(
@@ -111,6 +120,17 @@ class Data:
         corrfile: str | None = None,
         corrnorm: str | None = None
     ):
+        erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
+
+        # check if erange is increasing
+        if np.any(np.diff(erange, axis=1) <= 0.0):
+            raise ValueError('erange must be increasing')
+
+        # check if erange is overlapped
+        erange = erange[erange[:, 0].argsort()]
+        if np.any(np.diff(np.hstack(erange)) <= 0.0):
+            raise ValueError('erange must not be overlapped')
+
         spec = Spectrum(specfile, spec_poisson)
 
         # check data name
@@ -136,7 +156,7 @@ class Data:
         if len(spec._raw_counts) != len(resp._raw_channel):
             msg = f'specfile ({specfile}) and respfile ({respfile}) are not '
             msg += 'matched'
-            raise ValueError(msg)
+            raise IOError(msg)
 
         # check background file
         if backfile:
@@ -149,7 +169,7 @@ class Data:
         if back and len(spec._raw_counts) != len(back._raw_counts):
             msg = f'specfile ({specfile}) and backfile ({backfile}) are not '
             msg += 'matched'
-            raise ValueError(msg)
+            raise IOError(msg)
 
         # bad quality
         bad = (1, 5) if ignore_bad else (1,)
@@ -161,7 +181,7 @@ class Data:
             if not np.all(good_quality == back_good):
                 good_quality &= back_good
                 msg = 'ignore bad channels defined by the union of spectrum '
-                msg += 'and background quality'
+                msg += f'({specfile})and background ({backfile}) quality'
                 warnings.warn(msg, Warning, stacklevel=2)
 
         # corrfile and corrnorm not supported yet
@@ -189,7 +209,7 @@ class Data:
         # self._corr = corr
 
         self._name = name
-        self._erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
+        self._erange = erange
         self._good_quality = good_quality
         self._record_channel = bool(record_channel)
 
@@ -432,6 +452,17 @@ class Data:
         mask2 = np.less_equal(ch_emax, emax)
         return np.bitwise_and(mask1, mask2)
 
+    def plot_matrix(self, hatch: bool = True) -> None:
+        """Plot the response matrix.
+
+        Parameters
+        ----------
+        hatch : bool, optional
+            Whether to hatch the ignored region. The default is True.
+
+        """
+        self._resp.plot(self._erange if hatch else None)
+
     @property
     def name(self) -> str:
         """Data name."""
@@ -559,7 +590,7 @@ class Data:
 
 
 class Spectrum:
-    """Class to handle spectrum data in OGIP standard.
+    """Handle spectral data in OGIP standards [1]_ [2]_.
 
     Parameters
     ----------
@@ -571,6 +602,11 @@ class Spectrum:
         the `specfile` header. This value must be set if ``POISSERR`` is
         undefined in the header.
 
+    References
+    ----------
+    .. [1] https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html
+    .. [2] https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html
+
     """
 
     def __init__(
@@ -579,7 +615,7 @@ class Spectrum:
         poisson: bool | None = None
     ):
         # test if file is '/path/to/specfile{n}'
-        match = re.compile(r'(.+){(\d+)}').match(specfile)
+        match = re.compile(r'(.+){(.+)}').match(specfile)
         if match:
             file = match.group(1)
             type_ii = True  # spectrum file is of type II
@@ -600,17 +636,17 @@ class Spectrum:
 
             nchan = len(data)
             if int(header.get('DETCHANS', nchan)) != nchan:
-                raise ValueError(msg)
+                raise IOError(msg)
 
             if header.get('HDUCLAS4', '') == 'TYPE:II':
-                raise ValueError(msg)
+                raise IOError(msg)
 
         else:
             data = data[spec_id].array  # set data to the specified row
 
         # check if COUNTS or RATE exists
         if 'COUNTS' not in data.names and 'RATE' not in data.names:
-            raise ValueError(f'"COUNTS" or "RATE" not found in {specfile}')
+            raise IOError(f'"COUNTS" or "RATE" not found in {specfile}')
 
         # get poisson flag
         poisson = header.get('POISSERR', poisson)
@@ -620,7 +656,7 @@ class Spectrum:
 
         # check if STAT_ERR exists for non-Poisson spectrum
         if not poisson and 'STAT_ERR' not in data.names:
-            raise ValueError(f'"STAT_ERR" not found in {specfile}')
+            raise IOError(f'"STAT_ERR" not found in {specfile}')
 
         def get_field(field, default=None, excluded=None):
             """Get value of specified field, return default if not found."""
@@ -897,7 +933,7 @@ class Spectrum:
 
 
 class Response:
-    """Class to store and group telescope response.
+    """Handle telescope response in OGIP standards [1]_ [2]_.
 
     Parameters
     ----------
@@ -906,56 +942,131 @@ class Response:
     ancrfile : str or None, optional
         Ancillary response path. The default is None.
 
+    References
+    ----------
+    .. [1] https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
+    .. [2] https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html
+
     """
 
     def __init__(self, respfile: str, ancrfile: str | None = None):
-        with fits.open(respfile) as rsp_hdul:
-            ebounds = rsp_hdul['EBOUNDS'].data
+        if ancrfile is None:
+            ancrfile = ''
 
+        self._respfile = respfile
+        self._ancrfile = ancrfile
+
+        # test if file is '/path/to/respfile{n}'
+        match = re.compile(r'(.+){(.+)}').match(respfile)
+        if match:  # respfile file is of type II
+            file = match.group(1)
+            resp_id = int(match.group(2))
+        else:
+            file = respfile
+            resp_id = 1
+
+        with fits.open(file) as rsp_hdul:
             if 'MATRIX' in rsp_hdul:
-                resp = rsp_hdul['MATRIX'].data
+                if ancrfile is None:
+                    msg = f'{file} is probably a rmf, '
+                    msg += 'ancrfile (arf) maybe needed but not provided'
+                    warnings.warn(msg, Warning)
+
+                ext = ('MATRIX', resp_id)
+
             elif 'SPECRESP MATRIX' in rsp_hdul:
-                resp = rsp_hdul['SPECRESP MATRIX'].data
+                ext = ('SPECRESP MATRIX', resp_id)
+
             else:
-                msg = f'Cannot read response matrix data from {respfile}'
-                raise ValueError(msg)
+                msg = f'cannot read response matrix data from {respfile}'
+                raise IOError(msg)
 
-        channel = ebounds['CHANNEL']
+            self._read_ebounds(rsp_hdul['EBOUNDS'].data)
+            self._read_resp(rsp_hdul[ext].header, rsp_hdul[ext].data)
 
-        # assume ph_egrid is continuous
-        ph_egrid = np.append(resp['ENERG_LO'], resp['ENERG_HI'][-1])
-        ph_egrid = np.asarray(ph_egrid, dtype=np.float64, order='C')
-        ch_egrid = np.column_stack((ebounds['E_MIN'], ebounds['E_MAX']))
+        self._read_ancrfile()
+        # self._drop_zeros()
+
+    def _read_ebounds(self, ebounds_data):
+        ch_emin = ebounds_data['E_MIN']
+        ch_emax = ebounds_data['E_MAX']
+        ch_egrid = np.column_stack((ch_emin, ch_emax))
         ch_egrid = np.asarray(ch_egrid, dtype=np.float64, order='C')
+        self._channel_egrid = self._raw_channel_egrid = ch_egrid
 
-        # extract response matrix
-        matrix = resp['MATRIX']
+    def _read_resp(self, resp_header, resp_data):
+        nchan = resp_header.get('DETCHANS', None)
+        if nchan is None:
+            msg = f'keyword "DETCHANS" not found in "{self._respfile}" header'
+            raise IOError(msg)
+        else:
+            nchan = int(nchan)
 
-        # wrap around N/A of matrix
-        nch = len(ch_egrid)
-        nch_matrix = np.array([len(i) for i in matrix])
-        if np.any(nch_matrix != nch):
-            # inhomogeneous matrix is due to zero elements being discarded
-            # here we put zeros back in
-            mask = np.less(np.arange(nch), nch_matrix[:, None])
-            matrix_flatten = np.concatenate(matrix, dtype=np.float64)
-            matrix = np.zeros(mask.shape)
-            matrix[mask] = matrix_flatten
+        fchan_idx = resp_data.names.index('F_CHAN') + 1
+        # set first channel number to 1 if not found
+        first_chan = int(resp_header.get(f'TLMIN{fchan_idx}', 1))
 
-        matrix = np.asarray(matrix, dtype=np.float64, order='C')
+        channel = np.arange(first_chan, first_chan + nchan)
+        self._channel = self._raw_channel = channel
 
-        # read in ancrfile if exists
+        n_grp = resp_data['N_GRP']
+        f_chan = resp_data['F_CHAN'] - first_chan
+        n_chan = resp_data['N_CHAN']
+
+        # if ndim == 1 and dtype is 'O', it is an array of array
+        if f_chan.ndim == 1 and f_chan.dtype != np.dtype('O'):
+            # f_chan is scalar in each row, make it an array
+            f_chan = f_chan[:, None]
+
+        if n_chan.ndim == 1 and n_chan.dtype != np.dtype('O'):
+            # n_chan is scalar in each row, make it an array
+            n_chan = n_chan[:, None]
+
+        reduced_matrix = resp_data['MATRIX']
+        full_matrix = np.zeros((len(resp_data), nchan))
+
+        for i in range(len(resp_data)):
+            n = n_grp[i]    # n channel subsets
+            f = f_chan[i]   # first channel of each subset
+            nc = n_chan[i]  # channel number of each subset
+            e = f + nc      # end channel of each subset
+            idx = np.append(0, nc).cumsum()  # reduced idx of subsets
+            reduced_i = reduced_matrix[i]  # reduced matrix of the row
+            full_i = full_matrix[i]        # full matrix of the row
+
+            for j in range(n):
+                # reduced matrix of j-th channel subset
+                reduced_ij = reduced_i[idx[j]:idx[j + 1]]
+
+                # restore to the corresponding position in full matrix
+                full_i[f[j]:e[j]] = reduced_ij
+
+        self._matrix = self._raw_matrix = full_matrix
+
+        # assume ph_egrid is continuous, no check here
+        ph_egrid = np.append(resp_data['ENERG_LO'], resp_data['ENERG_HI'][-1])
+        ph_egrid = np.asarray(ph_egrid, dtype=np.float64, order='C')
+        self._ph_egrid = ph_egrid
+
+    def _read_ancrfile(self):
+        ancrfile = self._ancrfile
+
         if ancrfile:
             with fits.open(ancrfile) as arf_hdul:
                 arf = arf_hdul['SPECRESP'].data['SPECRESP']
 
-            if len(arf) != len(matrix):
+            if len(arf) != len(self._raw_matrix):
+                respfile = self._respfile
                 msg = f'rmf ({respfile}) and arf ({ancrfile}) are not matched'
-                raise ValueError(msg)
+                raise IOError(msg)
 
-            matrix *= arf[:, None]
+            self._raw_matrix *= arf[:, None]
+            self._matrix = self._raw_matrix
 
-        # drop the zero entries at the beginning or end of photon energy grid
+    def _drop_zeros(self):
+        """Drop zero entries at the beginning or end of photon energy grid."""
+        matrix = self._raw_matrix
+        ph_egrid = self._ph_egrid
         zero_mask = np.all(np.less_equal(matrix, 0.0), axis=1)
         if zero_mask.any():
             n_entries = len(ph_egrid) - 1
@@ -975,17 +1086,50 @@ class Response:
                 zeros_mask2 = np.full(n_entries, False)
                 for s in splits:
                     if np.isin(s, (0, last_idx)).any():
-                        # drop only if at beginning or ending part of the grid
+                        # drop only if at beginning or ending part of grids
                         zeros_mask2[s] = True
 
                 elo = ph_egrid[:-1][~zeros_mask2]
                 ehi = ph_egrid[1:][~zeros_mask2]
                 ph_egrid = np.append(elo, ehi[-1])
 
+        self._raw_matrix = self._matrix = matrix[~zero_mask]
         self._ph_egrid = ph_egrid
-        self._channel = self._raw_channel = channel
-        self._channel_egrid = self._raw_channel_egrid = ch_egrid
-        self._matrix = self._raw_matrix = matrix
+
+    def plot(self, erange=None):
+        """Plot the response matrix."""
+        plt.figure()
+        ch_emin, ch_emax = self._raw_channel_egrid.T
+        ch_egrid = np.append(ch_emin, ch_emax[-1])
+        ch, ph = np.meshgrid(ch_egrid, self._ph_egrid)
+        plt.pcolormesh(ch, ph, self._raw_matrix, cmap='jet')
+        plt.loglog()
+        plt.xlabel('Measured Energy [keV]')
+        plt.ylabel('Photon Energy [keV]')
+        plt.colorbar(label='Effective Area [cm$^2$]')
+
+        if erange is not None:
+            emin = np.expand_dims(erange[:, 0], axis=1)
+            emax = np.expand_dims(erange[:, 1], axis=1)
+            mask1 = np.less_equal(emin, ch_emin)
+            mask2 = np.less_equal(ch_emax, emax)
+            idx = [np.flatnonzero(i) for i in np.bitwise_and(mask1, mask2)]
+
+            ignored = []
+            if ch_emin[idx[0][0]] > ch_emin[0]:
+                ignored.append((ch_emin[0], ch_emin[idx[0][0]]))
+            for i in range(len(idx) - 1):
+                this_noticed_right = ch_emax[idx[i][-1]]
+                next_noticed_left = ch_emin[idx[i+1][0]]
+                ignored.append((this_noticed_right, next_noticed_left))
+            if ch_emax[idx[-1][-1]] < ch_emax[-1]:
+                ignored.append((ch_emax[idx[-1][-1]], ch_emax[-1]))
+
+            y = (self._ph_egrid[0], self._ph_egrid[-1])
+            for i in ignored:
+                plt.fill_betweenx(y, *i, alpha=0.4, color='w', hatch='x')
+
+        plt.show()
 
     def group(self, grouping: NDArray, noticed: NDArray | None = None):
         """Group response matrix.
@@ -1047,12 +1191,12 @@ class Response:
 
     @property
     def ph_egrid(self) -> NDArray:
-        """Photon energy grid."""
+        """Monte Carlo photon energy grid."""
         return self._ph_egrid
 
     @property
     def channel(self) -> tuple:
-        """Measured channel numbers."""
+        """Measurement channel numbers."""
         return self._channel
 
     @property

@@ -1,4 +1,4 @@
-"""Module containing some helper classes to store model information."""
+"""Helper classes to store model information."""
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -543,8 +543,6 @@ class ModelNode(Node):
         func = self.attrs['func']
 
         params = list(signature(func).parameters.keys())
-        if self.attrs['is_ncon']:  # exclude flux_input and flux_func
-            params = params[:-2]
         params = ', '.join(params)
         func_code = f'def {model_name}({params}): return func({params})'
         tmp = {'func': func}

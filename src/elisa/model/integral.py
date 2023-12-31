@@ -1,10 +1,10 @@
-"""Numerical method for continnum integral.
+"""Numerical integral.
 
-Various numerical integral method is defined here, calculating integral whose
-closed form expressions do not exist.
+Various numerical method is defined here, calculating integral whose closed
+form expressions may not exist.
 
 """
-
+from __future__ import annotations
 from functools import wraps
 from inspect import signature
 from typing import Callable

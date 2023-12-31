@@ -2,24 +2,38 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from functools import partial
 from typing import Callable
 
 import jax.numpy as jnp
 
-from .base import Component
+from .base import Component, ParamConfig
 
 __all__ = ['EnFlux', 'PhFlux']
 
 
 class NormalizationConvolution(Component, ABC):
-    """Prototype class to define convolution model of normalization type."""
+    """Calculate flux of an additive model between `emin` and `emax`.
+
+    Parameters
+    ----------
+    emin : float or int
+        Minimum energy, in unit keV.
+    emax : float or int
+        Maximum energy, in unit keV.
+    F : Parameter, optional
+        The flux parameter.
+    ngrid : int or None, optional
+        The energy grid number to create.
+    elog : bool, optional
+        Whether to use regular energy grid in log scale. The default is True.
+
+    """
 
     _extra_kw = (
-        ('emin', None),
-        ('emax', None),
+        ('emin',),
+        ('emax',),
         ('ngrid', 1000),
-        ('log', True)
+        ('elog', True)
     )
 
     def __init__(
@@ -30,8 +44,11 @@ class NormalizationConvolution(Component, ABC):
         elog: bool = True,
         **kwargs
     ):
-        self.emin = emin
-        self.emax = emax
+        if emin >= emax:
+            raise ValueError('emin must be less than emax')
+
+        self._emin = emin
+        self._emax = emax
         self.ngrid = int(ngrid)
         self.elog = bool(elog)
         super().__init__(**kwargs)
@@ -44,7 +61,10 @@ class NormalizationConvolution(Component, ABC):
     @emin.setter
     def emin(self, value: float | int):
         """Minimum value of photon energy grid"""
-        self._emin = float(value)
+        value = float(value)
+        if value >= self.emax:
+            raise ValueError('emin must be less than emax')
+        self._emin = value
 
     @property
     def emax(self) -> float:
@@ -54,6 +74,9 @@ class NormalizationConvolution(Component, ABC):
     @emax.setter
     def emax(self, value: float | int):
         """Maximum value of photon energy grid"""
+        value = float(value)
+        if value <= self._emin:
+            raise ValueError('emax must be larger than emin')
         self._emax = float(value)
 
     @property
@@ -73,51 +96,56 @@ class NormalizationConvolution(Component, ABC):
 
     @property
     def elog(self) -> bool:
-        """Whether to use evenly-spaced energies in log space."""
+        """Whether to use regular energy grid in log scale."""
         return self._elog
 
     @elog.setter
     def elog(self, value: bool):
-        """Whether to use evenly-spaced energies in log space."""
+        """Whether to use regular energy grid in log scale."""
         self._elog = bool(value)
 
     @property
     def _func(self) -> Callable:
-        if self.emin >= self.emax:
-            raise ValueError('emin must be less than emax')
-
         if self.elog:
             egrid = jnp.geomspace(self.emin, self.emax, self.ngrid)
-            emid = jnp.sqrt(egrid[:-1] * egrid[1:])
         else:
             egrid = jnp.linspace(self.emin, self.emax, self.ngrid)
-            emid = (egrid[:-1] + egrid[1:]) / 2.0
 
-        return partial(self._convolve, egrid=egrid, emid=emid)
+        # TODO: a faster calculation, flux_input can be reused
+        def fn(F, flux_input, flux_func, func_params):
+            """The convolution function."""
+            return self._convolve(F, flux_input, flux_func, func_params, egrid)
+
+        return fn
 
     @staticmethod
     @abstractmethod
-    def _convolve(flux, flux_input, flux_func, func_params, egrid, emid):
+    def _convolve(egrid, F, flux_input, flux_func, func_params):
         pass
 
 
 class PhFlux(NormalizationConvolution):
-    _default = (
-        ('flux', r'\mathcal{F}_\mathrm{ph}', 1, 0.01, 1e10, False, False),
+    _config = (
+        ParamConfig(
+            'F', r'\mathcal{F}_\mathrm{ph}', 1.0, 0.01, 1e10, False, False
+        ),
     )
 
     @staticmethod
-    def _convolve(flux, flux_input, flux_func, func_params, egrid, emid):
+    def _convolve(F, flux_input, flux_func, func_params, egrid):
         mflux = jnp.sum(flux_func(func_params, egrid))
-        return flux / mflux * flux_input
+        return F / mflux * flux_input
 
 
 class EnFlux(NormalizationConvolution):
-    _default = (
-        ('eflux', r'\mathcal{F}_\mathrm{en}', 1e-12, 1e-30, 1e30, False, True),
+    _config = (
+        ParamConfig(
+            'F', r'\mathcal{F}_\mathrm{en}', 1e-12, 1e-30, 1e30, False, True
+        ),
     )
 
     @staticmethod
-    def _convolve(eflux, flux_input, flux_func, func_params, egrid, emid):
-        mflux = jnp.sum(1.6022e-9 * emid * flux_func(func_params, egrid))
-        return eflux / mflux * flux_input
+    def _convolve(F, flux_input, flux_func, func_params, egrid):
+        mid = jnp.sqrt(egrid[:-1] * egrid[1:])
+        mflux = jnp.sum(1.602176634e-9 * mid * flux_func(func_params, egrid))
+        return F / mflux * flux_input

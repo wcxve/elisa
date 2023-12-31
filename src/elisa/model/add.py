@@ -6,14 +6,14 @@ from typing import Callable
 
 import jax.numpy as jnp
 
-from .base import Component
+from .base import Component, ParamConfig
 from .integral import integral, list_methods
 
 
 __all__ = [
     'Band', 'BandEp',
-    'BlackBody', 'BlackBodyRad',
-    'Comptonized', 'CutoffPowerlaw',
+    'Bbody', 'Bbodyrad',
+    'Compt', 'Cutoffpl',
     'OTTB',
     'Powerlaw',
 ]
@@ -80,42 +80,74 @@ class NumIntAdditive(AdditiveComponent, ABC):
         pass
 
 
-class BlackBody(NumIntAdditive):
+class Bbody(NumIntAdditive):
     """TODO"""
 
-    _default = (
-        ('kT', 'kT', 3.0, 0.0001, 200.0, False, False),
-        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
+    _config = (
+        ParamConfig('kT', 'kT', 3.0, 0.0001, 200.0, False, False),
+        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
     def _continnum(egrid, kT, K):
         e = egrid
-        return K * 8.0525 * e * e / (kT * kT * kT * kT * jnp.expm1(e / kT))
+        x = e / kT
+        tmp = 8.0525 * K * e / (kT * kT * kT)
+        x_ = jnp.where(
+            jnp.greater_equal(x, 50.0),
+            1.0,
+            x,
+        )
+        return jnp.where(
+            jnp.less_equal(x, 1e-4),
+            tmp,
+            jnp.where(
+                jnp.greater_equal(x, 50.0),
+                0.0,
+                tmp * x / jnp.expm1(x_)
+            )
+        )
+        # return 8.0525 * K * e*e / (kT*kT*kT*kT * jnp.expm1(energy / kT))
 
 
-class BlackBodyRad(NumIntAdditive):
+class Bbodyrad(NumIntAdditive):
     """TODO"""
 
-    _default = (
-        ('kT', 'kT', 3.0, 0.0001, 200.0, False, False),
-        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
+    _config = (
+        ParamConfig('kT', 'kT', 3.0, 0.0001, 200.0, False, False),
+        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
     def _continnum(egrid, kT, K):
         e = egrid
-        return K * 1.0344e-3 * e * e / jnp.expm1(e / kT)
+        x = e / kT
+        tmp = 1.0344e-3 * K * e
+        x_ = jnp.where(
+            jnp.greater_equal(x, 50.0),
+            1.0,  # avoid exponential overflow
+            x,
+        )
+        return jnp.where(
+            jnp.less_equal(x, 1e-4),
+            tmp * kT,
+            jnp.where(
+                jnp.greater_equal(x, 50.0),
+                0.0,  # avoid exponential overflow
+                tmp * e / jnp.expm1(x_)
+            )
+        )
+        # return 1.0344e-3 * K * e*e / jnp.expm1(e / kT)
 
 
 class Band(NumIntAdditive):
     """TODO"""
 
-    _default = (
-        ('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
-        ('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
-        ('Ec', r'E_\mathrm{c}', 300.0, 10.0, 10000.0, False, False),
-        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
+    _config = (
+        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
+        ParamConfig('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
+        ParamConfig('Ec', r'E_\mathrm{c}', 300.0, 10.0, 10000.0, False, False),
+        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -138,11 +170,11 @@ class Band(NumIntAdditive):
 class BandEp(NumIntAdditive):
     """TODO"""
 
-    _default = (
-        ('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
-        ('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
-        ('Ep', r'E_\mathrm{p}', 300.0, 10.0, 10000.0, False, False),
-        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
+    _config = (
+        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
+        ParamConfig('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
+        ParamConfig('Ep', r'E_\mathrm{p}', 300.0, 10.0, 10000.0, False, False),
+        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -165,13 +197,13 @@ class BandEp(NumIntAdditive):
         return K * jnp.exp(log_func)
 
 
-class Comptonized(NumIntAdditive):
+class Compt(NumIntAdditive):
     """TODO"""
 
-    _default = (
-        ('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
-        ('Ep', r'E_\mathrm{p}', 15.0, 0.01, 10000.0, False, False),
-        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
+    _config = (
+        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
+        ParamConfig('Ep', r'E_\mathrm{p}', 15.0, 0.01, 10000.0, False, False),
+        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -180,13 +212,13 @@ class Comptonized(NumIntAdditive):
         return K * jnp.power(e, alpha) * jnp.exp(-e * (2.0 + alpha) / Ep)
 
 
-class CutoffPowerlaw(NumIntAdditive):
+class Cutoffpl(NumIntAdditive):
     """TODO"""
 
-    _default = (
-        ('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
-        ('Ec', r'E_\mathrm{c}', 15.0, 0.01, 10000.0, False, False),
-        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
+    _config = (
+        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
+        ParamConfig('Ec', r'E_\mathrm{c}', 15.0, 0.01, 10000.0, False, False),
+        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -198,9 +230,9 @@ class CutoffPowerlaw(NumIntAdditive):
 class OTTB(NumIntAdditive):
     """TODO"""
 
-    _default = (
-        ('kT', 'kT', 30.0, 0.1, 1000.0, False, False),
-        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
+    _config = (
+        ParamConfig('kT', 'kT', 30.0, 0.1, 1000.0, False, False),
+        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -213,14 +245,14 @@ class OTTB(NumIntAdditive):
 class Powerlaw(AdditiveComponent):
     """TODO"""
 
-    _default = (
-        ('alpha', r'\alpha', 1.01, -3.0, 10.0, False, False),
-        ('K', 'K', 1.0, 1e-10, 1e10, False, False),
+    _config = (
+        ParamConfig ('alpha', r'\alpha', 1.01, -3.0, 10.0, False, False),
+        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
     def _integral(egrid, alpha, K):
-        # we ignore the case of PhoIndex = 1.0
+        # we ignore the case of alpha = 1.0
         tmp = 1.0 - alpha
         f = K / tmp * jnp.power(egrid, tmp)
         return f[1:] - f[:-1]

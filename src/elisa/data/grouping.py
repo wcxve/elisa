@@ -1,4 +1,4 @@
-"""Various method for grouping spectrum."""
+"""Methods for grouping spectrum."""
 from __future__ import annotations
 
 import numpy as np
@@ -14,8 +14,8 @@ __all__ = [
     'group_optsig',
 ]
 
-GroupResultType = tuple[np.ndarray, bool]
 NDArray = np.ndarray
+GroupResultType = tuple[NDArray, bool]
 
 
 def group_min(data: NDArray, n: int) -> GroupResultType:

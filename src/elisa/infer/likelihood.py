@@ -1,9 +1,8 @@
-"""Various likelihood function with a goodness term."""
+"""Likelihood functions with goodness term."""
 from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-import numpy as np
 import numpyro
 
 from jax import lax
@@ -11,7 +10,7 @@ from jax.scipy.special import xlogy
 from numpyro.distributions import Normal, Poisson
 from numpyro.distributions.util import validate_sample
 
-NDArray = np.ndarray
+NDArray = jnp.ndarray
 
 
 def pgstat_background(
@@ -48,7 +47,10 @@ def pgstat_background(
     c = a * e - s
     d = jnp.sqrt(c * c + 4.0 * a * f)
     b = jnp.where(
-        jnp.bitwise_or(jnp.greater_equal(e, 0.0), jnp.greater_equal(f, 0.0)),
+        jnp.bitwise_or(
+            jnp.greater_equal(e, 0.0),
+            jnp.greater_equal(f, 0.0)
+        ),
         jnp.where(
             jnp.greater(n, 0.0),
             (c + d) / (2 * a),
@@ -127,132 +129,142 @@ class PoissonWithGoodness(Poisson):
             value = broadcast(value, shape).reshape(-1)
             sparse_value = value[nonzero]
             sparse_rate = rate[nonzero]
-            tmp = sparse_value * jnp.log(sparse_rate)
+            tmp = xlogy(sparse_value, sparse_rate)
             gof = xlogy(sparse_value, sparse_value) - sparse_value
-            return (
+            return jnp.clip(
                 jnp.asarray(-rate, dtype=jnp.result_type(float))
                 .at[nonzero]
                 .add(tmp - gof)
-                .reshape(shape)
+                .reshape(shape),
+                a_max=0.0
             )
 
         else:
-            logp = value * jnp.log(self.rate) - self.rate
+            logp = xlogy(value, self.rate) - self.rate
             gof = xlogy(value, value) - value
-            return logp - gof
+            return jnp.clip(logp - gof, a_max=0.0)
 
 
-def chi2(model, name, spec, error):
-    with numpyro.plate(name, len(spec)):
+def chi2(
+    model: jnp.ndarray,
+    name: str,
+    spec: jnp.ndarray,
+    error: jnp.ndarray,
+    predictive: bool
+):
+    """Chi-squared statistic, i.e. Gaussian likelihood."""
+    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
+
+    spec_model = model
+
+    with numpyro.plate(name, len(spec_data)):
         numpyro.sample(
             name=f'{name}_Non',
-            fn=NormalWithGoodness(model, error),
-            obs=spec
+            fn=NormalWithGoodness(spec_model, error),
+            obs=None if predictive else spec_data
         )
 
 
-def cstat(model, name, spec):
-    with numpyro.plate(name, len(spec)):
+def cstat(
+    model: jnp.ndarray,
+    name: str,
+    spec: jnp.ndarray,
+    predictive: bool
+):
+    """C-statistic, i.e. Poisson likelihood."""
+    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
+
+    spec_model = model
+
+    with numpyro.plate(name, len(spec_data)):
         numpyro.sample(
             name=f'{name}_Non',
-            fn=PoissonWithGoodness(model),
-            obs=spec
+            fn=PoissonWithGoodness(spec_model),
+            obs=None if predictive else spec_data
         )
 
 
-def pstat(model, name, spec, back, ratio):
-    with numpyro.plate(name, len(spec)):
+def pstat(
+    model: jnp.ndarray,
+    name: str,
+    spec: jnp.ndarray,
+    back: jnp.ndarray,
+    ratio: jnp.ndarray | float,
+    predictive: bool
+):
+    """P-statistic, i.e. Poisson likelihood for data with known background."""
+    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
+
+    spec_model = model + ratio * back
+
+    with numpyro.plate(name, len(spec_data)):
         numpyro.sample(
             name=f'{name}_Non',
-            fn=PoissonWithGoodness(model + ratio * back),
-            obs=spec
+            fn=PoissonWithGoodness(spec_model),
+            obs=None if predictive else spec_data
         )
 
 
-def pgstat(model, name, spec, back, back_error, ratio):
-    b = pgstat_background(model, spec, back, back_error, ratio)
-    with numpyro.plate(name, len(spec)):
+def pgstat(
+    model: NDArray,
+    name: str,
+    spec: NDArray,
+    back: NDArray,
+    back_error: NDArray,
+    ratio: NDArray | float,
+    predictive: bool
+):
+    """PG-statistic, i.e. Poisson likelihood for data and profile Gaussian
+    likelihood for background."""
+    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
+    back_data = numpyro.primitives.mutable(f'{name}_back', back)
+
+    b = pgstat_background(model, spec_data, back_data, back_error, ratio)
+
+    spec_model = model + ratio * b
+    back_model = b
+
+    with numpyro.plate(name, len(spec_data)):
         numpyro.sample(
             name=f'{name}_Non',
-            fn=PoissonWithGoodness(model + ratio * b),
-            obs=spec
+            fn=PoissonWithGoodness(spec_model),
+            obs=None if predictive else spec_data
         )
 
         numpyro.sample(
             name=f'{name}_Noff',
-            fn=NormalWithGoodness(b, back_error),
-            obs=back
+            fn=NormalWithGoodness(back_model, back_error),
+            obs=None if predictive else back_data
         )
 
 
-def wstat(model, name, spec, back, ratio):
-    b = wstat_background(model, spec, back, ratio)
-    with numpyro.plate(name, len(spec)):
+def wstat(
+    model: NDArray,
+    name: str,
+    spec: NDArray,
+    back: NDArray,
+    ratio: NDArray | float,
+    predictive: bool
+):
+    """W-statistic, i.e. Poisson likelihood for data and profile Poisson
+    likelihood for background."""
+    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
+    back_data = numpyro.primitives.mutable(f'{name}_back', back)
+
+    b = wstat_background(model, spec_data, back_data, ratio)
+
+    spec_model = model + ratio * b
+    back_model = b
+
+    with numpyro.plate(name, len(spec_data)):
         numpyro.sample(
             name=f'{name}_Non',
-            fn=PoissonWithGoodness(model + ratio * b),
-            obs=spec
+            fn=PoissonWithGoodness(spec_model),
+            obs=None if predictive else spec_data
         )
 
         numpyro.sample(
             name=f'{name}_Noff',
-            fn=PoissonWithGoodness(b),
-            obs=back
+            fn=PoissonWithGoodness(back_model),
+            obs=None if predictive else back_data
         )
-
-
-# def model():
-#     def f():
-#         return numpyro.sample("mu", numpyro.distributions.Uniform(0, 1000))
-#     mu = f()
-#     n = 1000
-#     np.random.seed(42)
-#     data = np.random.poisson(50, n)
-#     with numpyro.plate("data", n):
-#         numpyro.sample("y", PoissonWithGoodness(mu), obs=data)
-#
-#
-# def model2():
-#     mu = numpyro.sample("mu", numpyro.distributions.Uniform(0, 1000))
-#     n = 1000
-#     np.random.seed(42)
-#     data = np.random.poisson(50, n)
-#     with numpyro.plate("data", n):
-#         numpyro.sample("y", Poisson(mu), obs=data)
-
-
-# import arviz as az
-# import numpyro
-# from numpyro import infer
-#
-# numpyro.set_host_device_count(2)
-#
-# from numpyro.infer.util import log_likelihood
-#
-# from jax.scipy.optimize import minimize
-#
-# def array_to_dict(params, names):
-#     return {name: param for param, name in zip(params, names)}
-#
-# def deviance_uncon(params, names):
-#     lnL_single = log_likelihood(model, array_to_dict(params, names))
-#     lnL_total = jax.tree_util.tree_reduce(
-#         lambda x, y: x + y,
-#         jax.tree_map(lambda x: x.sum(), lnL_single)
-#     )
-#     return -2.0*lnL_total
-# def deviance_uncon2(params, names):
-#     lnL_single = log_likelihood(model2, array_to_dict(params, names))
-#     lnL_total = jax.tree_util.tree_reduce(
-#         lambda x, y: x + y,
-#         jax.tree_map(lambda x: x.sum(), lnL_single)
-#     )
-#     return -2.0*lnL_total
-# jax.config.update("jax_enable_x64", True)
-# print(minimize(deviance_uncon, np.array([50.]), (['mu'],), method='BFGS'))
-# print(minimize(deviance_uncon2, np.array([50.]), (['mu'],), method='BFGS'))
-#
-# np.random.seed(42)
-# data = np.random.poisson(50, 1000)
-# mu = 49.801
-# print(-2*np.sum(-mu + data*np.log(mu) - (data*np.log(data)-data)))
