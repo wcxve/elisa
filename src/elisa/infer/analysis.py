@@ -433,17 +433,14 @@ class PosteriorResult:
         Parameters
         ----------
         prob : float or int, optional
-            The probability mass of samples within the credible interval.
-            If 0 < `cl` < 1, the value is interpreted as the probability mass.
-            If `cl` >= 1, it is interpreted as number of standard deviations.
-            For example, ``cl=1`` produces a 1-sigma or 68.3% credible
+            The probability mass of samples within the credible interval. If
+            0 < `prob` < 1, the value is interpreted as the probability mass.
+            If `prob` >= 1, it is interpreted as number of standard deviations.
+            For example, ``prob=1`` produces a 1-sigma or 68.3% credible
             interval. The default is 1.
         hdi : bool, optional
             Whether to return the highest density interval. The default is
             False, which means an equal tailed interval is returned.
-        idata : {'nuts', 'ns'}, optional
-            Which samples to calculate the credible interval. The default is
-            using the latest samples.
 
         Returns
         -------
