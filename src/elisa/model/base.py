@@ -1,13 +1,11 @@
 """Classes to handle model construction."""
-# TODO:
-#    - model construction and parameter binding should be separated
-#    - transformable to other PPL libs
-#    - time-dependent model
 from __future__ import annotations
 
 from abc import ABC, ABCMeta, abstractmethod
 from typing import Callable, NamedTuple, Optional, Union
 
+import jax
+import jax.numpy as jnp
 from numpyro.distributions import Distribution, LogUniform, Uniform
 
 from .node import (
@@ -21,7 +19,9 @@ from .node import (
 ModelNodeType = Union[ModelNode, ModelOperationNode]
 ParameterNodeType = Union[ParameterNode, ParameterOperationNode]
 
-__all__ = ['UniformParameter', 'generate_parameter', 'generate_model']
+__all__ = ['UniformParameter', 'generate_parameter', 'generate_model'][:1]
+
+# TODO: time dependent model
 
 
 class Parameter:
@@ -410,7 +410,8 @@ class Model:
         self._node = node
         self._label = LabelSpace(node)
         self._fn = None
-        self._sub_comps = None
+        self._sub_comp = None
+        self._comp_fn = None
 
         if params is not None:
             for key, value in params.items():
@@ -469,6 +470,230 @@ class Model:
         """Model parameter format configuration."""
         return self._params_fmt[self._node.name]
 
+    def ne(
+        self,
+        egrid: jax.Array,
+        params: dict[str, dict[str, float | jax.Array]],
+        comps: bool = False
+    ):
+        r"""Calculate :math:`N_E` over `egrid`.
+
+        Parameters
+        ----------
+        egrid : array_like
+            Energy grid over which to calculate the :math:`N_E`.
+        params : dict
+            Parameter dict for the spectral model.
+        comps : bool, optional
+            Whether to return the result of each model component, instead of
+            summing them up. The default is False.
+
+        Returns
+        -------
+        N_E : jax.Array or dict[str, jax.Array]
+            The :math:`N_E` over `egrid`, in unit of cm^-2 s^-1 keV^-1.
+
+        """
+        shapes = jax.tree_util.tree_flatten(
+            tree=jax.tree_map(jnp.shape, params),
+            is_leaf=lambda i: isinstance(i, tuple)
+        )[0]
+
+        if not shapes:
+            print(shapes)
+            raise ValueError('empty params')
+
+        shape = shapes[0]
+        if not all(shape == s for s in shapes[1:]):
+            print(shapes)
+            raise ValueError('all params must have the same shape')
+
+        de = jnp.diff(egrid)
+
+        if shape == ():
+            eval_fn = lambda f: f(egrid, params) / de
+
+        elif len(shape) == 1:
+            eval_fn = lambda f: \
+                jax.vmap(f, in_axes=(None, 0))(egrid, params) / de
+
+        elif len(shape) == 2:
+            eval_fn = lambda f: \
+                jax.vmap(
+                    jax.vmap(f, in_axes=(None, 0)),
+                    in_axes=(None, 0)
+                )(egrid, params) / de
+
+        else:
+            raise ValueError(f'params ndim should <= 2, got {len(shape)}')
+
+        if not comps:
+            return eval_fn(self._wrapped_fn)
+        else:
+            return jax.tree_map(eval_fn, self._wrapped_comp_fn)
+
+    def ene(
+        self,
+        egrid: jax.Array,
+        params: dict[str, dict[str, float | jax.Array]],
+        comps: bool = False
+    ):
+        r"""Calculate :math:`E N_E` (or :math:`F\nu`) over `egrid`.
+
+        Parameters
+        ----------
+        egrid : array_like
+            Energy grid over which to calculate the :math:`E N_E`.
+        params : dict
+            Parameter dict for the spectral model.
+        comps : bool, optional
+            Whether to return the result of each model component, instead of
+            summing them up. The default is False.
+
+        Returns
+        -------
+        EN_E : jax.Array or dict[str, jax.Array]
+            The :math:`E N_E` over `egrid`, in unit of erg cm^-2 s^-1 keV^-1.
+
+        """
+        ne = self.ne(egrid, params, comps)
+        emid = jnp.sqrt(egrid[:-1] * egrid[1:])
+        fn = lambda x: emid * x * 1.602176634e-9
+        if comps:
+            return jax.tree_map(fn, ne)
+        else:
+            return fn(ne)
+
+    def eene(
+        self,
+        egrid: jax.Array,
+        params: dict[str, dict[str, float | jax.Array]],
+        comps: bool = False
+    ):
+        r"""Calculate :math:`E^2 N_E` (or :math:`\nu F\nu`) over `egrid`.
+
+        Parameters
+        ----------
+        egrid : array_like
+            Energy grid over which to calculate the :math:`E^2 N_E`.
+        params : dict
+            Parameter dict for the spectral model.
+        comps : bool, optional
+            Whether to return the result of each model component, instead of
+            summing them up. The default is False.
+
+        Returns
+        -------
+        EEN_E : jax.Array or dict[str, jax.Array]
+            The :math:`E^2 N_E` over `egrid`, in unit of erg cm^-2 s^-1.
+
+        """
+        ne = self.ne(egrid, params, comps)
+        e2 = egrid[:-1] * egrid[1:]
+        fn = lambda x: e2 * x * 1.602176634e-9
+        if comps:
+            return jax.tree_map(fn, ne)
+        else:
+            return fn(ne)
+
+    def folded(
+        self,
+        ph_egrid: jax.Array,
+        params: dict[str, dict[str, float | jax.Array]],
+        resp_matrix: jax.Array,
+        ch_width: jax.Array,
+        comps: bool = False
+    ):
+        """Calculate the folded spectral model (or :math:`C_E`).
+
+        Parameters
+        ----------
+        params : dict
+            Parameter dict for the spectral model.
+        resp_matrix : ndarray
+            Instrumental response matrix used to fold the spectral model.
+        ph_egrid : ndarray
+            Photon energy grid of the `resp_matrix`.
+        ch_width : ndarray
+            Measured energy channel grid width of the `resp_matrix`.
+        comps : bool, optional
+            Whether to return the result of each model component, instead of
+            summing them up. The default is False.
+
+        Returns
+        -------
+        C_E : jax.Array or dict[str, jax.Array]
+            The folded spectral model :math:`C_E`, in unit of s^-1 keV^-1.
+
+        """
+        ne = self.ne(ph_egrid, params, comps)
+        de = jnp.diff(ph_egrid)
+        fn = lambda x: (ne * de) @ resp_matrix / ch_width
+        if comps:
+            return jax.tree_map(fn, ne)
+        else:
+            return fn(ne)
+
+    def flux(
+        self,
+        params: dict[str, dict[str, float | jax.Array]],
+        emin: float | int,
+        emax: float | int,
+        energy: bool = True,
+        comps: bool = False,
+        ngrid: int = 1000,
+        elog: bool = True
+    ):
+        """Calculate flux of the model between `emin` and `emax`.
+
+        Parameters
+        ----------
+        params : dict
+            Parameter dict for the spectral model.
+        emin : float or int
+            Minimum energy of the energy range to calculate the flux.
+        emax : float or int
+            Maximum energy of the energy range to calculate the flux.
+        energy : bool, optional
+            Whether to calculate energy flux of the model. Calculate photon
+            flux when False. The default is True.
+        comps : bool, optional
+            Whether to return the result of each model component, instead of
+            summing them up. The default is False.
+        ngrid : int, optional
+            The energy grid number to create. The default is 1000.
+        elog : bool, optional
+            Whether to use regular energy grid in log scale. The default is
+            True.
+
+        Returns
+        -------
+        flux : jax.Array or dict[str, jax.Array]
+            The flux of the model, in unit of s^-1 keV^-1.
+
+        """
+        if self.type != 'add':
+            msg = f'flux is undefined for {self.type} type model "{self}"'
+            raise TypeError(msg)
+
+        if elog:
+            egrid = jnp.geomspace(emin, emax, ngrid)
+        else:
+            egrid = jnp.linspace(emin, emax, ngrid)
+
+        if energy:
+            f = self.ene(egrid, params, comps)
+        else:
+            f = self.ne(egrid, params, comps)
+
+        delta = jnp.diff(egrid)
+        fn = lambda x: jnp.sum(x * delta, axis=-1)
+
+        if comps:
+            return jax.tree_map(fn, f)
+        else:
+            return fn(f)
+
     def _set_param(self, name: str, param: Parameter) -> None:
         """Set parameter.
 
@@ -508,20 +733,62 @@ class Model:
                 f'{self}.{name}, which is not supported'
             )
 
+    # def set_params(self, params: dict[str, Parameter]) -> None:
+    #     """Set multiple parameters."""
+    #
+    #     params_in = set(params.keys())
+    #     params_all = set(self._params_name)
+    #
+    #     if not params_in <= params_all:
+    #         diff = params_all - params_in
+    #         raise ValueError(f'input params {diff} not included in {self}')
+    #
+    #     if not all(isinstance(v, Parameter) for v in params.values())):
+    #         raise ValueError('Parameter type is required')
+    #
+    #     params = self._params_names | params
+    #     params_node = list(map(lambda v: v._node, params.values()))
+    #     self._params_names = params
+    #     self._node.predecessor = params_node
+
+    def _fn_wrapper(self, name_mapping: dict) -> Callable:
+        """Wrap function given model name mapping"""
+        f = self._node.generate_func(name_mapping)
+
+        # TODO: eliminate *args and **kwargs
+        def fn(egrid, params, *args, **kwargs):
+            """Model function wrapper."""
+            return f(params, egrid, *args, **kwargs)
+
+        return fn
+
     @property
     def _wrapped_fn(self) -> Callable:
         """Model evaluation function."""
         if self._fn is None:
-            f = self._node.generate_func(self._label.mapping['name'])
-
-            # TODO: eliminate *args and **kwargs
-            def fn(egrid, params, *args, **kwargs):
-                """Model function wrapper."""
-                return f(params, egrid, *args, **kwargs)
-
-            self._fn = fn
+            self._fn = jax.jit(self._fn_wrapper(self._label.mapping['name']))
 
         return self._fn
+
+    def _get_comp(self) -> tuple[Model, ...]:
+        """Get subcomponents."""
+        if self._sub_comp is None:
+            self._sub_comp = (self,)
+
+        return self._sub_comp
+
+    @property
+    def _wrapped_comp_fn(self) -> dict[str, Callable]:
+        """Sub-components evaluation function."""
+        if self._comp_fn is None:
+            mapping = self._label.mapping
+            self._comp_fn = {
+                m._label._label('name', mapping):
+                jax.jit(m._fn_wrapper(mapping['name']))
+                for m in self._get_comp()
+            }
+
+        return self._comp_fn
 
     @property
     def _model_info(self) -> dict:
@@ -543,76 +810,6 @@ class Model:
             mpfmt=self._params_fmt
         )
         return info
-
-    def _get_comps(self) -> tuple[Model, ...]:
-        """Get subcomponents."""
-        if self._sub_comps is None:
-            self._sub_comps = (self,)
-
-        return self._sub_comps
-
-    # def set_params(self, params: dict[str, Parameter]) -> None:
-    #     """Set parameters."""
-    #
-    #     params_in = set(params.keys())
-    #     params_all = set(self._params_name)
-    #
-    #     if not params_in <= params_all:
-    #         diff = params_all - params_in
-    #         raise ValueError(f'input params {diff} not included in {self}')
-    #
-    #     if not all(map(lambda v: isinstance(v, Parameter), params.values())):
-    #         raise ValueError('Parameter type is required')
-    #
-    #     params = self._params_names | params
-    #     params_node = list(map(lambda v: v._node, params.values()))
-    #     self._params_names = params
-    #     self._node.predecessor = params_node
-    #
-    #
-    # def flux(self):
-    #     ...
-    #
-    # def ne(self):
-    #     ...
-    #
-    # def ene(self):
-    #     ...
-    #
-    # def eene(self):
-    #     ...
-    #
-    # def folded(self):
-    #     ...
-    #
-
-#
-#     # def flux(self, params, e_range, energy=True, ngrid=1000, log=True):
-#     #     """Evaluate model by
-#     #         * analytic expression
-#     #         * trapezoid or Simpson's 1/3 rule given :math:`N_E`
-#     #         * Xspec model library
-#     #
-#     #     TODO: docstring
-#     #
-#     #     """
-#     #
-#     #     if self.type != 'add':
-#     #         raise TypeError(
-#     #             f'flux is undefined for "{self.type}" type model "{self}"'
-#     #         )
-#     #
-#     #     if log:  # evenly spaced grid in log space
-#     #         egrid = np.geomspace(*e_range, ngrid)
-#     #     else:  # evenly spaced grid in linear space
-#     #         egrid = np.linspace(*e_range, ngrid)
-#     #
-#     #     if energy:  # energy flux
-#     #         flux = np.sum(self.ENE(pars, ebins) * np.diff(ebins), axis=-1)
-#     #     else:  # photon flux
-#     #         flux = np.sum(self.NE(pars, ebins) * np.diff(ebins), axis=-1)
-#     #
-#     #     return flux
 
 
 class SuperModel(Model):
@@ -688,26 +885,27 @@ class SuperModel(Model):
             for i, j in zip(self._comps_name, self._comps.values())
         }
 
-    def _get_comps(self) -> tuple[Model, ...]:
+    def _get_comp(self) -> tuple[Model, ...]:
         """Get subcomponents."""
-        if self._sub_comps is None:
+        if self._sub_comp is None:
             if self._op == '+':  # add + add
-                subs = self._lh._get_comps() + self._rh._get_comps()
+                subs = self._lh._get_comp() + self._rh._get_comp()
             elif self._lh.type == 'add':  # add * mul
                 rh = self._rh
-                subs = tuple(lh_i * rh for lh_i in self._lh._get_comps())
+                subs = tuple(lh_i * rh for lh_i in self._lh._get_comp())
             elif self._rh.type == 'add':  # mul * add, con * add
                 lh = self._lh
                 if lh.type == 'mul':  # mul * add
-                    subs = tuple(lh * rh_i for rh_i in self._rh._get_comps())
+                    subs = tuple(lh * rh_i for rh_i in self._rh._get_comp())
                 else:  # con * add, note that con model isn't a linear operator
                     subs = (self,)
             else:  # mul * mul, con * mul, mul * con, con * con
                 subs = (self,)
 
-            self._sub_comps = subs
+            self._sub_comp = subs
 
-        return self._sub_comps
+        return self._sub_comp
+
 
 class ComponentMeta(ABCMeta):
     """Metaclass to avoid cumbersome code for ``__init__`` of subclass."""

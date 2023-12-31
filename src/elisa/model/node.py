@@ -938,13 +938,18 @@ class LabelSpace:
 
         return self._label_map
 
-    def _label(self, label_type: str) -> str:
+    def _label(self, label_type: str, mapping: dict | None = None) -> str:
         """Return name/fmt with node id replaced by number"""
         self._check_if_label_changed(label_type)
 
         label = getattr(self.node, label_type)
 
-        for k, v in self._label_map[label_type].items():
+        if mapping is None:
+            mapping = self._label_map[label_type]
+        else:
+            mapping = mapping[label_type]
+
+        for k, v in mapping.items():
             label = label.replace(k, v)
 
         return label

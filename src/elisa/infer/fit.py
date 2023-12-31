@@ -401,35 +401,36 @@ class BaseFit(ABC):
         def check_data_stat(d, s):
             """Check if data type and likelihood are matched."""
             name = d.name
-            if s != 'chi2' and not d.spec_poisson:
-                stat_h = s[:s.index('stat')].upper()
-                msg = f'Poisson data is required for using {stat_h}-statistics'
+            if not d.spec_poisson and s != 'chi2':
+                msg = f'{name} is Gaussian data, use stat "chi2" but not "{s}"'
                 raise ValueError(msg)
 
             if s == 'cstat' and d.has_back:
                 back = 'Poisson' if d.back_poisson else 'Gaussian'
                 stat1 = 'W' if d.back_poisson else 'PG'
                 stat2 = 'w' if d.back_poisson else 'pg'
-                msg = 'C-statistics is not valid for Poisson data with '
-                msg += f'{back} background, use {stat1}-statistics'
+                msg = 'C-statistic (cstat) is not valid for Poisson data '
+                msg += f'with {back} background, use {stat1}-statistic'
                 msg += f'({stat2}stat) for {name} instead'
                 raise ValueError(msg)
 
             elif s == 'pstat' and not d.has_back:
-                msg = 'background is required for P-statistics'
+                msg = f'P-statistic (pstat) is not valid for {name}, which '
+                msg += 'requires background file, use C-statistic (cstat) '
+                msg += 'instead'
                 raise ValueError(msg)
 
             elif s == 'pgstat' and not d.has_back:
-                msg = 'background is required for PG-statistics'
+                msg = f'PG-statistic is not valid for {name}, which requires '
+                msg += 'Gaussian background data, use C-statistic (cstat) '
+                msg += 'instead'
                 raise ValueError(msg)
 
-            elif s == 'wstat':
-                if not d.spec_poisson:
-                    msg = 'Poisson data is required for W-statistics'
-                    raise ValueError(msg)
-                if not (d.has_back and d.back_poisson):
-                    msg = 'Poisson background is required for W-statistics'
-                    raise ValueError(msg)
+            elif s == 'wstat' and not (d.has_back and d.back_poisson):
+                msg = f'W-statistic is not valid for {name}, which requires '
+                msg += 'Poisson background data, use C-statistic (cstat) '
+                msg += 'instead'
+                raise ValueError(msg)
 
         for d, s in zip(data_list, stat_list):
             check_data_stat(d, s)
@@ -438,7 +439,7 @@ class BaseFit(ABC):
 
 
 class LikelihoodFit(BaseFit):
-    _ns: NestedSampler | None = None  #
+    _ns: NestedSampler | None = None
 
     def __repr__(self) -> str:
         s = 'Likelihood Fit\n'

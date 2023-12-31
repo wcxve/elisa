@@ -23,7 +23,7 @@ class NormalizationConvolution(Component, ABC):
     F : Parameter, optional
         The flux parameter.
     ngrid : int or None, optional
-        The energy grid number to create.
+        The energy grid number to create. The default is 1000.
     elog : bool, optional
         Whether to use regular energy grid in log scale. The default is True.
 

@@ -1,10 +1,13 @@
 import jax
+import numpy as np
 import numpyro
 from numpyro.distributions import Normal, LogNormal, Uniform
 from elisa import *
 import arviz as az
 import jaxopt
 import jax.numpy as jnp
+
+
 
 a = UniformParameter('a', 'a', 1.0, 0.1, 2, log=1)
 a.max = 3
@@ -15,6 +18,7 @@ e = c*d
 f = generate_parameter('f', 'f', 2.0, Normal(), dist_expr='Normal(mu=0.0, sigma=1.0)')
 g = e*f
 m = Constant()*PhFlux(1,10)*Powerlaw()
+raise
 m1 = Bbody(fmt=r'\mathrm{BB}')
 m2 = Bbody(K=1, fmt=r'\mathrm{BB}')
 m2.kT = m1.kT * g
@@ -72,7 +76,7 @@ print(time.time() - t0)
 # print(time.time() - t0)
 model.K.log=True
 fit3 = BayesianFit([LE, ME, HE], model, 'wstat')
-raise
+# raise
 fit3.nuts()
 from numpyro import handlers
 fit2.mle()
@@ -125,7 +129,7 @@ def fit_one_sim(i, args):
     return sim_data, result, init
 
 nworkers = 4
-from elisa.util import progress_bar_factory
+from elisa.infer.util import progress_bar_factory
 body_pbar = progress_bar_factory(n // nworkers, nworkers)(fit_one_sim)
 
 sim_data = jax.tree_map(
