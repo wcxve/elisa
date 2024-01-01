@@ -13,6 +13,8 @@ import jaxopt
 import numpy as np
 import numpyro
 from iminuit import Minuit
+from jax import lax
+from numpyro import handlers
 from numpyro.infer import MCMC, NUTS
 from numpyro.infer.initialization import init_to_value
 from numpyro.infer.util import constrain_fn, unconstrain_fn, log_likelihood
@@ -23,7 +25,9 @@ from ..model.base import Model
 from .analysis import MLEResult, PosteriorResult
 from .likelihood import chi2, cstat, pstat, pgstat, wstat
 from .nested_sampling import NestedSampler
-from .util import make_pretty_table, order_composite, replace_string
+from .util import (
+    make_pretty_table, order_composite, progress_bar_factory, replace_string
+)
 
 __all__ = ['LikelihoodFit', 'BayesianFit']
 
@@ -32,7 +36,7 @@ T = TypeVar('T')
 
 
 class BaseFit(ABC):
-    """Model Fitting context.
+    """Model fitting.
 
     Parameters
     ----------
@@ -528,7 +532,7 @@ class LikelihoodFit(BaseFit):
                 lambda s: s[mle_idx], ns._results.samples
             )
             mle_constr = [mle_constr[i] for i in self._free_names]
-            init_unconstr = np.array(self._helper.to_unconstr_array(mle_constr))
+            init_unconstr = self._helper.to_unconstr_array(mle_constr)
             self._ns = ns
 
         elif init is not None:
@@ -554,6 +558,7 @@ class LikelihoodFit(BaseFit):
             name=self._free_names
         )
 
+        # TODO: use simplex to "polish" the initial guess?
         if strategy == 0:
             max_it = 10
             nit = 0
@@ -775,9 +780,15 @@ class HelperFn(NamedTuple):
     unconstr_covar: Callable
     params_covar: Callable
     residual: Callable
-    params_by_data: Callable
+    params_by_group: Callable
     net_counts: Callable
     model_counts: Callable
+    sim_residual: Callable
+    sim_deviance_unconstr_info: Callable
+    sim_result_container: Callable
+    sim_fit_one: Callable
+    sim_sequence_fit: Callable
+    sim_parallel_fit: Callable
 
 
 def generate_helper(fit: BaseFit) -> HelperFn:
@@ -786,7 +797,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     spec_params = fit._spec_params
 
     @jax.jit
-    def params_by_data(constr_dict: dict) -> dict:
+    def params_by_group(constr_dict: dict) -> dict:
         """Get parameters of spectral model for each data group."""
         return {
             k: jax.tree_map(lambda n: constr_dict[n], v)
@@ -804,7 +815,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     @jax.jit
     def model_counts(constr_dict: dict) -> dict:
         """Calculate model counts for each data group."""
-        p = params_by_data(constr_dict)
+        p = params_by_group(constr_dict)
         return jax.tree_map(
             lambda mi, pi, ei, ri, ti: mi(ei, pi) @ ri * ti,
             spec_model, p, egrid, resp, expo
@@ -848,6 +859,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     # ============================ other functions ============================
     free_names = fit._free_names
     params_names = fit._params_names
+    data_names = tuple(data.keys())
     data_stat = fit._stat
     stat_with_back = fit._stat_with_back
 
@@ -915,7 +927,8 @@ def generate_helper(fit: BaseFit) -> HelperFn:
             )
         )
 
-    @jax.jit
+    # deviance_unconstr_info will be used in simulation,
+    # therefore we do not jit it, otherwise data substitution will fail
     def deviance_unconstr_info(unconstr_array: Sequence) -> dict:
         """Deviance of data group and data point in unconstrained space."""
         p = to_constr_dict(unconstr_array)
@@ -968,12 +981,137 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         jac = jax.jacobian(to_params_array)(unconstr_array)
         return jac @ cov_unconstr @ jac.T
 
+    # residual will be used in simulation,
+    # therefore we do not jit it, otherwise data substitution will fail
     def residual(unconstr_array: Sequence) -> jnp.ndarray:
         """Likelihood residual (i.e. sqrt deviance) function."""
         p = to_constr_dict(unconstr_array)
         log_like = log_likelihood(numpyro_model, p)
         log_like_array = jnp.hstack(list(log_like.values()))
         return jnp.sqrt(-2.0 * log_like_array)
+
+    # ===================== functions used in simulation ======================
+    ndata = {k: v for k, v in fit._ndata.items() if k != 'total'}
+
+    def sim_result_container(n: int):
+        """Make a fitting result container for simulation data."""
+        return {
+            'params_rep': {k: jnp.empty(n) for k in params_names},
+            'model_rep': {k: jnp.empty((n, v)) for k, v in ndata.items()},
+            'stat_rep': {
+                'total': jnp.empty(n),
+                'group': {k: jnp.empty(n) for k in data_names},
+                'point': {k: jnp.empty((n, v)) for k, v in ndata.items()}
+            },
+            'params_fit': {k: jnp.empty(n) for k in params_names},
+            'model_fit': {k: jnp.empty((n, v)) for k, v in ndata.items()},
+            'stat_fit': {
+                'total': jnp.empty(n),
+                'group': {k: jnp.empty(n) for k in data_names},
+                'point': {k: jnp.empty((n, v)) for k, v in ndata.items()}
+            },
+            'valid': jnp.full(n, True, bool)
+        }
+
+    @jax.jit
+    def sim_fit_one(i, args):
+        """Fit the i-th simulation data."""
+        sim_data, result, init = args
+
+        new_data = jax.tree_map(lambda x: x[i], sim_data)
+        new_residual = handlers.substitute(
+            fn=residual,
+            data=new_data
+        )
+        new_deviance_info = handlers.substitute(
+            fn=deviance_unconstr_info,
+            data=new_data
+        )
+
+        # update best fit params to result
+        params = to_params_dict(to_dict(init[i]))
+        for k in result['params_rep']:
+            result['params_rep'][k] = \
+                result['params_rep'][k].at[i].set(params[k])
+
+        # update unfit model to result
+        model = model_counts(to_constr_dict(init[i]))
+        for k in data_names:
+            result['model_rep'][k] = result['model_rep'][k].at[i].set(model[k])
+
+        # update unfit deviance to result
+        stat_info = new_deviance_info(init[i])
+        stat_group = stat_info['group']
+        stat_point = stat_info['point']
+        res = result['stat_rep']
+        group = res['group']
+        point = res['point']
+        for k in data_names:
+            group[k] = group[k].at[i].set(stat_group[k])
+            point[k] = point[k].at[i].set(stat_point[k])
+        res['total'] = res['total'].at[i].set(sum(stat_group.values()))
+
+        # fit simulation data
+        res = jaxopt.LevenbergMarquardt(
+            residual_fun=new_residual,
+            stop_criterion='grad-l2-norm'
+        ).run(init[i])
+        state = res.state
+
+        # update best fit params to result
+        params = to_params_dict(to_dict(res.params))
+        for k in result['params_fit']:
+            result['params_fit'][k] = \
+                result['params_fit'][k].at[i].set(params[k])
+
+        # update best fit model to result
+        model = model_counts(to_constr_dict(res.params))
+        for k in data_names:
+            result['model_fit'][k] = result['model_fit'][k].at[i].set(model[k])
+
+        stat_info = new_deviance_info(res.params)
+        stat_group = stat_info['group']
+        stat_point = stat_info['point']
+        res = result['stat_fit']
+        group = res['group']
+        point = res['point']
+        for k in data_names:
+            group[k] = group[k].at[i].set(stat_group[k])
+            point[k] = point[k].at[i].set(stat_point[k])
+
+        res['total'] = res['total'].at[i].set(2.0 * state.value)
+
+        valid = jnp.bitwise_not(
+            jnp.isnan(state.value)
+            | jnp.isnan(state.error)
+            | jnp.greater(state.error, 1e-3)
+        )
+        result['valid'] = result['valid'].at[i].set(valid)
+
+        return sim_data, result, init
+
+    @jax.jit
+    def sim_sequence_fit(sim_data, result, init, run_str):
+        """Fit simulation data in sequence."""
+        raise NotImplementedError
+
+    def sim_parallel_fit(sim_data, result, init, run_str):
+        """Fit simulation data in parallel."""
+        neval = len(result['valid'])
+        ncores = jax.device_count()
+
+        reshape = lambda x: x.reshape((ncores, -1) + x.shape[1:])
+        sim_data_ = jax.tree_map(reshape, sim_data)
+        result_ = jax.tree_map(reshape, result)
+        init_ = jax.tree_map(reshape, init)
+
+        fn = progress_bar_factory(neval, ncores, run_str=run_str)(sim_fit_one)
+
+        fit_results = jax.pmap(
+            lambda *args: lax.fori_loop(0, neval//ncores, fn, args)[1]
+        )(sim_data_, result_, init_)
+
+        return jax.tree_map(lambda x: jnp.hstack(x), fit_results)
 
     return HelperFn(
         numpyro_model=numpyro_model,
@@ -983,15 +1121,21 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         to_unconstr_array=to_unconstr_array,
         to_params_dict=to_params_dict,
         to_params_array=to_params_array,
-        deviance_unconstr=deviance_unconstr,
-        deviance_unconstr_info=deviance_unconstr_info,
-        deviance_unconstr_grad=jax.grad(deviance_unconstr),
+        deviance_unconstr=jax.jit(deviance_unconstr),
+        deviance_unconstr_info=jax.jit(deviance_unconstr_info),
+        deviance_unconstr_grad=jax.jit(jax.grad(deviance_unconstr)),
         unconstr_covar=unconstr_covar,
         params_covar=params_covar,
-        residual=residual,
-        params_by_data=params_by_data,
+        residual=jax.jit(residual),
+        params_by_group=params_by_group,
         net_counts=net_counts,
         model_counts=model_counts,
+        sim_residual=residual,
+        sim_deviance_unconstr_info=deviance_unconstr_info,
+        sim_result_container=sim_result_container,
+        sim_fit_one=sim_fit_one,
+        sim_sequence_fit=sim_sequence_fit,
+        sim_parallel_fit=sim_parallel_fit
     )
 
 

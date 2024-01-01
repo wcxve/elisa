@@ -5,13 +5,13 @@ from typing import Literal, NamedTuple, Optional, Sequence
 
 import arviz as az
 import jax
-import jax.numpy as jnp
 import numpy as np
 from iminuit import Minuit
 from iminuit.util import FMin
 from scipy.stats import norm
 
 from . import fit as _fit  # avoid circular import
+from .simulation import SimFit
 from .util import make_pretty_table
 
 
@@ -40,14 +40,14 @@ class BootstrapResult(NamedTuple):
     """Parametric bootstrap result."""
 
     mle: dict[str, float]
-    simulation: dict[str, jax.Array]
     params: dict[str, jax.Array]
-    deviance: dict
+    stat: dict
     p_value: dict
     valid: jax.Array
     n: int
     n_valid: int
     seed: int
+    results: dict
 
 
 class PPCResult(NamedTuple):
@@ -72,6 +72,7 @@ class MLEResult:
         self._ndata = ndata = fit._ndata
         self._dof = fit._dof
         self._stat_type = fit._stat
+        self._simfit = SimFit(fit)
         self._seed = fit._seed
         self._boot: BootstrapResult | None = None
 
@@ -328,13 +329,17 @@ class MLEResult:
                 boot_result = self.boot(n=n)
             interval = jax.tree_map(
                 lambda x: tuple(np.quantile(x, q=(0.5 - cl_/2, 0.5 + cl_/2))),
-                {k: v for k, v in self._boot.params.items() if k in params}
+                {k: v for k, v in boot_result.params.items() if k in params}
             )
             error = {
                 k: (interval[k][0] - mle[k], interval[k][1] - mle[k])
                 for k in params
             }
-            status = {'n': boot_result.n, 'n_valid': boot_result.n_valid}
+            status = {
+                'n': boot_result.n,
+                'n_valid': boot_result.n_valid,
+                'seed': boot_result.seed
+            }
 
         else:
             raise ValueError('method must be either "profile" or "boot"')
@@ -353,13 +358,23 @@ class MLEResult:
             status=status
         )
 
-    def boot(self, n: int = 10000) -> BootstrapResult:
+    def boot(
+        self,
+        n: int = 10000,
+        parallel: bool = True,
+        seed: Optional[int] = None
+    ) -> BootstrapResult:
         """Parametric bootstrap.
 
         Parameters
         ----------
         n : int, optional
             The number of bootstrap.
+        parallel : bool, optional
+            Whether to run the fit in parallel. The default is True.
+        seed : int, optional
+            The random seed used in parametric bootstrap. Defaults to the seed
+            as in fitting context.
 
         Returns
         -------
@@ -371,44 +386,33 @@ class MLEResult:
             msg = 'fit must be valid to perform bootstrap'
             raise RuntimeError(msg)
 
-        # self._simulator = simulator
-        # self._batch_fit = batch_fit_simulation
+        if seed is None:
+            seed = self._seed
+        else:
+            seed = int(seed)
 
         # directly return previous result if the configuration is the same
-        if self._boot and self._boot.n == n and self._boot.seed == self._seed:
+        if self._boot and self._boot.n == n and self._boot.seed == seed:
             return self._boot
 
-        simulation = self._simulator(self._mle['constr'], n)
-
-        result_container = {
-            'params': {k: jnp.empty(n) for k in self._params_names},
-            'stat': jnp.empty(n),
-            'stat_group': {k: jnp.empty(n) for k in self._ndata.keys()},
-            'stat_point': {
-                k: jnp.empty((n, v)) for k, v in self._ndata.items()
-                if k != 'total'
-            },
-            'grad': jnp.empty(n),
-            'valid': jnp.full(n, True, bool)
-        }
-        mle = jnp.array(list(self._result['unconstr'].values()))
-
-        result = self._batch_fit(simulation, result_container, mle)
+        boot_result = result = self._simfit.run_one_set(
+            self._result['constr'],
+            n,
+            self._seed,
+            parallel,
+            run_str='Bootstrap'
+        )
 
         boot_result = BootstrapResult(
             mle=self._result['unconstr'],
-            simulation=simulation,
-            params=result['params'],
-            deviance={
-                'total': result['stat'],
-                'group': result['stat_group'],
-                'point': result['stat_point']
-            },
+            params=result['params_fit'],
+            stat=result['stat_fit'],
             p_value=...,
             valid=result['valid'],
             n=n,
             n_valid=result['valid'].sum(),
-            seed=self._seed
+            seed=self._seed,
+            results=boot_result
         )
 
         self._boot = boot_result

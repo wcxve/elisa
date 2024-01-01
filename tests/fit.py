@@ -18,7 +18,6 @@ e = c*d
 f = generate_parameter('f', 'f', 2.0, Normal(), dist_expr='Normal(mu=0.0, sigma=1.0)')
 g = e*f
 m = Constant()*PhFlux(1,10)*Powerlaw()
-raise
 m1 = Bbody(fmt=r'\mathrm{BB}')
 m2 = Bbody(K=1, fmt=r'\mathrm{BB}')
 m2.kT = m1.kT * g
@@ -65,9 +64,11 @@ model = Powerlaw()
 model.alpha.max=5
 # print(time.time() - t0)
 fit2 = LikelihoodFit([LE, ME, HE], model, 'wstat')
+
 print(time.time() - t0)
-fit2.mle()
+mle = fit2.mle()
 print(time.time() - t0)
+raise ValueError
 # t0 = time.time()
 # fit2.boot(10000)
 # la = jax.experimental.multihost_utils.process_allgather(fit2._boot.params)

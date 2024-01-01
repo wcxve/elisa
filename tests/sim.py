@@ -1,8 +1,5 @@
-# import os
-# os.environ['XLA_FLAGS']="--xla_cpu_multi_thread_eigen=false intra_op_parallelism_threads=1"
 import jax
 from elisa import *
-from elisa.infer.simulation import Simulator
 path = '/Users/xuewc/ObsData/FRB221021/HXMT/'
 LE = Data(
     [5, 10],
@@ -33,7 +30,19 @@ HE = Data(
 
 model = Powerlaw()
 fit = LikelihoodFit([LE, ME, HE], model, 'wstat')
-fit.mle()
+
+from elisa.infer.simulation import Simulator
+simulator = Simulator(fit._numpyro_model, fit._seed)
+mle = fit.mle()
+# res=mle._simfit.run_one_set(mle._result['constr'], 40000)
+import numpy as np
+params = jax.tree_map(
+    lambda x: x + np.random.normal(loc=0, scale=0.1, size=80000),
+    mle._result['constr']
+)
+res2=mle._simfit.run_multi_sets(params)
+
+raise RuntimeError
 
 import numpy as np
 from jax.sharding import Mesh, PartitionSpec as P
@@ -42,9 +51,9 @@ from jax.experimental.mesh_utils import create_device_mesh
 from jax.sharding import Mesh, PositionalSharding
 import time
 
-simulator = Simulator(fit._numpyro_model, fit._seed)
-fn = simulator._get_dist
-simulator.sample_from_one_set(fit._mle['constr'], 10000)
+# simulator = Simulator(fit._numpyro_model, fit._seed)
+# fn = simulator._get_dist
+sim = simulator.sample_from_one_set(fit._mle['constr'], 10000)
 
 np.random.default_rng(42)
 params = jax.device_put(jax.tree_map(

@@ -1,7 +1,7 @@
 """Helper functions for inference module."""
 from __future__ import annotations
 
-from typing import Callable, Sequence, TypeVar
+from typing import Callable, Optional, Sequence, TypeVar
 
 import re
 from functools import reduce
@@ -9,7 +9,7 @@ from functools import reduce
 from jax import lax
 from jax.experimental import host_callback
 from prettytable import PrettyTable
-from tqdm.auto import tqdm as tqdm_auto
+from tqdm.auto import tqdm
 
 T = TypeVar('T')
 
@@ -116,71 +116,61 @@ def replace_string(mapping: dict[str, str], value: T) -> T:
 
 
 def progress_bar_factory(
-    fn: Callable,
-    num: int,
-    num_process: int,
-    init_fmt=None,
-    run_fmt=None
+    neval: int,
+    ncores: int,
+    init_str: Optional[str] = None,
+    run_str: Optional[str] = None
 ) -> Callable:
-    """Adapted from :func:`numpyro.util.progress_bar_factory`.
-    Factory that builds a progress bar decorator along with the
-    `set_tqdm_description` and `close_tqdm` functions
+    """Add a progress bar to fori_loop kernel.
+    Adapt from: https://www.jeremiecoullon.com/2021/01/29/jax_progress_bar/
     """
-    num = int(num)
-    num_process = int(num_process)
+    neval = int(neval)
+    ncores = int(ncores)
+    neval_single = neval // ncores
+
+    if neval % ncores != 0:
+        raise ValueError('neval must be multiple of ncores')
+
+    if init_str is None:
+        init_str = 'Compiling... '
+    else:
+        init_str = str(init_str)
+
+    if run_str is None:
+        run_str = 'Running'
+    else:
+        run_str = str(run_str)
 
     process_re = re.compile(r"\d+$")
 
-    if init_fmt is None:
-        init_fmt = 'Compiling... '
-    else:
-        init_fmt = str(init_fmt)
-
-    if run_fmt is None:
-        run_fmt = 'Running {process}'
-    else:
-        init_fmt = str(init_fmt)
-
-    if num > 20:
-        print_rate = int(num / 20)
+    if neval > 20:
+        print_rate = int(neval_single / 20)
     else:
         print_rate = 1
 
-    remainder = num % print_rate
+    remainder = neval_single % print_rate
+    finished = [False] * 4
+    bar = tqdm(range(neval))
+    bar.set_description(init_str, refresh=True)
 
-    tqdm_bars = {}
-    finished = []
-    for i in range(num_process):
-        tqdm_bars[i] = tqdm_auto(range(num), position=i)
-        tqdm_bars[i].set_description(init_fmt.format(process=i), refresh=True)
-
-    def _update_tqdm(arg, transform, device):
-        match = process_re.search(str(device))
-        assert match
-        p = int(match.group())
-        tqdm_bars[p].set_description(run_fmt.format(process=p), refresh=False)
-        tqdm_bars[p].update(arg)
+    def _update_tqdm(arg, transform):
+        bar.set_description(run_str, refresh=False)
+        bar.update(arg)
 
     def _close_tqdm(arg, transform, device):
         match = process_re.search(str(device))
         assert match
-        p = int(match.group())
-        tqdm_bars[p].update(arg)
-        finished.append(p)
-        if len(finished) == num_process:
-            for i in range(num_process):
-                tqdm_bars[i].close()
+        i = int(match.group())
+        bar.update(arg)
+        finished[i] = True
+        if all(finished):
+            bar.close()
 
     def _update_progress_bar(iter_num):
-        """Updates tqdm progress bar of a JAX loop only if the iteration number
-        is a multiple of the print_rate
-        Usage: carry = progress_bar((iter_num, print_rate), carry)
-        """
-
         _ = lax.cond(
             iter_num == 1,
             lambda _: host_callback.id_tap(
-                _update_tqdm, 0, result=iter_num, tap_with_device=True
+                _update_tqdm, 0, result=iter_num
             ),
             lambda _: iter_num,
             operand=None,
@@ -188,13 +178,13 @@ def progress_bar_factory(
         _ = lax.cond(
             iter_num % print_rate == 0,
             lambda _: host_callback.id_tap(
-                _update_tqdm, print_rate, result=iter_num, tap_with_device=True
+                _update_tqdm, print_rate, result=iter_num
             ),
             lambda _: iter_num,
             operand=None,
         )
         _ = lax.cond(
-            iter_num == num,
+            iter_num == neval_single,
             lambda _: host_callback.id_tap(
                 _close_tqdm, remainder, result=iter_num, tap_with_device=True
             ),
@@ -202,7 +192,7 @@ def progress_bar_factory(
             operand=None,
         )
 
-    def progress_bar_fori_loop(func):
+    def progress_bar_fori_loop(fn):
         """Decorator that adds a progress bar to `body_fun` used in
         `lax.fori_loop`.
         Note that `body_fun` must be looping over a tuple who's first element
@@ -210,11 +200,11 @@ def progress_bar_factory(
         This means that `iter_num` is the current iteration number
         """
 
-        def wrapper_progress_bar(i, vals):
-            result = func(i, vals)
+        def _wrapper_progress_bar(i, vals):
+            result = fn(i, vals)
             _update_progress_bar(i + 1)
             return result
 
-        return wrapper_progress_bar
+        return _wrapper_progress_bar
 
-    return progress_bar_fori_loop(fn)
+    return progress_bar_fori_loop

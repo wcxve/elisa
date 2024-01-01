@@ -1,5 +1,8 @@
 import jax
 import numpyro
+
+from elisa.infer.simulation import Simulator
+
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_debug_nans", False)
 numpyro.set_host_device_count(4)
@@ -33,22 +36,23 @@ HE = Data([28, 250], f'{path}/HE_optbmin5.fits',
           )
 model = Powerlaw()
 fit2 = LikelihoodFit([LE, ME, HE], model, 'wstat')
-fit2.mle()
+mle = fit2.mle()
 
 n=10000
-mle_array = jnp.array(list(fit2._mle['unconstr'].values()))
+mle_array = jnp.array(list(mle._result['unconstr'].values()))
 
+# print('Start simulate')
+# t0 = time.time()
+# simulation = fit2.boot(1000)
+# print(f'Finish simulate: {time.time() - t0:.2f} s')
+
+simulator = Simulator(fit2._numpyro_model, fit2._seed)
 print('Start simulate')
 t0 = time.time()
-simulation = fit2.boot(1000)
+simulation = simulator.sample_from_one_set(mle._result['constr'], n)
 print(f'Finish simulate: {time.time() - t0:.2f} s')
-
-print('Start simulate')
-t0 = time.time()
-simulation = fit2._simulator(fit2._mle['constr'], n)
-print(f'Finish simulate: {time.time() - t0:.2f} s')
-deviance = fit2._deviance
-residual = fit2._residual
+deviance = fit2._helper.deviance_unconstr
+residual = fit2._helper.residual
 
 
 def fit_one_sim(i, args):
@@ -101,7 +105,7 @@ result = {
     'params': jnp.empty((n, len(fit2._free_names))),
     'stat': jnp.empty(n),
     'grad': jnp.empty(n),
-    'residual': jnp.empty((n, fit2._nchan['total']*2))
+    'residual': jnp.empty((n, fit2._ndata['total']*2))
 }
 from functools import partial
 def fit_one_sim(i, args):

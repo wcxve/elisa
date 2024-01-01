@@ -19,7 +19,7 @@ from .node import (
 ModelNodeType = Union[ModelNode, ModelOperationNode]
 ParameterNodeType = Union[ParameterNode, ParameterOperationNode]
 
-__all__ = ['UniformParameter', 'generate_parameter', 'generate_model'][:1]
+__all__ = ['UniformParameter', 'generate_parameter', 'generate_model'][:-1]
 
 # TODO: time dependent model
 
@@ -491,7 +491,7 @@ class Model:
 
         """
         if self.type == 'con':
-            raise TypeError('convolution model not supported')
+            raise TypeError('convolution model is not supported')
 
         shapes = jax.tree_util.tree_flatten(
             tree=jax.tree_map(jnp.shape, params),
