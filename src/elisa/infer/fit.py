@@ -623,7 +623,7 @@ class BayesianFit(BaseFit):
             Number of samples to generate from each chain.
         chains : int, optional
             Number of MCMC chains to run. If there are not enough devices
-            available, chains will be run in sequence. If None, will run
+            available, chains will run in sequence. If None, will run
             ``jax.device_count()`` chains.
         init : dict, optional
             Initial parameter for sampler to start from.

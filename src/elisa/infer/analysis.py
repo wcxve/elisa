@@ -486,10 +486,11 @@ class PosteriorResult:
 
     @property
     def rhat(self) -> dict[str, float]:
-        """Computes split R-hat [1]_ over MCMC chains.
+        """Computes split R-hat over MCMC chains.
 
         In general, only fully trust the sample if R-hat is less than 1.01. In
-        early workflow, R-hat below 1.1 is often sufficient.
+        early workflow, R-hat below 1.1 is often sufficient. See [1]_ for more
+        information.
 
         References
         ----------
@@ -520,7 +521,7 @@ class PosteriorResult:
 
         Estimates the expected log point-wise predictive density (elpd) using
         WAIC. Also calculates the WAIC's standard error and the effective
-        number of parameters. For more information, see [1]_ and [2]_.
+        number of parameters. See [1]_ and [2]_ for more information.
 
         References
         ----------
