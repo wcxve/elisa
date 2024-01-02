@@ -165,6 +165,10 @@ class MLEResult:
         """Fit status of Minuit."""
         return self._status
 
+    def print_summary(self) -> None:
+        """Print summary of MLE."""
+        print(repr(self))
+
     def ci(
         self,
         params: Optional[str | Sequence[str]] = None,
@@ -554,6 +558,10 @@ class PosteriorResult:
     def lnZ(self) -> tuple[float, float]:
         """Log model evidence."""
         return self._lnZ
+
+    def print_summary(self) -> None:
+        """Print summary of posterior result."""
+        print(self)
 
     def ci(
         self,
