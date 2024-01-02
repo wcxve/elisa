@@ -21,7 +21,7 @@ class MultiplicativeComponent(Component, ABC):
 
     @property
     def _func(self) -> Callable:
-        """Return function that integrates continnum over energy grid."""
+        """Return function that evaluate continnum over energy grid."""
         return self._continnum
 
     @staticmethod

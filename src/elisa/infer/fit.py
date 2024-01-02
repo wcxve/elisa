@@ -14,6 +14,8 @@ import numpy as np
 import numpyro
 from iminuit import Minuit
 from jax import lax
+from jax.experimental.mesh_utils import create_device_mesh
+from jax.sharding import PositionalSharding
 from numpyro import handlers
 from numpyro.infer import MCMC, NUTS
 from numpyro.infer.initialization import init_to_value
@@ -632,15 +634,15 @@ class BayesianFit(BaseFit):
 
         Returns
         -------
-        inference_data : az.InferenceData
-            The inference data.
+        result : PosteriorResult
+            The posterior sampling result.
 
         """
         if chains is None:
             chains = jax.device_count()
 
         if init is None:
-            init = {}
+            init = {k: self._info['default'][k] for k in self._free_names}
 
         if nuts_kwargs is None:
             nuts_kwargs = {}
@@ -656,7 +658,8 @@ class BayesianFit(BaseFit):
                 self._numpyro_model,
                 dense_mass=dense_mass,
                 max_tree_depth=max_tree_depth,
-                init_strategy=init_to_value(values=init)
+                init_strategy=init_to_value(values=init),
+                **nuts_kwargs
             ),
             num_warmup=warmup,
             num_samples=samples,
@@ -666,43 +669,90 @@ class BayesianFit(BaseFit):
 
         sampler.run(self._PRNGKey)
 
-        idata = self._generate_inference_idata(sampler)
+        return self._generate_result(sampler)
 
-        # import matplotlib.pyplot as plt
-        # plt.rcParams['text.usetex'] = True
-        # plt.rcParams['font.family'] = 'serif'
-
-        return idata
-
-    def ns(self, *args, **kwargs) -> PosteriorResult:
+    def ns(
+        self,
+        num_live_points: Optional[int] = None,
+        s: int = 5,
+        k: Optional[int] = None,
+        c: Optional[int] = None,
+        max_samples: int = 100000,
+        num_parallel_workers: Optional[int] = None,
+        difficult_model: bool = False,
+        parameter_estimation: bool = False,
+        term_cond: dict = None
+    ) -> PosteriorResult:
         """Run the Nested Sampler of :mod:`jaxns`.
+
+        For more information about the parameters, see ref [1]_ [2]_.
+
+        Parameters
+        ----------
+        num_live_points : int, optional
+            Approximate number of live points to use. The default is
+            `c` * (`k` + 1).
+        s : int, optional
+            Number of slices to use per dimension. The default is 5.
+        k : int, optional
+            Number of phantom samples to use. The default is D/2, where D is
+            the dimension of model parameters.
+        c : int, optional
+            Number of parallel Markov-chains to use. The default is 20 * D,
+            where D is the dimension of model parameters.
+        max_samples : int, optional
+            Maximum number of posterior samples. The default is 100000.
+        num_parallel_workers : int, optional
+            Number of parallel workers to use. Note that this is experimental
+            feature of :mod:`jaxns`. The default is ``jax.device_count()``.
+        difficult_model : bool, optional
+            Use more robust default settings when True. The default is False.
+        parameter_estimation : bool, optional
+            Use more robust default settings for parameter estimation. The
+            default is False.
+        term_cond : dict, optional
+            Termination conditions for the sampling. The default is as in
+            :class:`jaxns.TermCondition`.
 
         Returns
         -------
+        result : PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] https://arxiv.org/abs/2312.11330
+        .. [2] https://jaxns.readthedocs.io/en/latest/api/jaxns/index.html#jaxns.DefaultNestedSampler
 
         """
+        if num_parallel_workers is None:
+            num_parallel_workers = jax.device_count()
+        else:
+            num_parallel_workers = int(num_parallel_workers)
+
         sampler = NestedSampler(
             self._numpyro_model,
             constructor_kwargs=dict(
-                max_samples=100000,
-                # num_parallel_samplers=jax.device_count(),
-                num_parallel_workers=jax.device_count(),
+                max_samples=max_samples,
+                num_live_points=num_live_points,
+                s=s,
+                k=k,
+                c=c,
+                num_parallel_workers=num_parallel_workers,
+                difficult_model=difficult_model,
+                parameter_estimation=parameter_estimation,
             ),
-            termination_kwargs=dict(
-                live_evidence_frac=1e-5,
-            )
+            termination_kwargs=term_cond,
         )
 
-        t0 = time.time()
         print('Start nested sampling...')
+        t0 = time.time()
         sampler.run(self._PRNGKey)
-        print(f'Nested sampling cost {time.time() - t0:.2f} s')
+        print(f'Sampling cost {time.time() - t0:.2f} s')
 
-        idata = self._generate_inference_idata(sampler)
+        return self._generate_result(sampler)
 
-        return idata
-
-    def _generate_inference_idata(self, sampler) -> az.InferenceData:
+    def _generate_result(self, sampler) -> PosteriorResult:
         if not isinstance(sampler, (MCMC, NestedSampler)):
             raise ValueError(f'unknown sampler type {type(sampler)}')
 
@@ -713,19 +763,70 @@ class BayesianFit(BaseFit):
 
         dims = {
            f'{k}_Non': [f'{k}_channel']
-           for k, v in self._data.items()
+           for k in self._data.keys()
         } | {
            f'{k}_Noff': [f'{k}_channel']
-           for k, v in self._data.items()
-           if v.has_back and self._stat[k] in self._stat_with_back
+           for k in self._data.keys()
+           if self._stat[k] in self._stat_with_back
         }
 
-        if isinstance(sampler, MCMC):
+        if isinstance(sampler, MCMC):  # numpyro sampler
             idata = az.from_numpyro(sampler, coords=coords, dims=dims)
+            ess = {
+                k: int(v.values)
+                for k, v in az.ess(idata).data_vars.items()
+            }
+
+            # the calculation of reff is according to arviz:
+            # https://github.com/arviz-devs/arviz/blob/main/arviz/stats/stats.py#L794
+            if len(idata.posterior.chain) == 1:
+                reff = 1.0
+            else:
+                reff_p = az.ess(idata, method='mean', relative=True)
+                reff = np.hstack(list(reff_p.data_vars.values())).mean()
+
+            lnZ = (float('nan'), float('nan'))
+
+        elif isinstance(sampler, NestedSampler):  # jaxns sampler
+            result = sampler._results
+            # number of cpu used in log likelihood computation
+            ncore = jax.device_count()
+
+            # get posterior samples
+            total = result.total_num_samples
+            nsample = total - total % ncore
+            posterior = sampler.get_samples(self._PRNGKey, nsample)
+
+            # compute log likelihood in parallel
+            device = create_device_mesh((ncore,))
+            sharding = PositionalSharding(device)
+            sharded = jax.device_put(posterior, sharding)
+            log_like = jax.vmap(self._helper.log_likelihood_constr)(sharded)
+            # reshape to (nchain, ndraw, ndata)
+            log_like = jax.tree_map(lambda x: x[None, ...], log_like)
+
+            # get observation data
+            observed_data = {
+                f'{k}_Non': v.spec_counts
+                for k, v in self._data.items()
+            } | {
+                f'{k}_Noff': v.back_counts
+                for k, v in self._data.items()
+                if self._stat[k] in self._stat_with_back
+            }
+
+            idata = az.from_dict(
+                posterior=posterior,
+                log_likelihood=log_like,
+                observed_data=observed_data,
+                coords=coords,
+                dims=dims
+            )
+            ess = {'total': int(result.ESS)}
+            reff = float(result.ESS / result.total_num_samples)
+            lnZ = (float(result.log_Z_mean), float(result.log_Z_uncert))
         else:
-            # TODO
-            samples = sampler.get_samples(self._PRNGKey, 80000)
-            idata = az.from_dict(samples)
+            raise NotImplementedError(f'{type(sampler)} sampler not supported')
 
         ln_likelihood = idata['log_likelihood']
         observation = idata['observed_data']
@@ -762,7 +863,7 @@ class BayesianFit(BaseFit):
         channel_coords = np.hstack([d.channel for d in self._data.values()])
         idata = idata.assign_coords({'channel': channel_coords})
 
-        return idata
+        return PosteriorResult(idata, ess, reff, lnZ, sampler, self)
 
 
 class HelperFn(NamedTuple):
@@ -774,6 +875,7 @@ class HelperFn(NamedTuple):
     to_unconstr_array: Callable
     to_params_dict: Callable
     to_params_array: Callable
+    log_likelihood_constr: Callable
     deviance_unconstr: Callable
     deviance_unconstr_info: Callable
     deviance_unconstr_grad: Callable
@@ -914,6 +1016,11 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         """Transform constrained parameter array to unconstrained."""
         unconstr = to_unconstr_dict(constr_array)
         return jnp.array([unconstr[i] for i in free_names])
+
+    @jax.jit
+    def log_likelihood_constr(constr_dict: dict) -> dict:
+        """Log likelihood"""
+        return log_likelihood(numpyro_model, constr_dict)
 
     @jax.jit
     def deviance_unconstr(unconstr_array: Sequence) -> float:
@@ -1121,6 +1228,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         to_unconstr_array=to_unconstr_array,
         to_params_dict=to_params_dict,
         to_params_array=to_params_array,
+        log_likelihood_constr=log_likelihood_constr,
         deviance_unconstr=jax.jit(deviance_unconstr),
         deviance_unconstr_info=jax.jit(deviance_unconstr_info),
         deviance_unconstr_grad=jax.jit(jax.grad(deviance_unconstr)),

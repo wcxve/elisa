@@ -11,6 +11,8 @@ from .base import Component, ParamConfig
 __all__ = ['EnFlux', 'PhFlux']
 
 
+# TODO: for a faster calculation, flux_input can be reused
+#       add option "reuse"=True to reuse egrid, then optimized by jax
 class NormalizationConvolution(Component, ABC):
     """Calculate flux of an additive model between `emin` and `emax`.
 
@@ -106,12 +108,12 @@ class NormalizationConvolution(Component, ABC):
 
     @property
     def _func(self) -> Callable:
+        """Return the convolution function."""
         if self.elog:
             egrid = jnp.geomspace(self.emin, self.emax, self.ngrid)
         else:
             egrid = jnp.linspace(self.emin, self.emax, self.ngrid)
 
-        # TODO: a faster calculation, flux_input can be reused
         def fn(F, flux_input, flux_func, func_params):
             """The convolution function."""
             return self._convolve(F, flux_input, flux_func, func_params, egrid)

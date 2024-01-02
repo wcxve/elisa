@@ -6,8 +6,9 @@ import numpy as np
 from corner import corner
 
 
-def plot_corner(idata, labels=None, color=None):
+def plot_corner(data, axes_scale='linear', labels=None, color=None, weights=None):
     """log_scale : bool, whether to plot vars in log which is log uniform"""
+    plt.rcParams['font.family'] = 'serif'
     plt.rcParams['text.usetex'] = True
     levels = [
         [0.683, 0.954, 0.997],  # 1/2/3-sigma of 1d normal
@@ -29,13 +30,13 @@ def plot_corner(idata, labels=None, color=None):
     colors1, colors2 = _contour_colors(color, len(levels), 0.8, 2.0)
 
     fig = corner(
-        idata,
+        data,
         bins=25,
-        axes_scale='linear',
+        axes_scale=axes_scale,
+        weights=weights,
         color=color,
         hist_bin_factor=2,
-        labels=[r'$\big[\mathrm{BB}_{2}^\mathrm{LE+ME}\big]\ K$',
-                r'$\big[\mathrm{powerlaw}_{2}^\mathrm{LE+ME}\big]\ \alpha$'],
+        labels=labels,
         show_titles=True,
         quantiles=[0.15865, 0.5, 0.84135],
         use_math_text=True,

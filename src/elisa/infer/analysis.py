@@ -26,16 +26,6 @@ class ConfidenceInterval(NamedTuple):
     status: dict
 
 
-class CredibleInterval(NamedTuple):
-    """Credible interval result."""
-    mle: dict[str, float]
-    median: dict[str, float]
-    interval: dict[str, tuple[float, float]]
-    prob: float
-    hdi: bool
-    sample_method: Literal['nuts', 'ns']
-
-
 class BootstrapResult(NamedTuple):
     """Parametric bootstrap result."""
 
@@ -50,11 +40,6 @@ class BootstrapResult(NamedTuple):
     results: dict
 
 
-class PPCResult(NamedTuple):
-    """Posterior predictive check result."""
-    ...
-
-
 class MLEResult:
     """MLE result obtained from likelihood fit."""
 
@@ -64,7 +49,7 @@ class MLEResult:
         fit: _fit.LikelihoodFit
     ):
         self._minuit = minuit
-        self._optfn = optfn = fit._helper
+        self._helper = helper = fit._helper
         self._free_names = free_names = fit._free_names
         self._params_names = params = fit._params_names
         self._interest_params = fit._interest_names
@@ -77,22 +62,22 @@ class MLEResult:
         self._boot: BootstrapResult | None = None
 
         mle_unconstr = np.array(minuit.values)
-        mle = np.array(optfn.to_params_array(mle_unconstr))
+        mle = np.array(helper.to_params_array(mle_unconstr))
 
-        cov_unconstr = np.array(optfn.unconstr_covar(mle_unconstr))
+        cov_unconstr = np.array(helper.unconstr_covar(mle_unconstr))
         if np.isnan(cov_unconstr).any() and minuit.covariance is not None:
             cov_unconstr = np.array(minuit.covariance)
-        cov = optfn.params_covar(mle_unconstr, cov_unconstr)
+        cov = helper.params_covar(mle_unconstr, cov_unconstr)
         err = np.sqrt(np.diagonal(cov))
 
-        stat_info = optfn.deviance_unconstr_info(mle_unconstr)
+        stat_info = helper.deviance_unconstr_info(mle_unconstr)
         stat_group = stat_info['group']
         stat = {k: float(stat_group[k]) for k in ndata if k != 'total'}
         stat_total = minuit.fval
         stat |= {'total': stat_total}
 
         unconstr_dict = {k: v for k, v in zip(free_names, mle_unconstr)}
-        param_dict = optfn.to_params_dict(unconstr_dict)
+        param_dict = helper.to_params_dict(unconstr_dict)
         constr_dict = {k: float(param_dict[k]) for k in free_names}
         self._result = {
             'unconstr': unconstr_dict,
@@ -260,7 +245,7 @@ class MLEResult:
             if k in params
         }
 
-        optfn = self._optfn
+        helper = self._helper
 
         if method == 'profile':
             self._minuit.minos(*free_params, cl=cl)
@@ -273,10 +258,10 @@ class MLEResult:
             }
 
             ci = self._minuit.merrors
-            lo = optfn.to_params_dict(
+            lo = helper.to_params_dict(
                 {k: mle0[k] + ci[k].lower for k in free_params} | others
             )
-            up = optfn.to_params_dict(
+            up = helper.to_params_dict(
                 {k: mle0[k] + ci[k].upper for k in free_params} | others
             )
 
@@ -298,9 +283,9 @@ class MLEResult:
                 def loss(x):
                     """The loss when calculating CI of composite parameter."""
                     unconstr = {k: v for k, v in zip(self._free_names, x[1:])}
-                    p0 = optfn.to_params_dict(unconstr)[p]
+                    p0 = helper.to_params_dict(unconstr)[p]
                     diff = (p0 / x[0] - 1) / 1e-3
-                    return optfn.deviance_unconstr(x[1:]) + diff*diff
+                    return helper.deviance_unconstr(x[1:]) + diff*diff
 
                 mle_p = mle[p]
 
@@ -369,12 +354,12 @@ class MLEResult:
         Parameters
         ----------
         n : int, optional
-            The number of bootstrap.
+            The number of bootstrap. The default is 10000.
         parallel : bool, optional
             Whether to run the fit in parallel. The default is True.
         seed : int, optional
             The random seed used in parametric bootstrap. Defaults to the seed
-            as in fitting context.
+            as in the fitting context.
 
         Returns
         -------
@@ -419,23 +404,169 @@ class MLEResult:
 
         return boot_result
 
+    def plot_data(self):
+        ...
+
+    def plot_corner(self):
+        # correlation map or bootstrap distribution
+        ...
+
+
+class CredibleInterval(NamedTuple):
+    """Credible interval result."""
+    mle: dict[str, float]
+    median: dict[str, float]
+    interval: dict[str, tuple[float, float]]
+    prob: float
+    hdi: bool
+    sample_method: Literal['nuts', 'ns']
+
+
+class PPCResult(NamedTuple):
+    """Posterior predictive check result."""
+    ...
+
 
 class PosteriorResult:
     """Posterior sampling result obtained from Bayesian fit."""
 
-    def __init__(self, idata: az.InferenceData):
+    def __init__(
+        self,
+        idata: az.InferenceData,
+        ess: dict[str, int],
+        reff: float,
+        lnZ: tuple[float, float],
+        sampler,
+        fit: _fit.BayesianFit
+    ):
         self._idata = idata
+        self._ess = ess
+        self._reff = reff
+        self._lnZ = lnZ
+        self._sampler = sampler
+        self._helper = fit._helper
+        self._free_names = fit._free_names
+        self._params_names = fit._params_names
+        self._interest_params = fit._interest_names
+        self._composite_params = fit._composite
+        self._ndata = fit._ndata
+        self._dof = fit._dof
+        self._stat_type = fit._stat
+        self._simfit = SimFit(fit)
+        self._seed = fit._seed
+        self._ppc: PPCResult | None = None
+
+    def __repr__(self):
+        # TODO
+        return super().__repr__()
+
+    def _repr_html_(self) -> str:
+        # TODO
+        return self.__repr__()
+
+    @property
+    def ndata(self) -> dict[str, int]:
+        """Number of data points."""
+        return self._ndata
+
+    @property
+    def dof(self) -> int:
+        """Degree of freedom."""
+        return self._dof
+
+    @property
+    def reff(self) -> float:
+        """Relative MCMC efficiency."""
+        return self._reff
+
+    @property
+    def ess(self) -> dict[str, int]:
+        """Effective MCMC sample size."""
+        return self._ess
+
+    @property
+    def rhat(self) -> dict[str, float]:
+        """Computes split R-hat [1]_ over MCMC chains.
+
+        In general, only fully trust the sample if R-hat is less than 1.01. In
+        early workflow, R-hat below 1.1 is often sufficient.
+
+        References
+        ----------
+        .. [1] : https://arxiv.org/abs/1903.08008
+
+        """
+        posterior = self._idata['posterior']
+
+        if len(posterior['chain']) == 1:
+            return {k: float('nan') for k in posterior.data_vars.keys()}
+        else:
+            return {
+                k: float(v.values)
+                for k, v in az.rhat(posterior).data_vars.items()
+            }
+
+    @property
+    def divergence(self) -> int:
+        """Number of divergent samples."""
+        if 'sample_stats' in self._idata:
+            return int(self._idata['sample_stats']['diverging'].sum())
+        else:
+            return 0
+
+    @property
+    def waic(self) -> float:
+        """The widely applicable information criterion (WAIC).
+
+        Estimates the expected log point-wise predictive density (elpd) using
+        WAIC. Also calculates the WAIC's standard error and the effective
+        number of parameters. For more information, see [1]_ and [2]_.
+
+        References
+        ----------
+        .. [1] https://arxiv.org/abs/1507.04544
+        .. [2] https://arxiv.org/abs/1004.2316
+
+        """
+        return az.waic(self._idata, var_name='channels', scale='deviance')
+
+    @property
+    def loo(self) -> float:
+        """Pareto-smoothed importance sampling leave-one-out cross-validation
+        (PSIS-LOO-CV).
+
+        Estimates the expected log point-wise predictive density (elpd) using
+        PSIS-LOO-CV. Also calculates LOO's standard error and the effective
+        number of parameters. For more information, see [1]_ and [2]_.
+
+        References
+        ----------
+        .. [1] https://arxiv.org/abs/1507.04544
+        .. [2] https://arxiv.org/abs/1507.02646
+
+        """
+        return az.loo(
+            self._idata, var_name='channels', reff=self._reff, scale='deviance'
+        )
+
+    @property
+    def lnZ(self) -> tuple[float, float]:
+        """Log model evidence."""
+        return self._lnZ
 
     def ci(
         self,
+        params: Optional[str | Sequence[str]] = None,
         prob: float | int = 1,
         hdi: bool = False,
-        idata: Optional[Literal['nuts', 'ns']] = None
     ) -> CredibleInterval:
         """Calculate credible intervals for given parameters.
 
         Parameters
         ----------
+        params : str or list of str, optional
+            Parameters to calculate credible intervals. If not provided,
+            credible intervals are calculated for all parameters.
         prob : float or int, optional
             The probability mass of samples within the credible interval. If
             0 < `prob` < 1, the value is interpreted as the probability mass.
@@ -452,25 +583,73 @@ class PosteriorResult:
             The credible interval given the parameters and probability mass.
 
         """
-        idata = self._idata
+        if params is None:
+            params = self._interest_params
 
-    def ppc(self, n: int = 10000) -> PPCResult:
-        """
+        elif isinstance(params, str):
+            # check if params exist
+            if params not in self._params_names:
+                raise ValueError(f'parameter: {params} is not exist')
+
+            params = [params]
+
+        elif isinstance(params, Sequence):
+            # check if params exist
+            params = [str(i) for i in params]
+            flag = [i in self._params_names for i in params]
+            if not all(flag):
+                params_err = ', '.join(
+                    [i for i, j in zip(params, flag) if not j]
+                )
+                raise ValueError(f'parameters: {params_err} are not exist')
+
+            params = list(str(i) for i in params)
+
+        else:
+            raise ValueError('params must be str, or sequence of str')
+
+        prob_ = 1.0 - 2.0 * norm.sf(prob) if prob >= 1.0 else prob
+
+        ...
+
+
+    def ppc(
+        self,
+        n: int = 10000,
+        parallel: bool = True,
+        seed: Optional[int] = None
+    ) -> PPCResult:
+        """Perform posterior predictive check.
 
         Parameters
         ----------
-        n :
+        n : int, optional
+            The number of posterior prediction. The default is 10000.
+        parallel : bool, optional
+            Whether to run the fit in parallel. The default is True.
+        seed : int, optional
+            The random seed used in prediction. Defaults to the seed as in the
+            fitting context.
 
         Returns
         -------
+        PPCResult
+            The posterior predictive check result.
 
         """
         ...
-        # pred_func = numpyro.infer.util.Predictive(
-        #     model=self._numpyro_model,
-        #     posterior_samples=...,
-        #     parallel=True
-        # )
-        # pred = pred_func(self._PRNGKey)
+        # random select n posterior samples
+        # ppp, rep and fit
 
-        # LOO PIT need posterior predictive net counts
+    def plot_data(self):
+        ...
+
+    def plot_corner(self):
+        ...
+
+    def plot_loopit(self):
+        ...
+
+    def plot_trace(self, params, fig_path=None):
+        # az.plot_trace()
+        ...

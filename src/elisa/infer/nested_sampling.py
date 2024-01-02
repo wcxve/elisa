@@ -251,27 +251,26 @@ class NestedSampler:
 
         model = jaxns.Model(prior_model=prior_model, log_likelihood=loglik_fn)
 
-        default_constructor_kwargs = dict(
-            num_live_points=model.U_ndims * 50,
-            # num_parallel_samplers=1,
-            num_parallel_workers=1,
-            max_samples=1e4,
-        )
-        default_termination_kwargs = dict(live_evidence_frac=1e-4)
+        # default_constructor_kwargs = dict(
+        #     num_live_points=model.U_ndims * 50,
+        #     num_parallel_workers=1,
+        #     max_samples=1e4,
+        # )
+        # default_termination_kwargs = dict(live_evidence_frac=1e-4)
         # Fill-in missing values with defaults. This allows user to inspect what was actually used by inspecting
         # these dictionaries
-        list(
-            map(
-                lambda item: self.constructor_kwargs.setdefault(*item),
-                default_constructor_kwargs.items(),
-            )
-        )
-        list(
-            map(
-                lambda item: self.termination_kwargs.setdefault(*item),
-                default_termination_kwargs.items(),
-            )
-        )
+        # list(
+        #     map(
+        #         lambda item: self.constructor_kwargs.setdefault(*item),
+        #         default_constructor_kwargs.items(),
+        #     )
+        # )
+        # list(
+        #     map(
+        #         lambda item: self.termination_kwargs.setdefault(*item),
+        #         default_termination_kwargs.items(),
+        #     )
+        # )
 
         ns = jaxns.DefaultNestedSampler(
             model=model,
@@ -288,7 +287,7 @@ class NestedSampler:
         # Here we only transform the first valid num_samples samples
         # NB: the number of weighted samples obtained from jaxns is results.num_samples
         # and only the first num_samples values of results.samples are valid.
-        num_samples = results.total_num_samples
+        # num_samples = results.total_num_samples
         samples = results.samples
         predictive = Predictive(
             reparam_model, samples, return_sites=param_names + deterministics
@@ -297,7 +296,7 @@ class NestedSampler:
         # replace base samples in jaxns results by transformed samples
         self._results = results._replace(samples=samples)
 
-    def get_samples(self, rng_key, num_samples):
+    def get_samples(self, rng_key, num_samples=None):
         """
         Draws samples from the weighted samples collected from the run.
 
@@ -311,7 +310,14 @@ class NestedSampler:
             raise RuntimeError(
                 "NestedSampler.run(...) method should be called first to obtain results."
             )
+
         weighted_samples, sample_weights = self.get_weighted_samples()
+
+        if num_samples is None:
+            num_samples = self._results.total_num_samples
+        else:
+            num_samples = int(num_samples)
+
         return jaxns.resample(
             rng_key, weighted_samples, sample_weights, S=num_samples, replace=True
         )

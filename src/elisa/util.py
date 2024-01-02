@@ -34,8 +34,9 @@ def set_cpu_cores(n: int) -> None:
     total_cores = cpu_count()
 
     if n > total_cores:
-        msg = f'only {total_cores} CPUs available, will use {total_cores} CPUs'
+        msg = f'only {total_cores} CPUs available, '
+        msg += f'will use {total_cores - 1} CPUs'
         warnings.warn(msg, Warning)
-        n = total_cores
+        n = total_cores - 1
 
     set_host_device_count(n)

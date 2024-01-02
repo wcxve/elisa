@@ -34,7 +34,7 @@ class AdditiveComponent(Component, ABC):
 
     @abstractmethod
     def _integral(self, *args) -> Callable:
-        """Overriden by subclass."""
+        """Return integral function, overriden by subclass."""
         pass
 
 
@@ -95,7 +95,7 @@ class Bbody(NumIntAdditive):
         tmp = 8.0525 * K * e / (kT * kT * kT)
         x_ = jnp.where(
             jnp.greater_equal(x, 50.0),
-            1.0,
+            1.0,  # avoid exponential overflow
             x,
         )
         return jnp.where(
@@ -103,7 +103,7 @@ class Bbody(NumIntAdditive):
             tmp,
             jnp.where(
                 jnp.greater_equal(x, 50.0),
-                0.0,
+                0.0,  # avoid exponential overflow
                 tmp * x / jnp.expm1(x_)
             )
         )
@@ -246,7 +246,7 @@ class Powerlaw(AdditiveComponent):
     """TODO"""
 
     _config = (
-        ParamConfig ('alpha', r'\alpha', 1.01, -3.0, 10.0, False, False),
+        ParamConfig('alpha', r'\alpha', 1.01, -3.0, 10.0, False, False),
         ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
     )
 
