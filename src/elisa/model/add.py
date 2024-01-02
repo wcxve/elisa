@@ -239,7 +239,7 @@ class OTTB(NumIntAdditive):
     def _continnum(egrid, kT, K):
         e = egrid
         Epiv = 1.0
-        return jnp.exp((Epiv - e) / kT) * Epiv / e
+        return K * jnp.exp((Epiv - e) / kT) * Epiv / e
 
 
 class Powerlaw(AdditiveComponent):
