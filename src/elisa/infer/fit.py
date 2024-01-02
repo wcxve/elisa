@@ -337,6 +337,10 @@ class BaseFit(ABC):
         """Make the model and params info table."""
         pass
 
+    def print_summary(self) -> None:
+        """Print summary of the fit."""
+        print(self)
+
     def _sanity_check(
         self,
         data: Data | Sequence[Data],
