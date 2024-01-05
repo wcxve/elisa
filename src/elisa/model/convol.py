@@ -17,7 +17,7 @@ class ConvolutionComponent(Component, ABC):
     @property
     def type(self) -> str:
         """Model type is convolution."""
-        return 'con'
+        return 'convol'
 
     @property
     def _func(self) -> Callable:
