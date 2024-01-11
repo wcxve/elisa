@@ -40,6 +40,10 @@ def pgstat_background(
     b : jax.Array
         The profile background.
 
+    References
+    ----------
+    .. [1] https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html
+
     """
     variance = b_err * b_err
     e = b_est - a * variance
@@ -84,6 +88,11 @@ def wstat_background(
     -------
     b : jax.Array
         The profile background.
+
+    References
+    ----------
+    .. [1] Wachter, K., Leach, R., & Kellogg, E. (1979). Parameter estimation
+       in X-ray astronomy using maximum likelihood. ApJ, 230, 274–287.
 
     """
     c = a * (n_on + n_off) - (a + 1) * s
@@ -153,9 +162,9 @@ def chi2(
     predictive: bool
 ):
     """Chi-squared statistic, i.e. Gaussian likelihood."""
-    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
+    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
 
-    spec_model = model
+    spec_model = numpyro.deterministic(f'{name}_Non_model', model)
 
     with numpyro.plate(name, len(spec_data)):
         numpyro.sample(
@@ -172,9 +181,9 @@ def cstat(
     predictive: bool
 ):
     """C-statistic, i.e. Poisson likelihood."""
-    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
+    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
 
-    spec_model = model
+    spec_model = numpyro.deterministic(f'{name}_Non_model', model)
 
     with numpyro.plate(name, len(spec_data)):
         numpyro.sample(
@@ -193,9 +202,10 @@ def pstat(
     predictive: bool
 ):
     """P-statistic, i.e. Poisson likelihood for data with known background."""
-    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
+    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
 
-    spec_model = model + ratio * back
+    b = back
+    spec_model = numpyro.deterministic(f'{name}_Non_model', model + ratio * b)
 
     with numpyro.plate(name, len(spec_data)):
         numpyro.sample(
@@ -215,14 +225,15 @@ def pgstat(
     predictive: bool
 ):
     """PG-statistic, i.e. Poisson likelihood for data and profile Gaussian
-    likelihood for background."""
-    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
-    back_data = numpyro.primitives.mutable(f'{name}_back', back)
+    likelihood for background.
+    """
+    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+    back_data = numpyro.primitives.mutable(f'{name}_Noff_data', back)
 
     b = pgstat_background(model, spec_data, back_data, back_error, ratio)
 
-    spec_model = model + ratio * b
-    back_model = b
+    spec_model = numpyro.deterministic(f'{name}_Non_model', model + ratio * b)
+    back_model = numpyro.deterministic(f'{name}_Noff_model', b)
 
     with numpyro.plate(name, len(spec_data)):
         numpyro.sample(
@@ -247,14 +258,15 @@ def wstat(
     predictive: bool
 ):
     """W-statistic, i.e. Poisson likelihood for data and profile Poisson
-    likelihood for background."""
-    spec_data = numpyro.primitives.mutable(f'{name}_spec', spec)
-    back_data = numpyro.primitives.mutable(f'{name}_back', back)
+    likelihood for background.
+    """
+    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+    back_data = numpyro.primitives.mutable(f'{name}_Noff_data', back)
 
     b = wstat_background(model, spec_data, back_data, ratio)
 
-    spec_model = model + ratio * b
-    back_model = b
+    spec_model = numpyro.deterministic(f'{name}_Non_model', model + ratio * b)
+    back_model = numpyro.deterministic(f'{name}_Noff_model', b)
 
     with numpyro.plate(name, len(spec_data)):
         numpyro.sample(

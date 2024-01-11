@@ -59,8 +59,8 @@ class Data:
             * opt: optimal binning, see Kaastra & Bleeker (2016, A&A)
             * optmin: opt with counts >= `scale` for src + bkg
             * optsig: opt with src significance >= `scale`-sigma
-            * bmin: counts >= `scale` for bkg (useful for W-stat)
-            * bpos: bkg < 0 with probability < `scale` (useful for PG-stat)
+            * bmin: counts >= `scale` for bkg (useful for wstat)
+            * bpos: bkg < 0 with probability < `scale` (useful for pgstat)
     scale : float or None, optional
         Grouping scale. Only takes effect if `group` is not None.
     spec_poisson : bool or None, optional
