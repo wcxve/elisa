@@ -742,12 +742,12 @@ class BayesianFit(BaseFit):
             constructor_kwargs=dict(
                 max_samples=max_samples,
                 num_live_points=num_live_points,
-                s=s,
-                k=k,
-                c=c,
+                # s=s,
+                # k=k,
+                # c=c,
                 num_parallel_workers=num_parallel_workers,
-                difficult_model=difficult_model,
-                parameter_estimation=parameter_estimation,
+                # difficult_model=difficult_model,
+                # parameter_estimation=parameter_estimation,
             ),
             termination_kwargs=term_cond,
         )
@@ -908,15 +908,8 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     @jax.jit
     def params_by_group(constr_dict: dict) -> dict:
         """Get parameters of spectral model for each data group."""
-        # return {
-        #     k: jax.tree_map(lambda n: constr_dict[n], v)
-        #     for k, v in spec_params.items()
-        # }
-        @partial(jax.jit, static_argnums=(0,))
-        def _get_dict(n):
-            return constr_dict[n]
         return {
-            k: jax.tree_map(_get_dict, v)
+            k: jax.tree_map(lambda n: constr_dict[n], v)
             for k, v in spec_params.items()
         }
 
@@ -933,14 +926,10 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     def model_counts(constr_dict: dict) -> dict:
         """Calculate model counts for each data group."""
         p = params_by_group(constr_dict)
-        # return jax.tree_map(
-        #     lambda mi, pi, ei, ri, ti: mi(ei, pi) @ ri * ti,
-        #     spec_model, p, egrid, resp, expo
-        # )
-        @partial(jax.jit, static_argnums=(0,))
-        def _get_dict(mi, pi, ei, ri, ti):
-            return mi(ei, pi) @ ri * ti
-        return jax.tree_map(_get_dict, spec_model, p, egrid, resp, expo)
+        return jax.tree_map(
+            lambda mi, pi, ei, ri, ti: mi(ei, pi) @ ri * ti,
+            spec_model, p, egrid, resp, expo
+        )
 
     # ========================= create numpyro model ==========================
     free = fit._free
@@ -972,14 +961,8 @@ def generate_helper(fit: BaseFit) -> HelperFn:
                 v = fn(*args)
             params[name] = v
 
-        # jax.tree_map(
-        #     lambda f, m: f(m, predictive=predictive),
-        #     stat_fn, model_counts(params)
-        # )
-        def _build_model(f, m):
-            return f(m, predictive=predictive)
         jax.tree_map(
-            _build_model,
+            lambda f, m: f(m, predictive=predictive),
             stat_fn, model_counts(params)
         )
 
@@ -1009,11 +992,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     @jax.jit
     def net_counts(data_dict: dict) -> dict:
         """Calculate net counts for each data group."""
-        # return jax.tree_map(lambda f: f(data_dict), net_fn)
-        @jax.jit
-        def _nts(f):
-            return f(data_dict)
-        return jax.tree_map(_nts, net_fn)
+        return jax.tree_map(lambda f: f(data_dict), net_fn)
 
     @jax.jit
     def to_dict(array: Sequence[T]) -> dict[str, T]:
@@ -1056,10 +1035,10 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         """Deviance in unconstrained parameter space."""
         p = to_constr_dict(unconstr_array)
         return -2.0 * jax.tree_util.tree_reduce(
-            jnp.add,
-            jax.tree_map(
-                jnp.sum,
-                log_likelihood(numpyro_model, p)
+                jnp.add,
+                jax.tree_map(
+                    jnp.sum,
+                    log_likelihood(numpyro_model, p)
             )
         )
         # return -2.0 * jax.tree_util.tree_reduce(
@@ -1245,23 +1224,16 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         neval = len(result['valid'])
         ncores = jax.device_count()
 
-        # reshape = lambda x: x.reshape((ncores, -1) + x.shape[1:])
-        @jax.jit
-        def reshape(x):
-            return x.reshape((ncores, -1) + x.shape[1:])
+        reshape = lambda x: x.reshape((ncores, -1) + x.shape[1:])
         sim_data_ = jax.tree_map(reshape, sim_data)
         result_ = jax.tree_map(reshape, result)
         init_ = jax.tree_map(reshape, init)
 
         fn = progress_bar_factory(neval, ncores, run_str=run_str)(sim_fit_one)
 
-        # fit_results = jax.pmap(
-        #     lambda *args: lax.fori_loop(0, neval//ncores, fn, args)[1]
-        # )(sim_data_, result_, init_)
-        @jax.jit
-        def _loop(*args):
-            return lax.fori_loop(0, neval//ncores, fn, args)[1]
-        fit_results = jax.pmap(_loop)(sim_data_, result_, init_)
+        fit_results = jax.pmap(
+            lambda *args: lax.fori_loop(0, neval//ncores, fn, args)[1]
+        )(sim_data_, result_, init_)
 
         # return jax.tree_map(lambda x: jnp.hstack(x), fit_results)
         return jax.tree_map(jnp.hstack, fit_results)
