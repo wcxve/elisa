@@ -38,14 +38,14 @@ dependencies = [
 
 
 [project.optional-dependencies]
-xspec = ['xspex']
-test = []
+xspec = ["xspex"]
+test = ["pytest", "pytest-cov", "coverage[toml]"]
 docs = [
     "sphinx",
     "sphinx_rtd_theme",
     "numpydoc"
 ]
-dev = ['pre-commit>=3.6.0', 'black', 'ruff']
+dev = ["pre-commit>=3.6.0", "black", "ruff"]
 
 
 [project.urls]
@@ -91,3 +91,20 @@ unfixable = [
 exclude = []
 isort.known-first-party = ["elisa"]
 isort.combine-as-imports = true
+
+
+[tool.coverage.run]
+parallel = true
+branch = true
+source = ["elisa"]
+omit = [
+    "docs/*",
+    "tests/*",
+    "*__init__*"
+]
+
+[tool.coverage.paths]
+source = ["src", "*/site-packages"]
+
+[tool.coverage.report]
+show_missing = true
