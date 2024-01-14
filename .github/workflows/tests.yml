@@ -38,7 +38,6 @@ jobs:
             --session ${{ matrix.nox-session }} --python ${{ matrix.python-version }}
       - name: Combine and upload coverage
         run: |
-          python -m coverage combine
           python -m coverage xml -i
           python -m coveralls --service=github
         env:
