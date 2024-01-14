@@ -45,7 +45,7 @@ docs = [
     "sphinx_rtd_theme",
     "numpydoc"
 ]
-dev = ['ipython', 'black', 'ruff']
+dev = ['pre-commit>=3.6.0', 'black', 'ruff']
 
 
 [project.urls]
