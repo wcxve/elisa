@@ -2,6 +2,8 @@
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-lib.svg)](https://pypi.org/project/elisa-lib)
 [![PyPI - Version](https://img.shields.io/pypi/v/elisa-lib.svg)](https://pypi.org/project/elisa-lib)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Coverage Status](https://coveralls.io/repos/github/wcxve/elisa/badge.svg)](https://coveralls.io/github/wcxve/elisa)
 [![Documentation Status](https://readthedocs.org/projects/elisa-lib/badge/?version=latest)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
 
 **An efficient and fast library for spectral analysis in high-energy astrophysics.**
