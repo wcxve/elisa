@@ -16,8 +16,6 @@
 - [Documentation](#documentation)
 - [License](#license)
 
------
-
 ## Installation
 
 The package is still under heavy development, please DO NOT install it right now.
