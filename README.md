@@ -1,10 +1,10 @@
 # Elisa
 
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-lib.svg)](https://pypi.org/project/elisa-lib)
-[![PyPI - Version](https://img.shields.io/pypi/v/elisa-lib.svg)](https://pypi.org/project/elisa-lib)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Coverage Status](https://coveralls.io/repos/github/wcxve/elisa/badge.svg)](https://coveralls.io/github/wcxve/elisa)
-[![Documentation Status](https://readthedocs.org/projects/elisa-lib/badge/?version=latest)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
+[![License: GPL v3](https://img.shields.io/github/license/wcxve/elisa?color=blue&logo=open-source-initiative&logoColor=white)](https://www.gnu.org/licenses/gpl-3.0)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-lib?color=blue&logo=Python&logoColor=white)](https://pypi.org/project/elisa-lib)
+[![PyPI - Version](https://img.shields.io/pypi/v/elisa-lib?color=blue&logo=PyPI&logoColor=white)](https://pypi.org/project/elisa-lib)<br>
+[![Coverage Status](https://img.shields.io/coverallsCoverage/github/wcxve/elisa?logo=Coveralls&logoColor=white)](https://coveralls.io/github/wcxve/elisa)
+[![Documentation Status](https://img.shields.io/readthedocs/elisa-lib?logo=Read-the-Docs&logoColor=white)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
 
 **An efficient and fast library for spectral analysis in high-energy astrophysics.**
 
@@ -15,6 +15,8 @@
 - [Installation](#installation)
 - [Documentation](#documentation)
 - [License](#license)
+
+-----
 
 ## Installation
 
