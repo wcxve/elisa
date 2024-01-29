@@ -1,4 +1,4 @@
-if __name__ == '__main__':
+if __name__ == "__main__":
     # NaI_data = Data(
     #     [28, 250],
     #     '/Users/xuewc/BurstData/EXO2030+375/upper_limit/NaI_TOTAL.fits{2}',
@@ -24,29 +24,46 @@ if __name__ == '__main__':
     # i.plot_spec()
     # i.mcmc_nuts(1000, 1000)
     import os
-    os.sys.path.append(os.path.abspath('../../'))
+
+    os.sys.path.append(os.path.abspath("../../"))
     from elisa.v0 import *
-    path = '/Users/xuewc/BurstData/FRB221014/HXMT/'
-    LE = Data([2, 10], f'{path}/LE_optbmin5.fits',
-              f'{path}/LE_phabkg20s_g0_0-94.pha', f'{path}/LE_rsp.rsp',
-              group='bmin', scale=25)
 
-    ME = Data([10, 35], f'{path}/ME_optbmin5.fits',
-              f'{path}/ME_phabkg20s_g0_0-53.pha', f'{path}/ME_rsp.rsp',
-              group='bmin', scale=25)
+    path = "/Users/xuewc/BurstData/FRB221014/HXMT/"
+    LE = Data(
+        [2, 10],
+        f"{path}/LE_optbmin5.fits",
+        f"{path}/LE_phabkg20s_g0_0-94.pha",
+        f"{path}/LE_rsp.rsp",
+        group="bmin",
+        scale=25,
+    )
 
-    HE = Data([28, 250], f'{path}/HE_optbmin5.fits',
-              f'{path}/HE_phabkg20s_g0_0-12.pha', f'{path}/HE_rsp.rsp',
-              group='bmin', scale=25)
+    ME = Data(
+        [10, 35],
+        f"{path}/ME_optbmin5.fits",
+        f"{path}/ME_phabkg20s_g0_0-53.pha",
+        f"{path}/ME_rsp.rsp",
+        group="bmin",
+        scale=25,
+    )
 
+    HE = Data(
+        [28, 250],
+        f"{path}/HE_optbmin5.fits",
+        f"{path}/HE_phabkg20s_g0_0-12.pha",
+        f"{path}/HE_rsp.rsp",
+        group="bmin",
+        scale=25,
+    )
 
     wabs = xs.wabs(2.79)
     src = [
         xs.powerlaw(),
         Powerlaw(),
         EnergyFlux(1.5, 250) * Powerlaw(norm=1),
-        EnergyFlux(1.5, 250) * Powerlaw(norm=1) + EnergyFlux(1.5, 250) * BlackBodyRad(norm=1),
-        CutoffPowerlaw()
+        EnergyFlux(1.5, 250) * Powerlaw(norm=1)
+        + EnergyFlux(1.5, 250) * BlackBodyRad(norm=1),
+        CutoffPowerlaw(),
     ][1]
     # src.CPL.Ec.max = 300
     # src.CPL.Ec.log = True
@@ -61,15 +78,13 @@ if __name__ == '__main__':
     # src.OOTB.norm.log = 1
     # src = EnergyFlux(1.5, 250)*BlackBodyRad(norm=1) + EnergyFlux(1.5, 250)*BlackBodyRad(norm=1)
     # src.BBrad_2.kT = src.BBrad.kT * UniformParameter('factor', 0.5, 0.001, 0.999, log=1)
-    m = wabs*src
-    infer = Infer([LE, ME, HE], m, 'wstat')
+    m = wabs * src
+    infer = Infer([LE, ME, HE], m, "wstat")
     # infer.bootstrap()
     # infer.mcmc_nuts()
     # infer.plot_corner()
     # infer.ppc()
-    infer.plot_data('ldata sdev icnt',
-                    sim=None,
-                    show_pars=infer._rv['name'])
+    infer.plot_data("ldata sdev icnt", sim=None, show_pars=infer._rv["name"])
 
     # test for GRB 230307A
     # path = '/Users/xuewc/Library/Containers/com.tencent.xinWeChat/Data/Library/Application Support/com.tencent.xinWeChat/2.0b4.0.9/188ccc99a439bc9cc579a929ee149d49/Message/MessageTemp/f73fb0aee92be46a90a93165d0b6ae4c/OpenData/11668/39e6f9ad32176b0685ae7020e561c41b'

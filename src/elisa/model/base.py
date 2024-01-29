@@ -1,4 +1,5 @@
 """Classes to handle model construction."""
+
 from __future__ import annotations
 
 from abc import ABC, ABCMeta, abstractmethod
@@ -19,7 +20,7 @@ from .node import (
 ModelNodeType = Union[ModelNode, ModelOperationNode]
 ParameterNodeType = Union[ParameterNode, ParameterOperationNode]
 
-__all__ = ['UniformParameter', 'generate_parameter', 'generate_model'][:-1]
+__all__ = ["UniformParameter", "generate_parameter", "generate_model"][:-1]
 
 # TODO: time dependent model
 
@@ -43,13 +44,13 @@ class Parameter:
         self._node = node
 
     def __repr__(self):
-        return self._node.attrs['name']
+        return self._node.attrs["name"]
 
     def __add__(self, other: Parameter) -> SuperParameter:
-        return SuperParameter(self, other, '+')
+        return SuperParameter(self, other, "+")
 
     def __mul__(self, other: Parameter) -> SuperParameter:
-        return SuperParameter(self, other, '*')
+        return SuperParameter(self, other, "*")
 
     @property
     def default(self) -> float:
@@ -77,20 +78,20 @@ class SuperParameter(Parameter):
     """
 
     def __init__(self, lh: Parameter, rh: Parameter, op: str):
-        if op not in {'+', '*'}:
+        if op not in {"+", "*"}:
             raise TypeError(f'operator "{op}" is not supported')
 
         if not isinstance(lh, Parameter):
-            raise TypeError(f'{lh} is not a valid parameter')
+            raise TypeError(f"{lh} is not a valid parameter")
 
         if not isinstance(rh, Parameter):
-            raise TypeError(f'{rh} is not a valid parameter')
+            raise TypeError(f"{rh} is not a valid parameter")
 
         self._op = op
         self._lh = lh
         self._rh = rh
 
-        if op == '+':
+        if op == "+":
             node = lh._node + rh._node
         else:  # op == '*'
             node = lh._node * rh._node
@@ -99,25 +100,25 @@ class SuperParameter(Parameter):
 
     def __repr__(self):
         if isinstance(self._lh, UniformParameter):
-            lh = self._lh._node.attrs['name']
+            lh = self._lh._node.attrs["name"]
         else:
             lh = repr(self._lh)
 
         if isinstance(self._rh, UniformParameter):
-            rh = self._rh._node.attrs['name']
+            rh = self._rh._node.attrs["name"]
         else:
             rh = repr(self._rh)
 
         op = self._op
 
-        if op == '*':
-            if getattr(self._lh, '_op', '') == '+':
-                lh = f'({lh})'
+        if op == "*":
+            if getattr(self._lh, "_op", "") == "+":
+                lh = f"({lh})"
 
-            if getattr(self._rh, '_op', '') == '+':
-                rh = f'({rh})'
+            if getattr(self._rh, "_op", "") == "+":
+                rh = f"({rh})"
 
-        return f'{lh} {op} {rh}'
+        return f"{lh} {op} {rh}"
 
     @property
     def default(self) -> float:
@@ -156,14 +157,14 @@ class UniformParameter(Parameter):
         min: float,
         max: float,
         frozen: bool = False,
-        log: bool = False
+        log: bool = False,
     ):
         self._config = {
-            'default': float(default),
-            'min': float(min),
-            'max': float(max),
-            'frozen': bool(frozen),
-            'log': bool(log)
+            "default": float(default),
+            "min": float(min),
+            "max": float(max),
+            "frozen": bool(frozen),
+            "log": bool(log),
         }
 
         self._check_and_set_values()
@@ -173,37 +174,37 @@ class UniformParameter(Parameter):
             fmt=fmt,
             default=default,
             distribution=self._get_distribution(),
-            min=self._config['min'],
-            max=self._config['max'],
-            dist_expr=self.get_expression()
+            min=self._config["min"],
+            max=self._config["max"],
+            dist_expr=self.get_expression(),
         )
         super().__init__(node)
 
     def __repr__(self):
-        name = self._node.attrs['name']
+        name = self._node.attrs["name"]
         expr = self.get_expression()
 
-        if self._config['frozen']:
-            s = f'{name} = {expr}'
+        if self._config["frozen"]:
+            s = f"{name} = {expr}"
         else:
-            s = f'{name} ~ {expr}'
+            s = f"{name} ~ {expr}"
 
         return s
 
     @property
     def fmt(self) -> str:
         """Parameter Tex."""
-        return self._node.attrs['fmt']
+        return self._node.attrs["fmt"]
 
     @fmt.setter
     def fmt(self, value):
         """Parameter Tex."""
-        self._node.attrs['fmt'] = str(value)
+        self._node.attrs["fmt"] = str(value)
 
     @property
     def default(self) -> float:
         """Parameter default value."""
-        return self._config['default']
+        return self._config["default"]
 
     @default.setter
     def default(self, value):
@@ -213,7 +214,7 @@ class UniformParameter(Parameter):
     @property
     def min(self) -> float:
         """Parameter minimum."""
-        return self._config['min']
+        return self._config["min"]
 
     @min.setter
     def min(self, value):
@@ -223,7 +224,7 @@ class UniformParameter(Parameter):
     @property
     def max(self) -> float:
         """Parameter maximum."""
-        return self._config['max']
+        return self._config["max"]
 
     @max.setter
     def max(self, value):
@@ -233,21 +234,21 @@ class UniformParameter(Parameter):
     @property
     def frozen(self) -> bool:
         """Parameter frozen status."""
-        return self._config['frozen']
+        return self._config["frozen"]
 
     @frozen.setter
     def frozen(self, value):
         """Parameter frozen status."""
         flag = bool(value)
 
-        if self._config['frozen'] != flag:
-            self._config['frozen'] = flag
+        if self._config["frozen"] != flag:
+            self._config["frozen"] = flag
             self._reset_distribution()
 
     @property
     def log(self) -> bool:
         """Whether parameter is in log scale."""
-        return self._config['log']
+        return self._config["log"]
 
     @log.setter
     def log(self, value):
@@ -255,14 +256,14 @@ class UniformParameter(Parameter):
         log_flag = bool(value)
 
         config = self._config
-        if config['log'] != log_flag:
-            if log_flag and config['min'] <= 0.0:
+        if config["log"] != log_flag:
+            if log_flag and config["min"] <= 0.0:
                 raise ValueError(
-                    'parameterization into log-uniform failed due to '
-                    'non-positive minimum'
+                    "parameterization into log-uniform failed due to "
+                    "non-positive minimum"
                 )
 
-            config['log'] = log_flag
+            config["log"] = log_flag
 
             self._reset_distribution()
 
@@ -271,49 +272,45 @@ class UniformParameter(Parameter):
         config = self._config
 
         if default is None:
-            _default = config['default']
+            _default = config["default"]
         else:
             _default = float(default)
 
         if min is None:
-            _min = config['min']
+            _min = config["min"]
         else:
             _min = float(min)
 
         if max is None:
-            _max = config['max']
+            _max = config["max"]
         else:
             _max = float(max)
 
-        if _min <= 0.0 and config['log']:
-            raise ValueError(
-                f'min ({_min}) must be positive for LogUniform'
-            )
+        if _min <= 0.0 and config["log"]:
+            raise ValueError(f"min ({_min}) must be positive for LogUniform")
 
         if _min > _max:
-            raise ValueError(
-                f'min ({_min}) must not larger than max ({_max})'
-            )
+            raise ValueError(f"min ({_min}) must not larger than max ({_max})")
 
         if _default < _min:
             raise ValueError(
-                f'default value ({_default}) is smaller than min ({_min})'
+                f"default value ({_default}) is smaller than min ({_min})"
             )
 
         if _default > _max:
             raise ValueError(
-                f'default value ({_default}) is larger than max ({_max})'
+                f"default value ({_default}) is larger than max ({_max})"
             )
 
         if default is not None:
-            config['default'] = float(default)
-            self._node.attrs['default'] = float(default)
+            config["default"] = float(default)
+            self._node.attrs["default"] = float(default)
 
         if min is not None:
-            config['min'] = float(min)
+            config["min"] = float(min)
 
         if max is not None:
-            config['max'] = float(max)
+            config["max"] = float(max)
 
         if (min is not None) or (max is not None):
             self._reset_distribution()
@@ -322,13 +319,13 @@ class UniformParameter(Parameter):
         """Get distribution for :class:`ParameterNode`."""
         config = self._config
 
-        if config['frozen']:
-            distribution = config['default']
+        if config["frozen"]:
+            distribution = config["default"]
         else:
-            if config['log']:
-                distribution = LogUniform(config['min'], config['max'])
+            if config["log"]:
+                distribution = LogUniform(config["min"], config["max"])
             else:
-                distribution = Uniform(config['min'], config['max'])
+                distribution = Uniform(config["min"], config["max"])
 
         return distribution
 
@@ -336,25 +333,25 @@ class UniformParameter(Parameter):
         """Get expression of distribution."""
         default = self._config["default"]
 
-        if self._config['frozen']:
+        if self._config["frozen"]:
             expr = str(default)
         else:
             min = f'{self._config["min"]:.4g}'
             max = f'{self._config["max"]:.4g}'
 
-            if self._config['log']:
+            if self._config["log"]:
                 # expr = f'LogUniform(min={min}, max={max}, default={default})'
-                expr = f'LogUniform(min={min}, max={max})'
+                expr = f"LogUniform(min={min}, max={max})"
             else:
                 # expr = f'Uniform(min={min}, max={max}, default={default})'
-                expr = f'Uniform(min={min}, max={max})'
+                expr = f"Uniform(min={min}, max={max})"
 
         return expr
 
     def _reset_distribution(self) -> None:
         """Reset distribution after configuring parameter."""
-        self._node.attrs['distribution'] = self._get_distribution()
-        self._node.attrs['dist_expr'] = self.get_expression()
+        self._node.attrs["distribution"] = self._get_distribution()
+        self._node.attrs["dist_expr"] = self.get_expression()
 
 
 class ModelParameterFormat(dict):
@@ -391,12 +388,10 @@ class Model:
         self,
         node: ModelNodeType,
         params: Optional[dict[str, Parameter]] = None,
-        params_fmt: Optional[dict[str, str]] = None
+        params_fmt: Optional[dict[str, str]] = None,
     ):
         if not isinstance(node, (ModelNode, ModelOperationNode)):
-            raise ValueError(
-                'node must be ModelNode or ModelOperationNode'
-            )
+            raise ValueError("node must be ModelNode or ModelOperationNode")
 
         if isinstance(node, ModelNode) and not (
             isinstance(params, dict)
@@ -404,7 +399,7 @@ class Model:
             and all(isinstance(v, Parameter) for v in params.values())
         ):
             raise ValueError(
-                'params must be dict of str-Parameter mapping for model'
+                "params must be dict of str-Parameter mapping for model"
             )
 
         self._node = node
@@ -423,27 +418,27 @@ class Model:
 
             if params_fmt is not None:
                 if set(self._params_name) != set(params_fmt.keys()):
-                    raise ValueError('`params_fmt` must match `params`')
+                    raise ValueError("`params_fmt` must match `params`")
             else:
-                params_fmt = {i: r'\mathrm{%s}' % i for i in params.keys()}
+                params_fmt = {i: r"\mathrm{%s}" % i for i in params.keys()}
 
-            self._params_fmt = {
-                node.name: ModelParameterFormat(params_fmt)
-            }
+            self._params_fmt = {node.name: ModelParameterFormat(params_fmt)}
 
     def __repr__(self):
         return self._label.name
 
     def __add__(self, other: Model) -> SuperModel:
-        return SuperModel(self, other, '+')
+        return SuperModel(self, other, "+")
 
     def __mul__(self, other: Model) -> SuperModel:
-        return SuperModel(self, other, '*')
+        return SuperModel(self, other, "*")
 
     def __setattr__(self, key, value):
-        if hasattr(self, '_params_name') \
-                and self._params_name is not None \
-                and key in self._params_name:
+        if (
+            hasattr(self, "_params_name")
+            and self._params_name is not None
+            and key in self._params_name
+        ):
             self._set_param(key, value)
 
         super().__setattr__(key, value)
@@ -463,7 +458,7 @@ class Model:
     @property
     def type(self) -> str:
         """Model type."""
-        return self._node.attrs['mtype']
+        return self._node.attrs["mtype"]
 
     @property
     def params_fmt(self) -> ModelParameterFormat:
@@ -490,36 +485,33 @@ class Model:
             The model value.
 
         """
-        if self.type == 'con':
-            raise TypeError('convolution model is not supported')
+        if self.type == "con":
+            raise TypeError("convolution model is not supported")
 
         shapes = jax.tree_util.tree_flatten(
             tree=jax.tree_map(jnp.shape, params),
-            is_leaf=lambda i: isinstance(i, tuple)
+            is_leaf=lambda i: isinstance(i, tuple),
         )[0]
 
         if not shapes:
             print(shapes)
-            raise ValueError('empty params')
+            raise ValueError("empty params")
 
         shape = shapes[0]
         if not all(shape == s for s in shapes[1:]):
             print(shapes)
-            raise ValueError('all params must have the same shape')
+            raise ValueError("all params must have the same shape")
 
         if shape == ():
             eval_fn = lambda f: f(egrid, params)
         elif len(shape) == 1:
-            eval_fn = lambda f: \
-                jax.vmap(f, in_axes=(None, 0))(egrid, params)
+            eval_fn = lambda f: jax.vmap(f, in_axes=(None, 0))(egrid, params)
         elif len(shape) == 2:
-            eval_fn = lambda f: \
-                jax.vmap(
-                    jax.vmap(f, in_axes=(None, 0)),
-                    in_axes=(None, 0)
-                )(egrid, params)
+            eval_fn = lambda f: jax.vmap(
+                jax.vmap(f, in_axes=(None, 0)), in_axes=(None, 0)
+            )(egrid, params)
         else:
-            raise ValueError(f'params ndim should <= 2, got {len(shape)}')
+            raise ValueError(f"params ndim should <= 2, got {len(shape)}")
 
         return eval_fn(self._wrapped_fn)
 
@@ -527,7 +519,7 @@ class Model:
         self,
         egrid: jax.Array,
         params: dict[str, dict[str, float | jax.Array]],
-        comps: bool = False
+        comps: bool = False,
     ) -> jax.Array | dict[str, jax.Array]:
         """Calculate :math:`N_E` over `egrid`.
 
@@ -547,39 +539,41 @@ class Model:
             The :math:`N_E` over `egrid`, in unit of cm^-2 s^-1 keV^-1.
 
         """
-        if self.type != 'add':
+        if self.type != "add":
             msg = f'ne is undefined for {self.type} type model "{self}"'
             raise TypeError(msg)
 
         shapes = jax.tree_util.tree_flatten(
             tree=jax.tree_map(jnp.shape, params),
-            is_leaf=lambda i: isinstance(i, tuple)
+            is_leaf=lambda i: isinstance(i, tuple),
         )[0]
 
         if not shapes:
             print(shapes)
-            raise ValueError('empty params')
+            raise ValueError("empty params")
 
         shape = shapes[0]
         if not all(shape == s for s in shapes[1:]):
             print(shapes)
-            raise ValueError('all params must have the same shape')
+            raise ValueError("all params must have the same shape")
 
         de = jnp.diff(egrid)
 
         if shape == ():
             eval_fn = lambda f: f(egrid, params) / de
         elif len(shape) == 1:
-            eval_fn = lambda f: \
-                jax.vmap(f, in_axes=(None, 0))(egrid, params) / de
+            eval_fn = (
+                lambda f: jax.vmap(f, in_axes=(None, 0))(egrid, params) / de
+            )
         elif len(shape) == 2:
-            eval_fn = lambda f: \
-                jax.vmap(
-                    jax.vmap(f, in_axes=(None, 0)),
-                    in_axes=(None, 0)
-                )(egrid, params) / de
+            eval_fn = (
+                lambda f: jax.vmap(
+                    jax.vmap(f, in_axes=(None, 0)), in_axes=(None, 0)
+                )(egrid, params)
+                / de
+            )
         else:
-            raise ValueError(f'params ndim should <= 2, got {len(shape)}')
+            raise ValueError(f"params ndim should <= 2, got {len(shape)}")
 
         if not comps:
             return eval_fn(self._wrapped_fn)
@@ -590,7 +584,7 @@ class Model:
         self,
         egrid: jax.Array,
         params: dict[str, dict[str, float | jax.Array]],
-        comps: bool = False
+        comps: bool = False,
     ) -> jax.Array | dict[str, jax.Array]:
         r"""Calculate :math:`E N_E` (:math:`F_\nu`) over `egrid`.
 
@@ -610,7 +604,7 @@ class Model:
             The :math:`E N_E` over `egrid`, in unit of erg cm^-2 s^-1 keV^-1.
 
         """
-        if self.type != 'add':
+        if self.type != "add":
             msg = f'ene is undefined for {self.type} type model "{self}"'
             raise TypeError(msg)
 
@@ -626,7 +620,7 @@ class Model:
         self,
         egrid: jax.Array,
         params: dict[str, dict[str, float | jax.Array]],
-        comps: bool = False
+        comps: bool = False,
     ):
         r"""Calculate :math:`E^2 N_E` (:math:`\nu F_\nu`) over `egrid`.
 
@@ -646,7 +640,7 @@ class Model:
             The :math:`E^2 N_E` over `egrid`, in unit of erg cm^-2 s^-1.
 
         """
-        if self.type != 'add':
+        if self.type != "add":
             msg = f'eene is undefined for {self.type} type model "{self}"'
             raise TypeError(msg)
 
@@ -664,7 +658,7 @@ class Model:
         params: dict[str, dict[str, float | jax.Array]],
         resp_matrix: jax.Array,
         ch_width: jax.Array,
-        comps: bool = False
+        comps: bool = False,
     ) -> jax.Array | dict[str, jax.Array]:
         """Calculate the folded spectral model (:math:`C_E`).
 
@@ -688,7 +682,7 @@ class Model:
             The folded spectral model :math:`C_E`, in unit of s^-1 keV^-1.
 
         """
-        if self.type != 'add':
+        if self.type != "add":
             msg = f'folded is undefined for {self.type} type model "{self}"'
             raise TypeError(msg)
 
@@ -708,7 +702,7 @@ class Model:
         energy: bool = True,
         comps: bool = False,
         ngrid: int = 1000,
-        elog: bool = True
+        elog: bool = True,
     ) -> jax.Array | dict[str, jax.Array]:
         """Calculate flux of the model between `emin` and `emax`.
 
@@ -738,7 +732,7 @@ class Model:
             The flux of the model, in unit of s^-1 keV^-1.
 
         """
-        if self.type != 'add':
+        if self.type != "add":
             msg = f'flux is undefined for {self.type} type model "{self}"'
             raise TypeError(msg)
 
@@ -772,7 +766,7 @@ class Model:
 
         """
         if not isinstance(self._node, ModelNode):
-            raise TypeError('SuperModel does not support setting parameter')
+            raise TypeError("SuperModel does not support setting parameter")
 
         type_error = False
 
@@ -795,8 +789,8 @@ class Model:
         if type_error:  # other input types are not supported yet
             type_name = type(param).__name__
             raise TypeError(
-                f'got {repr(param)} ({type_name}) for '
-                f'{self}.{name}, which is not supported'
+                f"got {repr(param)} ({type_name}) for "
+                f"{self}.{name}, which is not supported"
             )
 
     # def set_params(self, params: dict[str, Parameter]) -> None:
@@ -832,7 +826,7 @@ class Model:
     def _wrapped_fn(self) -> Callable:
         """Model evaluation function."""
         if self._fn is None:
-            self._fn = jax.jit(self._fn_wrapper(self._label.mapping['name']))
+            self._fn = jax.jit(self._fn_wrapper(self._label.mapping["name"]))
 
         return self._fn
 
@@ -849,8 +843,9 @@ class Model:
         if self._comp_fn is None:
             mapping = self._label.mapping
             self._comp_fn = {
-                m._label._label('name', mapping):
-                jax.jit(m._fn_wrapper(mapping['name']))
+                m._label._label("name", mapping): jax.jit(
+                    m._fn_wrapper(mapping["name"])
+                )
                 for m in self._get_comp()
             }
 
@@ -862,18 +857,18 @@ class Model:
         site = self._node.site
         mapping = self._label.mapping
         info = dict(
-            sample=site['sample'],
-            composite=site['composite'],
-            pname=site['name'],
-            pfmt=site['fmt'],
-            default=site['default'],
-            min=site['min'],
-            max=site['max'],
-            dist_expr=site['dist_expr'],
+            sample=site["sample"],
+            composite=site["composite"],
+            pname=site["name"],
+            pfmt=site["fmt"],
+            default=site["default"],
+            min=site["min"],
+            max=site["max"],
+            dist_expr=site["dist_expr"],
             params=self._node.params,
-            mname=mapping['name'],
-            mfmt=mapping['fmt'],
-            mpfmt=self._params_fmt
+            mname=mapping["name"],
+            mfmt=mapping["fmt"],
+            mpfmt=self._params_fmt,
         )
         return info
 
@@ -893,20 +888,20 @@ class SuperModel(Model):
     """
 
     def __init__(self, lh: Model, rh: Model, op: str):
-        if op not in {'+', '*'}:
+        if op not in {"+", "*"}:
             raise TypeError(f'operator "{op}" is not supported')
 
         if not isinstance(lh, Model):
-            raise TypeError(f'{lh} is not a valid model')
+            raise TypeError(f"{lh} is not a valid model")
 
         if not isinstance(rh, Model):
-            raise TypeError(f'{rh} is not a valid model')
+            raise TypeError(f"{rh} is not a valid model")
 
         self._op = op
         self._lh = lh
         self._rh = rh
 
-        if op == '+':
+        if op == "+":
             node = lh._node + rh._node
         else:  # op == '*'
             node = lh._node * rh._node
@@ -914,7 +909,7 @@ class SuperModel(Model):
         super().__init__(node)
 
         comps = lh._comps | rh._comps
-        names = self._label.mapping['name']
+        names = self._label.mapping["name"]
         _comps = {}
         _comps_name = []
         for k in names:
@@ -927,21 +922,19 @@ class SuperModel(Model):
         self._params_fmt = lh._params_fmt | rh._params_fmt
 
     def __setattr__(self, key, value):
-        if hasattr(self, '_comps_name') and key in self._comps_name:
+        if hasattr(self, "_comps_name") and key in self._comps_name:
             raise AttributeError(f"can't set attribute '{key}'")
 
         super().__setattr__(key, value)
 
     def __getitem__(self, name: str) -> Model:
         if name not in self._comps_name:
-            raise ValueError(
-                f'{self} has no "{name}" component'
-            )
+            raise ValueError(f'{self} has no "{name}" component')
 
         return getattr(self, name)
 
     def __setitem__(self, name, value):
-        raise TypeError('item assignment not supported')
+        raise TypeError("item assignment not supported")
 
     @property
     def params_fmt(self) -> dict[str, ModelParameterFormat]:
@@ -954,14 +947,14 @@ class SuperModel(Model):
     def _get_comp(self) -> tuple[Model, ...]:
         """Get subcomponents."""
         if self._sub_comp is None:
-            if self._op == '+':  # add + add
+            if self._op == "+":  # add + add
                 subs = self._lh._get_comp() + self._rh._get_comp()
-            elif self._lh.type == 'add':  # add * mul
+            elif self._lh.type == "add":  # add * mul
                 rh = self._rh
                 subs = tuple(lh_i * rh for lh_i in self._lh._get_comp())
-            elif self._rh.type == 'add':  # mul * add, con * add
+            elif self._rh.type == "add":  # mul * add, con * add
                 lh = self._lh
-                if lh.type == 'mul':  # mul * add
+                if lh.type == "mul":  # mul * add
                     subs = tuple(lh * rh_i for rh_i in self._rh._get_comp())
                 else:  # con * add, note that con model isn't a linear operator
                     subs = (self,)
@@ -980,51 +973,51 @@ class ComponentMeta(ABCMeta):
         super().__init__(*args, **kwargs)
 
         # if subclass has ``config`` defined correctly, override its __init__
-        if hasattr(cls, '_config') and isinstance(cls._config, tuple):
+        if hasattr(cls, "_config") and isinstance(cls._config, tuple):
             name = cls.__name__.lower()
 
             # >>> construct __init__ function >>>
             config = cls._config
-            init_def = 'self, '
-            init_body = ''
-            par_body = '('
+            init_def = "self, "
+            init_body = ""
+            par_body = "("
             for cfg in config:
-                init_def += cfg[0] + '=None, '
-                init_body += f'{cfg[0]}={cfg[0]}, '
-                par_body += f'{cfg[0]}, '
-            par_body += ')'
+                init_def += cfg[0] + "=None, "
+                init_body += f"{cfg[0]}={cfg[0]}, "
+                par_body += f"{cfg[0]}, "
+            par_body += ")"
 
             par_def = str(init_def)
 
-            init_def += 'fmt=None'
-            init_body += f'fmt=fmt'
+            init_def += "fmt=None"
+            init_body += "fmt=fmt"
 
-            if hasattr(cls, '_extra_kw') and isinstance(cls._extra_kw, tuple):
+            if hasattr(cls, "_extra_kw") and isinstance(cls._extra_kw, tuple):
                 pos_args = []
                 for kw in cls._extra_kw:
                     # FIXME: repr may fail!
                     if len(kw) == 2:
-                        init_def += f', {kw[0]}={repr(kw[1])}'
+                        init_def += f", {kw[0]}={repr(kw[1])}"
                     else:
                         pos_args.append(kw[0])
-                    init_body += f', {kw[0]}={kw[0]}'
+                    init_body += f", {kw[0]}={kw[0]}"
 
                 if pos_args:
                     s = init_def
-                    init_def = s[:6] + ', '.join(pos_args) + ', ' + s[6:]
+                    init_def = s[:6] + ", ".join(pos_args) + ", " + s[6:]
 
-            func_code = f'def __init__({init_def}):\n    '
-            func_code += f'super(type(self), type(self))'
-            func_code += f'.__init__(self, {init_body})\n'
-            func_code += f'def {name}({par_def}):\n    '
-            func_code += f'return {par_body}'
+            func_code = f"def __init__({init_def}):\n    "
+            func_code += "super(type(self), type(self))"
+            func_code += f".__init__(self, {init_body})\n"
+            func_code += f"def {name}({par_def}):\n    "
+            func_code += f"return {par_body}"
             # <<< construct __init__ function <<<
 
             # now create and set __init__ function
             tmp = {}
             exec(func_code, tmp)
-            init_func = tmp['__init__']
-            init_func.__qualname__ = f'{name}.__init__'
+            init_func = tmp["__init__"]
+            init_func.__qualname__ = f"{name}.__init__"
             cls.__init__ = init_func
             cls._get_args = tmp[name]
 
@@ -1063,7 +1056,7 @@ class Component(Model, ABC, metaclass=ComponentMeta):
 
     def __init__(self, fmt=None, **params):
         if fmt is None:
-            fmt = r'\mathrm{%s}' % self.__class__.__name__.lower()
+            fmt = r"\mathrm{%s}" % self.__class__.__name__.lower()
 
         # parse parameters
         params_dict = {}
@@ -1091,12 +1084,12 @@ class Component(Model, ABC, metaclass=ComponentMeta):
                 cls_name = type(self).__name__
                 type_name = type(param).__name__
                 raise TypeError(
-                    f'got {type_name} type {repr(param)} for '
-                    f'{cls_name}.{param_name}, which is not supported'
+                    f"got {type_name} type {repr(param)} for "
+                    f"{cls_name}.{param_name}, which is not supported"
                 )
 
-        if self.type == 'ncon':  # normalization convolution type
-            mtype = 'con'
+        if self.type == "ncon":  # normalization convolution type
+            mtype = "con"
             is_ncon = True
         else:
             mtype = self.type
@@ -1108,7 +1101,7 @@ class Component(Model, ABC, metaclass=ComponentMeta):
             mtype=mtype,
             params={k: v._node for k, v in params_dict.items()},
             func=self._func,
-            is_ncon=is_ncon
+            is_ncon=is_ncon,
         )
 
         params_fmt = {cfg[0]: cfg[1] for cfg in self._config}
@@ -1151,7 +1144,7 @@ def generate_parameter(
     distribution: Distribution,
     min: Optional[float] = None,
     max: Optional[float] = None,
-    dist_expr: Optional[str] = None
+    dist_expr: Optional[str] = None,
 ) -> Parameter:
     """Create :class:`Parameter` instance.
 
@@ -1178,7 +1171,7 @@ def generate_parameter(
         The generated parameter.
 
     """
-    dist_expr = str(dist_expr) if dist_expr is not None else 'CustomDist'
+    dist_expr = str(dist_expr) if dist_expr is not None else "CustomDist"
     node = ParameterNode(name, fmt, default, distribution, min, max, dist_expr)
 
     return Parameter(node)
@@ -1190,7 +1183,7 @@ def generate_model(
     mtype: str,
     params: dict[str, Parameter],
     func: Callable,
-    is_ncon: bool
+    is_ncon: bool,
 ) -> Model:
     """Create :class:`Model` instance.
 

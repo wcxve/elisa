@@ -1,4 +1,5 @@
 """Models of multiplicative type."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -8,7 +9,7 @@ import jax.numpy as jnp
 
 from .base import Component, ParamConfig
 
-__all__ = ['Constant']
+__all__ = ["Constant"]
 
 
 class MultiplicativeComponent(Component, ABC):
@@ -17,7 +18,7 @@ class MultiplicativeComponent(Component, ABC):
     @property
     def type(self) -> str:
         """Model type is multiplicative."""
-        return 'mul'
+        return "mul"
 
     @property
     def _func(self) -> Callable:
@@ -32,9 +33,7 @@ class MultiplicativeComponent(Component, ABC):
 
 
 class Constant(MultiplicativeComponent):
-    _config = (
-        ParamConfig('factor', 'f', 1.0, 1e-5, 1e5, False, False),
-    )
+    _config = (ParamConfig("factor", "f", 1.0, 1e-5, 1e5, False, False),)
 
     @staticmethod
     def _continnum(egrid, factor):

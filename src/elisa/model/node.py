@@ -1,4 +1,5 @@
 """Helper classes to store model information."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -10,8 +11,8 @@ from uuid import uuid4
 
 from numpyro.distributions import Distribution
 
-ModelNodeType = Union['ModelNode', 'ModelOperationNode']
-ParameterNodeType = Union['ParameterNode', 'ParameterOperationNode']
+ModelNodeType = Union["ModelNode", "ModelOperationNode"]
+ParameterNodeType = Union["ParameterNode", "ParameterOperationNode"]
 
 _UUID: list[str] = []  # stores uuid that has been used
 
@@ -45,15 +46,15 @@ class Node(ABC):
         fmt: str,
         is_operation: bool = False,
         predecessor: list[Node] | None = None,
-        attrs: dict[str, Any] | None = None
+        attrs: dict[str, Any] | None = None,
     ):
         if attrs is None:
             attrs = dict()
 
-        if 'id' in attrs:
+        if "id" in attrs:
             raise TypeError('got multiple values for attribute "id"')
 
-        if 'type' in attrs:
+        if "type" in attrs:
             raise TypeError('got multiple values for attribute "type"')
 
         if predecessor is None:
@@ -65,14 +66,14 @@ class Node(ABC):
 
         # check if uuid4 collides, which could result from problems with code
         if node_id in _UUID:
-            raise RuntimeError('UUID4 collision found!')
+            raise RuntimeError("UUID4 collision found!")
 
         self._attrs = dict(
             name=name,
             fmt=fmt,
             type=self.type,
             is_operation=is_operation,
-            id=node_id
+            id=node_id,
         )
         self._attrs.update(attrs)
 
@@ -90,12 +91,12 @@ class Node(ABC):
     @property
     def name(self) -> str:
         """Node name with id suffix."""
-        return self._label_with_id('name')
+        return self._label_with_id("name")
 
     @property
     def fmt(self) -> str:
         """Node Tex with id suffix."""
-        return self._label_with_id('fmt')
+        return self._label_with_id("fmt")
 
     @property
     @abstractmethod
@@ -130,7 +131,7 @@ class Node(ABC):
             Label with suffix added.
 
         """
-        if label != 'name' and label != 'fmt':
+        if label != "name" and label != "fmt":
             raise ValueError('`label` should be "name" or "fmt"')
 
         return f'{self.attrs[label]}_{self.attrs["id"]}'
@@ -153,13 +154,10 @@ class OperationNode(Node, ABC):
     def __init__(self, lh: Node, rh: Node, op: str):
         self._check_type(lh, rh, op)
 
-        fmt = r'\times' if op == '*' else op
+        fmt = r"\times" if op == "*" else op
 
         super().__init__(
-            name=op,
-            fmt=fmt,
-            is_operation=True,
-            predecessor=[lh, rh]
+            name=op, fmt=fmt, is_operation=True, predecessor=[lh, rh]
         )
 
     def _label_with_id(self, label: str) -> str:
@@ -177,19 +175,19 @@ class OperationNode(Node, ABC):
 
         """
         lh, rh = self.predecessor
-        op_name = self.attrs['name']
+        op_name = self.attrs["name"]
         op = self.attrs[label]
         lh_label = getattr(lh, label)
         rh_label = getattr(rh, label)
 
-        if op_name == '*':
-            if lh.attrs['name'] == '+':
-                lh_label = f'({lh_label})'
+        if op_name == "*":
+            if lh.attrs["name"] == "+":
+                lh_label = f"({lh_label})"
 
-            if rh.attrs['name'] == '+':
-                rh_label = f'({rh_label})'
+            if rh.attrs["name"] == "+":
+                rh_label = f"({rh_label})"
 
-        return f'{lh_label} {op} {rh_label}'
+        return f"{lh_label} {op} {rh_label}"
 
     @staticmethod
     def _check_type(lh: Node, rh: Node, op: str) -> str:
@@ -213,14 +211,14 @@ class OperationNode(Node, ABC):
                 - type of `lh` and `rh` not matched
 
         """
-        if op not in {'+', '*'}:
+        if op not in {"+", "*"}:
             raise TypeError(f'operator "{op}" is not supported')
 
         if not isinstance(lh, Node):
-            raise TypeError(f'got wrong input {lh}')
+            raise TypeError(f"got wrong input {lh}")
 
         if not isinstance(rh, Node):
-            raise TypeError(f'got wrong input {rh}')
+            raise TypeError(f"got wrong input {rh}")
 
         type1 = lh.type
         type2 = rh.type
@@ -262,7 +260,7 @@ class ParameterNode(Node):
         distribution: Distribution | float | int,
         min: float | None = None,
         max: float | None = None,
-        dist_expr: str | None = None
+        dist_expr: str | None = None,
     ):
         self._validate_input(distribution)
 
@@ -271,35 +269,35 @@ class ParameterNode(Node):
         attrs = dict(
             default=default,
             distribution=distribution,
-            min='' if min is None else f'{min:.4g}',
-            max='' if max is None else f'{max:.4g}',
-            dist_expr='' if dist_expr is None else str(dist_expr)
+            min="" if min is None else f"{min:.4g}",
+            max="" if max is None else f"{max:.4g}",
+            dist_expr="" if dist_expr is None else str(dist_expr),
         )
 
         super().__init__(name=name, fmt=fmt, attrs=attrs)
 
     def __add__(self, other: ParameterNodeType) -> ParameterOperationNode:
-        return ParameterOperationNode(self, other, '+')
+        return ParameterOperationNode(self, other, "+")
 
     def __mul__(self, other: ParameterNodeType) -> ParameterOperationNode:
-        return ParameterOperationNode(self, other, '*')
+        return ParameterOperationNode(self, other, "*")
 
     @property
     def type(self) -> str:
         """Node type is parameter."""
-        return 'parameter'
+        return "parameter"
 
     @property
     def default(self) -> float:
         """Default value of the parameter."""
-        return self.attrs['default']
+        return self.attrs["default"]
 
     @default.setter
     def default(self, value: float):
         """Default value of the parameter."""
         value = float(value)
-        self._validate_default(self.attrs['distribution'], value)
-        self.attrs['default'] = value
+        self._validate_default(self.attrs["distribution"], value)
+        self.attrs["default"] = value
 
     @property
     def site(self) -> dict:
@@ -307,14 +305,14 @@ class ParameterNode(Node):
         name = self.name
 
         info = {
-            'sample': {name: self.attrs['distribution']},
-            'composite': {},
-            'name': {name: self.attrs['name']},
-            'fmt': {name: self.attrs['fmt']},
-            'default': {name: self.default},
-            'min': {name: self.attrs['min']},
-            'max': {name: self.attrs['max']},
-            'dist_expr': {name: self.attrs['dist_expr']}
+            "sample": {name: self.attrs["distribution"]},
+            "composite": {},
+            "name": {name: self.attrs["name"]},
+            "fmt": {name: self.attrs["fmt"]},
+            "default": {name: self.default},
+            "min": {name: self.attrs["min"]},
+            "max": {name: self.attrs["max"]},
+            "dist_expr": {name: self.attrs["dist_expr"]},
         }
 
         return info
@@ -324,7 +322,7 @@ class ParameterNode(Node):
         """Validate if input is correct."""
         if not isinstance(dist, (Distribution, float, int)):
             raise ValueError(
-                'dist must be a numpyro Distribution instance, or a float'
+                "dist must be a numpyro Distribution instance, or a float"
             )
 
     @staticmethod
@@ -335,11 +333,11 @@ class ParameterNode(Node):
         """Validate if default is in distribution domain."""
         if isinstance(dist, Distribution):
             if not dist._validate_sample(default):
-                raise ValueError('default value outside the dist domain')
+                raise ValueError("default value outside the dist domain")
 
         else:  # isinstance(dist, (float, int))
             if dist != default:
-                raise ValueError('default value and fixed dist are different')
+                raise ValueError("default value and fixed dist are different")
 
 
 class ParameterOperationNode(OperationNode):
@@ -362,15 +360,15 @@ class ParameterOperationNode(OperationNode):
         super().__init__(lh, rh, op)
 
     def __add__(self, other: ParameterNodeType) -> ParameterOperationNode:
-        return ParameterOperationNode(self, other, '+')
+        return ParameterOperationNode(self, other, "+")
 
     def __mul__(self, other: ParameterNodeType) -> ParameterOperationNode:
-        return ParameterOperationNode(self, other, '*')
+        return ParameterOperationNode(self, other, "*")
 
     @property
     def type(self) -> str:
         """Node type is parameter."""
-        return 'parameter'
+        return "parameter"
 
     @property
     def default(self) -> float:
@@ -378,7 +376,7 @@ class ParameterOperationNode(OperationNode):
         lh = self.predecessor[0].default
         rh = self.predecessor[1].default
 
-        if self.attrs['name'] == '+':
+        if self.attrs["name"] == "+":
             return lh + rh
         else:
             return lh * rh
@@ -399,19 +397,19 @@ class ParameterOperationNode(OperationNode):
             return lh[key] | rh[key]
 
         info = {
-            'sample': get_field('sample'),
-            'composite': get_field('composite'),
-            'name': get_field('name'),
-            'fmt': get_field('fmt'),
-            'default': get_field('default'),
-            'min': get_field('min'),
-            'max': get_field('max'),
-            'dist_expr': get_field('dist_expr')
+            "sample": get_field("sample"),
+            "composite": get_field("composite"),
+            "name": get_field("name"),
+            "fmt": get_field("fmt"),
+            "default": get_field("default"),
+            "min": get_field("min"),
+            "max": get_field("max"),
+            "dist_expr": get_field("dist_expr"),
         }
-        composite = info['composite']
+        composite = info["composite"]
 
         operand_name = (lh_name, rh_name)
-        if self.attrs['name'] == '+':
+        if self.attrs["name"] == "+":
             composite[name] = (operand_name, lambda x, y: x + y)
         else:
             composite[name] = (operand_name, lambda x, y: x * y)
@@ -460,9 +458,9 @@ class ModelNode(Node):
         mtype: str,
         params: dict[str, ParameterNodeType],
         func: Callable,
-        is_ncon: bool
+        is_ncon: bool,
     ):
-        if mtype not in {'add', 'mul', 'con'}:
+        if mtype not in {"add", "mul", "con"}:
             raise TypeError(f'unrecognized model type "{mtype}"')
 
         if params is None:
@@ -471,34 +469,27 @@ class ModelNode(Node):
         else:
             for v in params.values():
                 if not isinstance(v, (ParameterNode, ParameterOperationNode)):
-                    raise ValueError(f'{v} is not Parameter type')
+                    raise ValueError(f"{v} is not Parameter type")
 
             self._params_name = tuple(params.keys())
             predecessor = list(params.values())
 
-        attrs = dict(
-            mtype=mtype,
-            func=func,
-            is_ncon=is_ncon
-        )
+        attrs = dict(mtype=mtype, func=func, is_ncon=is_ncon)
 
         super().__init__(
-            name=name,
-            fmt=fmt,
-            predecessor=predecessor,
-            attrs=attrs
+            name=name, fmt=fmt, predecessor=predecessor, attrs=attrs
         )
 
     def __add__(self, other: ModelNodeType) -> ModelOperationNode:
-        return ModelOperationNode(self, other, '+')
+        return ModelOperationNode(self, other, "+")
 
     def __mul__(self, other: ModelNodeType) -> ModelOperationNode:
-        return ModelOperationNode(self, other, '*')
+        return ModelOperationNode(self, other, "*")
 
     @property
     def type(self) -> str:
         """Node type is model."""
-        return 'model'
+        return "model"
 
     @property
     def params(self) -> dict[str, str]:
@@ -526,39 +517,41 @@ class ModelNode(Node):
             return reduce(lambda i, j: i | j, field)
 
         return {
-            'sample': get_site_field('sample'),
-            'composite': get_site_field('composite'),
-            'name': get_site_field('name'),
-            'fmt': get_site_field('fmt'),
-            'default': get_site_field('default'),
-            'min': get_site_field('min'),
-            'max': get_site_field('max'),
-            'dist_expr': get_site_field('dist_expr')
+            "sample": get_site_field("sample"),
+            "composite": get_site_field("composite"),
+            "name": get_site_field("name"),
+            "fmt": get_site_field("fmt"),
+            "default": get_site_field("default"),
+            "min": get_site_field("min"),
+            "max": get_site_field("max"),
+            "dist_expr": get_site_field("dist_expr"),
         }
 
     def generate_func(self, mapping: dict[str, str]) -> Callable:
         """Wrap model evaluation function."""
         model_name = str(mapping[self.name])
-        mtype = self.attrs['mtype']
-        func = self.attrs['func']
+        mtype = self.attrs["mtype"]
+        func = self.attrs["func"]
 
         params = list(signature(func).parameters.keys())
-        params = ', '.join(params)
-        func_code = f'def {model_name}({params}): return func({params})'
-        tmp = {'func': func}
+        params = ", ".join(params)
+        func_code = f"def {model_name}({params}): return func({params})"
+        tmp = {"func": func}
         exec(func_code, tmp)
         func = tmp[model_name]
 
         # notation: p=params, e=egrid, f=flux_input, ff=flux_func
         # params structure should be {model_id: {param1: ..., param2: ...}}
-        if mtype == 'add':
+        if mtype == "add":
+
             def wrapper_add(p, e, *_):
                 """Evaluate add model."""
                 return func(e, **p[model_name])
 
             return wrapper_add
 
-        elif mtype == 'mul':
+        elif mtype == "mul":
+
             def wrapper_mul(p, e, *_):
                 """Evaluate mul model."""
                 return func(e, **p[model_name])
@@ -566,19 +559,19 @@ class ModelNode(Node):
             return wrapper_mul
 
         else:  # mtype == 'con'
-            if self.attrs['is_ncon']:
+            if self.attrs["is_ncon"]:
+
                 def wrapper_ncon(p, _=None, f=None, ff=None):
                     """Evaluate ncon model, f and ff must be provided."""
                     other_kwargs = dict(
-                        flux_input=f,
-                        flux_func=ff,
-                        func_params=p
+                        flux_input=f, flux_func=ff, func_params=p
                     )
                     return func(**p[model_name], **other_kwargs)
 
                 return wrapper_ncon
 
             else:
+
                 def wrapper_con(p, e, f, *_):
                     """Evaluate con model."""
                     return func(e, f, **p[model_name])
@@ -605,78 +598,80 @@ class ModelOperationNode(OperationNode):
     def __init__(self, lh: ModelNodeType, rh: ModelNodeType, op: str):
         self._check_type(lh, rh, op)
 
-        mtype1 = lh.attrs['mtype']
-        mtype2 = rh.attrs['mtype']
+        mtype1 = lh.attrs["mtype"]
+        mtype2 = rh.attrs["mtype"]
 
-        name1 = sub('_[a-zA-Z0-9]{32}', '', f'"{lh.name}"')
-        name2 = sub('_[a-zA-Z0-9]{32}', '', f'"{rh.name}"')
+        name1 = sub("_[a-zA-Z0-9]{32}", "", f'"{lh.name}"')
+        name2 = sub("_[a-zA-Z0-9]{32}", "", f'"{rh.name}"')
 
         # check if operand is legal for the op
-        if op == '+':
-            if mtype1 != 'add':
-                raise TypeError(f'{name1} is not additive')
+        if op == "+":
+            if mtype1 != "add":
+                raise TypeError(f"{name1} is not additive")
 
-            if mtype2 != 'add':
-                raise TypeError(f'{name2} is not additive')
+            if mtype2 != "add":
+                raise TypeError(f"{name2} is not additive")
 
         else:  # op == '*'
-            if mtype1 == 'add':
-                if mtype2 == 'add':
+            if mtype1 == "add":
+                if mtype2 == "add":
                     raise TypeError(
-                        f'unsupported types for *: {name1} (add) and {name2} '
-                        '(add)'
+                        f"unsupported types for *: {name1} (add) and {name2} "
+                        "(add)"
                     )
-                elif mtype2 == 'con':
+                elif mtype2 == "con":
                     raise TypeError(
-                        f'unsupported order for *: {name1} (add) and {name2} '
-                        '(con)'
+                        f"unsupported order for *: {name1} (add) and {name2} "
+                        "(con)"
                     )
 
-            if lh.attrs['is_ncon'] and rh.attrs['is_ncon']:
+            if lh.attrs["is_ncon"] and rh.attrs["is_ncon"]:
                 raise TypeError(
-                    f'unsupported types for *: {name1} (ncon) and {name2} '
-                    '(ncon), norm convolution can only be used once for one '
-                    'component'
+                    f"unsupported types for *: {name1} (ncon) and {name2} "
+                    "(ncon), norm convolution can only be used once for one "
+                    "component"
                 )
 
         is_ncon = False
 
         # determine the mtype
-        if mtype1 == 'add' or mtype2 == 'add':
-            mtype = 'add'
+        if mtype1 == "add" or mtype2 == "add":
+            mtype = "add"
         else:
-            if mtype1 == 'con' or mtype2 == 'con':
-                mtype = 'con'
-                if lh.attrs['is_ncon'] or rh.attrs['is_ncon']:
+            if mtype1 == "con" or mtype2 == "con":
+                mtype = "con"
+                if lh.attrs["is_ncon"] or rh.attrs["is_ncon"]:
                     is_ncon = True
             else:
-                mtype = 'mul'
+                mtype = "mul"
 
         super().__init__(lh, rh, op)
-        self.attrs['mtype'] = mtype
-        self.attrs['is_ncon'] = is_ncon
+        self.attrs["mtype"] = mtype
+        self.attrs["is_ncon"] = is_ncon
 
         # for a convolution model, fmt is *
-        if not isinstance(lh, ModelOperationNode) and \
-                lh.attrs.get('mtype', '') == 'con':
-            self.attrs['fmt'] = '*'
+        if (
+            not isinstance(lh, ModelOperationNode)
+            and lh.attrs.get("mtype", "") == "con"
+        ):
+            self.attrs["fmt"] = "*"
 
     def __add__(self, other: ModelNodeType) -> ModelOperationNode:
-        return ModelOperationNode(self, other, '+')
+        return ModelOperationNode(self, other, "+")
 
     def __mul__(self, other: ModelNodeType) -> ModelOperationNode:
-        return ModelOperationNode(self, other, '*')
+        return ModelOperationNode(self, other, "*")
 
     @property
     def type(self) -> str:
         """Node type is model."""
-        return 'model'
+        return "model"
 
     @property
     def params(self) -> dict[str, ParameterNodeType]:
         """Parameter dict."""
         lh, rh = self.predecessor
-        return lh.params |rh.params
+        return lh.params | rh.params
 
     @property
     def comps(self) -> dict[str, ModelNode]:
@@ -696,35 +691,37 @@ class ModelOperationNode(OperationNode):
             return lh[key] | rh[key]
 
         return {
-            'sample': get_field('sample'),
-            'composite': get_field('composite'),
-            'name': get_field('name'),
-            'fmt': get_field('fmt'),
-            'default': get_field('default'),
-            'min': get_field('min'),
-            'max': get_field('max'),
-            'dist_expr': get_field('dist_expr')
+            "sample": get_field("sample"),
+            "composite": get_field("composite"),
+            "name": get_field("name"),
+            "fmt": get_field("fmt"),
+            "default": get_field("default"),
+            "min": get_field("min"),
+            "max": get_field("max"),
+            "dist_expr": get_field("dist_expr"),
         }
 
     def generate_func(self, mapping: dict[str, str]) -> Callable:
         """Wrap model evaluation function."""
-        op = self.attrs['name']
+        op = self.attrs["name"]
         lh, rh = self.predecessor
         m1 = lh.generate_func(mapping)
         m2 = rh.generate_func(mapping)
-        type1 = lh.attrs['mtype']
-        type2 = rh.attrs['mtype']
+        type1 = lh.attrs["mtype"]
+        type2 = rh.attrs["mtype"]
 
         # notation: p=params, e=egrid, f=flux, ff=flux_func
-        if op == '+':
+        if op == "+":
+
             def wrapper_add_add(p, e, *_):
                 """add + add"""
                 return m1(p, e) + m2(p, e)
 
             return wrapper_add_add
 
-        if type1 != 'con':  # type1 is add or mul
-            if type2 != 'con':  # type2 is add or mul
+        if type1 != "con":  # type1 is add or mul
+            if type2 != "con":  # type2 is add or mul
+
                 def wrapper_op(p, e, *_):  # add * add not allowed
                     """add * mul, mul * add, mul * mul"""
                     return m1(p, e) * m2(p, e)
@@ -732,7 +729,8 @@ class ModelOperationNode(OperationNode):
                 return wrapper_op
 
             else:  # type2 is con
-                if rh.attrs['is_ncon']:  # type2 is ncon
+                if rh.attrs["is_ncon"]:  # type2 is ncon
+
                     def wrapper_mul_ncon(p, e, f, ff):
                         """mul * ncon"""
                         return m1(p, e) * m2(p, e, f, ff)
@@ -740,6 +738,7 @@ class ModelOperationNode(OperationNode):
                     return wrapper_mul_ncon
 
                 else:  # type2 is con
+
                     def wrapper_mul_con(p, e, f, *_):
                         """mul * con"""
                         return m1(p, e) * m2(p, e, f)
@@ -747,17 +746,20 @@ class ModelOperationNode(OperationNode):
                     return wrapper_mul_con
 
         else:  # type1 is con
-            if lh.attrs['is_ncon']:  # type1 is ncon
-                if type2 == 'add':
+            if lh.attrs["is_ncon"]:  # type1 is ncon
+                if type2 == "add":
+
                     def wrapper_ncon_add(p, e, *_):
                         """ncon * add"""
                         return m1(p, e, m2(p, e), m2)
 
                     return wrapper_ncon_add
 
-                elif type2 == 'mul':
+                elif type2 == "mul":
+
                     def wrapper_ncon_mul(p, e, f, ff):
                         """ncon * mul"""
+
                         def m2_ff(p_, e_, *_):
                             """mul * add, this will be * by ncon"""
                             return m2(p_, e_) * ff(p_, e_)
@@ -767,8 +769,10 @@ class ModelOperationNode(OperationNode):
                     return wrapper_ncon_mul
 
                 else:  # type2 == 'con'
+
                     def wrapper_ncon_con(p, e, f, ff):
                         """ncon * con"""
+
                         def m2_ff(p_, e_, *_):
                             """con * add, this will be * by ncon"""
                             return m2(p_, e_, ff(p_, e_))
@@ -778,14 +782,16 @@ class ModelOperationNode(OperationNode):
                     return wrapper_ncon_con
 
             else:  # type1 is con
-                if type2 == 'add':
+                if type2 == "add":
+
                     def wrapper_con_add(p, e, *_):
                         """con * add"""
                         return m1(p, e, m2(p, e))
 
                     return wrapper_con_add
 
-                elif type2 == 'mul':
+                elif type2 == "mul":
+
                     def wrapper_con_mul(p, e, f, *_):
                         """con * mul"""
                         return m1(p, e, m2(p, e) * f)
@@ -793,7 +799,8 @@ class ModelOperationNode(OperationNode):
                     return wrapper_con_mul
 
                 else:
-                    if rh.attrs['is_ncon']:
+                    if rh.attrs["is_ncon"]:
+
                         def wrapper_con_ncon(p, e, f, ff):
                             """con * ncon"""
                             return m1(p, e, m2(p, e, f, ff))
@@ -801,6 +808,7 @@ class ModelOperationNode(OperationNode):
                         return wrapper_con_ncon
 
                     else:
+
                         def wrapper_con_con(p, e, f, *_):
                             """con * con"""
                             return m1(p, e, m2(p, e, f))
@@ -823,29 +831,29 @@ class LabelSpace:
         self.node = node
 
         self._label_space = {
-            'name': self._get_sub_nodes_label('name'),
-            'fmt': self._get_sub_nodes_label('fmt')
+            "name": self._get_sub_nodes_label("name"),
+            "fmt": self._get_sub_nodes_label("fmt"),
         }
 
         self._label_map = {
-            'name': self._get_suffix_mapping('name'),
-            'fmt': self._get_suffix_mapping('fmt')
+            "name": self._get_suffix_mapping("name"),
+            "fmt": self._get_suffix_mapping("fmt"),
         }
 
     @property
     def name(self) -> str:
         """Node name with node id replaced by number."""
-        return self._label('name')
+        return self._label("name")
 
     @property
     def fmt(self) -> str:
         """Node fmt with node id replaced by number."""
-        return self._label('fmt')
+        return self._label("fmt")
 
     @staticmethod
     def _check_label_type(label_type) -> None:
         """Check if label_type is name or fmt."""
-        if label_type != 'name' and label_type != 'fmt':
+        if label_type != "name" and label_type != "fmt":
             raise ValueError('`label_type` should be "name" or "fmt"')
 
     def _get_sub_nodes_label(self, label_type) -> list[tuple]:
@@ -870,7 +878,7 @@ class LabelSpace:
         while node_stack:
             i = node_stack.pop(0)
 
-            if not i.attrs['is_operation']:
+            if not i.attrs["is_operation"]:
                 # record address, name and fmt of the sub-node
                 labels.append((i, i.attrs[label_type]))
 
@@ -902,15 +910,15 @@ class LabelSpace:
         while node_stack:
             i = node_stack.pop(0)
 
-            if not i.attrs['is_operation']:
-                name = i.attrs['name']
+            if not i.attrs["is_operation"]:
+                name = i.attrs["name"]
                 label = i.attrs[label_type]
-                id_ = i.attrs['id']
+                id_ = i.attrs["id"]
 
                 # check label collision
                 if label not in label_space:  # no label collision found
                     label_space[label] = [id_]  # record label and node id
-                    id_to_str[f'{name}_{id_}'] = label
+                    id_to_str[f"{name}_{id_}"] = label
 
                 else:  # there is a label collision
                     same_label_nodes = label_space[label]
@@ -919,11 +927,11 @@ class LabelSpace:
                         same_label_nodes.append(id_)  # record node id
                         num = len(same_label_nodes)
 
-                        if label_type == 'name':
+                        if label_type == "name":
                             str_ = str(num)
                         else:
-                            str_ = '_{%d}' % num
-                        id_to_str[f'{name}_{id_}'] = label + str_
+                            str_ = "_{%d}" % num
+                        id_to_str[f"{name}_{id_}"] = label + str_
 
             else:  # push predecessors to the node stack
                 node_stack = i.predecessor + node_stack
@@ -934,7 +942,7 @@ class LabelSpace:
     def mapping(self) -> dict:
         """Label space of name and fmt."""
         # name is not allowed to be changed in our case, ok to check fmt only
-        self._check_if_label_changed('fmt')
+        self._check_if_label_changed("fmt")
 
         return self._label_map
 

@@ -1,5 +1,5 @@
-import os
 import json
+import os
 from json import JSONEncoder
 
 import arviz as az
@@ -9,37 +9,48 @@ import pymc as pm
 import pytensor.tensor as pt
 import scienceplots
 import xarray as xr
-from .data import Data
-from .likelihood import chi, cstat, pstat, pgstat, wstat, fpstat
-from .model.base import SpectralModel
-from .plot import (
-    _plot_data, _plot_ldata,
-    _plot_ufspec, _plot_eufspec, _plot_eeufspec,
-    _plot_icounts, _plot_icounts_residual,
-    _plot_residuals, _plot_delchi, _plot_ratio,
-    _plot_deviance, _plot_sign_deviance, _plot_sign_deviance2
-)
-from .plot import plot_corner, plot_ppc
-from .sampling import sample_numpyro_nuts, sample_posterior_predictive
 from iminuit import Minuit
 from jacobi import propagate
-from numdifftools import Gradient, Jacobian, Hessian
+from numdifftools import Gradient, Hessian, Jacobian
 from pytensor import function
 from scipy import stats
 from scipy.optimize import minimize
 from tqdm import tqdm
 
+from .data import Data
+from .likelihood import chi, cstat, fpstat, pgstat, pstat, wstat
+from .model.base import SpectralModel
+from .plot import (
+    _plot_data,
+    _plot_delchi,
+    _plot_deviance,
+    _plot_eeufspec,
+    _plot_eufspec,
+    _plot_icounts,
+    _plot_icounts_residual,
+    _plot_ldata,
+    _plot_ratio,
+    _plot_residuals,
+    _plot_sign_deviance,
+    _plot_sign_deviance2,
+    _plot_ufspec,
+    plot_corner,
+    plot_ppc,
+)
+from .sampling import sample_numpyro_nuts, sample_posterior_predictive
+
 
 class Infer:
-    stat_options = ('chi', 'cstat', 'pstat', 'pgstat', 'wstat', 'fpstat')
+    stat_options = ("chi", "cstat", "pstat", "pgstat", "wstat", "fpstat")
     _stat_func = {
-        'chi': chi,
-        'cstat': cstat,
-        'pstat': pstat,
-        'pgstat': pgstat,
-        'wstat': wstat,
-        'fpstat': fpstat
+        "chi": chi,
+        "cstat": cstat,
+        "pstat": pstat,
+        "pgstat": pgstat,
+        "wstat": wstat,
+        "fpstat": fpstat,
     }
+
     def __init__(self, data, model, stat, seed=42):
         data_list, model_list, stat_list = self._check_input(data, model, stat)
 
@@ -82,13 +93,13 @@ class Infer:
             self._stat[name] = stat
 
         self._root = self._get_root()
-        for root, name, default in zip(self._root['root'],
-                                       self._root['name'],
-                                       self._root['default']):
+        for root, name, default in zip(
+            self._root["root"], self._root["name"], self._root["default"]
+        ):
             self._pymc_model.register_rv(root, name, initval=default)
 
         self._rv = self._get_rv()
-        for rv, name in zip(self._rv['rv'], self._rv['name']):
+        for rv, name in zip(self._rv["rv"], self._rv["name"]):
             pm.Deterministic(name, rv, self._pymc_model)
 
         self._values = self._get_values()
@@ -97,15 +108,15 @@ class Infer:
         for name in self._data_name:
             params = self._model[name].params
             self._params[name] = {
-                'name': params['name'],
-                'default': np.array(params['default']),
-                'frozen': np.array(params['frozen']),
+                "name": params["name"],
+                "default": np.array(params["default"]),
+                "frozen": np.array(params["frozen"]),
             }
 
         dof = 0
         for d in self._data.values():
             dof += d.channel.size
-        dof -= len(self._root['root'])
+        dof -= len(self._root["root"])
         self._dof = dof
 
     def save(self, path):
@@ -113,76 +124,88 @@ class Infer:
             os.makedirs(path)
 
         if self._idata:
-            az.to_netcdf(self._idata, f'{path}/idata.nc')
+            az.to_netcdf(self._idata, f"{path}/idata.nc")
 
         if self._idata_boot:
-            az.to_netcdf(self._idata, f'{path}/idata_boot.nc')
+            az.to_netcdf(self._idata, f"{path}/idata_boot.nc")
 
         if self._ppc_result:
             dic = {}
             for k, v in self._ppc_result.items():
                 if isinstance(v, xr.Dataset):
-                    v.to_netcdf(f'{path}/ppc_{k}.nc')
+                    v.to_netcdf(f"{path}/ppc_{k}.nc")
                 else:
                     dic.update({k: v})
 
-            with open(f'{path}/ppc.json', 'w') as f:
+            with open(f"{path}/ppc.json", "w") as f:
                 json.dump(dic, f, indent=4, cls=NumpyArrayEncoder)
 
         if self._boot_result:
             dic = {}
             for k, v in self._boot_result.items():
                 if isinstance(v, xr.Dataset):
-                    v.to_netcdf(f'{path}/boot_{k}.nc', )
+                    v.to_netcdf(
+                        f"{path}/boot_{k}.nc",
+                    )
                 else:
                     dic.update({k: v})
 
-            with open(f'{path}/boot.json', 'w') as f:
+            with open(f"{path}/boot.json", "w") as f:
                 json.dump(dic, f, indent=4, cls=NumpyArrayEncoder)
 
     def restore(self, path):
-        idata_path = f'{path}/idata.nc'
+        idata_path = f"{path}/idata.nc"
         if os.path.exists(idata_path):
             self._idata = az.from_netcdf(idata_path)
 
-        idata_boot_path = f'{path}/idata_boot.nc'
+        idata_boot_path = f"{path}/idata_boot.nc"
         if os.path.exists(idata_boot_path):
             self._idata_boot = az.from_netcdf(idata_boot_path)
 
-        ppc_path = f'{path}/ppc.json'
+        ppc_path = f"{path}/ppc.json"
         if os.path.exists(ppc_path):
             with open(ppc_path) as file:
                 self._ppc_result = json.load(file)
 
-            self._ppc_result['data'] = xr.open_dataset(f'{path}/ppc_data.nc')
-            self._ppc_result['fitted_rv'] = xr.open_dataset(f'{path}/ppc_fitted_rv.nc')
-            self._ppc_result['init_rv'] = xr.open_dataset(f'{path}/ppc_init_rv.nc')
+            self._ppc_result["data"] = xr.open_dataset(f"{path}/ppc_data.nc")
+            self._ppc_result["fitted_rv"] = xr.open_dataset(
+                f"{path}/ppc_fitted_rv.nc"
+            )
+            self._ppc_result["init_rv"] = xr.open_dataset(
+                f"{path}/ppc_init_rv.nc"
+            )
 
-        boot_path = f'{path}/boot.json'
+        boot_path = f"{path}/boot.json"
         if os.path.exists(boot_path):
             with open(boot_path) as file:
                 self._boot_result = json.load(file)
 
-            self._boot_result['data'] = xr.open_dataset(f'{path}/boot_data.nc')
-            self._boot_result['init_rv'] = xr.open_dataset(f'{path}/boot_init_rv.nc')
-            self._boot_result['fitted_rv'] = xr.open_dataset(f'{path}/boot_fitted_rv.nc')
+            self._boot_result["data"] = xr.open_dataset(f"{path}/boot_data.nc")
+            self._boot_result["init_rv"] = xr.open_dataset(
+                f"{path}/boot_init_rv.nc"
+            )
+            self._boot_result["fitted_rv"] = xr.open_dataset(
+                f"{path}/boot_fitted_rv.nc"
+            )
 
     def mle(self, init=None):
         if init is None:
-            init = self._root_to_values(self._root['default'])
+            init = self._root_to_values(self._root["default"])
         else:
             raise NotImplementedError(
-                'setting initial values is not supported yet'
+                "setting initial values is not supported yet"
             )
 
-        res = minimize(self._deviance, init, method='L-BFGS-B')
-        if res.success and res.fun/self._dof <= 1.5:
+        res = minimize(self._deviance, init, method="L-BFGS-B")
+        if res.success and res.fun / self._dof <= 1.5:
             init = res.x
 
-        m = Minuit(self._deviance,
-                   init,
-                   # grad=Gradient(self._deviance),
-                   name=[v.name for v in self._values])
+        m = Minuit(
+            self._deviance,
+            init,
+            # grad=Gradient(self._deviance),
+            name=[v.name for v in self._values],
+        )
         m.strategy = 0
         m.migrad()
         max_it = 10
@@ -194,15 +217,15 @@ class Infer:
 
         # m.minos()
         self._mle_result = {
-            'minuit': m,
-            'values': np.asarray(m.values),
-            'root': self._values_to_root(m.values),
-            'rv': self._values_to_rv(m.values),
-            'deviance': {
-                'total': m.fmin.fval,
-                'group': self._deviance_group(m.values),
-                'point': self._deviance_point(m.values)
-            }
+            "minuit": m,
+            "values": np.asarray(m.values),
+            "root": self._values_to_root(m.values),
+            "rv": self._values_to_rv(m.values),
+            "deviance": {
+                "total": m.fmin.fval,
+                "group": self._deviance_group(m.values),
+                "point": self._deviance_point(m.values),
+            },
         }
 
         # net_counts = []
@@ -221,25 +244,25 @@ class Infer:
         k = m.npar
         n = self._dof + m.npar
 
-        mle = self._mle_result['rv']
+        mle = self._mle_result["rv"]
         try:
             se = self.se()
         except:
             se = {}
             for name in self._get_pars_name(pars=None):
                 for i in range(len(mle)):
-                    if name == self._rv['name'][i]:
+                    if name == self._rv["name"][i]:
                         se[name] = (mle[i], np.nan)
 
         mle_info = {
-            'pars': se,
-            'stat': m.fmin.fval,
-            'dof': self._dof,
+            "pars": se,
+            "stat": m.fmin.fval,
+            "dof": self._dof,
             # 'gof': stats.chi2.sf(m.fmin.fval, self._dof),
             # 'edf': edf,
-            'aic': m.fmin.fval + 2 * k + 2 * k * (k + 1) / (n - k - 1),
-            'bic': m.fmin.fval + k * np.log(n),
-            'valid': m.fmin.is_valid,
+            "aic": m.fmin.fval + 2 * k + 2 * k * (k + 1) / (n - k - 1),
+            "bic": m.fmin.fval + k * np.log(n),
+            "valid": m.fmin.is_valid,
             # 'edm': m.fmin.edm
         }
 
@@ -250,10 +273,10 @@ class Infer:
     def se(self, pars=None, robust=False):
         if self._mle_result is None:
             raise RuntimeError(
-                'MLE must be performed before calculating standard error'
+                "MLE must be performed before calculating standard error"
             )
 
-        mle_ = self._mle_result['values']
+        mle_ = self._mle_result["values"]
         if robust:
             cov_ = self._values_robust_covar(mle_)
         else:
@@ -264,7 +287,7 @@ class Infer:
         se_dict = {}
         for name in self._get_pars_name(pars):
             for i in range(len(mle)):
-                if name == self._rv['name'][i]:
+                if name == self._rv["name"][i]:
                     se_dict[name] = (mle[i], err[i])
 
         return se_dict
@@ -423,35 +446,37 @@ class Infer:
         if self._mle_result is None:
             self.mle()
 
-        if self._boot_result is None or self._boot_result['n'] != n:
-            mle_root = self._mle_result['root']
+        if self._boot_result is None or self._boot_result["n"] != n:
+            mle_root = self._mle_result["root"]
             root = {
-                name: (('chain', 'draw'), np.full((1, n), mle_root[i]))
-                for i, name in enumerate(self._root['name'])
+                name: (("chain", "draw"), np.full((1, n), mle_root[i]))
+                for i, name in enumerate(self._root["name"])
             }
-            mle_rv = self._mle_result['rv']
+            mle_rv = self._mle_result["rv"]
             rv = {
-                name: (('chain', 'draw'), np.full((1, n), mle_rv[i]))
-                for i, name in enumerate(self._rv['name'])
+                name: (("chain", "draw"), np.full((1, n), mle_rv[i]))
+                for i, name in enumerate(self._rv["name"])
             }
 
             mle_dataset = xr.Dataset(
                 data_vars=dict(**root, **rv),
                 coords={
-                    'chain': ('chain', np.arange(1)),
-                    'draw': ('draw', np.arange(n))
-                }
+                    "chain": ("chain", np.arange(1)),
+                    "draw": ("draw", np.arange(n)),
+                },
             )
 
             self._idata_boot = az.InferenceData(posterior=mle_dataset)
 
-            self._boot_result = self._simulate_and_fit(self._idata_boot, n, True)
+            self._boot_result = self._simulate_and_fit(
+                self._idata_boot, n, True
+            )
 
     def ppc(self, n=1000):
         if self._idata is None:
-            raise ValueError('run MCMC before ppc')
+            raise ValueError("run MCMC before ppc")
 
-        if self._ppc_result is None or self._ppc_result['n'] != n:
+        if self._ppc_result is None or self._ppc_result["n"] != n:
             self._ppc_result = self._simulate_and_fit(self._idata, n, False)
 
     def _simulate_and_fit(self, idata, n, is_bootstrap):
@@ -461,39 +486,39 @@ class Infer:
                 model=self._pymc_model,
                 random_seed=self.seed,
                 progressbar=False,
-                extend_inferencedata=True
+                extend_inferencedata=True,
             )
 
             # calculate net counts
             sim_net = []
             channel = []
-            pred = idata['posterior_predictive']
+            pred = idata["posterior_predictive"]
             for name, data in self._data.items():
-                counts = pred[f'{name}_Non']
+                counts = pred[f"{name}_Non"]
 
-                if f'{name}_Noff' in pred:
+                if f"{name}_Noff" in pred:
                     alpha = data.spec_exposure / data.back_exposure
-                    counts = counts - alpha * pred[f'{name}_Noff']
+                    counts = counts - alpha * pred[f"{name}_Noff"]
 
-                idata['posterior_predictive'][f'{name}_Net'] = counts
+                idata["posterior_predictive"][f"{name}_Net"] = counts
                 sim_net.append(counts)
                 channel.extend(data.channel)
 
-            idata['posterior_predictive']['all_channel'] = (
-                ('chain', 'draw', 'channel'),
-                np.concatenate(sim_net, axis=2)
+            idata["posterior_predictive"]["all_channel"] = (
+                ("chain", "draw", "channel"),
+                np.concatenate(sim_net, axis=2),
             )
 
-            idata = idata.assign_coords({'channel': channel})
+            idata = idata.assign_coords({"channel": channel})
 
-            init_values = np.tile(self._mle_result['values'], (n, 1))
+            init_values = np.tile(self._mle_result["values"], (n, 1))
 
-            pred = idata['posterior_predictive']
+            pred = idata["posterior_predictive"]
             data = {}
             for i in self._data_name:
-                data[f'{i}_spec_counts'] = pred[f'{i}_Non'].values[0]
-                if f'{i}_Noff' in pred.keys():
-                    data[f'{i}_back_counts'] = pred[f'{i}_Noff'].values[0]
+                data[f"{i}_spec_counts"] = pred[f"{i}_Non"].values[0]
+                if f"{i}_Noff" in pred.keys():
+                    data[f"{i}_back_counts"] = pred[f"{i}_Noff"].values[0]
 
             chain_idx = np.zeros(n, dtype=np.int64)
             draw_idx = np.arange(n, dtype=np.int64)
@@ -501,11 +526,11 @@ class Infer:
         else:  # posterior prediction
             # pymc has performance issue on posterior prediction,
             # so a custom implementation is used here
-            if 'posterior_predictive' not in idata.groups():
+            if "posterior_predictive" not in idata.groups():
                 sample_posterior_predictive(idata, self._stat, self.seed)
 
-            post = idata['posterior']
-            pred = idata['posterior_predictive']
+            post = idata["posterior"]
+            pred = idata["posterior_predictive"]
             n_chain = pred.chain.size
             n_draw = pred.draw.size
 
@@ -513,15 +538,21 @@ class Infer:
             chain_idx = rng.integers(0, n_chain, n)
             draw_idx = rng.integers(0, n_draw, n)
 
-            init_root = [post[r].values[chain_idx, draw_idx] for r in self._root['name']]
+            init_root = [
+                post[r].values[chain_idx, draw_idx] for r in self._root["name"]
+            ]
             init_root = np.ascontiguousarray(np.transpose(init_root))
             init_values = self._root_to_values(init_root)
 
             data = {}
             for i in self._data_name:
-                data[f'{i}_spec_counts'] = pred[f'{i}_Non'].values[chain_idx, draw_idx]
-                if f'{i}_Noff' in pred.keys():
-                    data[f'{i}_back_counts'] = pred[f'{i}_Noff'].values[chain_idx, draw_idx]
+                data[f"{i}_spec_counts"] = pred[f"{i}_Non"].values[
+                    chain_idx, draw_idx
+                ]
+                if f"{i}_Noff" in pred.keys():
+                    data[f"{i}_back_counts"] = pred[f"{i}_Noff"].values[
+                        chain_idx, draw_idx
+                    ]
 
         fitted_values = np.empty_like(init_values)
         deviance_total = np.empty(n)
@@ -530,13 +561,17 @@ class Infer:
         flag = np.full(n, True)
 
         try:
-            for i in tqdm(range(n), desc='Fit'):
-                pm.set_data({k: v[i] for k, v in data.items()}, self._pymc_model)
+            for i in tqdm(range(n), desc="Fit"):
+                pm.set_data(
+                    {k: v[i] for k, v in data.items()}, self._pymc_model
+                )
 
-                fit_result = minimize(fun=self._deviance,
-                                      x0=init_values[i],
-                                      method='L-BFGS-B',
-                                      jac='2-point')
+                fit_result = minimize(
+                    fun=self._deviance,
+                    x0=init_values[i],
+                    method="L-BFGS-B",
+                    jac="2-point",
+                )
 
                 if fit_result.success:
                     fitted_values[i] = fit_result.x
@@ -551,11 +586,11 @@ class Infer:
 
         finally:
             data_obs = {}
-            observed = idata['observed_data']
+            observed = idata["observed_data"]
             for i in self._data_name:
-                data_obs[f'{i}_spec_counts'] = observed[f'{i}_Non'].values
-                if f'{i}_Noff' in observed:
-                    data_obs[f'{i}_back_counts'] = observed[f'{i}_Noff'].values
+                data_obs[f"{i}_spec_counts"] = observed[f"{i}_Non"].values
+                if f"{i}_Noff" in observed:
+                    data_obs[f"{i}_back_counts"] = observed[f"{i}_Noff"].values
 
             pm.set_data(data_obs, self._pymc_model)
 
@@ -569,74 +604,77 @@ class Infer:
             for i in range(len(self._data_name))
         ]
 
-        deviance_total_obs = self._mle_result['deviance']['total']
-        deviance_group_obs = self._mle_result['deviance']['group']
-        deviance_point_obs = self._mle_result['deviance']['point']
+        deviance_total_obs = self._mle_result["deviance"]["total"]
+        deviance_group_obs = self._mle_result["deviance"]["group"]
+        deviance_point_obs = self._mle_result["deviance"]["point"]
 
         n_valid = int(flag.sum())
         p_value_total = np.sum(deviance_total >= deviance_total_obs) / n_valid
-        p_value_group = np.sum(deviance_group >= deviance_group_obs, axis=0) / n_valid
+        p_value_group = (
+            np.sum(deviance_group >= deviance_group_obs, axis=0) / n_valid
+        )
         p_value_point = [
             np.sum(sim >= obs, axis=0) / n_valid
             for obs, sim in zip(deviance_point_obs, deviance_point)
         ]
 
         valid_idx = np.flatnonzero(flag)
-        coords = {
-            'chain': ('chain', [0]),
-            'draw': ('draw', valid_idx)
-        }
+        coords = {"chain": ("chain", [0]), "draw": ("draw", valid_idx)}
 
         init_rv = np.expand_dims(init_rv, axis=0)
         init_rv = xr.Dataset(
             data_vars={
-                name: (('chain', 'draw'), init_rv[..., i])
-                for i, name in enumerate(self._rv['name'])
+                name: (("chain", "draw"), init_rv[..., i])
+                for i, name in enumerate(self._rv["name"])
             },
-            coords=coords
+            coords=coords,
         )
 
         fitted_rv = np.expand_dims(fitted_rv, axis=0)
         fitted_root = np.expand_dims(fitted_root, axis=0)
         data_vars = {
-            name: (('chain', 'draw'), fitted_rv[..., i])
-            for i, name in enumerate(self._rv['name'])
+            name: (("chain", "draw"), fitted_rv[..., i])
+            for i, name in enumerate(self._rv["name"])
         }
-        data_vars.update({
-            name: (('chain', 'draw'), fitted_root[..., i])
-            for i, name in enumerate(self._root['name'])
-        })
+        data_vars.update(
+            {
+                name: (("chain", "draw"), fitted_root[..., i])
+                for i, name in enumerate(self._root["name"])
+            }
+        )
         fitted_rv = xr.Dataset(data_vars=data_vars, coords=coords)
 
-        coords.update({
-            k: v
-            for k, v in idata['posterior_predictive'].coords.items()
-            if k not in ('chain', 'draw')
-        })
+        coords.update(
+            {
+                k: v
+                for k, v in idata["posterior_predictive"].coords.items()
+                if k not in ("chain", "draw")
+            }
+        )
         sim_data = xr.Dataset(
             data_vars={
                 k: (v.dims, v.values[None, chain_idx[flag], draw_idx[flag]])
-                for k, v in idata['posterior_predictive'].items()
+                for k, v in idata["posterior_predictive"].items()
             },
-            coords=coords
+            coords=coords,
         )
 
         result = {
-            'data': sim_data,
-            'init_rv': init_rv,
-            'fitted_rv': fitted_rv,
-            'deviance': {
-                'total': deviance_total,
-                'group': deviance_group,
-                'point': deviance_point
+            "data": sim_data,
+            "init_rv": init_rv,
+            "fitted_rv": fitted_rv,
+            "deviance": {
+                "total": deviance_total,
+                "group": deviance_group,
+                "point": deviance_point,
             },
-            'p_value': {
-                'total': p_value_total,
-                'group': p_value_group,
-                'point': p_value_point
+            "p_value": {
+                "total": p_value_total,
+                "group": p_value_group,
+                "point": p_value_point,
             },
-            'n': n,
-            'n_valid': n_valid
+            "n": n,
+            "n_valid": n_valid,
         }
 
         return result
@@ -793,7 +831,7 @@ class Infer:
     #
     #     return res
 
-    def ci(self, method='quantile', cl=1.0, pars=None, nboot=1000):
+    def ci(self, method="quantile", cl=1.0, pars=None, nboot=1000):
         pars_name = self._get_pars_name(pars)
 
         if self._mle_result is None:
@@ -802,42 +840,41 @@ class Infer:
         if cl >= 1.0:
             cl = 1.0 - stats.norm.sf(cl) * 2.0
 
-        m = self._mle_result['minuit']
-        mle_ = self._mle_result['values']
+        m = self._mle_result["minuit"]
+        mle_ = self._mle_result["values"]
         mle = self._values_to_rv(mle_)
 
-        if method == 'quantile':
+        if method == "quantile":
             if self._idata is None:
                 raise ValueError(
-                    'run MCMC before calculating credible interval'
+                    "run MCMC before calculating credible interval"
                 )
-            ci_ = self._idata['posterior'].quantile(
-                q=[0.5 - cl / 2.0, 0.5, 0.5 + cl / 2.0],
-                dim=['chain', 'draw']
+            ci_ = self._idata["posterior"].quantile(
+                q=[0.5 - cl / 2.0, 0.5, 0.5 + cl / 2.0], dim=["chain", "draw"]
             )
             lower_ = ci_.sel(quantile=0.5 - cl / 2.0)
-            lower = [lower_[i].values for i in self._rv['name']]
+            lower = [lower_[i].values for i in self._rv["name"]]
             upper_ = ci_.sel(quantile=0.5 + cl / 2.0)
-            upper = [upper_[i].values for i in self._rv['name']]
+            upper = [upper_[i].values for i in self._rv["name"]]
             mle_ = ci_.sel(quantile=0.5)
-            mle = [float(mle_[i].values) for i in self._rv['name']]
+            mle = [float(mle_[i].values) for i in self._rv["name"]]
 
-        elif method == 'hdi':
+        elif method == "hdi":
             if self._idata is None:
                 raise ValueError(
-                    'run MCMC before calculating credible interval'
+                    "run MCMC before calculating credible interval"
                 )
 
             hdi = az.hdi(self._idata, cl)
-            lower_ = hdi.sel(hdi='lower')
-            lower = [lower_[i].values for i in self._rv['name']]
-            upper_ = hdi.sel(hdi='higher')
-            upper = [upper_[i].values for i in self._rv['name']]
+            lower_ = hdi.sel(hdi="lower")
+            lower = [lower_[i].values for i in self._rv["name"]]
+            upper_ = hdi.sel(hdi="higher")
+            upper = [upper_[i].values for i in self._rv["name"]]
 
-        elif method == 'se' or method == 'rse':
+        elif method == "se" or method == "rse":
             sigma = stats.norm.isf(0.5 - cl / 2.0)
 
-            if method == 'rse':
+            if method == "rse":
                 cov_ = self._values_robust_covar(mle_)
             else:
                 cov_ = self._values_covar(mle_)
@@ -846,17 +883,17 @@ class Infer:
             lower_ = []
             upper_ = []
             for i in range(len(mle_)):
-                lower_.append(mle_[i] - sigma*err_[i])
-                upper_.append(mle_[i] + sigma*err_[i])
+                lower_.append(mle_[i] - sigma * err_[i])
+                upper_.append(mle_[i] + sigma * err_[i])
 
             lower = self._values_to_rv(lower_)
             upper = self._values_to_rv(upper_)
 
-        elif method == 'profile':
+        elif method == "profile":
             m.minos(cl=cl)
-            self._mle_result['values'] = np.array(m.values)
+            self._mle_result["values"] = np.array(m.values)
 
-            mle_ = self._mle_result['values']
+            mle_ = self._mle_result["values"]
             lower_ = []
             upper_ = []
             for i in range(len(mle_)):
@@ -875,7 +912,7 @@ class Infer:
             lower = self._values_to_rv(lower_)
             upper = self._values_to_rv(upper_)
 
-        elif method == 'boot':
+        elif method == "boot":
             if self._boot_result is None:
                 self.bootstrap(nboot)
 
@@ -887,14 +924,13 @@ class Infer:
             # lower = lower_
             # upper = upper_
 
-            ci_ = self._boot_result['fitted_rv'].quantile(
-                q=[0.5 - cl / 2.0, 0.5 + cl / 2.0],
-                dim=['chain', 'draw']
+            ci_ = self._boot_result["fitted_rv"].quantile(
+                q=[0.5 - cl / 2.0, 0.5 + cl / 2.0], dim=["chain", "draw"]
             )
             lower_ = ci_.sel(quantile=0.5 - cl / 2.0)
-            lower = [lower_[i].values for i in self._rv['name']]
+            lower = [lower_[i].values for i in self._rv["name"]]
             upper_ = ci_.sel(quantile=0.5 + cl / 2.0)
-            upper = [upper_[i].values for i in self._rv['name']]
+            upper = [upper_[i].values for i in self._rv["name"]]
 
             # lower_, upper_ = np.quantile(
             #     self._pars_boot.to_array().values,
@@ -919,17 +955,18 @@ class Infer:
         ci = {}
         for name in pars_name:
             for i in range(len(mle)):
-                if name == self._rv['name'][i]:
-                    if self._rv['super'][i] and method not in ['hdi', 'boot']:
-                        ci[name] = self.ci('boot', cl, name)[name]
+                if name == self._rv["name"][i]:
+                    if self._rv["super"][i] and method not in ["hdi", "boot"]:
+                        ci[name] = self.ci("boot", cl, name)[name]
                     else:
                         ci[name] = (
-                            mle[i], lower[i] - mle[i], upper[i] - mle[i]
+                            mle[i],
+                            lower[i] - mle[i],
+                            upper[i] - mle[i],
                         )
         return ci
 
-    def mcmc_nest(self):
-        ...
+    def mcmc_nest(self): ...
 
     def mcmc_nuts(
         self,
@@ -939,48 +976,50 @@ class Infer:
         jitter=False,
         chains=4,
         target_accept=0.8,
-        **kwargs
+        **kwargs,
     ):
         if init_mle:
             if self._mle_result is None:
                 self.mle()
 
-            mle_root = self._mle_result['root']
-            initvals = {p: v for p, v in zip(self._root['name'], mle_root)}
+            mle_root = self._mle_result["root"]
+            initvals = {p: v for p, v in zip(self._root["name"], mle_root)}
             initvals = [initvals] * 4
         else:
             initvals = None
 
-        idata = sample_numpyro_nuts(draws=draws,
-                                    tune=tune,
-                                    chains=chains,
-                                    target_accept=target_accept,
-                                    random_seed=self.seed,
-                                    initvals=initvals,
-                                    jitter=jitter,
-                                    idata_kwargs={'log_likelihood': True},
-                                    model=self._pymc_model,
-                                    **kwargs)
+        idata = sample_numpyro_nuts(
+            draws=draws,
+            tune=tune,
+            chains=chains,
+            target_accept=target_accept,
+            random_seed=self.seed,
+            initvals=initvals,
+            jitter=jitter,
+            idata_kwargs={"log_likelihood": True},
+            model=self._pymc_model,
+            **kwargs,
+        )
 
-        log_likelihood = idata['log_likelihood']
+        log_likelihood = idata["log_likelihood"]
 
         dims_to_sum = [
-            d for d in log_likelihood.dims.keys()
-            if d not in ['chain', 'draw']
+            d for d in log_likelihood.dims.keys() if d not in ["chain", "draw"]
         ]
-        lnL_sum = log_likelihood.sum(dims_to_sum).to_array().sum('variable')
+        lnL_sum = log_likelihood.sum(dims_to_sum).to_array().sum("variable")
 
         lnL = []
         channel = []
         net = []
         for name in self._data_name:
-            lnL_i = log_likelihood[name + '_Non'].values
-            if f'{name}_Noff' in log_likelihood.data_vars:
-                lnL_i = lnL_i + log_likelihood[f'{name}_Noff'].values
+            lnL_i = log_likelihood[name + "_Non"].values
+            if f"{name}_Noff" in log_likelihood.data_vars:
+                lnL_i = lnL_i + log_likelihood[f"{name}_Noff"].values
             lnL.append(lnL_i)
-            channel.extend(log_likelihood[f'{name}_channel'].values)
-            idata['log_likelihood'][f'{name}_Net'] = (
-                ('chain', 'draw', f'{name}_channel'), lnL_i
+            channel.extend(log_likelihood[f"{name}_channel"].values)
+            idata["log_likelihood"][f"{name}_Net"] = (
+                ("chain", "draw", f"{name}_channel"),
+                lnL_i,
             )
 
             data = self._data[name]
@@ -989,23 +1028,24 @@ class Infer:
                 back_counts = data.back_counts
                 factor = data.spec_exposure / data.back_exposure
                 counts = counts - factor * back_counts
-            idata['observed_data'][f'{name}_Net'] = (
-                (f'{name}_channel',), counts
+            idata["observed_data"][f"{name}_Net"] = (
+                (f"{name}_channel",),
+                counts,
             )
             net.append(counts)
 
-        idata['log_likelihood']['all_channel'] = (
-            ('chain', 'draw', 'channel'),
-            np.concatenate(lnL, axis=-1)
+        idata["log_likelihood"]["all_channel"] = (
+            ("chain", "draw", "channel"),
+            np.concatenate(lnL, axis=-1),
         )
-        idata['log_likelihood']['total'] = lnL_sum
+        idata["log_likelihood"]["total"] = lnL_sum
 
-        idata['observed_data']['all_channel'] = (
-            ('channel',),
-            np.concatenate(net, axis=-1)
+        idata["observed_data"]["all_channel"] = (
+            ("channel",),
+            np.concatenate(net, axis=-1),
         )
 
-        self._idata = idata.assign_coords({'channel': channel})
+        self._idata = idata.assign_coords({"channel": channel})
 
     # def plot_ppc(self, nsim=1000, cl=0.95):
     #     if self._idata is None:
@@ -1204,36 +1244,36 @@ class Infer:
 
     def plot_data(
         self,
-        format='ldata sdev icnt',
+        format="ldata sdev icnt",
         plot_comps=True,
         sim=None,
         n=1000,
         show_pars=None,
         fig_path=None,
-        c=1
+        c=1,
     ):
         supported_plots = {
-            'data': _plot_data,
-            'ldata': _plot_ldata,
-            'uf': _plot_ufspec,
-            'euf': _plot_eufspec,
-            'eeuf': _plot_eeufspec,
-            'icnt': _plot_icounts,
-            'icntresd': _plot_icounts_residual,
-            'resd': _plot_residuals,
-            'ratio': _plot_ratio,
-            'delchi': _plot_delchi,
-            'dev': _plot_deviance,
-            'sdev': _plot_sign_deviance,
-            'sdev2': _plot_sign_deviance2,
+            "data": _plot_data,
+            "ldata": _plot_ldata,
+            "uf": _plot_ufspec,
+            "euf": _plot_eufspec,
+            "eeuf": _plot_eeufspec,
+            "icnt": _plot_icounts,
+            "icntresd": _plot_icounts_residual,
+            "resd": _plot_residuals,
+            "ratio": _plot_ratio,
+            "delchi": _plot_delchi,
+            "dev": _plot_deviance,
+            "sdev": _plot_sign_deviance,
+            "sdev2": _plot_sign_deviance2,
         }
 
-        plots = format.split(' ')
+        plots = format.split(" ")
         for i in plots:
             if i not in supported_plots:
                 raise ValueError(
-                    f'{i} plot not supported, availables are '
-                    f'{list(supported_plots.keys())}'
+                    f"{i} plot not supported, availables are "
+                    f"{list(supported_plots.keys())}"
                 )
         plot_funcs = [supported_plots[i] for i in plots]
 
@@ -1241,23 +1281,23 @@ class Infer:
             self.mle()
 
         if sim is not None:
-            if sim == 'boot':
+            if sim == "boot":
                 if self._boot_result is None:
                     self.bootstrap(n)
-                data_sim = self._boot_result['data']
-                rv_dist = self._boot_result['fitted_rv']
-                rv_fit = self._boot_result['fitted_rv']
-                deviance_dist = self._boot_result['deviance']['point']
-                p_value = self._boot_result['p_value']['total']
+                data_sim = self._boot_result["data"]
+                rv_dist = self._boot_result["fitted_rv"]
+                rv_fit = self._boot_result["fitted_rv"]
+                deviance_dist = self._boot_result["deviance"]["point"]
+                p_value = self._boot_result["p_value"]["total"]
 
-            elif sim == 'ppc':
+            elif sim == "ppc":
                 if self._ppc_result is None:
                     self.ppc()
-                data_sim = self._ppc_result['data']
-                rv_dist = self._ppc_result['init_rv']
-                rv_fit = self._ppc_result['fitted_rv']
-                deviance_dist = self._ppc_result['deviance']['point']
-                p_value = self._ppc_result['p_value']['total']
+                data_sim = self._ppc_result["data"]
+                rv_dist = self._ppc_result["init_rv"]
+                rv_fit = self._ppc_result["fitted_rv"]
+                deviance_dist = self._ppc_result["deviance"]["point"]
+                p_value = self._ppc_result["p_value"]["total"]
 
             else:
                 raise ValueError('`sim_type` must be "boot" or "ppc"')
@@ -1272,7 +1312,12 @@ class Infer:
         if data_sim is not None:
             use_data_sim = False
             plot_use_data_sim = [
-                'icnt', 'icntresd', 'resd', 'ratio', 'delchi', 'sdev2'
+                "icnt",
+                "icntresd",
+                "resd",
+                "ratio",
+                "delchi",
+                "sdev2",
             ]
             for i in plots:
                 if i in plot_use_data_sim:
@@ -1280,50 +1325,40 @@ class Infer:
                     break
             if use_data_sim:
                 data_sim = [
-                    data_sim[f'{i}_Net'].values[0] for i in self._data_name
+                    data_sim[f"{i}_Net"].values[0] for i in self._data_name
                 ]
             else:
                 data_sim = None
 
         if rv_dist is not None:
             use_rv_dist = False
-            plot_use_rv_dist = [
-                'data', 'ldata', 'uf', 'euf', 'eeuf'
-            ]
+            plot_use_rv_dist = ["data", "ldata", "uf", "euf", "eeuf"]
             for i in plots:
                 if i in plot_use_rv_dist:
                     use_rv_dist = True
                     break
             if use_rv_dist:
-                rv_dist = [
-                    rv_dist[i].values[0] for i in self._rv['name']
-                ]
+                rv_dist = [rv_dist[i].values[0] for i in self._rv["name"]]
                 rv_dist = np.column_stack(rv_dist)
             else:
                 rv_dist = None
 
         if rv_fit is not None:
             use_rv_fit = False
-            plot_use_rv_fit = [
-                'icntresd', 'resd', 'ratio', 'delchi', 'sdev2'
-            ]
+            plot_use_rv_fit = ["icntresd", "resd", "ratio", "delchi", "sdev2"]
             for i in plots:
                 if i in plot_use_rv_fit:
                     use_rv_fit = True
                     break
             if use_rv_fit:
-                rv_fit = [
-                    rv_fit[i].values[0] for i in self._rv['name']
-                ]
+                rv_fit = [rv_fit[i].values[0] for i in self._rv["name"]]
                 rv_fit = np.column_stack(rv_fit)
             else:
                 rv_fit = None
 
         if deviance_dist is not None:
             use_deviance_dist = False
-            plot_use_deviance_dist = [
-                'dev', 'sdev', 'sdev2'
-            ]
+            plot_use_deviance_dist = ["dev", "sdev", "sdev2"]
             for i in plots:
                 if i in plot_use_deviance_dist:
                     use_deviance_dist = True
@@ -1333,48 +1368,63 @@ class Infer:
 
         colors = {
             1: (
-                '#0C5DA5', '#00B945', '#FF9500', '#FF2C00', '#845B97',
-                '#474747', '#9e9e9e'
+                "#0C5DA5",
+                "#00B945",
+                "#FF9500",
+                "#FF2C00",
+                "#845B97",
+                "#474747",
+                "#9e9e9e",
             ),
             2: (
-                "#0d49fb", "#e6091c", "#26eb47", "#8936df", "#fec32d",
-                "#25d7fd"
+                "#0d49fb",
+                "#e6091c",
+                "#26eb47",
+                "#8936df",
+                "#fec32d",
+                "#25d7fd",
             ),
             3: (
-                '#4477AA', '#EE6677', '#228833', '#CCBB44', '#66CCEE',
-                '#AA3377', '#BBBBBB'
-            )
+                "#4477AA",
+                "#EE6677",
+                "#228833",
+                "#CCBB44",
+                "#66CCEE",
+                "#AA3377",
+                "#BBBBBB",
+            ),
         }[c]
 
-        markers = ['s', 'o', 'D', '^', 'd', 'p', 'h', 'H', 'D']
+        markers = ["s", "o", "D", "^", "d", "p", "h", "H", "D"]
 
-        with plt.style.context(['nature', 'science']):
-            plt.rcParams['font.family'] = 'Times New Roman'
-            plt.rcParams['font.serif'] = 'Times New Roman'
-            plt.rcParams['text.latex.preamble'] += r' \usepackage{mathptmx}'
+        with plt.style.context(["nature", "science"]):
+            plt.rcParams["font.family"] = "Times New Roman"
+            plt.rcParams["font.serif"] = "Times New Roman"
+            plt.rcParams["text.latex.preamble"] += r" \usepackage{mathptmx}"
             hr = {
-                'data': 1.6,
-                'ldata': 1.6,
-                'uf': 1.6,
-                'euf': 1.6,
-                'eeuf': 1.6,
-                'icnt': 1,
-                'icntresd': 1,
-                'resd': 1,
-                'ratio': 1,
-                'delchi': 1,
-                'dev': 1,
-                'sdev': 1,
-                'sdev2': 1,
+                "data": 1.6,
+                "ldata": 1.6,
+                "uf": 1.6,
+                "euf": 1.6,
+                "eeuf": 1.6,
+                "icnt": 1,
+                "icntresd": 1,
+                "resd": 1,
+                "ratio": 1,
+                "delchi": 1,
+                "dev": 1,
+                "sdev": 1,
+                "sdev2": 1,
             }
             height_ratios = [hr[i] for i in plots]
-            width = 1.25*sum(height_ratios)
+            width = 1.25 * sum(height_ratios)
             fig, axes = plt.subplots(
-                len(plots), 1,
+                len(plots),
+                1,
                 sharex=True,
-                gridspec_kw={'height_ratios': height_ratios},
-                figsize=[width/3*4, width],
-                dpi=200
+                gridspec_kw={"height_ratios": height_ratios},
+                figsize=[width / 3 * 4, width],
+                dpi=200,
             )
             fig.subplots_adjust(hspace=0, wspace=0)
             fig.align_ylabels(axes)
@@ -1388,13 +1438,15 @@ class Infer:
 
                 pars_info = []
                 for pname in pars_name:
-                    best, err = mle['pars'][pname]
-                    pars_info.append(
-                        rf'{pname}: {best:.2f}$\pm${err:.2f}'
-                    )
-                axes[0].annotate('\n'.join(pars_info),
-                                 xy=(0.04, 0.05), xycoords='axes fraction',
-                                 ha='left', va='bottom')
+                    best, err = mle["pars"][pname]
+                    pars_info.append(rf"{pname}: {best:.2f}$\pm${err:.2f}")
+                axes[0].annotate(
+                    "\n".join(pars_info),
+                    xy=(0.04, 0.05),
+                    xycoords="axes fraction",
+                    ha="left",
+                    va="bottom",
+                )
 
             rv_to_pars = self._rv_to_params
             alpha = 0.6
@@ -1409,7 +1461,7 @@ class Infer:
                 marker = markers[i]
                 data = self._data[data_name]
                 model = self._model[data_name]
-                pars = rv_to_pars(self._mle_result['rv'], data_name)
+                pars = rv_to_pars(self._mle_result["rv"], data_name)
 
                 if rv_dist is not None:
                     pars_dist = rv_to_pars(rv_dist, data_name)
@@ -1431,14 +1483,22 @@ class Infer:
                 else:
                     deviance_dist_ = None
 
-                deviance_obs = self._mle_result['deviance']['point'][i]
+                deviance_obs = self._mle_result["deviance"]["point"][i]
 
                 args = [
-                    data, model, pars,
-                    marker, color, alpha, plot_comps,
-                    pars_dist, pars_fit, data_sim_,
-                    deviance_obs, deviance_dist_,
-                    hdi
+                    data,
+                    model,
+                    pars,
+                    marker,
+                    color,
+                    alpha,
+                    plot_comps,
+                    pars_dist,
+                    pars_fit,
+                    data_sim_,
+                    deviance_obs,
+                    deviance_dist_,
+                    hdi,
                 ]
 
                 for ax, f in zip(axes, plot_funcs):
@@ -1446,54 +1506,58 @@ class Infer:
 
             xlim_left = np.min([d.ch_emin.min() for d in self._data.values()])
             xlim_right = np.max([d.ch_emax.max() for d in self._data.values()])
-            axes[0].set_xlim(xlim_left*0.93, xlim_right*1.07)
-            axes[0].set_xscale('log')
-            axes[0].legend(frameon=True, loc='upper right')
-            title = f'{model.expression}'
-            stat = mle['stat']
-            dof = mle['dof']
-            title += f', stat/dof={stat/dof:.2f} ({stat:.2f}/{dof})'
+            axes[0].set_xlim(xlim_left * 0.93, xlim_right * 1.07)
+            axes[0].set_xscale("log")
+            axes[0].legend(frameon=True, loc="upper right")
+            title = f"{model.expression}"
+            stat = mle["stat"]
+            dof = mle["dof"]
+            title += f", stat/dof={stat/dof:.2f} ({stat:.2f}/{dof})"
             if p_value is not None:
-                if sim == 'ppc':
-                    sim_str = 'Posterior Predictive'
+                if sim == "ppc":
+                    sim_str = "Posterior Predictive"
                 else:
-                    sim_str = 'Bootstrap'
-                title += f', {sim_str} $p$-value={p_value:.3f}'
+                    sim_str = "Bootstrap"
+                title += f", {sim_str} $p$-value={p_value:.3f}"
             axes[0].set_title(title)
-            axes[-1].set_xlabel('Energy [keV]')
+            axes[-1].set_xlabel("Energy [keV]")
 
             for i, plot in enumerate(plots):
-                if plot == 'data' or plot == 'ldata':
-                    axes[i].set_ylabel('$C_E$ [s$^{-1}$ keV$^{-1}$]')
-                elif plot == 'uf':
-                    axes[i].set_ylabel('$N_E$ [cm$^{-2}$ s$^{-1}$ keV$^{-1}$]')
-                elif plot == 'euf':
-                    axes[i].set_ylabel('$EN_E$ [erg cm$^{-2}$ s$^{-1}$ keV$^{-1}$]')
-                elif plot == 'eeuf':
-                    axes[i].set_ylabel('$E^2 N_E$ [erg cm$^{-2}$ s$^{-1}$]')
-                elif plot == 'icnt':
-                    axes[i].set_ylabel('Integrated Counts')
-                elif plot == 'icntresd':
-                    axes[i].set_ylabel('Icounts $-$ Imodel')
-                    axes[i].axhline(0, ls='--', c='gray', zorder=0, lw=1)
-                elif plot == 'resd':
-                    axes[i].set_ylabel('Data $-$ Model')
-                    axes[i].axhline(0, ls='--', c='gray', zorder=0, lw=1)
-                elif plot == 'ratio':
-                    axes[i].set_ylabel('Data/Model')
-                    axes[i].axhline(1, ls='--', c='gray', zorder=0, lw=1)
-                elif plot == 'delchi':
-                    axes[i].set_ylabel('(Data$-$Model)/Error')
-                    axes[i].axhline(0, ls='--', c='gray', zorder=0, lw=1)
-                elif plot == 'dev':
-                    axes[i].set_ylabel('Deviance')
-                elif plot == 'sdev' or plot == 'sdev2':
-                    axes[i].set_ylabel('sign * Deviance$^{1/2}$')
-                    axes[i].axhline(0, ls='--', c='gray', zorder=0, lw=1)
+                if plot == "data" or plot == "ldata":
+                    axes[i].set_ylabel("$C_E$ [s$^{-1}$ keV$^{-1}$]")
+                elif plot == "uf":
+                    axes[i].set_ylabel("$N_E$ [cm$^{-2}$ s$^{-1}$ keV$^{-1}$]")
+                elif plot == "euf":
+                    axes[i].set_ylabel(
+                        "$EN_E$ [erg cm$^{-2}$ s$^{-1}$ keV$^{-1}$]"
+                    )
+                elif plot == "eeuf":
+                    axes[i].set_ylabel("$E^2 N_E$ [erg cm$^{-2}$ s$^{-1}$]")
+                elif plot == "icnt":
+                    axes[i].set_ylabel("Integrated Counts")
+                elif plot == "icntresd":
+                    axes[i].set_ylabel("Icounts $-$ Imodel")
+                    axes[i].axhline(0, ls="--", c="gray", zorder=0, lw=1)
+                elif plot == "resd":
+                    axes[i].set_ylabel("Data $-$ Model")
+                    axes[i].axhline(0, ls="--", c="gray", zorder=0, lw=1)
+                elif plot == "ratio":
+                    axes[i].set_ylabel("Data/Model")
+                    axes[i].axhline(1, ls="--", c="gray", zorder=0, lw=1)
+                elif plot == "delchi":
+                    axes[i].set_ylabel("(Data$-$Model)/Error")
+                    axes[i].axhline(0, ls="--", c="gray", zorder=0, lw=1)
+                elif plot == "dev":
+                    axes[i].set_ylabel("Deviance")
+                elif plot == "sdev" or plot == "sdev2":
+                    axes[i].set_ylabel("sign * Deviance$^{1/2}$")
+                    axes[i].axhline(0, ls="--", c="gray", zorder=0, lw=1)
 
-                if plot in ['ldata', 'uf'] and axes[i].get_ylim()[0] <= 1e-8:
+                if plot in ["ldata", "uf"] and axes[i].get_ylim()[0] <= 1e-8:
                     axes[i].set_ylim(bottom=1e-8)
-                elif plot in ['euf', 'eeuf'] and axes[i].get_ylim()[0] <= 1e-17:
+                elif (
+                    plot in ["euf", "eeuf"] and axes[i].get_ylim()[0] <= 1e-17
+                ):
                     axes[i].set_ylim(bottom=1e-17)
 
             if fig_path is not None:
@@ -1503,58 +1567,63 @@ class Infer:
 
     def plot_trace(self, root=False, back=False, fig_path=None):
         if self._idata is None:
-            raise ValueError('run MCMC before plotting trace')
+            raise ValueError("run MCMC before plotting trace")
 
-        var_names = list(self._rv['name'])
+        var_names = list(self._rv["name"])
         if root:
-            var_names.extend(self._root['name'])
+            var_names.extend(self._root["name"])
         if back:
             var_names.extend(
-                [p for p in self._idata.posterior.data_vars if '_BKG' in p]
+                [p for p in self._idata.posterior.data_vars if "_BKG" in p]
             )
-        with az.style.context(['arviz-darkgrid']):
+        with az.style.context(["arviz-darkgrid"]):
             az.plot_trace(self._idata, var_names=var_names, compact=False)
             if fig_path:
                 plt.gcf().savefig(fig_path)
 
     def plot_corner(
-            self, samples='mcmc', profile=True, root=False, level_idx=3,
-            smooth=0.0, fig_path=None, **kwargs
+        self,
+        samples="mcmc",
+        profile=True,
+        root=False,
+        level_idx=3,
+        smooth=0.0,
+        fig_path=None,
+        **kwargs,
     ):
-        if samples == 'mcmc':
+        if samples == "mcmc":
             if self._idata is None:
-                raise ValueError('run MCMC before plotting corner')
+                raise ValueError("run MCMC before plotting corner")
             idata = self._idata
 
-        elif samples == 'boot':
+        elif samples == "boot":
             if self._boot_result is None:
-                raise ValueError('run bootstrap before plotting corner')
-            idata = az.InferenceData(posterior=self._boot_result['fitted_rv'])
+                raise ValueError("run bootstrap before plotting corner")
+            idata = az.InferenceData(posterior=self._boot_result["fitted_rv"])
         else:
             raise ValueError('`samples` should be "mcmc" or "boot"')
 
-        var_names = list(self._rv['name'])
+        var_names = list(self._rv["name"])
         if root:
-            var_names.extend(self._root['name'])
+            var_names.extend(self._root["name"])
 
         plot_corner(
-            idata, var_names, profile, level_idx, smooth, fig_path,
-            **kwargs
+            idata, var_names, profile, level_idx, smooth, fig_path, **kwargs
         )
 
-    def loo(self, scale='deviance'):
+    def loo(self, scale="deviance"):
         if self._idata is None:
-            raise ValueError('run MCMC before calculating PSIS-LOO-CV')
+            raise ValueError("run MCMC before calculating PSIS-LOO-CV")
 
-        loo = az.loo(self._idata, var_name='all_channel', scale=scale)
+        loo = az.loo(self._idata, var_name="all_channel", scale=scale)
 
         return loo.elpd_loo, loo.se, loo.p_loo, loo.warning
 
-    def waic(self, scale='deviance'):
+    def waic(self, scale="deviance"):
         if self._idata is None:
-            raise ValueError('run MCMC before calculating WAIC')
+            raise ValueError("run MCMC before calculating WAIC")
 
-        waic = az.waic(self._idata, var_name='all_channel', scale=scale)
+        waic = az.waic(self._idata, var_name="all_channel", scale=scale)
 
         return waic.elpd_waic, waic.se, waic.p_waic, waic.warning
 
@@ -1563,7 +1632,7 @@ class Infer:
         data_list = list(np.atleast_1d(data))
         n_data = len(data_list)
         if n_data == 0:
-            raise ValueError('data is empty')
+            raise ValueError("data is empty")
 
         for d in data_list:
             if not isinstance(d, Data):
@@ -1575,7 +1644,7 @@ class Infer:
             if not isinstance(m, SpectralModel):
                 raise TypeError('model must be given in "SpectralModel" type')
             else:
-                if m.mtype != 'add':
+                if m.mtype != "add":
                     raise TypeError(
                         f'photon flux is undefined for "{m}", additive model '
                         'is required'
@@ -1583,14 +1652,14 @@ class Infer:
 
         n_model = len(model_list)
         if n_model == 0:
-            raise ValueError('model is empty')
+            raise ValueError("model is empty")
         elif n_model == 1:
             model_list *= n_data
         else:
             if n_model != n_data:
                 raise ValueError(
-                    f'data number ({n_data}) and model number ({n_model}) are '
-                    'not matched'
+                    f"data number ({n_data}) and model number ({n_model}) are "
+                    "not matched"
                 )
 
         # check stat
@@ -1598,23 +1667,22 @@ class Infer:
         for s in stat_list:
             if s not in self.stat_options:
                 raise ValueError(
-                    f'stat must be one of {self.stat_options}, but got {s}'
+                    f"stat must be one of {self.stat_options}, but got {s}"
                 )
 
         n_stat = len(stat_list)
         if n_data == 0:
-            raise ValueError('stat is empty')
+            raise ValueError("stat is empty")
         elif n_stat == 1:
             stat_list *= n_data
         else:
             if n_stat != n_data:
                 raise ValueError(
-                    f'data number ({n_data}) and stat number ({n_stat}) are '
-                    'not matched'
+                    f"data number ({n_data}) and stat number ({n_stat}) are "
+                    "not matched"
                 )
 
         return data_list, model_list, stat_list
-
 
     def _get_rv(self):
         rv = []
@@ -1624,18 +1692,18 @@ class Infer:
 
         for m in self._model.values():
             params = m.params
-            for i in range(len(params['rv'])):
-                if params['rv'][i] not in rv and not params['frozen'][i]:
-                    rv.append(params['rv'][i])
-                    name.append(params['name'][i])
-                    default.append(params['default'][i])
-                    super_.append(params['super'][i])
+            for i in range(len(params["rv"])):
+                if params["rv"][i] not in rv and not params["frozen"][i]:
+                    rv.append(params["rv"][i])
+                    name.append(params["name"][i])
+                    default.append(params["default"][i])
+                    super_.append(params["super"][i])
 
         return {
-            'rv': tuple(rv),
-            'name': tuple(name),
-            'default': tuple(default),
-            'super': tuple(super_)
+            "rv": tuple(rv),
+            "name": tuple(name),
+            "default": tuple(default),
+            "super": tuple(super_),
         }
 
     def _get_root(self):
@@ -1645,32 +1713,32 @@ class Infer:
 
         for m in self._model.values():
             r = m.root
-            for i in range(len(r['root'])):
-                if r['root'][i] not in root:
-                    root.append(r['root'][i])
-                    name.append(r['name'][i])
-                    default.append(r['default'][i])
+            for i in range(len(r["root"])):
+                if r["root"][i] not in root:
+                    root.append(r["root"][i])
+                    name.append(r["name"][i])
+                    default.append(r["default"][i])
 
         return {
-            'root': tuple(root),
-            'name': tuple(name),
-            'default': tuple(default)
+            "root": tuple(root),
+            "name": tuple(name),
+            "default": tuple(default),
         }
 
     def _get_values(self):
-        return [self._pymc_model.rvs_to_values[r] for r in self._root['root']]
+        return [self._pymc_model.rvs_to_values[r] for r in self._root["root"]]
 
     def _get_pars_name(self, pars):
         if pars is None:
-            pars = self._rv['name']
+            pars = self._rv["name"]
         else:
             if type(pars) == str:
                 pars = [pars]
-            elif not type(pars) in [list, tuple, set]:
-                raise TypeError('`pars` should be a list, tuple, or set')
+            elif type(pars) not in [list, tuple, set]:
+                raise TypeError("`pars` should be a list, tuple, or set")
 
             for p in pars:
-                if p not in self._rv['name']:
+                if p not in self._rv["name"]:
                     raise ValueError(
                         f'no parameters {p} in the model {self._rv["name"]})'
                     )
@@ -1679,7 +1747,9 @@ class Infer:
 
     def _deviance(self, values):
         if self.__deviance is None:
-            self.__deviance = function(self._values, -2 * self._pymc_model.observedlogp)
+            self.__deviance = function(
+                self._values, -2 * self._pymc_model.observedlogp
+            )
 
             # f = function(self._values, -2 * self._pymc_model.observedlogp)
             # self.__deviance = np.vectorize(
@@ -1694,14 +1764,16 @@ class Infer:
         if self.__deviance_group is None:
             logp = {
                 i.name: i
-                for i in self._pymc_model.logp(self._pymc_model.observed_RVs, sum=False)
+                for i in self._pymc_model.logp(
+                    self._pymc_model.observed_RVs, sum=False
+                )
             }
 
             data_logp = []
             for i in self._data_name:
-                logp_i = logp[f'{i}_spec_counts_logprob'].sum()
+                logp_i = logp[f"{i}_spec_counts_logprob"].sum()
 
-                logp_i_back = logp.get(f'{i}_back_counts_logprob')
+                logp_i_back = logp.get(f"{i}_back_counts_logprob")
                 if logp_i_back is not None:
                     logp_i = logp_i + logp_i_back.sum()
 
@@ -1722,14 +1794,16 @@ class Infer:
         if self.__deviance_point is None:
             logp = {
                 i.name: i
-                for i in self._pymc_model.logp(self._pymc_model.observed_RVs, sum=False)
+                for i in self._pymc_model.logp(
+                    self._pymc_model.observed_RVs, sum=False
+                )
             }
 
             point_logp = []
             for i in self._data_name:
-                logp_i = logp[f'{i}_spec_counts_logprob']
+                logp_i = logp[f"{i}_spec_counts_logprob"]
 
-                logp_i_back = logp.get(f'{i}_back_counts_logprob')
+                logp_i_back = logp.get(f"{i}_back_counts_logprob")
                 if logp_i_back is not None:
                     logp_i = logp_i + logp_i_back
 
@@ -1813,16 +1887,14 @@ class Infer:
             transforms = self._pymc_model.rvs_to_transforms
             root = self._root
 
-            scalar_inputs = [pt.scalar(r.name) for r in root['root']]
+            scalar_inputs = [pt.scalar(r.name) for r in root["root"]]
             scalar_res = [
                 transforms[r].backward(scalar, *r.owner.inputs)
-                for r, scalar in zip(root['root'], scalar_inputs)
+                for r, scalar in zip(root["root"], scalar_inputs)
             ]
             f = function(scalar_inputs, pt.stack(scalar_res))
             self.__values_to_root = np.vectorize(
-                lambda x: f(*x),
-                otypes=[np.float64],
-                signature='(i)->(j)'
+                lambda x: f(*x), otypes=[np.float64], signature="(i)->(j)"
             )
 
         return self.__values_to_root(values)
@@ -1832,11 +1904,9 @@ class Infer:
 
     def _root_to_rv(self, root_value):
         if self.__root_to_rv is None:
-            f = function(self._root['root'], pt.stack(self._rv['rv']))
+            f = function(self._root["root"], pt.stack(self._rv["rv"]))
             self.__root_to_rv = np.vectorize(
-                lambda x: f(*x),
-                otypes=[np.float64],
-                signature='(i)->(j)'
+                lambda x: f(*x), otypes=[np.float64], signature="(i)->(j)"
             )
 
         return self.__root_to_rv(root_value)
@@ -1846,31 +1916,28 @@ class Infer:
             transforms = self._pymc_model.rvs_to_transforms
             root = self._root
 
-            scalar_inputs = [pt.scalar() for _ in root['root']]
+            scalar_inputs = [pt.scalar() for _ in root["root"]]
             scalar_res = [
                 transforms[r].forward(scalar, *r.owner.inputs)
-                for r, scalar in zip(root['root'], scalar_inputs)
+                for r, scalar in zip(root["root"], scalar_inputs)
             ]
             f = function(scalar_inputs, pt.stack(scalar_res))
             self.__root_to_values = np.vectorize(
-                lambda x: f(*x),
-                otypes=[np.float64],
-                signature='(i)->(j)'
+                lambda x: f(*x), otypes=[np.float64], signature="(i)->(j)"
             )
 
         return self.__root_to_values(root_value)
 
     def _rv_to_params(self, rv_values, data_name):
         if self.__rv_to_params is None:
+
             def rv_to_params(rv, data_name):
                 params = self._params[data_name]
-                default = params['default']
-                frozen = params['frozen']
-                rv_name = self._rv['name']
+                default = params["default"]
+                frozen = params["frozen"]
+                rv_name = self._rv["name"]
                 param_name = [
-                    i
-                    for i, j in zip(params['name'], frozen)
-                    if not j
+                    i for i, j in zip(params["name"], frozen) if not j
                 ]
                 idx = np.array([rv_name.index(i) for i in param_name])
                 params_values = np.array(default)
@@ -1880,8 +1947,8 @@ class Infer:
             self.__rv_to_params = np.vectorize(
                 rv_to_params,
                 otypes=[np.float64],
-                excluded={'data_name'},
-                signature='(i)->(j)'
+                excluded={"data_name"},
+                signature="(i)->(j)",
             )
 
         return self.__rv_to_params(rv_values, data_name=data_name)
@@ -1917,8 +1984,8 @@ def EDFstat(data, model):
 
     _weight = M * np.abs(1 - M)
     mask = _weight != 0.0
-    with np.errstate(divide='ignore'):
-        weight = np.where(mask, 1.0/_weight, 0.0)
+    with np.errstate(divide="ignore"):
+        weight = np.where(mask, 1.0 / _weight, 0.0)
     ad = np.sum(diff_dF * weight, axis=1)
     log_ad = np.log(ad)
 
@@ -1955,45 +2022,40 @@ def draw_posterior_samples(idata, n, seed):
     rng = np.random.default_rng(seed)
     i = rng.integers(0, posterior.chain.size, n)
     j = rng.integers(0, posterior.draw.size, n)
-    coords = {
-        'chain': ('chain', [0]),
-        'draw': ('draw', np.arange(n))
-    }
-    coords.update({
-        k: v.values
-        for k, v in posterior.coords.items()
-        if k not in ['chain', 'draw']
-    })
+    coords = {"chain": ("chain", [0]), "draw": ("draw", np.arange(n))}
+    coords.update(
+        {
+            k: v.values
+            for k, v in posterior.coords.items()
+            if k not in ["chain", "draw"]
+        }
+    )
     posterior_dataset = xr.Dataset(
         data_vars={
             k: (v.coords.dims, np.expand_dims(v.values[i, j], axis=0))
             for k, v in posterior.data_vars.items()
         },
-        coords={
-            'chain': ('chain', [0]),
-            'draw': ('draw', np.arange(n))
-        }
+        coords={"chain": ("chain", [0]), "draw": ("draw", np.arange(n))},
     )
     idata2 = az.InferenceData(posterior=posterior_dataset)
 
-    if 'log_likelihood' in idata.groups():
+    if "log_likelihood" in idata.groups():
         log_likelihood = idata.log_likelihood
-        coords = {
-            'chain': ('chain', [0]),
-            'draw': ('draw', np.arange(n))
-        }
-        coords.update({
-            k: v.values
-            for k, v in log_likelihood.coords.items()
-            if k not in ['chain', 'draw']
-        })
+        coords = {"chain": ("chain", [0]), "draw": ("draw", np.arange(n))}
+        coords.update(
+            {
+                k: v.values
+                for k, v in log_likelihood.coords.items()
+                if k not in ["chain", "draw"]
+            }
+        )
         log_likelihood_dataset = xr.Dataset(
             data_vars={
                 k: (v.coords.dims, np.expand_dims(v.values[i, j], axis=0))
                 for k, v in log_likelihood.data_vars.items()
             },
-            coords=coords
+            coords=coords,
         )
-        idata2.add_groups({'log_likelihood': log_likelihood_dataset})
+        idata2.add_groups({"log_likelihood": log_likelihood_dataset})
 
     return idata2

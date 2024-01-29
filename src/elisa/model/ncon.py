@@ -1,4 +1,5 @@
 """Models of normalization convolution type."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -8,7 +9,7 @@ import jax.numpy as jnp
 
 from .base import Component, ParamConfig
 
-__all__ = ['EnFlux', 'PhFlux']
+__all__ = ["EnFlux", "PhFlux"]
 
 
 # TODO: for a faster calculation, flux_input can be reused
@@ -31,12 +32,7 @@ class NormalizationConvolution(Component, ABC):
 
     """
 
-    _extra_kw = (
-        ('emin',),
-        ('emax',),
-        ('ngrid', 1000),
-        ('elog', True)
-    )
+    _extra_kw = (("emin",), ("emax",), ("ngrid", 1000), ("elog", True))
 
     def __init__(
         self,
@@ -44,10 +40,10 @@ class NormalizationConvolution(Component, ABC):
         emax: float | int,
         ngrid: int = 1000,
         elog: bool = True,
-        **kwargs
+        **kwargs,
     ):
         if emin >= emax:
-            raise ValueError('emin must be less than emax')
+            raise ValueError("emin must be less than emax")
 
         self._emin = emin
         self._emax = emax
@@ -65,7 +61,7 @@ class NormalizationConvolution(Component, ABC):
         """Minimum value of photon energy grid"""
         value = float(value)
         if value >= self.emax:
-            raise ValueError('emin must be less than emax')
+            raise ValueError("emin must be less than emax")
         self._emin = value
 
     @property
@@ -78,13 +74,13 @@ class NormalizationConvolution(Component, ABC):
         """Maximum value of photon energy grid"""
         value = float(value)
         if value <= self._emin:
-            raise ValueError('emax must be larger than emin')
+            raise ValueError("emax must be larger than emin")
         self._emax = float(value)
 
     @property
     def type(self) -> str:
         """Model type is normalization convolution."""
-        return 'ncon'
+        return "ncon"
 
     @property
     def ngrid(self) -> int:
@@ -129,7 +125,7 @@ class NormalizationConvolution(Component, ABC):
 class PhFlux(NormalizationConvolution):
     _config = (
         ParamConfig(
-            'F', r'\mathcal{F}_\mathrm{ph}', 1.0, 0.01, 1e10, False, False
+            "F", r"\mathcal{F}_\mathrm{ph}", 1.0, 0.01, 1e10, False, False
         ),
     )
 
@@ -142,7 +138,7 @@ class PhFlux(NormalizationConvolution):
 class EnFlux(NormalizationConvolution):
     _config = (
         ParamConfig(
-            'F', r'\mathcal{F}_\mathrm{en}', 1e-12, 1e-30, 1e30, False, True
+            "F", r"\mathcal{F}_\mathrm{en}", 1e-12, 1e-30, 1e30, False, True
         ),
     )
 

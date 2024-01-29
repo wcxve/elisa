@@ -4,12 +4,14 @@ Various numerical method is defined here, calculating integral whose closed
 form expressions may not exist.
 
 """
+
 from __future__ import annotations
+
 from functools import wraps
 from inspect import signature
 from typing import Callable
 
-__all__ = ['integral', 'list_methods']
+__all__ = ["integral", "list_methods"]
 
 
 _trapezoid = """
@@ -32,9 +34,9 @@ def {name}(egrid, {def_str}):
 
 
 _template: dict = {
-    'default': _trapezoid,
-    'trapezoid': _trapezoid,
-    'simpson': _simpson
+    "default": _trapezoid,
+    "trapezoid": _trapezoid,
+    "simpson": _simpson,
 }
 
 
@@ -49,9 +51,9 @@ def integral(f: Callable, name: str, method: str) -> Callable:
         )
 
     params = list(signature(f).parameters.keys())[1:]
-    def_str = ', '.join(params)
-    call_str = ', '.join(map(lambda s: f'{s}={s}', params))
-    tmp = {'wraps': wraps, 'func': f}
+    def_str = ", ".join(params)
+    call_str = ", ".join(map(lambda s: f"{s}={s}", params))
+    tmp = {"wraps": wraps, "func": f}
     temp = _template[method]
     exec(temp.format(name=name, def_str=def_str, call_str=call_str), tmp)
 

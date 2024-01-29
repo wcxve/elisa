@@ -2,6 +2,7 @@
 Copy and adapt from
 https://github.com/pyro-ppl/numpyro/raw/master/numpyro/contrib/nested_sampling.py
 """
+
 # Copyright Contributors to the Pyro project.
 # SPDX-License-Identifier: Apache-2.0
 
@@ -14,12 +15,15 @@ import jax.numpy as jnp
 import numpyro
 import numpyro.distributions as dist
 import tensorflow_probability.substrates.jax as tfp
-
 from jax import random
 from numpyro.handlers import reparam, seed, trace
 from numpyro.infer import Predictive
 from numpyro.infer.reparam import Reparam
-from numpyro.infer.util import _guess_max_plate_nesting, _validate_model, log_density
+from numpyro.infer.util import (
+    _guess_max_plate_nesting,
+    _validate_model,
+    log_density,
+)
 
 __all__ = ["NestedSampler"]
 
@@ -34,10 +38,13 @@ def uniform_reparam_transform(d):
     """
     if isinstance(d, dist.TransformedDistribution):
         outer_transform = dist.transforms.ComposeTransform(d.transforms)
-        return lambda q: outer_transform(uniform_reparam_transform(d.base_dist)(q))
+        return lambda q: outer_transform(
+            uniform_reparam_transform(d.base_dist)(q)
+        )
 
     if isinstance(
-        d, (dist.Independent, dist.ExpandedDistribution, dist.MaskedDistribution)
+        d,
+        (dist.Independent, dist.ExpandedDistribution, dist.MaskedDistribution),
     ):
         return lambda q: uniform_reparam_transform(d.base_dist)(q)
 
@@ -63,7 +70,9 @@ def _(d):
 @uniform_reparam_transform.register(dist.CategoricalLogits)
 @uniform_reparam_transform.register(dist.CategoricalProbs)
 def _(d):
-    return lambda q: jnp.sum(jnp.cumsum(d.probs, axis=-1) < q[..., None], axis=-1)
+    return lambda q: jnp.sum(
+        jnp.cumsum(d.probs, axis=-1) < q[..., None], axis=-1
+    )
 
 
 @uniform_reparam_transform.register(dist.Dirichlet)
@@ -90,15 +99,20 @@ class UniformReparam(Reparam):
     """
 
     def __call__(self, name, fn, obs):
-        assert obs is None, "TransformReparam does not support observe statements"
+        assert (
+            obs is None
+        ), "TransformReparam does not support observe statements"
         shape = fn.shape()
         fn, expand_shape, event_dim = self._unwrap(fn)
         transform = uniform_reparam_transform(fn)
         tiny = jnp.finfo(jnp.result_type(float)).tiny
 
         x = numpyro.sample(
-            "{}_base".format(name),
-            dist.Uniform(tiny, 1).expand(shape).to_event(event_dim).mask(False),
+            f"{name}_base",
+            dist.Uniform(tiny, 1)
+            .expand(shape)
+            .to_event(event_dim)
+            .mask(False),
         )
         # Simulate a numpyro.deterministic() site.
         return None, transform(x)
@@ -178,6 +192,7 @@ class NestedSampler:
         # jaxns is import here because it runs jax program when importing
         logging.disable(logging.INFO)  # temporarily disable jaxns logging
         import jaxns
+
         logging.disable(logging.NOTSET)
         self._jaxns = jaxns
 
@@ -193,7 +208,9 @@ class NestedSampler:
 
         rng_sampling, rng_predictive = random.split(rng_key)
         # reparam the model so that latent sites have Uniform(0, 1) priors
-        prototype_trace = trace(seed(self.model, rng_key)).get_trace(*args, **kwargs)
+        prototype_trace = trace(seed(self.model, rng_key)).get_trace(
+            *args, **kwargs
+        )
         param_names = [
             site["name"]
             for site in prototype_trace.values()
@@ -217,7 +234,10 @@ class NestedSampler:
             for site in prototype_trace.values()
         )
         if has_enum:
-            from numpyro.contrib.funsor import enum, log_density as log_density_
+            from numpyro.contrib.funsor import (
+                enum,
+                log_density as log_density_,
+            )
 
             max_plate_nesting = _guess_max_plate_nesting(prototype_trace)
             _validate_model(prototype_trace)
@@ -281,7 +301,9 @@ class NestedSampler:
             rng_sampling,
             term_cond=jaxns.TerminationCondition(**self.termination_kwargs),
         )
-        results = ns.to_results(termination_reason=termination_reason, state=state)
+        results = ns.to_results(
+            termination_reason=termination_reason, state=state
+        )
 
         # transform base samples back to original domains
         # Here we only transform the first valid num_samples samples
@@ -319,7 +341,11 @@ class NestedSampler:
             num_samples = int(num_samples)
 
         return jaxns.resample(
-            rng_key, weighted_samples, sample_weights, S=num_samples, replace=True
+            rng_key,
+            weighted_samples,
+            sample_weights,
+            S=num_samples,
+            replace=True,
         )
 
     def get_weighted_samples(self):
@@ -368,8 +394,8 @@ def reparam_loglike(model, rng_key, *args, **kwargs):
         site["name"]
         for site in prototype_trace.values()
         if site["type"] == "sample"
-           and not site["is_observed"]
-           and site["infer"].get("enumerate", "") != "parallel"
+        and not site["is_observed"]
+        and site["infer"].get("enumerate", "") != "parallel"
     ]
     deterministics = [
         site["name"]
@@ -411,4 +437,9 @@ def reparam_loglike(model, rng_key, *args, **kwargs):
             reparam_model, samples, return_sites=param_names + deterministics
         )
         return predictive(rng_predictive, *args, **kwargs)
-    return local_dict["loglik_fn"], transform_back, [f"{name}_base" for name in param_names]
+
+    return (
+        local_dict["loglik_fn"],
+        transform_back,
+        [f"{name}_base" for name in param_names],
+    )

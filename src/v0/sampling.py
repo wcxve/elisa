@@ -1,7 +1,8 @@
 import sys
+from collections.abc import Sequence
 from datetime import datetime
 from functools import partial
-from typing import Dict, Literal, Optional, Sequence, Union
+from typing import Dict, Literal, Optional, Union
 
 import arviz as az
 import jax
@@ -12,18 +13,20 @@ from arviz.data.base import make_attrs
 from numpyro.infer import MCMC, NUTS
 from pymc import Model, modelcontext
 from pymc.backends.arviz import (
-    coords_and_dims_for_inferencedata, find_constants, find_observations
+    coords_and_dims_for_inferencedata,
+    find_constants,
+    find_observations,
 )
 from pymc.initial_point import StartDict
 from pymc.sampling.jax import (
-    get_jaxified_graph,
-    get_jaxified_logp,
     _get_batched_jittered_initial_points,
     _get_log_likelihood,
     _postprocess_samples,
     _sample_stats_to_xarray,
     _update_coords_and_dims,
     _update_numpyro_nuts_kwargs,
+    get_jaxified_graph,
+    get_jaxified_logp,
 )
 from pymc.util import (
     RandomState,
@@ -31,7 +34,7 @@ from pymc.util import (
     get_default_varnames,
 )
 
-__all__ = ['sample_numpyro_nuts']
+__all__ = ["sample_numpyro_nuts"]
 
 
 def sample_numpyro_nuts(
@@ -49,8 +52,8 @@ def sample_numpyro_nuts(
     chain_method: str = "parallel",
     postprocessing_backend: Literal["cpu", "gpu"] | None = None,
     postprocessing_vectorize: Literal["vmap", "scan"] = "scan",
-    idata_kwargs: Optional[Dict] = None,
-    nuts_kwargs: Optional[Dict] = None,
+    idata_kwargs: Optional[dict] = None,
+    nuts_kwargs: Optional[dict] = None,
 ) -> az.InferenceData:
     """
     Draw samples from the posterior using the NUTS method from the ``numpyro`` library.
@@ -119,7 +122,9 @@ def sample_numpyro_nuts(
     if var_names is None:
         var_names = model.unobserved_value_vars
 
-    vars_to_sample = list(get_default_varnames(var_names, include_transformed=keep_untransformed))
+    vars_to_sample = list(
+        get_default_varnames(var_names, include_transformed=keep_untransformed)
+    )
 
     coords = {
         cname: np.array(cvals) if isinstance(cvals, tuple) else cvals
@@ -142,7 +147,7 @@ def sample_numpyro_nuts(
         chains=chains,
         initvals=initvals,
         random_seed=random_seed,
-        jitter=jitter
+        jitter=jitter,
     )
 
     logp_fn = get_jaxified_logp(model, negative_logp=False)
@@ -192,9 +197,14 @@ def sample_numpyro_nuts(
     print("Sampling time = ", tic3 - tic2, file=sys.stdout)
 
     print("Transforming variables...", file=sys.stdout)
-    jax_fn = get_jaxified_graph(inputs=model.value_vars, outputs=vars_to_sample)
+    jax_fn = get_jaxified_graph(
+        inputs=model.value_vars, outputs=vars_to_sample
+    )
     result = _postprocess_samples(
-        jax_fn, raw_mcmc_samples, postprocessing_backend, postprocessing_vectorize
+        jax_fn,
+        raw_mcmc_samples,
+        postprocessing_backend,
+        postprocessing_vectorize,
     )
     mcmc_samples = {v.name: r for v, r in zip(vars_to_sample, result)}
 
@@ -243,7 +253,9 @@ def sample_numpyro_nuts(
     coords, dims = coords_and_dims_for_inferencedata(model)
     # Update 'coords' and 'dims' extracted from the model with user 'idata_kwargs'
     # and drop keys 'coords' and 'dims' from 'idata_kwargs' if present.
-    _update_coords_and_dims(coords=coords, dims=dims, idata_kwargs=idata_kwargs)
+    _update_coords_and_dims(
+        coords=coords, dims=dims, idata_kwargs=idata_kwargs
+    )
     # Use 'partial' to set default arguments before passing 'idata_kwargs'
     to_trace = partial(
         az.from_dict,
@@ -262,76 +274,82 @@ def sample_numpyro_nuts(
 def sample_posterior_predictive(idata, statistics_dict, seed):
     rng = np.random.default_rng(seed)
 
-    data_set = xr.Dataset(coords=idata['log_likelihood'].coords)
+    data_set = xr.Dataset(coords=idata["log_likelihood"].coords)
 
     all_channel = []
 
     for name, stat in statistics_dict.items():
-        coords = ('chain', 'draw', f'{name}_channel')
+        coords = ("chain", "draw", f"{name}_channel")
 
-        mu_on = idata['posterior'][f'{name}_TOTAL']
+        mu_on = idata["posterior"][f"{name}_TOTAL"]
 
-        if stat == 'chi':
-            sigma = idata['constant_data'][f'{name}_spec_error']
+        if stat == "chi":
+            sigma = idata["constant_data"][f"{name}_spec_error"]
             spec_counts = rng.normal(mu_on, sigma)
 
             all_channel.append(spec_counts)
-            data_set[f'{name}_Non'] = (coords, spec_counts)
-            data_set[f'{name}_Net'] = (coords, spec_counts)
+            data_set[f"{name}_Non"] = (coords, spec_counts)
+            data_set[f"{name}_Net"] = (coords, spec_counts)
 
-        elif stat == 'cstat':
+        elif stat == "cstat":
             spec_counts = rng.poisson(mu_on).astype(np.float64)
 
             all_channel.append(spec_counts)
-            data_set[f'{name}_Non'] = (coords, spec_counts)
-            data_set[f'{name}_Net'] = (coords, spec_counts)
+            data_set[f"{name}_Non"] = (coords, spec_counts)
+            data_set[f"{name}_Net"] = (coords, spec_counts)
 
-        elif stat == 'pstat':
+        elif stat == "pstat":
             spec_counts = rng.poisson(mu_on).astype(np.float64)
             back_counts = np.tile(
-                idata.constant_data[f'{name}_back_counts'],
-                (idata.posterior.chain.size, idata.posterior.draw.size, 1)
+                idata.constant_data[f"{name}_back_counts"],
+                (idata.posterior.chain.size, idata.posterior.draw.size, 1),
             )
-            a = idata.constant_data[f'{name}_spec_exposure'].data / \
-                idata.constant_data[f'{name}_back_exposure'].data
+            a = (
+                idata.constant_data[f"{name}_spec_exposure"].data
+                / idata.constant_data[f"{name}_back_exposure"].data
+            )
             net_counts = spec_counts - a * back_counts
 
             all_channel.append(net_counts)
-            data_set[f'{name}_Non'] = (coords, spec_counts)
-            data_set[f'{name}_Net'] = (coords, net_counts)
+            data_set[f"{name}_Non"] = (coords, spec_counts)
+            data_set[f"{name}_Net"] = (coords, net_counts)
 
-        elif stat == 'pgstat':
-            mu_off = idata['posterior'][f'{name}_BKG']
-            sigma = idata['constant_data'][f'{name}_back_error']
+        elif stat == "pgstat":
+            mu_off = idata["posterior"][f"{name}_BKG"]
+            sigma = idata["constant_data"][f"{name}_back_error"]
             spec_counts = rng.poisson(mu_on).astype(np.float64)
             back_counts = rng.normal(mu_off, sigma)
-            a = idata.constant_data[f'{name}_spec_exposure'].data / \
-                idata.constant_data[f'{name}_back_exposure'].data
+            a = (
+                idata.constant_data[f"{name}_spec_exposure"].data
+                / idata.constant_data[f"{name}_back_exposure"].data
+            )
             net_counts = spec_counts - a * back_counts
 
             all_channel.append(net_counts)
-            data_set[f'{name}_Non'] = (coords, spec_counts)
-            data_set[f'{name}_Noff'] = (coords, back_counts)
-            data_set[f'{name}_Net'] = (coords, net_counts)
+            data_set[f"{name}_Non"] = (coords, spec_counts)
+            data_set[f"{name}_Noff"] = (coords, back_counts)
+            data_set[f"{name}_Net"] = (coords, net_counts)
 
-        elif stat == 'wstat':
-            mu_off = idata['posterior'][f'{name}_BKG']
+        elif stat == "wstat":
+            mu_off = idata["posterior"][f"{name}_BKG"]
             spec_counts = rng.poisson(mu_on).astype(np.float64)
             back_counts = rng.poisson(mu_off).astype(np.float64)
-            a = idata.constant_data[f'{name}_spec_exposure'].data / \
-                idata.constant_data[f'{name}_back_exposure'].data
+            a = (
+                idata.constant_data[f"{name}_spec_exposure"].data
+                / idata.constant_data[f"{name}_back_exposure"].data
+            )
             net_counts = spec_counts - a * back_counts
 
             all_channel.append(net_counts)
-            data_set[f'{name}_Non'] = (coords, spec_counts)
-            data_set[f'{name}_Noff'] = (coords, back_counts)
-            data_set[f'{name}_Net'] = (coords, net_counts)
+            data_set[f"{name}_Non"] = (coords, spec_counts)
+            data_set[f"{name}_Noff"] = (coords, back_counts)
+            data_set[f"{name}_Net"] = (coords, net_counts)
 
         else:
             raise ValueError(f'statistic "{stat}" is not support')
 
     all_channel = np.concatenate(all_channel, axis=2)
-    data_set['all_channel'] = (('chain', 'draw', 'channel'), all_channel)
-    idata.add_groups({'posterior_predictive': data_set})
+    data_set["all_channel"] = (("chain", "draw", "channel"), all_channel)
+    idata.add_groups({"posterior_predictive": data_set})
 
     return idata

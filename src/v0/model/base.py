@@ -15,6 +15,7 @@ class SpectralParameter:
     rv : TensorVariable, must be overwritten
     rv_name : name of TensorVariable
     """
+
     # TODO: transformation from root to rv
     def __init__(self, name, component=None):
         self.component = component
@@ -24,7 +25,7 @@ class SpectralParameter:
     @property
     def name(self):
         if self._name is None:
-            return ''
+            return ""
         else:
             return self._name
 
@@ -52,7 +53,7 @@ class SpectralParameter:
     @property
     def component(self):
         if self._component is None:
-            return ''
+            return ""
         else:
             return self._component.name
 
@@ -88,7 +89,7 @@ class SpectralParameter:
         if self._component is None:
             return self.name
         else:
-            return f'{self.component}.{self.name}'
+            return f"{self.component}.{self.name}"
 
     @property
     def rv_default(self):
@@ -105,7 +106,7 @@ class SpectralParameter:
             raise TypeError(
                 f"unsupported operand type(s) for +: '{type1}' and '{type2}'"
             )
-        return SuperParameter(self, other, '+')
+        return SuperParameter(self, other, "+")
 
     def __mul__(self, other):
         if not isinstance(other, SpectralParameter):
@@ -114,7 +115,7 @@ class SpectralParameter:
             raise TypeError(
                 f"unsupported operand type(s) for *: '{type1}' and '{type2}'"
             )
-        return SuperParameter(self, other, '*')
+        return SuperParameter(self, other, "*")
 
     def __repr__(self):
         return self.rv_name
@@ -146,9 +147,9 @@ class SuperParameter(SpectralParameter):
             )
         else:
             self._component = value
-            if self._p1.component == '':
+            if self._p1.component == "":
                 self._p1.component = value
-            if self._p2.component == '':
+            if self._p2.component == "":
                 self._p2.component = value
 
     @SpectralParameter.root.getter
@@ -176,19 +177,19 @@ class SuperParameter(SpectralParameter):
         if self._component is None:
             return self.name
         else:
-            if '+' in self.name or '*' in self.name:
-                return f'{self.component}.({self.name})'
+            if "+" in self.name or "*" in self.name:
+                return f"{self.component}.({self.name})"
             else:
-                return f'{self.component}.{self.name}'
+                return f"{self.component}.{self.name}"
 
     @SpectralParameter.rv_default.getter
     def rv_default(self):
-        if self._operator == '+':
+        if self._operator == "+":
             return self._p1.rv_default + self._p2.rv_default
-        elif self._operator == '*':
+        elif self._operator == "*":
             return self._p1.rv_default * self._p2.rv_default
         else:
-            raise ValueError(f'{self._operator} is not supported')
+            raise ValueError(f"{self._operator} is not supported")
 
     @SpectralParameter.frozen.getter
     def frozen(self):
@@ -197,14 +198,14 @@ class SuperParameter(SpectralParameter):
     def _set_root_and_rv(self):
         self._root = self._get_root()
 
-        if self._operator == '+':
+        if self._operator == "+":
             self._rv = self._p1.rv + self._p2.rv
 
-        elif self._operator == '*':
+        elif self._operator == "*":
             self._rv = self._p1.rv * self._p2.rv
 
         else:
-            raise ValueError(f'{self._operator} is not supported')
+            raise ValueError(f"{self._operator} is not supported")
 
     def _get_root(self):
         root_list = self._p1.root + self._p2.root
@@ -219,33 +220,36 @@ class SuperParameter(SpectralParameter):
         return root
 
     def _get_expr(self):
-        if self._operator == '+':
-            return f'{self._p1.rv_name} + {self._p2.rv_name}'
+        if self._operator == "+":
+            return f"{self._p1.rv_name} + {self._p2.rv_name}"
 
-        elif self._operator == '*':
+        elif self._operator == "*":
             name1 = self._p1.rv_name
             name2 = self._p2.rv_name
 
-            if isinstance(self._p1, SuperParameter) \
-                and self._p1._operator == '+' \
-                and '+' in self._p1.name:
-                name1 = f'({name1})'
+            if (
+                isinstance(self._p1, SuperParameter)
+                and self._p1._operator == "+"
+                and "+" in self._p1.name
+            ):
+                name1 = f"({name1})"
 
-            if isinstance(self._p2, SuperParameter) \
-                and self._p2._operator == '+' \
-                and '+' in self._p2.name:
-                name2 = f'({name2})'
+            if (
+                isinstance(self._p2, SuperParameter)
+                and self._p2._operator == "+"
+                and "+" in self._p2.name
+            ):
+                name2 = f"({name2})"
 
-            return f'{name1} * {name2}'
+            return f"{name1} * {name2}"
 
         else:
-            raise ValueError(f'{self._operator} is not supported')
+            raise ValueError(f"{self._operator} is not supported")
 
 
 class UniformParameter(SpectralParameter):
     def __init__(
-        self, name, default, min, max,
-        frozen=False, log=False, component=None
+        self, name, default, min, max, frozen=False, log=False, component=None
     ):
         super().__init__(name, component)
         self._frozen = None
@@ -269,9 +273,9 @@ class UniformParameter(SpectralParameter):
             return []
         else:
             if self.log:
-                return [self.rv_name.replace(self.name, f'__ln({self.name})')]
+                return [self.rv_name.replace(self.name, f"__ln({self.name})")]
             else:
-                return [self.rv_name.replace(self.name, f'__{self.name}')]
+                return [self.rv_name.replace(self.name, f"__{self.name}")]
 
     @SpectralParameter.root_default.getter
     def root_default(self):
@@ -328,7 +332,7 @@ class UniformParameter(SpectralParameter):
         elif len(values) == 3:
             self._check_and_set_values(*values)
         else:
-            raise ValueError(f'wrong values ({value})')
+            raise ValueError(f"wrong values ({value})")
 
     @property
     def frozen(self):
@@ -376,18 +380,16 @@ class UniformParameter(SpectralParameter):
             _max = max
 
         if _min > _max:
-            raise ValueError(
-                f'min ({_min}) must not larger than max ({_max})'
-            )
+            raise ValueError(f"min ({_min}) must not larger than max ({_max})")
 
         if _default < _min:
             raise ValueError(
-                f'default value ({_default}) is smaller than min ({_min})'
+                f"default value ({_default}) is smaller than min ({_min})"
             )
 
         if _default > _max:
             raise ValueError(
-                f'default value ({_default}) is larger than max ({_max})'
+                f"default value ({_default}) is larger than max ({_max})"
             )
 
         if default is not None:
@@ -424,41 +426,47 @@ class UniformParameter(SpectralParameter):
 
 class NumericGradOp(pt.Op):
     optype = None
-    def __init__(self, pars, grad_method='c', eps=1e-7):
+
+    def __init__(self, pars, grad_method="c", eps=1e-7):
         if self.optype is None:
             raise TypeError(
                 '`optype` must be specified, supported are "add", "mul", and '
                 '"con"'
             )
 
-        if self.optype not in ['add', 'mul', 'con']:
+        if self.optype not in ["add", "mul", "con"]:
             raise ValueError(
                 f'wrong value ({self.optype}) for `optype`, supported are '
                 '"add", "mul", and "con"'
             )
 
         self._pars = [
-            p if type(p) == pt.TensorVariable
-            else pt.constant(p, dtype='floatX')
+            (
+                p
+                if type(p) == pt.TensorVariable
+                else pt.constant(p, dtype="floatX")
+            )
             for p in pars
         ]
         self._npars = len(pars)
         self.grad_method = grad_method
         self.eps = eps
-        self.otypes = [pt.TensorType('floatX', shape=(None,))]
+        self.otypes = [pt.TensorType("floatX", shape=(None,))]
 
     def __call__(self, ebins, flux=None):
-        if type(ebins) not in [pt.TensorVariable,
-                               pt.sharedvar.TensorSharedVariable]:
-            ebins = pt.constant(ebins, dtype='floatX')
+        if type(ebins) not in [
+            pt.TensorVariable,
+            pt.sharedvar.TensorSharedVariable,
+        ]:
+            ebins = pt.constant(ebins, dtype="floatX")
 
-        if self.optype != 'con':
+        if self.optype != "con":
             return super().__call__(*self._pars, ebins)
         else:
             if flux is None:
-                raise ValueError('`flux` is required for convolution model')
+                raise ValueError("`flux` is required for convolution model")
             if type(flux) != pt.TensorVariable:
-                flux = pt.constant(flux, dtype='floatX')
+                flux = pt.constant(flux, dtype="floatX")
 
             return super().__call__(*self._pars, ebins, flux)
 
@@ -468,7 +476,7 @@ class NumericGradOp(pt.Op):
 
     @eps.setter
     def eps(self, value):
-        self._eps = pt.constant(value, dtype='floatX')
+        self._eps = pt.constant(value, dtype="floatX")
 
     @property
     def grad_method(self):
@@ -476,7 +484,7 @@ class NumericGradOp(pt.Op):
 
     @grad_method.setter
     def grad_method(self, value):
-        if value not in ['b', 'c', 'f', 'n']:
+        if value not in ["b", "c", "f", "n"]:
             raise ValueError(
                 f'wrong value ({value}) for `grad_method`, supported '
                 'difference approximation types are "c" for central, '
@@ -497,8 +505,9 @@ class NumericGradOp(pt.Op):
     def grad(self, inputs, output_grads):
         # the last element of inputs is ebins
         # returns grad Op in backward mode
-        if self.grad_method not in ['c', 'n'] \
-                or (self.grad_method != 'n' and self.optype == 'con'):
+        if self.grad_method not in ["c", "n"] or (
+            self.grad_method != "n" and self.optype == "con"
+        ):
             self._tensor_output = self._create_tensor(*inputs)
 
         return [
@@ -519,26 +528,28 @@ class NumericGradOp(pt.Op):
         if index == self.npars:  # case for input is ebins
             return grad_not_implemented(self, index, inputs[index])
         elif index == self.npars + 1:  # case for input is flux
-            if self.grad_method != 'n':
+            if self.grad_method != "n":
                 # TODO: numeric gradient for convolution is the hardest part
                 warnings.warn(
-                    'gradient for convolution component is not implemented',
-                    GradientWarning
+                    "gradient for convolution component is not implemented",
+                    GradientWarning,
                 )
                 return grad_not_implemented(self, index, inputs[index])
             else:
                 return grad_not_implemented(self, index, inputs[index])
 
-        pars = inputs[:self.npars]
-        others = inputs[self.npars:]  # ebins, and possibly flux if "con" model
+        pars = inputs[: self.npars]
+        others = inputs[
+            self.npars :
+        ]  # ebins, and possibly flux if "con" model
 
-        if self.grad_method == 'f':
+        if self.grad_method == "f":
             # forward difference approximation
             pars[index] = pars[index] + self._eps
             flux_eps = self._create_tensor(*pars, *others)
             g = (flux_eps - self._tensor_output) / self._eps
             return pt.dot(output_grad, g)
-        elif self.grad_method == 'c':
+        elif self.grad_method == "c":
             # central difference approximation, accurate when compute hessian
             par_i = pars[index]
             pars[index] = par_i + self._eps
@@ -547,7 +558,7 @@ class NumericGradOp(pt.Op):
             flux_meps = self._create_tensor(*pars, *others)
             g = (flux_peps - flux_meps) / (2.0 * self._eps)
             return pt.dot(output_grad, g)
-        elif self.grad_method == 'b':
+        elif self.grad_method == "b":
             # backward difference approximation
             pars[index] = pars[index] - self._eps
             flux_eps = self._create_tensor(*pars, *others)
@@ -559,40 +570,46 @@ class NumericGradOp(pt.Op):
 
 class AutoGradOp:
     optype = None
-    def __init__(self, pars, integral_method='trapz'):
+
+    def __init__(self, pars, integral_method="trapz"):
         if self.optype is None:
             raise TypeError(
                 '`optype` must be specified, supported are "add", "mul", and '
                 '"con"'
             )
 
-        if self.optype not in ['add', 'mul', 'con']:
+        if self.optype not in ["add", "mul", "con"]:
             raise ValueError(
                 f'wrong value ({self.optype}) for `optype`, supported are '
                 '"add", "mul", and "con"'
             )
 
         self._pars = [
-            p if type(p) == pt.TensorVariable
-            else pt.constant(p, dtype='floatX')
+            (
+                p
+                if type(p) == pt.TensorVariable
+                else pt.constant(p, dtype="floatX")
+            )
             for p in pars
         ]
         self.integral_method = integral_method
 
     def __call__(self, ebins, flux=None):
-        if type(ebins) not in [pt.TensorVariable,
-                               pt.sharedvar.TensorSharedVariable]:
-            ebins = pt.constant(ebins, dtype='floatX')
+        if type(ebins) not in [
+            pt.TensorVariable,
+            pt.sharedvar.TensorSharedVariable,
+        ]:
+            ebins = pt.constant(ebins, dtype="floatX")
 
-        if self.optype == 'add':
+        if self.optype == "add":
             return self._eval_flux(ebins)
-        elif self.optype == 'mul':
+        elif self.optype == "mul":
             return self._eval(ebins)
         else:
             if flux is None:
-                raise ValueError('`flux` is required for convolution model')
+                raise ValueError("`flux` is required for convolution model")
             if type(flux) != pt.TensorVariable:
-                flux = pt.constant(flux, dtype='floatX')
+                flux = pt.constant(flux, dtype="floatX")
 
             return self._eval(ebins, flux)
 
@@ -602,7 +619,7 @@ class AutoGradOp:
 
     @integral_method.setter
     def integral_method(self, value):
-        if value not in ['trapz', 'simpson']:
+        if value not in ["trapz", "simpson"]:
             raise ValueError(
                 f'wrong value ({value}) for `integral_method`, supported '
                 'are "trapz" and "simpson"'
@@ -611,8 +628,8 @@ class AutoGradOp:
             self._method = value
 
     def _eval_flux(self, ebins):
-        if self.optype == 'add':
-            if self.integral_method == 'trapz':
+        if self.optype == "add":
+            if self.integral_method == "trapz":
                 dE = ebins[1:] - ebins[:-1]
                 NE = self._NE(ebins)
                 flux = (NE[:-1] + NE[1:]) / 2.0 * dE
@@ -628,16 +645,17 @@ class AutoGradOp:
         return flux
 
     def _NE(self, ebins):
-        raise NotImplementedError('NE is not defined')
+        raise NotImplementedError("NE is not defined")
 
     def _eval(self, ebins, flux=None):
-        raise NotImplementedError('eval is not defined')
+        raise NotImplementedError("eval is not defined")
 
 
 class GradientWarning(Warning):
     """
     issued by no implementation of gradient
     """
+
     pass
 
 
@@ -652,28 +670,32 @@ class SpectralComponent:
                 and the __call__ on op will return model tensor
     _root : root and corresponding name
     """
-    _comp_name = None   # overwritten by subclass
-    _config = None      # overwritten by subclass
+
+    _comp_name = None  # overwritten by subclass
+    _config = None  # overwritten by subclass
     _op_class = None  # overwritten by subclass
+
     def __init__(self, **kwargs):
-        if self._comp_name is None \
-                or self._config is None \
-                or self._op_class is None:
+        if (
+            self._comp_name is None
+            or self._config is None
+            or self._op_class is None
+        ):
             raise NotImplementedError(
-                'SpectralComponent can only be initialized by subclass'
+                "SpectralComponent can only be initialized by subclass"
             )
 
-        if self._op_class.optype not in ['add', 'mul', 'con']:
+        if self._op_class.optype not in ["add", "mul", "con"]:
             raise TypeError(
                 f'"{self._op_class.optype}" type op is not supported, '
                 'supported are "add", "mul", and "con"'
             )
 
-        self.name = kwargs.pop('name')
+        self.name = kwargs.pop("name")
 
-        if self._op_class.optype == 'add' \
-            and ('norm' not in self._config.keys()
-                 or 'norm' not in kwargs.keys()):
+        if self._op_class.optype == "add" and (
+            "norm" not in self._config.keys() or "norm" not in kwargs.keys()
+        ):
             raise ValueError(
                 '"norm" is required for "add" type SpectralComponent '
                 f'{self.name}'
@@ -689,8 +711,7 @@ class SpectralComponent:
                 self._op_kwargs[k] = v
 
         self._pars_tensor = {
-            name: pt.scalar(par.name)
-            for name, par in self._pars_dict.items()
+            name: pt.scalar(par.name) for name, par in self._pars_dict.items()
         }
 
     def __call__(self, ebins, flux=None, fit_call=True):
@@ -699,8 +720,8 @@ class SpectralComponent:
         else:
             rv = self.pars_tensor
 
-        if self.mtype == 'add':
-            norm = rv.pop('norm')
+        if self.mtype == "add":
+            norm = rv.pop("norm")
             return norm * self._op_class(**rv, **self._op_kwargs)(ebins, flux)
         else:
             return self._op_class(**rv, **self._op_kwargs)(ebins, flux)
@@ -758,7 +779,7 @@ class SpectralComponent:
         if par is self._pars_dict.get(p_name):
             return
 
-        if par.component == '':
+        if par.component == "":
             par.component = self
 
         # avoid duplicate parameter name in SpectralComponent
@@ -786,12 +807,13 @@ class SpectralComponent:
         return self.name
 
 
-_EBINS = pt.vector('ebins')
+_EBINS = pt.vector("ebins")
 _EMID2 = _EBINS[:-1] * _EBINS[1:]
-_CH_EMIN = pt.vector('ch_emin')
-_CH_EMAX = pt.vector('ch_emax')
-_RESP_MATRIX = pt.matrix('resp_matrix')
-_FLUX = pt.vector('flux')
+_CH_EMIN = pt.vector("ch_emin")
+_CH_EMAX = pt.vector("ch_emax")
+_RESP_MATRIX = pt.matrix("resp_matrix")
+_FLUX = pt.vector("flux")
+
 
 class SpectralModel:
     # 初始化时，初始化内部的tensorOp，该op输入参数rv，输出能谱rv
@@ -868,9 +890,9 @@ class SpectralModel:
                         default.append(k)
 
         root_dict = {
-            'root': tuple(root),
-            'name': tuple(name),
-            'default': tuple(default)
+            "root": tuple(root),
+            "name": tuple(name),
+            "default": tuple(default),
         }
 
         return root_dict
@@ -892,11 +914,11 @@ class SpectralModel:
                 sup.append(isinstance(par, SuperParameter))
 
         rv_dict = {
-            'name': tuple(name),
-            'default': tuple(default),
-            'frozen': tuple(frozen),
-            'rv': tuple(rv),
-            'super': tuple(sup)
+            "name": tuple(name),
+            "default": tuple(default),
+            "frozen": tuple(frozen),
+            "rv": tuple(rv),
+            "super": tuple(sup),
         }
 
         return rv_dict
@@ -908,7 +930,7 @@ class SpectralModel:
     @property
     def _eval_tensor(self):
         if self.__eval_tensor is None:
-            if self.mtype != 'con':
+            if self.mtype != "con":
                 self.__eval_tensor = self(self._ebins, fit_call=False)
             else:
                 self.__eval_tensor = self(self._ebins, self._flux, False)
@@ -986,7 +1008,7 @@ class SpectralModel:
         elif len(pars.shape) == 2:
             return np.array([func(*p, **kwargs) for p in pars])
         else:
-            raise ValueError('pars should be 1 or 2 dimensional')
+            raise ValueError("pars should be 1 or 2 dimensional")
 
     def _call_func_with_comps(self, pars, func, **kwargs):
         pars = np.asarray(pars)
@@ -999,10 +1021,10 @@ class SpectralModel:
                 for name in [m.expression for m in self._model_comps]
             }
         else:
-            raise ValueError('pars should be 1 or 2 dimensional')
+            raise ValueError("pars should be 1 or 2 dimensional")
 
     def CE(self, pars, ebins, ch_emin, ch_emax, resp_matrix, comps=False):
-        if self.mtype != 'add':
+        if self.mtype != "add":
             raise TypeError(
                 f'CE is undefined for "{self.mtype}" type model "{self}"'
             )
@@ -1011,30 +1033,38 @@ class SpectralModel:
             ebins=ebins,
             ch_emin=ch_emin,
             ch_emax=ch_emax,
-            resp_matrix=resp_matrix
+            resp_matrix=resp_matrix,
         )
 
         if comps:
             if self._CE_comps_func is None:
                 CE_inputs = [
-                    self._ebins, self._ch_emin, self._ch_emax,
-                    self._resp_matrix
+                    self._ebins,
+                    self._ch_emin,
+                    self._ch_emax,
+                    self._resp_matrix,
                 ]
                 inputs = self._pars_tensor + CE_inputs
                 self._CE_comps_func = function(inputs, self._CE_comps)
-            return self._call_func_with_comps(pars, self._CE_comps_func,
-                                              **kwargs)
+            return self._call_func_with_comps(
+                pars, self._CE_comps_func, **kwargs
+            )
         else:
             if self._CE_func is None:
                 CE_inputs = [
-                    self._ebins, self._ch_emin, self._ch_emax, self._resp_matrix
+                    self._ebins,
+                    self._ch_emin,
+                    self._ch_emax,
+                    self._resp_matrix,
                 ]
                 inputs = self._pars_tensor + CE_inputs
                 self._CE_func = function(inputs, self._CE_tensor)
             return self._call_func(pars, self._CE_func, **kwargs)
 
-    def counts(self, pars, ebins, ch_emin, ch_emax, resp_matrix, exposure, comps=False):
-        if self.mtype != 'add':
+    def counts(
+        self, pars, ebins, ch_emin, ch_emax, resp_matrix, exposure, comps=False
+    ):
+        if self.mtype != "add":
             raise TypeError(
                 f'counts is undefined for "{self.mtype}" type model "{self}"'
             )
@@ -1042,14 +1072,13 @@ class SpectralModel:
         CE = self.CE(pars, ebins, ch_emin, ch_emax, resp_matrix, comps)
         if comps:
             return {
-                k: v * (ch_emax - ch_emin) * exposure
-                for k, v in CE.items()
+                k: v * (ch_emax - ch_emin) * exposure for k, v in CE.items()
             }
         else:
             return CE * (ch_emax - ch_emin) * exposure
 
     def NE(self, pars, ebins, comps=False):
-        if self.mtype != 'add':
+        if self.mtype != "add":
             raise TypeError(
                 f'NE is undefined for "{self.mtype}" type model "{self}"'
             )
@@ -1058,8 +1087,9 @@ class SpectralModel:
             if self._NE_comps_func is None:
                 inputs = self._pars_tensor + [self._ebins]
                 self._NE_comps_func = function(inputs, self._NE_comps)
-            return self._call_func_with_comps(pars, self._NE_comps_func,
-                                              ebins=ebins)
+            return self._call_func_with_comps(
+                pars, self._NE_comps_func, ebins=ebins
+            )
         else:
             if self._NE_func is None:
                 inputs = self._pars_tensor + [self._ebins]
@@ -1067,7 +1097,7 @@ class SpectralModel:
             return self._call_func(pars, self._NE_func, ebins=ebins)
 
     def ENE(self, pars, ebins, comps=False):
-        if self.mtype != 'add':
+        if self.mtype != "add":
             raise TypeError(
                 f'NE is undefined for "{self.mtype}" type model "{self}"'
             )
@@ -1076,8 +1106,9 @@ class SpectralModel:
             if self._ENE_comps_func is None:
                 inputs = self._pars_tensor + [self._ebins]
                 self._ENE_comps_func = function(inputs, self._ENE_comps)
-            return self._call_func_with_comps(pars, self._ENE_comps_func,
-                                              ebins=ebins)
+            return self._call_func_with_comps(
+                pars, self._ENE_comps_func, ebins=ebins
+            )
         else:
             if self._ENE_func is None:
                 inputs = self._pars_tensor + [self._ebins]
@@ -1085,7 +1116,7 @@ class SpectralModel:
             return self._call_func(pars, self._ENE_func, ebins=ebins)
 
     def EENE(self, pars, ebins, comps=False):
-        if self.mtype != 'add':
+        if self.mtype != "add":
             raise TypeError(
                 f'EENE is undefined for "{self.mtype}" type model "{self}"'
             )
@@ -1094,8 +1125,9 @@ class SpectralModel:
             if self._EENE_comps_func is None:
                 inputs = self._pars_tensor + [self._ebins]
                 self._EENE_comps_func = function(inputs, self._EENE_comps)
-            return self._call_func_with_comps(pars, self._EENE_comps_func,
-                                              ebins=ebins)
+            return self._call_func_with_comps(
+                pars, self._EENE_comps_func, ebins=ebins
+            )
         else:
             if self._EENE_func is None:
                 inputs = self._pars_tensor + [self._ebins]
@@ -1104,24 +1136,26 @@ class SpectralModel:
 
     def eval(self, pars, ebins, flux=None):
         if self._eval_func is None:
-            if self.mtype != 'con':
+            if self.mtype != "con":
                 inputs = self._pars_tensor + [self._ebins]
             else:
                 inputs = self._pars_tensor + [self._ebins, self._flux]
 
             self._eval_func = function(inputs, self._eval_tensor)
 
-        if self.mtype != 'con':
+        if self.mtype != "con":
             return self._call_func(pars, self._eval_func, ebins=ebins)
         else:
             if flux is None:
                 raise ValueError(
                     f'flux input is required for "con" type model "{self}"'
                 )
-            return self._call_func(pars, self._eval_func, ebins=ebins, flux=flux)
+            return self._call_func(
+                pars, self._eval_func, ebins=ebins, flux=flux
+            )
 
     def flux(self, pars, erange, ngrid=1000, log=True, energy=True):
-        if self.mtype != 'add':
+        if self.mtype != "add":
             raise TypeError(
                 f'flux is undefined for "{self.mtype}" type model "{self}"'
             )
@@ -1140,27 +1174,27 @@ class SpectralModel:
 
     def __add__(self, other):
         if isinstance(other, SpectralModel):
-            if self.mtype != 'add':
-                raise TypeError(f'model ({self}) is not additive')
+            if self.mtype != "add":
+                raise TypeError(f"model ({self}) is not additive")
 
-            if other.mtype != 'add':
-                raise TypeError(f'model ({other}) is not additive')
+            if other.mtype != "add":
+                raise TypeError(f"model ({other}) is not additive")
         else:
             raise TypeError(
                 f'"SpectralModel" is required for "+", got "{other}"'
             )
 
-        return SuperModel(self, other, '+')
+        return SuperModel(self, other, "+")
 
     def __mul__(self, other):
         if isinstance(other, SpectralModel):
-            if self.mtype == 'add':
-                if other.mtype == 'add':
+            if self.mtype == "add":
+                if other.mtype == "add":
                     raise TypeError(
                         'unsupported operand types for *: "additive" and '
                         '"additive"'
                     )
-                elif other.mtype == 'con':
+                elif other.mtype == "con":
                     raise TypeError(
                         'unsupported operand order for *: "additive" and '
                         '"convolution"'
@@ -1170,25 +1204,19 @@ class SpectralModel:
                 f'"SpectralModel" is required for "*", got "{other}"'
             )
 
-        return SuperModel(self, other, '*')
+        return SuperModel(self, other, "*")
 
     def __radd__(self, other):
-        raise TypeError(
-            f'"SpectralModel" is required for "+", got "{other}"'
-        )
+        raise TypeError(f'"SpectralModel" is required for "+", got "{other}"')
 
     def __rmul__(self, other):
-        raise TypeError(
-            f'"SpectralModel" is required for "*", got "{other}"'
-        )
+        raise TypeError(f'"SpectralModel" is required for "*", got "{other}"')
 
     def __setattr__(self, key, value):
-        if key in ['_components', '_comps_name']:
+        if key in ["_components", "_comps_name"]:
             super().__setattr__(key, value)
         elif key in self.comps_name:
-            raise AttributeError(
-                f"can't set read-only attribute '{key}'"
-            )
+            raise AttributeError(f"can't set read-only attribute '{key}'")
         else:
             super().__setattr__(key, value)
 
@@ -1220,7 +1248,7 @@ class SuperModel(SpectralModel):
                         break
                     else:
                         n += 1
-                    name = f'{c._comp_name}_{n}'
+                    name = f"{c._comp_name}_{n}"
                 c.name = name
             else:
                 name = c.name
@@ -1237,11 +1265,11 @@ class SuperModel(SpectralModel):
         m1 = lambda *args: self._m1(*args, fit_call=fit_call)
         m2 = lambda *args: self._m2(*args, fit_call=fit_call)
 
-        if self._operator == '+':
+        if self._operator == "+":
             return m1(ebins) + m2(ebins)  # add+add
 
-        if self._m1.mtype != 'con':
-            if self._m2.mtype != 'con':
+        if self._m1.mtype != "con":
+            if self._m2.mtype != "con":
                 return m1(ebins) * m2(ebins)  # add*mul, mul*add, mul*mul
             else:  # mul*con
                 if not isinstance(self._m2, FluxModel):
@@ -1250,9 +1278,9 @@ class SuperModel(SpectralModel):
                     return m1(ebins) * m2(flux, model)
         else:
             if not isinstance(self._m1, FluxModel):
-                if self._m2.mtype == 'add':  # con*add
+                if self._m2.mtype == "add":  # con*add
                     return m1(ebins, m2(ebins))
-                elif self._m2.mtype == 'mul':  # con*mul
+                elif self._m2.mtype == "mul":  # con*mul
                     return m1(ebins, m2(ebins) * flux)
                 else:  # con*con
                     if not isinstance(self._m2, FluxModel):
@@ -1260,9 +1288,9 @@ class SuperModel(SpectralModel):
                     else:
                         return m1(ebins, m2(flux, model))
             else:
-                if self._m2.mtype == 'add':  # con*add
+                if self._m2.mtype == "add":  # con*add
                     return m1(m2(ebins), self._m2)
-                elif self._m2.mtype == 'mul':  # con*mul
+                elif self._m2.mtype == "mul":  # con*mul
                     return m1(m2(ebins) * flux, self._m2 * model)
                 else:  # con*con
                     if not isinstance(self._m2, FluxModel):
@@ -1272,32 +1300,38 @@ class SuperModel(SpectralModel):
 
     @SpectralModel.expression.getter
     def expression(self):
-        if self._operator == '+':
-            return f'{self._m1.expression} + {self._m2.expression}'
+        if self._operator == "+":
+            return f"{self._m1.expression} + {self._m2.expression}"
 
-        elif self._operator == '*':
+        elif self._operator == "*":
             expr1 = self._m1.expression
             expr2 = self._m2.expression
 
-            if isinstance(self._m1, SuperModel) and self._m1._operator == '+' \
-                and '+' in expr1:
-                expr1 = f'({expr1})'
+            if (
+                isinstance(self._m1, SuperModel)
+                and self._m1._operator == "+"
+                and "+" in expr1
+            ):
+                expr1 = f"({expr1})"
 
-            if isinstance(self._m2, SuperModel) and self._m2._operator == '+' \
-                and '+' in expr2:
-                expr2 = f'({expr2})'
+            if (
+                isinstance(self._m2, SuperModel)
+                and self._m2._operator == "+"
+                and "+" in expr2
+            ):
+                expr2 = f"({expr2})"
 
-            return f'{expr1} * {expr2}'
+            return f"{expr1} * {expr2}"
 
     @SpectralModel.mtype.getter
     def mtype(self):
-        if self._m1.mtype == 'add' or self._m2.mtype == 'add':
-            return 'add'
+        if self._m1.mtype == "add" or self._m2.mtype == "add":
+            return "add"
         else:
-            if self._m1.mtype == 'con' or self._m2.mtype == 'con':
-                return 'con'
+            if self._m1.mtype == "con" or self._m2.mtype == "con":
+                return "con"
             else:
-                return 'mul'
+                return "mul"
 
     @SpectralModel.comps_name.getter
     def comps_name(self):
@@ -1305,19 +1339,19 @@ class SuperModel(SpectralModel):
 
     @SpectralModel._model_comps.getter
     def _model_comps(self):
-        if self._operator == '+':  # add+add
+        if self._operator == "+":  # add+add
             return self._m1._model_comps + self._m2._model_comps
 
-        if self._m1.mtype == 'add':  # add*mul
+        if self._m1.mtype == "add":  # add*mul
             m2_comp = self._m2._model_comps[0]
             return [
-                SuperModel(i, m2_comp, '*', False)
+                SuperModel(i, m2_comp, "*", False)
                 for i in self._m1._model_comps
             ]
-        elif self._m2.mtype == 'add':  # mul*add, con*add
+        elif self._m2.mtype == "add":  # mul*add, con*add
             m1_comp = self._m1._model_comps[0]
             return [
-                SuperModel(m1_comp, i, '*', False)
+                SuperModel(m1_comp, i, "*", False)
                 for i in self._m2._model_comps
             ]
         else:  # mul*mul, con*mul, mul*con, con*con
@@ -1325,7 +1359,7 @@ class SuperModel(SpectralModel):
                 SuperModel(
                     self._m1._model_comps[0],
                     self._m2._model_comps[0],
-                    '*',
-                    False
+                    "*",
+                    False,
                 )
             ]

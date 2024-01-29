@@ -1,4 +1,5 @@
 """Models of additive type."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -9,13 +10,15 @@ import jax.numpy as jnp
 from .base import Component, ParamConfig
 from .integral import integral, list_methods
 
-
 __all__ = [
-    'Band', 'BandEp',
-    'Bbody', 'Bbodyrad',
-    'Compt', 'Cutoffpl',
-    'OTTB',
-    'Powerlaw',
+    "Band",
+    "BandEp",
+    "Bbody",
+    "Bbodyrad",
+    "Compt",
+    "Cutoffpl",
+    "OTTB",
+    "Powerlaw",
 ]
 
 
@@ -25,7 +28,7 @@ class AdditiveComponent(Component, ABC):
     @property
     def type(self) -> str:
         """Model type is additive."""
-        return 'add'
+        return "add"
 
     @property
     def _func(self) -> Callable:
@@ -41,9 +44,9 @@ class AdditiveComponent(Component, ABC):
 class NumIntAdditive(AdditiveComponent, ABC):
     """Prototype class with numerical integral to define additive model."""
 
-    _extra_kw = (('method', 'default'),)
+    _extra_kw = (("method", "default"),)
 
-    def __init__(self, method='default', **kwargs):
+    def __init__(self, method="default", **kwargs):
         self.method = str(method)
         super().__init__(**kwargs)
 
@@ -84,8 +87,8 @@ class Bbody(NumIntAdditive):
     """TODO"""
 
     _config = (
-        ParamConfig('kT', 'kT', 3.0, 0.0001, 200.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig("kT", "kT", 3.0, 0.0001, 200.0, False, False),
+        ParamConfig("K", "K", 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -104,8 +107,8 @@ class Bbody(NumIntAdditive):
             jnp.where(
                 jnp.greater_equal(x, 50.0),
                 0.0,  # avoid exponential overflow
-                tmp * x / jnp.expm1(x_)
-            )
+                tmp * x / jnp.expm1(x_),
+            ),
         )
         # return 8.0525 * K * e*e / (kT*kT*kT*kT * jnp.expm1(energy / kT))
 
@@ -114,8 +117,8 @@ class Bbodyrad(NumIntAdditive):
     """TODO"""
 
     _config = (
-        ParamConfig('kT', 'kT', 3.0, 0.0001, 200.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig("kT", "kT", 3.0, 0.0001, 200.0, False, False),
+        ParamConfig("K", "K", 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -134,8 +137,8 @@ class Bbodyrad(NumIntAdditive):
             jnp.where(
                 jnp.greater_equal(x, 50.0),
                 0.0,  # avoid exponential overflow
-                tmp * e / jnp.expm1(x_)
-            )
+                tmp * e / jnp.expm1(x_),
+            ),
         )
         # return 1.0344e-3 * K * e*e / jnp.expm1(e / kT)
 
@@ -144,10 +147,10 @@ class Band(NumIntAdditive):
     """TODO"""
 
     _config = (
-        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
-        ParamConfig('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
-        ParamConfig('Ec', r'E_\mathrm{c}', 300.0, 10.0, 10000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig("alpha", r"\alpha", -1.0, -10.0, 5.0, False, False),
+        ParamConfig("beta", r"\beta", -2.0, -10.0, 10.0, False, False),
+        ParamConfig("Ec", r"E_\mathrm{c}", 300.0, 10.0, 10000.0, False, False),
+        ParamConfig("K", "K", 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -157,12 +160,14 @@ class Band(NumIntAdditive):
         amb_ = alpha - beta
         inv_Ec = 1.0 / Ec
         amb = jnp.where(jnp.less(amb_, inv_Ec), inv_Ec, amb_)
-        Ebreak = Ec*amb
+        Ebreak = Ec * amb
 
         log_func = jnp.where(
             jnp.less(egrid, Ebreak),
             alpha * jnp.log(egrid / Epiv) - egrid / Ec,
-            amb * jnp.log(amb * Ec / Epiv) - amb + beta * jnp.log(egrid / Epiv)
+            amb * jnp.log(amb * Ec / Epiv)
+            - amb
+            + beta * jnp.log(egrid / Epiv),
         )
         return K * jnp.exp(log_func)
 
@@ -171,10 +176,10 @@ class BandEp(NumIntAdditive):
     """TODO"""
 
     _config = (
-        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
-        ParamConfig('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
-        ParamConfig('Ep', r'E_\mathrm{p}', 300.0, 10.0, 10000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig("alpha", r"\alpha", -1.0, -10.0, 5.0, False, False),
+        ParamConfig("beta", r"\beta", -2.0, -10.0, 10.0, False, False),
+        ParamConfig("Ep", r"E_\mathrm{p}", 300.0, 10.0, 10000.0, False, False),
+        ParamConfig("K", "K", 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -192,7 +197,7 @@ class BandEp(NumIntAdditive):
         log_func = jnp.where(
             jnp.less(e, Ebreak),
             alpha * jnp.log(e / Epiv) - e / Ec,
-            amb * jnp.log(amb * Ec / Epiv) - amb + beta * jnp.log(e / Epiv)
+            amb * jnp.log(amb * Ec / Epiv) - amb + beta * jnp.log(e / Epiv),
         )
         return K * jnp.exp(log_func)
 
@@ -201,9 +206,9 @@ class Compt(NumIntAdditive):
     """TODO"""
 
     _config = (
-        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
-        ParamConfig('Ep', r'E_\mathrm{p}', 15.0, 0.01, 10000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig("alpha", r"\alpha", -1.0, -10.0, 3.0, False, False),
+        ParamConfig("Ep", r"E_\mathrm{p}", 15.0, 0.01, 10000.0, False, False),
+        ParamConfig("K", "K", 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -216,9 +221,9 @@ class Cutoffpl(NumIntAdditive):
     """TODO"""
 
     _config = (
-        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
-        ParamConfig('Ec', r'E_\mathrm{c}', 15.0, 0.01, 10000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig("alpha", r"\alpha", -1.0, -10.0, 3.0, False, False),
+        ParamConfig("Ec", r"E_\mathrm{c}", 15.0, 0.01, 10000.0, False, False),
+        ParamConfig("K", "K", 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -231,8 +236,8 @@ class OTTB(NumIntAdditive):
     """TODO"""
 
     _config = (
-        ParamConfig('kT', 'kT', 30.0, 0.1, 1000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig("kT", "kT", 30.0, 0.1, 1000.0, False, False),
+        ParamConfig("K", "K", 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod
@@ -246,8 +251,8 @@ class Powerlaw(AdditiveComponent):
     """TODO"""
 
     _config = (
-        ParamConfig('alpha', r'\alpha', 1.01, -3.0, 10.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig("alpha", r"\alpha", 1.01, -3.0, 10.0, False, False),
+        ParamConfig("K", "K", 1.0, 1e-10, 1e10, False, False),
     )
 
     @staticmethod

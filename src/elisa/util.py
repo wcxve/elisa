@@ -1,4 +1,5 @@
 """Helper functions."""
+
 from __future__ import annotations
 
 import warnings
@@ -6,7 +7,7 @@ from multiprocessing import cpu_count
 
 from numpyro import enable_x64, set_host_device_count
 
-__all__ = ['jax_enable_x64', 'set_cpu_cores']
+__all__ = ["jax_enable_x64", "set_cpu_cores"]
 
 
 def jax_enable_x64(use_x64: bool) -> None:
@@ -34,8 +35,8 @@ def set_cpu_cores(n: int) -> None:
     total_cores = cpu_count()
 
     if n > total_cores:
-        msg = f'only {total_cores} CPUs available, '
-        msg += f'will use {total_cores - 1} CPUs'
+        msg = f"only {total_cores} CPUs available, "
+        msg += f"will use {total_cores - 1} CPUs"
         warnings.warn(msg, Warning)
         n = total_cores - 1
 

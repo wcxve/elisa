@@ -1,10 +1,12 @@
 """Model fit in maximum likelihood or Bayesian way."""
+
 from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from functools import partial, reduce
-from typing import Callable, Literal, NamedTuple, Optional, Sequence, TypeVar
+from typing import Callable, Literal, NamedTuple, Optional, TypeVar
 
 import arviz as az
 import jax
@@ -19,22 +21,25 @@ from jax.sharding import PositionalSharding
 from numpyro import handlers
 from numpyro.infer import MCMC, NUTS
 from numpyro.infer.initialization import init_to_value
-from numpyro.infer.util import constrain_fn, unconstrain_fn, log_likelihood
+from numpyro.infer.util import constrain_fn, log_likelihood, unconstrain_fn
 from prettytable import PrettyTable
 
 from ..data.ogip import Data
 from ..model.base import Model
 from .analysis import MLEResult, PosteriorResult
-from .likelihood import chi2, cstat, pstat, pgstat, wstat
+from .likelihood import chi2, cstat, pgstat, pstat, wstat
 from .nested_sampling import NestedSampler
 from .util import (
-    make_pretty_table, order_composite, progress_bar_factory, replace_string
+    make_pretty_table,
+    order_composite,
+    progress_bar_factory,
+    replace_string,
 )
 
-__all__ = ['LikelihoodFit', 'BayesianFit']
+__all__ = ["LikelihoodFit", "BayesianFit"]
 
-Statistic = Literal['chi2', 'cstat', 'pstat', 'pgstat', 'wstat']
-T = TypeVar('T')
+Statistic = Literal["chi2", "cstat", "pstat", "pgstat", "wstat"]
+T = TypeVar("T")
 
 
 class BaseFit(ABC):
@@ -58,24 +63,22 @@ class BaseFit(ABC):
         Random number generator seed. The default is 42.
 
     """
+
     # TODO: introduce background model that directly fit the background data
 
     _stat_options: set[str] = {
-        'chi2',
-        'cstat',
-        'pstat',
-        'pgstat',
-        'wstat'
+        "chi2",
+        "cstat",
+        "pstat",
+        "pgstat",
+        "wstat",
         # It should be noted that 'lstat' does not have long run coverage
         # property for source estimation, which is probably due to the choice
         # of conjugate prior of Poisson background data.
         # 'lstat' will be included here with a proper prior at some point.
     }
 
-    _stat_with_back: set[str] = {
-        'pgstat',
-        'wstat'
-    }
+    _stat_with_back: set[str] = {"pgstat", "wstat"}
 
     def __init__(
         self,
@@ -106,9 +109,18 @@ class BaseFit(ABC):
         info = {
             i: reduce(lambda x, y: x | y, (j[i] for j in info_list))
             for i in [
-                'sample', 'composite',
-                'default', 'min', 'max', 'dist_expr',
-                'params', 'mname', 'mfmt', 'mpfmt', 'pname', 'pfmt'
+                "sample",
+                "composite",
+                "default",
+                "min",
+                "max",
+                "dist_expr",
+                "params",
+                "mname",
+                "mfmt",
+                "mpfmt",
+                "pname",
+                "pfmt",
             ]
         }
 
@@ -125,58 +137,55 @@ class BaseFit(ABC):
                     data_having_this_comp.append(name)
 
             if len(data_having_this_comp) == nd:
-                name_suffix[comp] = ''
-                fmt_suffix[comp] = ''
+                name_suffix[comp] = ""
+                fmt_suffix[comp] = ""
             else:
-                name_suffix[comp] = '_' + '_'.join(data_having_this_comp)
-                joined_name = '+'.join(data_having_this_comp)
-                fmt_suffix[comp] = r'^\mathrm{' + joined_name + '}'
+                name_suffix[comp] = "_" + "_".join(data_having_this_comp)
+                joined_name = "+".join(data_having_this_comp)
+                fmt_suffix[comp] = r"^\mathrm{" + joined_name + "}"
 
-        info['mname'] = {
-            k: v + name_suffix[k]
-            for k, v in info['mname'].items()
+        info["mname"] = {
+            k: v + name_suffix[k] for k, v in info["mname"].items()
         }
-        info['mfmt'] = {
+        info["mfmt"] = {
             # k: r'$\big[' + v + fmt_suffix[k] + r'\big]$'
-            k: r'$[' + v + fmt_suffix[k] + r']$'
-            for k, v in info['mfmt'].items()
+            k: r"$[" + v + fmt_suffix[k] + r"]$"
+            for k, v in info["mfmt"].items()
         }
 
         # parameters directly input to the model, which are of interest
         params = [
             j  # sample site and composition directly input to the model
-            for i in info['params'].values()
+            for i in info["params"].values()
             for j in i.values()
         ]
-        mname = info['mname']
-        mfmt = info['mfmt']
-        mpfmt = info['mpfmt']
+        mname = info["mname"]
+        mfmt = info["mfmt"]
+        mpfmt = info["mpfmt"]
         params_name = {}
         params_fmt = {}
-        for m, ps in info['params'].items():
+        for m, ps in info["params"].items():
             for p, p_id in ps.items():
-                params_name[p_id] = f'{mname[m]}_{p}'
-                params_fmt[p_id] = rf'{mfmt[m]}\ ${mpfmt[m][p]}$'
+                params_name[p_id] = f"{mname[m]}_{p}"
+                params_fmt[p_id] = rf"{mfmt[m]}\ ${mpfmt[m][p]}$"
 
         # name/fmt of aux parameters
         aux_params = [
             i  # sample site not directly input to the model
-            for i in info['sample']
+            for i in info["sample"]
             if i not in params and not isinstance(i, float)
         ]
-        _name = [info['pname'][i] for i in aux_params]
+        _name = [info["pname"][i] for i in aux_params]
         _name_suffix = [
-            '' if (n := _name[:i+1].count(name)) == 1
-            else str(n)
+            "" if (n := _name[: i + 1].count(name)) == 1 else str(n)
             for i, name in enumerate(_name)
         ]
         aux_params_name = {
             i: j + k for i, j, k in zip(aux_params, _name, _name_suffix)
         }
-        _fmt = [info['pfmt'][i] for i in aux_params]
+        _fmt = [info["pfmt"][i] for i in aux_params]
         _fmt_suffix = [
-            '' if (n := _fmt[:i+1].count(fmt)) == 1
-            else '_{%s}' % n
+            "" if (n := _fmt[: i + 1].count(fmt)) == 1 else "_{%s}" % n
             for i, fmt in enumerate(_fmt)
         ]
         aux_params_fmt = {
@@ -184,11 +193,11 @@ class BaseFit(ABC):
         }
 
         # first avoid renaming conflict then create the mapping
-        composite_order = order_composite(info['sample'], info['composite'])
+        composite_order = order_composite(info["sample"], info["composite"])
         name_order = list(reversed(composite_order.keys()))
-        name_order += list(info['sample'].keys())
-        name_order += list(info['mname'].keys())
-        id_mapping = params_name | aux_params_name | info['mname']
+        name_order += list(info["sample"].keys())
+        name_order += list(info["mname"].keys())
+        id_mapping = params_name | aux_params_name | info["mname"]
         id_mapping = {k: id_mapping[k] for k in name_order}
 
         self._info = replace_string(id_mapping, info)
@@ -196,91 +205,93 @@ class BaseFit(ABC):
         # model information will be displayed
         self._model_info = replace_string(
             id_mapping,
-            {k: (v._node.name, self._stat[k]) for k, v in self._model.items()}
+            {k: (v._node.name, self._stat[k]) for k, v in self._model.items()},
         )
         # model information will be displayed
 
         # parameter information will be displayed
-        sample_dic = self._info['sample']
-        default_dic = self._info['default']
-        min_dic = self._info['min']
-        max_dic = self._info['max']
-        dist_dic = self._info['dist_expr']
+        sample_dic = self._info["sample"]
+        default_dic = self._info["default"]
+        min_dic = self._info["min"]
+        max_dic = self._info["max"]
+        dist_dic = self._info["dist_expr"]
         # params name having id as suffix
-        params_dic = replace_string(info['mname'], info['params'])
+        params_dic = replace_string(info["mname"], info["params"])
         idx = 1
         params_info = {}
-        for comp, param_dic in self._info['params'].items():
+        for comp, param_dic in self._info["params"].items():
             for i, j in param_dic.items():
                 if j in sample_dic:
                     if not isinstance(sample_dic[j], float):  # free parameter
-                        bound = f'({min_dic[j]}, {max_dic[j]})'
+                        bound = f"({min_dic[j]}, {max_dic[j]})"
                         pidx = str(idx)
                         idx += 1
                     else:  # fixed parameter
-                        bound = ''
-                        pidx = ''
+                        bound = ""
+                        pidx = ""
 
-                    params_info[f'{comp}_{i}'] = [
-                        pidx, comp, i, default_dic[j], bound, dist_dic[j]
+                    params_info[f"{comp}_{i}"] = [
+                        pidx,
+                        comp,
+                        i,
+                        default_dic[j],
+                        bound,
+                        dist_dic[j],
                     ]
 
                 else:  # composite parameter
                     mapping = {
                         k: v
                         for k, v in id_mapping.items()
-                        if v != f'{comp}_{i}'
+                        if v != f"{comp}_{i}"
                     }
                     expr = replace_string(mapping, params_dic[comp][i])
-                    params_info[f'{comp}_{i}'] = [
-                        '', comp, i, expr, '', ''
-                    ]
+                    params_info[f"{comp}_{i}"] = ["", comp, i, expr, "", ""]
 
-        for k, v in self._info['sample'].items():
+        for k, v in self._info["sample"].items():
             if k in params_info:
                 continue
 
             if not isinstance(v, float):  # free parameter
-                bound = f'({min_dic[k]}, {max_dic[k]})'
+                bound = f"({min_dic[k]}, {max_dic[k]})"
                 pidx = str(idx)
                 idx += 1
             else:  # fixed parameter
-                bound = ''
-                pidx = ''
+                bound = ""
+                pidx = ""
 
-            params_info[k] = [
-                pidx, '', k, default_dic[k], bound, dist_dic[k]
-            ]
+            params_info[k] = [pidx, "", k, default_dic[k], bound, dist_dic[k]]
         self._params_info = params_info
 
         # parameters Tex format
         self._params_fmt = replace_string(
-            id_mapping,
-            params_fmt | aux_params_fmt
+            id_mapping, params_fmt | aux_params_fmt
         )
 
         # parameters of spectral model function
         spec_params = {
-            name: {minfo['mname'][k]: v for k, v in minfo['params'].items()}
+            name: {minfo["mname"][k]: v for k, v in minfo["params"].items()}
             for name, minfo in zip(self._data, info_list)
         }
         self._spec_params = replace_string(id_mapping, spec_params)
 
         # free parameters
         self._free = {
-            k: v for k, v in self._info['sample'].items()
+            k: v
+            for k, v in self._info["sample"].items()
             if not isinstance(v, float)
         }
 
         # fixed parameters
         self._fixed = {
-            k: v for k, v in self._info['sample'].items()
+            k: v
+            for k, v in self._info["sample"].items()
             if isinstance(v, float)
         }
 
         # composite parameter
         self._composite = order_composite(
-            self._info['sample'], self._info['composite']
+            self._info["sample"], self._info["composite"]
         )
 
         # ordered free parameters names
@@ -291,7 +302,8 @@ class BaseFit(ABC):
         # ordered parameters of interest,
         # which are directly input to model and not fixed
         self._interest_names = tuple(
-            k for k, v in self._params_info.items()
+            k
+            for k, v in self._params_info.items()
             if v[1] and k not in self._fixed
         )
 
@@ -300,24 +312,24 @@ class BaseFit(ABC):
 
         # channel number of data
         self._ndata = {d.name: len(d.channel) for d in data}
-        self._ndata['total'] = sum(self._ndata.values())
+        self._ndata["total"] = sum(self._ndata.values())
 
         # number of free parameters
         self._nparam = len(self._free.keys())
 
         # degree of freedom
-        self._dof = self._ndata['total'] - self._nparam
+        self._dof = self._ndata["total"] - self._nparam
 
         # a collection of functions will be used in optimization
         self._helper = generate_helper(self)
         # tell iminuit the number of data points
-        self._helper.deviance_unconstr.ndata = self._ndata['total']
+        self._helper.deviance_unconstr.ndata = self._ndata["total"]
 
         # the numpyro model
         self._numpyro_model = self._helper.numpyro_model
 
         # default initial parameter in unconstrained space
-        free = [self._info['default'][k] for k in self._free_names]
+        free = [self._info["default"][k] for k in self._free_names]
         self._init_unconstr = np.array(self._helper.to_unconstr_array(free))
 
         # self._simfit = SimFit()
@@ -345,26 +357,27 @@ class BaseFit(ABC):
         self,
         data: Data | Sequence[Data],
         model: Model | Sequence[Model],
-        stat: Statistic | Sequence[Statistic]
+        stat: Statistic | Sequence[Statistic],
     ):
         """Check if data, model, and stat are correct and return lists."""
+
         def get_list(inputs, name, itype, tname):
             """Check the model/data/stat, and return a list."""
             if isinstance(inputs, itype):
                 input_list = [inputs]
             elif isinstance(inputs, (list, tuple)):
                 if not inputs:
-                    raise ValueError(f'{name} list is empty')
+                    raise ValueError(f"{name} list is empty")
                 if not all(isinstance(i, itype) for i in inputs):
-                    raise ValueError(f'all {name} must be a valid {tname}')
+                    raise ValueError(f"all {name} must be a valid {tname}")
                 input_list = list(inputs)
             else:
-                raise ValueError(f'got wrong type {type(inputs)} for {name}')
+                raise ValueError(f"got wrong type {type(inputs)} for {name}")
             return input_list
 
-        data_list = get_list(data, 'data', Data, 'Data')
-        model_list = get_list(model, 'model', Model, 'Model')
-        stat_list = get_list(stat, 'stat', str, 'str')
+        data_list = get_list(data, "data", Data, "Data")
+        model_list = get_list(model, "model", Model, "Model")
+        stat_list = get_list(stat, "stat", str, "str")
 
         # check if data name is unique
         name_list = list(d.name for d in data_list)
@@ -373,20 +386,20 @@ class BaseFit(ABC):
             raise ValueError(msg)
 
         # check if model type is additive
-        flag = list(i.type == 'add' for i in model_list)
+        flag = list(i.type == "add" for i in model_list)
         if not all(flag):
             err = (j for i, j in enumerate(model_list) if not flag[i])
-            err = ', '.join(f"'{i}'" for i in err)
-            msg = f'got models which are not additive type: {err}'
+            err = ", ".join(f"'{i}'" for i in err)
+            msg = f"got models which are not additive type: {err}"
             raise ValueError(msg)
 
         # check stat option
         flag = list(i in self._stat_options for i in stat_list)
         if not all(flag):
             err = (j for i, j in enumerate(stat_list) if not flag[i])
-            err = ', '.join(f"'{i}'" for i in err)
-            supported = ', '.join(f"'{i}'" for i in self._stat_options)
-            msg = f'got unexpected stat: {err}; supported are {supported}'
+            err = ", ".join(f"'{i}'" for i in err)
+            supported = ", ".join(f"'{i}'" for i in self._stat_options)
+            msg = f"got unexpected stat: {err}; supported are {supported}"
             raise ValueError(msg)
 
         nd = len(data_list)
@@ -397,49 +410,49 @@ class BaseFit(ABC):
         if nm == 1:
             model_list *= nd
         elif nm != nd:
-            msg = f'number of model ({nm}) and data ({nd}) are not matched'
+            msg = f"number of model ({nm}) and data ({nd}) are not matched"
             raise ValueError(msg)
 
         # check stat number
         if ns == 1:
             stat_list *= nd
         elif ns != nd:
-            msg = f'number of data ({nd}) and stat ({ns}) are not matched'
+            msg = f"number of data ({nd}) and stat ({ns}) are not matched"
             raise ValueError(msg)
 
         # check if correctly using stat
         def check_data_stat(d, s):
             """Check if data type and likelihood are matched."""
             name = d.name
-            if not d.spec_poisson and s != 'chi2':
+            if not d.spec_poisson and s != "chi2":
                 msg = f'{name} is Gaussian data, use stat "chi2" but not "{s}"'
                 raise ValueError(msg)
 
-            if s == 'cstat' and d.has_back:
-                back = 'Poisson' if d.back_poisson else 'Gaussian'
-                stat1 = 'W' if d.back_poisson else 'PG'
-                stat2 = 'w' if d.back_poisson else 'pg'
-                msg = 'C-statistic (cstat) is not valid for Poisson data '
-                msg += f'with {back} background, use {stat1}-statistic'
-                msg += f'({stat2}stat) for {name} instead'
+            if s == "cstat" and d.has_back:
+                back = "Poisson" if d.back_poisson else "Gaussian"
+                stat1 = "W" if d.back_poisson else "PG"
+                stat2 = "w" if d.back_poisson else "pg"
+                msg = "C-statistic (cstat) is not valid for Poisson data "
+                msg += f"with {back} background, use {stat1}-statistic"
+                msg += f"({stat2}stat) for {name} instead"
                 raise ValueError(msg)
 
-            elif s == 'pstat' and not d.has_back:
-                msg = f'P-statistic (pstat) is not valid for {name}, which '
-                msg += 'requires background file, use C-statistic (cstat) '
-                msg += 'instead'
+            elif s == "pstat" and not d.has_back:
+                msg = f"P-statistic (pstat) is not valid for {name}, which "
+                msg += "requires background file, use C-statistic (cstat) "
+                msg += "instead"
                 raise ValueError(msg)
 
-            elif s == 'pgstat' and not d.has_back:
-                msg = f'PG-statistic is not valid for {name}, which requires '
-                msg += 'Gaussian background data, use C-statistic (cstat) '
-                msg += 'instead'
+            elif s == "pgstat" and not d.has_back:
+                msg = f"PG-statistic is not valid for {name}, which requires "
+                msg += "Gaussian background data, use C-statistic (cstat) "
+                msg += "instead"
                 raise ValueError(msg)
 
-            elif s == 'wstat' and not (d.has_back and d.back_poisson):
-                msg = f'W-statistic is not valid for {name}, which requires '
-                msg += 'Poisson background data, use C-statistic (cstat) '
-                msg += 'instead'
+            elif s == "wstat" and not (d.has_back and d.back_poisson):
+                msg = f"W-statistic is not valid for {name}, which requires "
+                msg += "Poisson background data, use C-statistic (cstat) "
+                msg += "instead"
                 raise ValueError(msg)
 
         for d, s in zip(data_list, stat_list):
@@ -452,33 +465,33 @@ class LikelihoodFit(BaseFit):
     _ns: NestedSampler | None = None
 
     def __repr__(self) -> str:
-        s = 'Likelihood Fit\n'
-        s += self._tab1.get_string() + '\n'
+        s = "Likelihood Fit\n"
+        s += self._tab1.get_string() + "\n"
         s += self._tab2.get_string()
         return s
 
     def _repr_html_(self) -> str:
-        s = '<b>Likelihood Fit</b>\n'
-        s += self._tab1.get_html_string(format=True) + '\n'
+        s = "<b>Likelihood Fit</b>\n"
+        s += self._tab1.get_html_string(format=True) + "\n"
         s += self._tab2.get_html_string(format=True)
         return s
 
     def _make_info_table(self) -> None:
         self._tab1 = make_pretty_table(
-            ['Data', 'Model', 'Statistic'],
-            list((k, *v) for k, v in self._model_info.items())
+            ["Data", "Model", "Statistic"],
+            list((k, *v) for k, v in self._model_info.items()),
         )
         self._tab2 = make_pretty_table(
-            ['No.', 'Component', 'Parameter', 'Value', 'Bound'],
-            list(i[:-1] for i in self._params_info.values())
+            ["No.", "Component", "Parameter", "Value", "Bound"],
+            list(i[:-1] for i in self._params_info.values()),
         )
 
     def mle(
         self,
         init: Optional[dict[str, float]] = None,
-        lopt: Literal['minuit', 'lm'] = 'minuit',
+        lopt: Literal["minuit", "lm"] = "minuit",
         strategy: Literal[0, 1, 2] = 1,
-        gopt: Optional[str] = None
+        gopt: Optional[str] = None,
     ) -> MLEResult:
         """Find the Maximum Likelihood Estimation (MLE) for the model.
 
@@ -515,7 +528,7 @@ class LikelihoodFit(BaseFit):
             The MLE result.
 
         """
-        if gopt == 'ns' and self._ns is None:
+        if gopt == "ns" and self._ns is None:
             ns = NestedSampler(
                 self._numpyro_model,
                 constructor_kwargs=dict(
@@ -526,13 +539,13 @@ class LikelihoodFit(BaseFit):
                 ),
                 termination_kwargs=dict(
                     live_evidence_frac=1e-5,
-                )
+                ),
             )
 
             t0 = time.time()
-            print('Start nested sampling...')
+            print("Start nested sampling...")
             ns.run(jax.random.PRNGKey(42))
-            print(f'Global optimization cost {time.time() - t0:.2f} s')
+            print(f"Global optimization cost {time.time() - t0:.2f} s")
             mle_idx = ns._results.log_L_samples.argmax()
             mle_constr = jax.tree_map(
                 lambda s: s[mle_idx], ns._results.samples
@@ -548,20 +561,21 @@ class LikelihoodFit(BaseFit):
         else:
             init_unconstr = self._init_unconstr
 
-        if lopt == 'lm':
-            res = jax.jit(jaxopt.LevenbergMarquardt(
-                self._helper.residual,
-                stop_criterion='grad-l2-norm'
-            ).run)(jnp.array(self._init_unconstr))
+        if lopt == "lm":
+            res = jax.jit(
+                jaxopt.LevenbergMarquardt(
+                    self._helper.residual, stop_criterion="grad-l2-norm"
+                ).run
+            )(jnp.array(self._init_unconstr))
             init_unconstr = res.params
-        elif lopt != 'minuit':
-            raise ValueError(f'invalid local optimization method {lopt}')
+        elif lopt != "minuit":
+            raise ValueError(f"invalid local optimization method {lopt}")
 
         minuit = Minuit(
             self._helper.deviance_unconstr,
             np.array(init_unconstr),
             grad=self._helper.deviance_unconstr_grad,
-            name=self._free_names
+            name=self._free_names,
         )
 
         # TODO: use simplex to "polish" the initial guess?
@@ -580,32 +594,32 @@ class LikelihoodFit(BaseFit):
             minuit.strategy = strategy
             minuit.migrad(iterate=10)
         else:
-            raise ValueError(f'invalid strategy {strategy}')
+            raise ValueError(f"invalid strategy {strategy}")
 
         return MLEResult(minuit, self)
 
 
 class BayesianFit(BaseFit):
     def __repr__(self) -> str:
-        s = 'Bayesian Fit\n'
-        s += self._tab1.get_string() + '\n'
+        s = "Bayesian Fit\n"
+        s += self._tab1.get_string() + "\n"
         s += self._tab2.get_string()
         return s
 
     def _repr_html_(self) -> str:
-        s = '<b>Bayesian Fit</b>\n'
-        s += self._tab1.get_html_string(format=True) + '\n'
+        s = "<b>Bayesian Fit</b>\n"
+        s += self._tab1.get_html_string(format=True) + "\n"
         s += self._tab2.get_html_string(format=True)
         return s
 
     def _make_info_table(self) -> None:
         self._tab1 = make_pretty_table(
-            ['Data', 'Model', 'Statistic'],
-            list((k, *v) for k, v in self._model_info.items())
+            ["Data", "Model", "Statistic"],
+            list((k, *v) for k, v in self._model_info.items()),
         )
         self._tab2 = make_pretty_table(
-            ['No.', 'Component', 'Parameter', 'Value', 'Prior'],
-            list(i[:4] + i[-1:] for i in self._params_info.values())
+            ["No.", "Component", "Parameter", "Value", "Prior"],
+            list(i[:4] + i[-1:] for i in self._params_info.values()),
         )
 
     def nuts(
@@ -615,7 +629,7 @@ class BayesianFit(BaseFit):
         chains: Optional[int] = None,
         init: Optional[dict[str, float]] = None,
         progress: bool = True,
-        nuts_kwargs: Optional[dict] = None
+        nuts_kwargs: Optional[dict] = None,
     ) -> PosteriorResult:
         """Run the No-U-Turn Sampler (NUTS) of :mod:`numpyro`.
 
@@ -646,16 +660,16 @@ class BayesianFit(BaseFit):
             chains = jax.device_count()
 
         if init is None:
-            init = {k: self._info['default'][k] for k in self._free_names}
+            init = {k: self._info["default"][k] for k in self._free_names}
 
         if nuts_kwargs is None:
             nuts_kwargs = {}
         else:
-            nuts_kwargs.pop('model', None)
-            nuts_kwargs.pop('init_strategy', None)
+            nuts_kwargs.pop("model", None)
+            nuts_kwargs.pop("init_strategy", None)
 
-        dense_mass = nuts_kwargs.pop('dense_mass', True)
-        max_tree_depth = nuts_kwargs.pop('max_tree_depth', 10)
+        dense_mass = nuts_kwargs.pop("dense_mass", True)
+        max_tree_depth = nuts_kwargs.pop("max_tree_depth", 10)
 
         sampler = MCMC(
             NUTS(
@@ -663,7 +677,7 @@ class BayesianFit(BaseFit):
                 dense_mass=dense_mass,
                 max_tree_depth=max_tree_depth,
                 init_strategy=init_to_value(values=init),
-                **nuts_kwargs
+                **nuts_kwargs,
             ),
             num_warmup=warmup,
             num_samples=samples,
@@ -685,7 +699,7 @@ class BayesianFit(BaseFit):
         num_parallel_workers: Optional[int] = None,
         difficult_model: bool = False,
         parameter_estimation: bool = False,
-        term_cond: dict = None
+        term_cond: dict = None,
     ) -> PosteriorResult:
         """Run the Nested Sampler of :mod:`jaxns`.
 
@@ -749,36 +763,29 @@ class BayesianFit(BaseFit):
             termination_kwargs=term_cond,
         )
 
-        print('Start nested sampling...')
+        print("Start nested sampling...")
         t0 = time.time()
         sampler.run(self._PRNGKey)
-        print(f'Sampling cost {time.time() - t0:.2f} s')
+        print(f"Sampling cost {time.time() - t0:.2f} s")
 
         return self._generate_result(sampler)
 
     def _generate_result(self, sampler) -> PosteriorResult:
         if not isinstance(sampler, (MCMC, NestedSampler)):
-            raise ValueError(f'unknown sampler type {type(sampler)}')
+            raise ValueError(f"unknown sampler type {type(sampler)}")
 
-        coords = {
-            f'{k}_channel': v.channel
-            for k, v in self._data.items()
-        }
+        coords = {f"{k}_channel": v.channel for k, v in self._data.items()}
 
-        dims = {
-           f'{k}_Non': [f'{k}_channel']
-           for k in self._data.keys()
-        } | {
-           f'{k}_Noff': [f'{k}_channel']
-           for k in self._data.keys()
-           if self._stat[k] in self._stat_with_back
+        dims = {f"{k}_Non": [f"{k}_channel"] for k in self._data.keys()} | {
+            f"{k}_Noff": [f"{k}_channel"]
+            for k in self._data.keys()
+            if self._stat[k] in self._stat_with_back
         }
 
         if isinstance(sampler, MCMC):  # numpyro sampler
             idata = az.from_numpyro(sampler, coords=coords, dims=dims)
             ess = {
-                k: int(v.values)
-                for k, v in az.ess(idata).data_vars.items()
+                k: int(v.values) for k, v in az.ess(idata).data_vars.items()
             }
 
             # the calculation of reff is according to arviz:
@@ -786,10 +793,10 @@ class BayesianFit(BaseFit):
             if len(idata.posterior.chain) == 1:
                 reff = 1.0
             else:
-                reff_p = az.ess(idata, method='mean', relative=True)
+                reff_p = az.ess(idata, method="mean", relative=True)
                 reff = np.hstack(list(reff_p.data_vars.values())).mean()
 
-            lnZ = (float('nan'), float('nan'))
+            lnZ = (float("nan"), float("nan"))
 
         elif isinstance(sampler, NestedSampler):  # jaxns sampler
             result = sampler._results
@@ -811,10 +818,9 @@ class BayesianFit(BaseFit):
 
             # get observation data
             observed_data = {
-                f'{k}_Non': v.spec_counts
-                for k, v in self._data.items()
+                f"{k}_Non": v.spec_counts for k, v in self._data.items()
             } | {
-                f'{k}_Noff': v.back_counts
+                f"{k}_Noff": v.back_counts
                 for k, v in self._data.items()
                 if self._stat[k] in self._stat_with_back
             }
@@ -824,54 +830,56 @@ class BayesianFit(BaseFit):
                 log_likelihood=log_like,
                 observed_data=observed_data,
                 coords=coords,
-                dims=dims
+                dims=dims,
             )
-            ess = {'total': int(result.ESS)}
+            ess = {"total": int(result.ESS)}
             reff = float(result.ESS / result.total_num_samples)
             lnZ = (float(result.log_Z_mean), float(result.log_Z_uncert))
         else:
-            raise NotImplementedError(f'{type(sampler)} sampler not supported')
+            raise NotImplementedError(f"{type(sampler)} sampler not supported")
 
-        ln_likelihood = idata['log_likelihood']
-        observation = idata['observed_data']
+        ln_likelihood = idata["log_likelihood"]
+        observation = idata["observed_data"]
 
         for k, v in self._data.items():
             # channel-wise log likelihood of data group
-            if f'{k}_Noff' in ln_likelihood:
-                ln_likelihood[k] = ln_likelihood[f'{k}_Non'] \
-                                   + ln_likelihood[f'{k}_Noff']
+            if f"{k}_Noff" in ln_likelihood:
+                ln_likelihood[k] = (
+                    ln_likelihood[f"{k}_Non"] + ln_likelihood[f"{k}_Noff"]
+                )
             else:
-                ln_likelihood[k] = ln_likelihood[f'{k}_Non']
+                ln_likelihood[k] = ln_likelihood[f"{k}_Non"]
 
             # net counts of data group
-            observation[k] = ((f'{k}_channel',), v.net_counts)
+            observation[k] = ((f"{k}_channel",), v.net_counts)
 
         # channel-wise log likelihood
-        ln_likelihood['channels'] = (
-            ('chain', 'draw', 'channel'),
-            np.concatenate([ln_likelihood[i] for i in self._data], axis=-1)
+        ln_likelihood["channels"] = (
+            ("chain", "draw", "channel"),
+            np.concatenate([ln_likelihood[i] for i in self._data], axis=-1),
         )
 
         # channel-wise net counts
-        observation['channels'] = (
-            ('channel',),
-            np.concatenate([observation[i] for i in self._data], axis=-1)
+        observation["channels"] = (
+            ("channel",),
+            np.concatenate([observation[i] for i in self._data], axis=-1),
         )
 
         # total log likelihood
-        ln_likelihood['total'] = ln_likelihood['channels'].sum('channel')
+        ln_likelihood["total"] = ln_likelihood["channels"].sum("channel")
 
         # total net counts
-        observation['total'] = observation['channels'].sum('channel')
+        observation["total"] = observation["channels"].sum("channel")
 
         channel_coords = np.hstack([d.channel for d in self._data.values()])
-        idata = idata.assign_coords({'channel': channel_coords})
+        idata = idata.assign_coords({"channel": channel_coords})
 
         return PosteriorResult(idata, ess, reff, lnZ, sampler, self)
 
 
 class HelperFn(NamedTuple):
     """A collection of helper functions."""
+
     numpyro_model: Callable
     to_dict: Callable
     to_constr_dict: Callable
@@ -924,7 +932,11 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         p = params_by_group(constr_dict)
         return jax.tree_map(
             lambda mi, pi, ei, ri, ti: mi(ei, pi) @ ri * ti,
-            spec_model, p, egrid, resp, expo
+            spec_model,
+            p,
+            egrid,
+            resp,
+            expo,
         )
 
     # ========================= create numpyro model ==========================
@@ -935,7 +947,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     stat_fn = jax.tree_map(_likelihood_fn, data, stat)
 
     deterministic = []  # record composite params directly input to model
-    for i in fit._info['params'].values():
+    for i in fit._info["params"].values():
         for j in i.values():
             if j not in free and j not in deterministic:
                 deterministic.append(j)
@@ -943,11 +955,9 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     def numpyro_model(predictive=False):
         """The numpyro model."""
         params = {
-            name: numpyro.sample(name, dist)
-            for name, dist in free.items()
+            name: numpyro.sample(name, dist) for name, dist in free.items()
         } | {
-            k: numpyro.deterministic(k, jnp.array(v))
-            for k, v in fixed.items()
+            k: numpyro.deterministic(k, jnp.array(v)) for k, v in fixed.items()
         }
         for name, (arg_names, fn) in composite.items():
             args = (params[arg_name] for arg_name in arg_names)
@@ -959,7 +969,8 @@ def generate_helper(fit: BaseFit) -> HelperFn:
 
         jax.tree_map(
             lambda f, m: f(m, predictive=predictive),
-            stat_fn, model_counts(params)
+            stat_fn,
+            model_counts(params),
         )
 
     # ============================ other functions ============================
@@ -973,11 +984,11 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     group_name = {}  # data name of each observation
     tmp = {}
     for name, d in data.items():
-        names = [f'{name}_Non']
+        names = [f"{name}_Non"]
         code = f'{name} = lambda data: data["{name}_spec"]'
 
         if data_stat[name] in stat_with_back:
-            names.append(f'{name}_Noff')
+            names.append(f"{name}_Noff")
             ratio = d.spec_effexpo / d.back_effexpo
             code = f'{code} - {ratio} * data["{name}_back"]'
 
@@ -1002,7 +1013,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
             model=numpyro_model,
             model_args=(),
             model_kwargs={},
-            params=to_dict(unconstr_array)
+            params=to_dict(unconstr_array),
         )
 
     @jax.jit
@@ -1012,7 +1023,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
             model=numpyro_model,
             model_args=(),
             model_kwargs={},
-            params=to_dict(constr_array)
+            params=to_dict(constr_array),
         )
 
     @jax.jit
@@ -1032,10 +1043,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         p = to_constr_dict(unconstr_array)
         return -2.0 * jax.tree_util.tree_reduce(
             lambda x, y: x + y,
-            jax.tree_map(
-                lambda x: x.sum(),
-                log_likelihood(numpyro_model, p)
-            )
+            jax.tree_map(lambda x: x.sum(), log_likelihood(numpyro_model, p)),
         )
 
     # deviance_unconstr_info will be used in simulation,
@@ -1048,8 +1056,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         deviance = jax.tree_map(lambda x: -2.0 * x, log_like)
 
         group = {
-            k: sum(deviance[i].sum() for i in v)
-            for k, v in group_name.items()
+            k: sum(deviance[i].sum() for i in v) for k, v in group_name.items()
         }
 
         point = {
@@ -1057,7 +1064,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
             for k, v in group_name.items()
         }
 
-        return {'group': group, 'point': point}
+        return {"group": group, "point": point}
 
     @jax.jit
     def to_params_dict(unconstr_dict: dict) -> dict:
@@ -1067,7 +1074,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
             model_args=(),
             model_kwargs={},
             params=unconstr_dict,
-            return_deterministic=True
+            return_deterministic=True,
         )
 
     @jax.jit
@@ -1085,8 +1092,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
 
     @jax.jit
     def params_covar(
-        unconstr_array: Sequence,
-        cov_unconstr: Sequence
+        unconstr_array: Sequence, cov_unconstr: Sequence
     ) -> jnp.ndarray:
         """Covariance matrix in constrained space."""
         jac = jax.jacobian(to_params_array)(unconstr_array)
@@ -1102,26 +1108,26 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         return jnp.sqrt(-2.0 * log_like_array)
 
     # ===================== functions used in simulation ======================
-    ndata = {k: v for k, v in fit._ndata.items() if k != 'total'}
+    ndata = {k: v for k, v in fit._ndata.items() if k != "total"}
 
     def sim_result_container(n: int):
         """Make a fitting result container for simulation data."""
         return {
-            'params_rep': {k: jnp.empty(n) for k in params_names},
-            'model_rep': {k: jnp.empty((n, v)) for k, v in ndata.items()},
-            'stat_rep': {
-                'total': jnp.empty(n),
-                'group': {k: jnp.empty(n) for k in data_names},
-                'point': {k: jnp.empty((n, v)) for k, v in ndata.items()}
+            "params_rep": {k: jnp.empty(n) for k in params_names},
+            "model_rep": {k: jnp.empty((n, v)) for k, v in ndata.items()},
+            "stat_rep": {
+                "total": jnp.empty(n),
+                "group": {k: jnp.empty(n) for k in data_names},
+                "point": {k: jnp.empty((n, v)) for k, v in ndata.items()},
             },
-            'params_fit': {k: jnp.empty(n) for k in params_names},
-            'model_fit': {k: jnp.empty((n, v)) for k, v in ndata.items()},
-            'stat_fit': {
-                'total': jnp.empty(n),
-                'group': {k: jnp.empty(n) for k in data_names},
-                'point': {k: jnp.empty((n, v)) for k, v in ndata.items()}
+            "params_fit": {k: jnp.empty(n) for k in params_names},
+            "model_fit": {k: jnp.empty((n, v)) for k, v in ndata.items()},
+            "stat_fit": {
+                "total": jnp.empty(n),
+                "group": {k: jnp.empty(n) for k in data_names},
+                "point": {k: jnp.empty((n, v)) for k, v in ndata.items()},
             },
-            'valid': jnp.full(n, True, bool)
+            "valid": jnp.full(n, True, bool),
         }
 
     @jax.jit
@@ -1130,74 +1136,71 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         sim_data, result, init = args
 
         new_data = jax.tree_map(lambda x: x[i], sim_data)
-        new_residual = handlers.substitute(
-            fn=residual,
-            data=new_data
-        )
+        new_residual = handlers.substitute(fn=residual, data=new_data)
         new_deviance_info = handlers.substitute(
-            fn=deviance_unconstr_info,
-            data=new_data
+            fn=deviance_unconstr_info, data=new_data
         )
 
         # update best fit params to result
         params = to_params_dict(to_dict(init[i]))
-        for k in result['params_rep']:
-            result['params_rep'][k] = \
-                result['params_rep'][k].at[i].set(params[k])
+        for k in result["params_rep"]:
+            result["params_rep"][k] = (
+                result["params_rep"][k].at[i].set(params[k])
+            )
 
         # update unfit model to result
         model = model_counts(to_constr_dict(init[i]))
         for k in data_names:
-            result['model_rep'][k] = result['model_rep'][k].at[i].set(model[k])
+            result["model_rep"][k] = result["model_rep"][k].at[i].set(model[k])
 
         # update unfit deviance to result
         stat_info = new_deviance_info(init[i])
-        stat_group = stat_info['group']
-        stat_point = stat_info['point']
-        res = result['stat_rep']
-        group = res['group']
-        point = res['point']
+        stat_group = stat_info["group"]
+        stat_point = stat_info["point"]
+        res = result["stat_rep"]
+        group = res["group"]
+        point = res["point"]
         for k in data_names:
             group[k] = group[k].at[i].set(stat_group[k])
             point[k] = point[k].at[i].set(stat_point[k])
-        res['total'] = res['total'].at[i].set(sum(stat_group.values()))
+        res["total"] = res["total"].at[i].set(sum(stat_group.values()))
 
         # fit simulation data
         res = jaxopt.LevenbergMarquardt(
-            residual_fun=new_residual,
-            stop_criterion='grad-l2-norm'
+            residual_fun=new_residual, stop_criterion="grad-l2-norm"
         ).run(init[i])
         state = res.state
 
         # update best fit params to result
         params = to_params_dict(to_dict(res.params))
-        for k in result['params_fit']:
-            result['params_fit'][k] = \
-                result['params_fit'][k].at[i].set(params[k])
+        for k in result["params_fit"]:
+            result["params_fit"][k] = (
+                result["params_fit"][k].at[i].set(params[k])
+            )
 
         # update best fit model to result
         model = model_counts(to_constr_dict(res.params))
         for k in data_names:
-            result['model_fit'][k] = result['model_fit'][k].at[i].set(model[k])
+            result["model_fit"][k] = result["model_fit"][k].at[i].set(model[k])
 
         stat_info = new_deviance_info(res.params)
-        stat_group = stat_info['group']
-        stat_point = stat_info['point']
-        res = result['stat_fit']
-        group = res['group']
-        point = res['point']
+        stat_group = stat_info["group"]
+        stat_point = stat_info["point"]
+        res = result["stat_fit"]
+        group = res["group"]
+        point = res["point"]
         for k in data_names:
             group[k] = group[k].at[i].set(stat_group[k])
             point[k] = point[k].at[i].set(stat_point[k])
 
-        res['total'] = res['total'].at[i].set(2.0 * state.value)
+        res["total"] = res["total"].at[i].set(2.0 * state.value)
 
         valid = jnp.bitwise_not(
             jnp.isnan(state.value)
             | jnp.isnan(state.error)
             | jnp.greater(state.error, 1e-3)
         )
-        result['valid'] = result['valid'].at[i].set(valid)
+        result["valid"] = result["valid"].at[i].set(valid)
 
         return sim_data, result, init
 
@@ -1208,7 +1211,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
 
     def sim_parallel_fit(sim_data, result, init, run_str):
         """Fit simulation data in parallel."""
-        neval = len(result['valid'])
+        neval = len(result["valid"])
         ncores = jax.device_count()
 
         reshape = lambda x: x.reshape((ncores, -1) + x.shape[1:])
@@ -1219,7 +1222,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         fn = progress_bar_factory(neval, ncores, run_str=run_str)(sim_fit_one)
 
         fit_results = jax.pmap(
-            lambda *args: lax.fori_loop(0, neval//ncores, fn, args)[1]
+            lambda *args: lax.fori_loop(0, neval // ncores, fn, args)[1]
         )(sim_data_, result_, init_)
 
         return jax.tree_map(lambda x: jnp.hstack(x), fit_results)
@@ -1247,34 +1250,38 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         sim_result_container=sim_result_container,
         sim_fit_one=sim_fit_one,
         sim_sequence_fit=sim_sequence_fit,
-        sim_parallel_fit=sim_parallel_fit
+        sim_parallel_fit=sim_parallel_fit,
     )
 
 
 def _likelihood_fn(data: Data, stat: str) -> Callable:
     """Wrap likelihood function."""
     name = data.name
-    if stat == 'chi2':
+    if stat == "chi2":
         spec = data.net_counts
         error = data.net_error
         return partial(chi2, name=name, spec=spec, error=error)
-    elif stat == 'cstat':
+    elif stat == "cstat":
         return partial(cstat, name=name, spec=data.spec_counts)
-    elif stat == 'pstat':
+    elif stat == "pstat":
         spec = data.spec_counts
         back = data.back_counts
         ratio = data.spec_effexpo / data.back_effexpo
         return partial(pstat, name=name, spec=spec, back=back, ratio=ratio)
-    elif stat == 'pgstat':
+    elif stat == "pgstat":
         spec = data.spec_counts
         back = data.back_counts
         back_error = data.back_error
         ratio = data.spec_effexpo / data.back_effexpo
         return partial(
             pgstat,
-            name=name, spec=spec, back=back, back_error=back_error, ratio=ratio
+            name=name,
+            spec=spec,
+            back=back,
+            back_error=back_error,
+            ratio=ratio,
         )
-    elif stat == 'wstat':
+    elif stat == "wstat":
         spec = data.spec_counts
         back = data.back_counts
         ratio = data.spec_effexpo / data.back_effexpo

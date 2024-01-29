@@ -1,4 +1,5 @@
 """Models of convolution type."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -17,7 +18,7 @@ class ConvolutionComponent(Component, ABC):
     @property
     def type(self) -> str:
         """Model type is convolution."""
-        return 'con'
+        return "con"
 
     @property
     def _func(self) -> Callable:
@@ -29,5 +30,3 @@ class ConvolutionComponent(Component, ABC):
     def _convolve(*args):
         """Return photon flux which has been convolved."""
         pass
-
-

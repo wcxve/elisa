@@ -1,7 +1,9 @@
 """Subsequent analysis of likelihood or Bayesian fit."""
+
 from __future__ import annotations
 
-from typing import Literal, NamedTuple, Optional, Sequence
+from collections.abc import Sequence
+from typing import Literal, NamedTuple, Optional
 
 import arviz as az
 import jax
@@ -43,11 +45,7 @@ class BootstrapResult(NamedTuple):
 class MLEResult:
     """MLE result obtained from likelihood fit."""
 
-    def __init__(
-        self,
-        minuit: Minuit,
-        fit: _fit.LikelihoodFit
-    ):
+    def __init__(self, minuit: Minuit, fit: _fit.LikelihoodFit):
         self._minuit = minuit
         self._helper = helper = fit._helper
         self._free_names = free_names = fit._free_names
@@ -71,27 +69,27 @@ class MLEResult:
         err = np.sqrt(np.diagonal(cov))
 
         stat_info = helper.deviance_unconstr_info(mle_unconstr)
-        stat_group = stat_info['group']
-        stat = {k: float(stat_group[k]) for k in ndata if k != 'total'}
+        stat_group = stat_info["group"]
+        stat = {k: float(stat_group[k]) for k in ndata if k != "total"}
         stat_total = minuit.fval
-        stat |= {'total': stat_total}
+        stat |= {"total": stat_total}
 
         unconstr_dict = {k: v for k, v in zip(free_names, mle_unconstr)}
         param_dict = helper.to_params_dict(unconstr_dict)
         constr_dict = {k: float(param_dict[k]) for k in free_names}
         self._result = {
-            'unconstr': unconstr_dict,
-            'constr': constr_dict,
-            'params': param_dict,
-            'deviance': {
-                'total': stat_total,
-                'group': stat_group,
-                'point': stat_info['point']
-            }
+            "unconstr": unconstr_dict,
+            "constr": constr_dict,
+            "params": param_dict,
+            "deviance": {
+                "total": stat_total,
+                "group": stat_group,
+                "point": stat_info["point"],
+            },
         }
 
         k = len(free_names)
-        n = ndata['total']
+        n = ndata["total"]
         self._mle = {p: (v, e) for p, v, e in zip(params, mle, err)}
         self._stat = stat
         self._aic = stat_total + 2 * k + 2 * k * (k + 1) / (n - k - 1)
@@ -100,29 +98,29 @@ class MLEResult:
 
     def __repr__(self):
         tab = make_pretty_table(
-            ['Parameter', 'Value', 'Error'],
-            [(k, f'{v[0]:.4g}', f'{v[1]:.4g}') for k, v in self._mle.items()]
+            ["Parameter", "Value", "Error"],
+            [(k, f"{v[0]:.4g}", f"{v[1]:.4g}") for k, v in self._mle.items()],
         )
-        s = 'MLE:\n' + tab.get_string() + '\n'
+        s = "MLE:\n" + tab.get_string() + "\n"
 
         stat_type = self._stat_type
         stat_value = self._stat
         ndata = self._ndata
         stat = [
-            f'{i}: {stat_type[i]}={stat_value[i]:.2f}, ndata={ndata[i]}'
+            f"{i}: {stat_type[i]}={stat_value[i]:.2f}, ndata={ndata[i]}"
             for i in self._ndata.keys()
-            if i != 'total'
+            if i != "total"
         ]
-        total_stat = stat_value['total']
+        total_stat = stat_value["total"]
         dof = self._dof
         stat += [
-            f'Total: stat/dof={total_stat/dof:.2f} ({total_stat:.2f}/{dof})'
+            f"Total: stat/dof={total_stat/dof:.2f} ({total_stat:.2f}/{dof})"
         ]
-        s += '\nStatistic:\n' + '\n'.join(stat) + '\n'
-        s += f'AIC: {self.aic:.2f}\n'
-        s += f'BIC: {self.bic:.2f}\n'
+        s += "\nStatistic:\n" + "\n".join(stat) + "\n"
+        s += f"AIC: {self.aic:.2f}\n"
+        s += f"BIC: {self.bic:.2f}\n"
 
-        s += f'\nFit Status:\n{self.status}'
+        s += f"\nFit Status:\n{self.status}"
 
         return s
 
@@ -173,7 +171,7 @@ class MLEResult:
         self,
         params: Optional[str | Sequence[str]] = None,
         cl: float | int = 1,
-        method: Literal['profile', 'boot'] = 'profile',
+        method: Literal["profile", "boot"] = "profile",
         n: Optional[int] = None,
     ) -> ConfidenceInterval:
         """Calculate confidence intervals for given parameters.
@@ -211,7 +209,7 @@ class MLEResult:
 
         """
         if not self._minuit.valid:
-            msg = 'fit must be valid to calculate confidence interval'
+            msg = "fit must be valid to calculate confidence interval"
             raise RuntimeError(msg)
 
         if params is None:
@@ -220,7 +218,7 @@ class MLEResult:
         elif isinstance(params, str):
             # check if params exist
             if params not in self._params_names:
-                raise ValueError(f'parameter: {params} is not exist')
+                raise ValueError(f"parameter: {params} is not exist")
 
             params = [params]
 
@@ -229,36 +227,32 @@ class MLEResult:
             params = [str(i) for i in params]
             flag = [i in self._params_names for i in params]
             if not all(flag):
-                params_err = ', '.join(
+                params_err = ", ".join(
                     [i for i, j in zip(params, flag) if not j]
                 )
-                raise ValueError(f'parameters: {params_err} are not exist')
+                raise ValueError(f"parameters: {params_err} are not exist")
 
             params = list(str(i) for i in params)
 
         else:
-            raise ValueError('params must be str, or sequence of str')
+            raise ValueError("params must be str, or sequence of str")
 
         free_params = [i for i in params if i in self._free_names]
         composite_params = [i for i in params if i in self._composite_params]
 
         cl_ = 1.0 - 2.0 * norm.sf(cl) if cl >= 1.0 else cl
 
-        mle = {
-            k: v for k, v in self._result['params'].items()
-            if k in params
-        }
+        mle = {k: v for k, v in self._result["params"].items() if k in params}
 
         helper = self._helper
 
-        if method == 'profile':
+        if method == "profile":
             self._minuit.minos(*free_params, cl=cl)
 
             mle0 = self._minuit.values.to_dict()
 
             others = {  # set other unconstrained free parameter to mle
-                i: mle0[i]
-                for i in (set(mle0.keys()) - set(free_params))
+                i: mle0[i] for i in (set(mle0.keys()) - set(free_params))
             }
 
             ci = self._minuit.merrors
@@ -273,10 +267,10 @@ class MLEResult:
             error = {k: (lo[k] - mle[k], up[k] - mle[k]) for k in free_params}
             status = {
                 k: {
-                    'valid': (v.lower_valid, v.upper_valid),
-                    'at_limit': (v.at_lower_limit, v.at_upper_limit),
-                    'at_max_fcn': (v.at_lower_max_fcn, v.at_upper_max_fcn),
-                    'new_min': (v.lower_new_min, v.upper_new_min),
+                    "valid": (v.lower_valid, v.upper_valid),
+                    "at_limit": (v.at_lower_limit, v.at_upper_limit),
+                    "at_max_fcn": (v.at_lower_max_fcn, v.at_upper_max_fcn),
+                    "new_min": (v.lower_new_min, v.upper_new_min),
                 }
                 for k, v in ci.items()
             }
@@ -284,12 +278,13 @@ class MLEResult:
             # confidence interval of function of parameters,
             # see, e.g. https://doi.org/10.1007/s11222-021-10012-y
             for p in composite_params:
+
                 def loss(x):
                     """The loss when calculating CI of composite parameter."""
                     unconstr = {k: v for k, v in zip(self._free_names, x[1:])}
                     p0 = helper.to_params_dict(unconstr)[p]
                     diff = (p0 / x[0] - 1) / 1e-3
-                    return helper.deviance_unconstr(x[1:]) + diff*diff
+                    return helper.deviance_unconstr(x[1:]) + diff * diff
 
                 mle_p = mle[p]
 
@@ -301,33 +296,35 @@ class MLEResult:
                 m.strategy = 2
                 m.migrad()
                 m.minos(0, cl=cl)
-                ci = m.merrors['x0']
+                ci = m.merrors["x0"]
                 interval[p] = (mle_p + ci.lower, mle_p + ci.upper)
                 error[p] = (ci.lower, ci.upper)
                 status[p] = {
-                    'valid': (ci.lower_valid, ci.upper_valid),
-                    'at_limit': (ci.at_lower_limit, ci.at_upper_limit),
-                    'at_max_fcn': (ci.at_lower_max_fcn, ci.at_upper_max_fcn),
-                    'new_min': (ci.lower_new_min, ci.upper_new_min),
+                    "valid": (ci.lower_valid, ci.upper_valid),
+                    "at_limit": (ci.at_lower_limit, ci.at_upper_limit),
+                    "at_max_fcn": (ci.at_lower_max_fcn, ci.at_upper_max_fcn),
+                    "new_min": (ci.lower_new_min, ci.upper_new_min),
                 }
 
-        elif method == 'boot':
+        elif method == "boot":
             if n is None:
                 boot_result = self.boot()
             else:
                 boot_result = self.boot(n=n)
             interval = jax.tree_map(
-                lambda x: tuple(np.quantile(x, q=(0.5 - cl_/2, 0.5 + cl_/2))),
-                {k: v for k, v in boot_result.params.items() if k in params}
+                lambda x: tuple(
+                    np.quantile(x, q=(0.5 - cl_ / 2, 0.5 + cl_ / 2))
+                ),
+                {k: v for k, v in boot_result.params.items() if k in params},
             )
             error = {
                 k: (interval[k][0] - mle[k], interval[k][1] - mle[k])
                 for k in params
             }
             status = {
-                'n': boot_result.n,
-                'n_valid': boot_result.n_valid,
-                'seed': boot_result.seed
+                "n": boot_result.n,
+                "n_valid": boot_result.n_valid,
+                "seed": boot_result.seed,
             }
 
         else:
@@ -344,14 +341,11 @@ class MLEResult:
             error=format_result(error),
             cl=cl_,
             method=method,
-            status=status
+            status=status,
         )
 
     def boot(
-        self,
-        n: int = 10000,
-        parallel: bool = True,
-        seed: Optional[int] = None
+        self, n: int = 10000, parallel: bool = True, seed: Optional[int] = None
     ) -> BootstrapResult:
         """Parametric bootstrap.
 
@@ -372,7 +366,7 @@ class MLEResult:
 
         """
         if not self._minuit.valid:
-            msg = 'fit must be valid to perform bootstrap'
+            msg = "fit must be valid to perform bootstrap"
             raise RuntimeError(msg)
 
         if seed is None:
@@ -385,31 +379,30 @@ class MLEResult:
             return self._boot
 
         boot_result = result = self._simfit.run_one_set(
-            self._result['constr'],
+            self._result["constr"],
             n,
             self._seed,
             parallel,
-            run_str='Bootstrap'
+            run_str="Bootstrap",
         )
 
         boot_result = BootstrapResult(
-            mle=self._result['unconstr'],
-            params=result['params_fit'],
-            stat=result['stat_fit'],
+            mle=self._result["unconstr"],
+            params=result["params_fit"],
+            stat=result["stat_fit"],
             p_value=...,
-            valid=result['valid'],
+            valid=result["valid"],
             n=n,
-            n_valid=result['valid'].sum(),
+            n_valid=result["valid"].sum(),
             seed=self._seed,
-            results=boot_result
+            results=boot_result,
         )
 
         self._boot = boot_result
 
         return boot_result
 
-    def plot_data(self):
-        ...
+    def plot_data(self): ...
 
     def plot_corner(self):
         # correlation map or bootstrap distribution
@@ -418,16 +411,18 @@ class MLEResult:
 
 class CredibleInterval(NamedTuple):
     """Credible interval result."""
+
     mle: dict[str, float]
     median: dict[str, float]
     interval: dict[str, tuple[float, float]]
     prob: float
     hdi: bool
-    sample_method: Literal['nuts', 'ns']
+    sample_method: Literal["nuts", "ns"]
 
 
 class PPCResult(NamedTuple):
     """Posterior predictive check result."""
+
     ...
 
 
@@ -441,7 +436,7 @@ class PosteriorResult:
         reff: float,
         lnZ: tuple[float, float],
         sampler,
-        fit: _fit.BayesianFit
+        fit: _fit.BayesianFit,
     ):
         self._idata = idata
         self._ess = ess
@@ -501,10 +496,10 @@ class PosteriorResult:
         .. [1] : https://arxiv.org/abs/1903.08008
 
         """
-        posterior = self._idata['posterior']
+        posterior = self._idata["posterior"]
 
-        if len(posterior['chain']) == 1:
-            return {k: float('nan') for k in posterior.data_vars.keys()}
+        if len(posterior["chain"]) == 1:
+            return {k: float("nan") for k in posterior.data_vars.keys()}
         else:
             return {
                 k: float(v.values)
@@ -514,8 +509,8 @@ class PosteriorResult:
     @property
     def divergence(self) -> int:
         """Number of divergent samples."""
-        if 'sample_stats' in self._idata:
-            return int(self._idata['sample_stats']['diverging'].sum())
+        if "sample_stats" in self._idata:
+            return int(self._idata["sample_stats"]["diverging"].sum())
         else:
             return 0
 
@@ -533,7 +528,7 @@ class PosteriorResult:
         .. [2] https://arxiv.org/abs/1004.2316
 
         """
-        return az.waic(self._idata, var_name='channels', scale='deviance')
+        return az.waic(self._idata, var_name="channels", scale="deviance")
 
     @property
     def loo(self) -> float:
@@ -551,7 +546,7 @@ class PosteriorResult:
 
         """
         return az.loo(
-            self._idata, var_name='channels', reff=self._reff, scale='deviance'
+            self._idata, var_name="channels", reff=self._reff, scale="deviance"
         )
 
     @property
@@ -598,7 +593,7 @@ class PosteriorResult:
         elif isinstance(params, str):
             # check if params exist
             if params not in self._params_names:
-                raise ValueError(f'parameter: {params} is not exist')
+                raise ValueError(f"parameter: {params} is not exist")
 
             params = [params]
 
@@ -607,26 +602,22 @@ class PosteriorResult:
             params = [str(i) for i in params]
             flag = [i in self._params_names for i in params]
             if not all(flag):
-                params_err = ', '.join(
+                params_err = ", ".join(
                     [i for i, j in zip(params, flag) if not j]
                 )
-                raise ValueError(f'parameters: {params_err} are not exist')
+                raise ValueError(f"parameters: {params_err} are not exist")
 
             params = list(str(i) for i in params)
 
         else:
-            raise ValueError('params must be str, or sequence of str')
+            raise ValueError("params must be str, or sequence of str")
 
         prob_ = 1.0 - 2.0 * norm.sf(prob) if prob >= 1.0 else prob
 
         ...
 
-
     def ppc(
-        self,
-        n: int = 10000,
-        parallel: bool = True,
-        seed: Optional[int] = None
+        self, n: int = 10000, parallel: bool = True, seed: Optional[int] = None
     ) -> PPCResult:
         """Perform posterior predictive check.
 
@@ -650,14 +641,11 @@ class PosteriorResult:
         # random select n posterior samples
         # ppp, rep and fit
 
-    def plot_data(self):
-        ...
+    def plot_data(self): ...
 
-    def plot_corner(self):
-        ...
+    def plot_corner(self): ...
 
-    def plot_loopit(self):
-        ...
+    def plot_loopit(self): ...
 
     def plot_trace(self, params, fig_path=None):
         # az.plot_trace()

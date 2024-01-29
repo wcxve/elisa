@@ -1,4 +1,5 @@
 """Containers of OGIP/92-007 format data."""
+
 from __future__ import annotations
 
 import re
@@ -11,14 +12,14 @@ from astropy.io import fits
 from .grouping import (
     group_const,
     group_min,
-    group_sig,
-    group_pos,
     group_opt,
     group_optmin,
-    group_optsig
+    group_optsig,
+    group_pos,
+    group_sig,
 )
 
-__all__ = ['Data']
+__all__ = ["Data"]
 # TODO: support creating Data object from array
 
 NDArray = np.ndarray
@@ -118,18 +119,18 @@ class Data:
         ignore_bad: bool = True,
         record_channel: bool = False,
         corrfile: str | None = None,
-        corrnorm: str | None = None
+        corrnorm: str | None = None,
     ):
-        erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
+        erange = np.array(erange, dtype=np.float64, order="C", ndmin=2)
 
         # check if erange is increasing
         if np.any(np.diff(erange, axis=1) <= 0.0):
-            raise ValueError('erange must be increasing')
+            raise ValueError("erange must be increasing")
 
         # check if erange is overlapped
         erange = erange[erange[:, 0].argsort()]
         if np.any(np.diff(np.hstack(erange)) <= 0.0):
-            raise ValueError('erange must not be overlapped')
+            raise ValueError("erange must not be overlapped")
 
         spec = Spectrum(specfile, spec_poisson)
 
@@ -139,7 +140,7 @@ class Data:
         elif spec.name:
             name = spec.name
         else:
-            raise ValueError('name is required for data')
+            raise ValueError("name is required for data")
 
         # check ancillary response file
         if not ancrfile:
@@ -151,12 +152,12 @@ class Data:
         elif spec.respfile:
             resp = Response(spec.respfile, ancrfile)
         else:
-            raise ValueError('respfile is required for data')
+            raise ValueError("respfile is required for data")
 
         if len(spec._raw_counts) != len(resp._raw_channel):
-            msg = f'specfile ({specfile}) and respfile ({respfile}) are not '
-            msg += 'matched'
-            raise IOError(msg)
+            msg = f"specfile ({specfile}) and respfile ({respfile}) are not "
+            msg += "matched"
+            raise OSError(msg)
 
         # check background file
         if backfile:
@@ -167,9 +168,9 @@ class Data:
             back = None
 
         if back and len(spec._raw_counts) != len(back._raw_counts):
-            msg = f'specfile ({specfile}) and backfile ({backfile}) are not '
-            msg += 'matched'
-            raise IOError(msg)
+            msg = f"specfile ({specfile}) and backfile ({backfile}) are not "
+            msg += "matched"
+            raise OSError(msg)
 
         # bad quality
         bad = (1, 5) if ignore_bad else (1,)
@@ -180,13 +181,13 @@ class Data:
             back_good = ~np.isin(back.quality, bad)
             if not np.all(good_quality == back_good):
                 good_quality &= back_good
-                msg = 'ignore bad channels defined by the union of spectrum '
-                msg += f'({specfile})and background ({backfile}) quality'
+                msg = "ignore bad channels defined by the union of spectrum "
+                msg += f"({specfile})and background ({backfile}) quality"
                 warnings.warn(msg, Warning, stacklevel=2)
 
         # corrfile and corrnorm not supported yet
         if corrfile or corrnorm:
-            msg = 'correction to data is not yet supported.'
+            msg = "correction to data is not yet supported."
             warnings.warn(msg, Warning, stacklevel=2)
 
         # check correction file
@@ -241,7 +242,9 @@ class Data:
         # background attributes
         if self._has_back:
             self._back_exposure = back.exposure
-            self._back_effexpo = back.exposure*back.area_scale*back.back_scale
+            self._back_effexpo = (
+                back.exposure * back.area_scale * back.back_scale
+            )
             self._back_poisson = back.poisson
         else:
             self._back_exposure = None
@@ -320,29 +323,27 @@ class Data:
 
         def apply_map(func, *args):
             """map the apply function and return success flag."""
-            return all(
-                apply_grouping(func, mask, *args) for mask in ch_mask
-            )
+            return all(apply_grouping(func, mask, *args) for mask in ch_mask)
 
-        if method == 'const':
+        if method == "const":
             success = group_const()
 
-        elif method == 'min':
+        elif method == "min":
             success = apply_map(group_min, spec_counts)
 
-        elif method == 'sig':
+        elif method == "sig":
             success = group_sig()
 
-        elif method == 'opt':
+        elif method == "opt":
             success = group_opt()
 
-        elif method == 'optmin':
+        elif method == "optmin":
             success = group_optmin()
 
-        elif method == 'optsig':
+        elif method == "optsig":
             success = group_optsig()
 
-        elif method == 'bmin':
+        elif method == "bmin":
             if self.has_back and self.back_poisson:
                 back_counts = self._back._raw_counts
             else:
@@ -350,7 +351,7 @@ class Data:
                 raise ValueError(msg)
             success = apply_map(group_min, back_counts)
 
-        elif method == 'bpos':
+        elif method == "bpos":
             if self.has_back:
                 back_counts = self._back._raw_counts
                 back_error = self._back._raw_error
@@ -362,8 +363,14 @@ class Data:
 
         else:
             supported = (
-                'const', 'min', 'sig', 'opt', 'optmin', 'optsig', 'bmin',
-                'bpos'
+                "const",
+                "min",
+                "sig",
+                "opt",
+                "optmin",
+                "optsig",
+                "bmin",
+                "bpos",
             )
             msg = f'supported grouping method are: {", ".join(supported)}'
             raise ValueError(msg)
@@ -388,7 +395,7 @@ class Data:
             grp_idx = np.flatnonzero(grouping == 1)  # transform to index
             non_empty = np.add.reduceat(self._good_quality, grp_idx) != 0
             groups_channel = np.array(
-                [f'{self.name}_Ch{c}' for c in np.flatnonzero(non_empty)]
+                [f"{self.name}_Ch{c}" for c in np.flatnonzero(non_empty)]
             )
 
         ch_emin = self._resp.ch_emin
@@ -609,13 +616,9 @@ class Spectrum:
 
     """
 
-    def __init__(
-        self,
-        specfile: str,
-        poisson: bool | None = None
-    ):
+    def __init__(self, specfile: str, poisson: bool | None = None):
         # test if file is '/path/to/specfile{n}'
-        match = re.compile(r'(.+){(.+)}').match(specfile)
+        match = re.compile(r"(.+){(.+)}").match(specfile)
         if match:
             file = match.group(1)
             type_ii = True  # spectrum file is of type II
@@ -626,37 +629,37 @@ class Spectrum:
             spec_id = 0
 
         with fits.open(file) as hdul:
-            header = hdul['SPECTRUM'].header
-            data = hdul['SPECTRUM'].data
+            header = hdul["SPECTRUM"].header
+            data = hdul["SPECTRUM"].data
 
         # TODO: more robust way to detect a type II data
         # check if data is type II
         if not type_ii:
-            msg = f'row id must be provided for type II spectrum {specfile}'
+            msg = f"row id must be provided for type II spectrum {specfile}"
 
             nchan = len(data)
-            if int(header.get('DETCHANS', nchan)) != nchan:
-                raise IOError(msg)
+            if int(header.get("DETCHANS", nchan)) != nchan:
+                raise OSError(msg)
 
-            if header.get('HDUCLAS4', '') == 'TYPE:II':
-                raise IOError(msg)
+            if header.get("HDUCLAS4", "") == "TYPE:II":
+                raise OSError(msg)
 
         else:
             data = data[spec_id].array  # set data to the specified row
 
         # check if COUNTS or RATE exists
-        if 'COUNTS' not in data.names and 'RATE' not in data.names:
-            raise IOError(f'"COUNTS" or "RATE" not found in {specfile}')
+        if "COUNTS" not in data.names and "RATE" not in data.names:
+            raise OSError(f'"COUNTS" or "RATE" not found in {specfile}')
 
         # get poisson flag
-        poisson = header.get('POISSERR', poisson)
+        poisson = header.get("POISSERR", poisson)
         if poisson is None:
             msg = '`poisson` must be set if "POISSERR" is undefined in header'
             raise ValueError(msg)
 
         # check if STAT_ERR exists for non-Poisson spectrum
-        if not poisson and 'STAT_ERR' not in data.names:
-            raise IOError(f'"STAT_ERR" not found in {specfile}')
+        if not poisson and "STAT_ERR" not in data.names:
+            raise OSError(f'"STAT_ERR" not found in {specfile}')
 
         def get_field(field, default=None, excluded=None):
             """Get value of specified field, return default if not found."""
@@ -673,72 +676,72 @@ class Spectrum:
                 return value
 
         # get exposure
-        exposure = np.float64(get_field('EXPOSURE'))
+        exposure = np.float64(get_field("EXPOSURE"))
 
         # get counts
-        if 'COUNTS' in data.names:
-            counts = get_field('COUNTS')
-            counts = np.array(counts, dtype=np.float64, order='C')
+        if "COUNTS" in data.names:
+            counts = get_field("COUNTS")
+            counts = np.array(counts, dtype=np.float64, order="C")
         else:  # calculate counts using 'RATE' and 'EXPOSURE'
-            rate = get_field('RATE')
-            rate = np.array(rate, dtype=np.float64, order='C')
+            rate = get_field("RATE")
+            rate = np.array(rate, dtype=np.float64, order="C")
             counts = rate * exposure
 
         # get statistical error of counts
         if poisson:
             stat_err = np.sqrt(counts)
         else:
-            stat_err = get_field('STAT_ERR')
-            stat_err = np.array(stat_err, dtype=np.float64, order='C')
-            if 'RATE' in data.names:
+            stat_err = get_field("STAT_ERR")
+            stat_err = np.array(stat_err, dtype=np.float64, order="C")
+            if "RATE" in data.names:
                 stat_err *= exposure
 
-                if 'COUNTS' in data.names:
+                if "COUNTS" in data.names:
                     msg = f'"STAT_ERR" in {specfile} is assumed for "RATE"'
                     warnings.warn(msg, Warning, stacklevel=3)
 
         # get fractional systematic error of counts
-        sys_err = get_field('SYS_ERR', 0)
+        sys_err = get_field("SYS_ERR", 0)
         if np.shape(sys_err) == () and sys_err == 0:
             sys_err = np.zeros(len(counts))
         else:
-            sys_err = np.array(sys_err, dtype=np.float64, order='C')
+            sys_err = np.array(sys_err, dtype=np.float64, order="C")
 
         # get quality flag
-        quality = get_field('QUALITY', np.zeros(len(counts)))
+        quality = get_field("QUALITY", np.zeros(len(counts)))
         if np.shape(quality) == () and quality == 0:
             quality = np.zeros(len(counts), dtype=np.int64)
         else:
-            quality = np.array(quality, dtype=np.int64, order='C')
+            quality = np.array(quality, dtype=np.int64, order="C")
 
         # get grouping flag
-        grouping = get_field('GROUPING', 0)
+        grouping = get_field("GROUPING", 0)
         if np.shape(grouping) == () and grouping == 0:
             grouping = np.ones(len(counts), np.int64)
         else:
-            grouping = np.array(grouping, dtype=np.int64, order='C')
+            grouping = np.array(grouping, dtype=np.int64, order="C")
 
         if poisson:  # check if counts are integers
             diff = np.abs(counts - np.round(counts))
             if np.any(diff > 1e-8 * counts):
-                msg = f'spectrum ({specfile}) has non-integer counts, '
-                msg += 'which may lead to wrong result'
+                msg = f"spectrum ({specfile}) has non-integer counts, "
+                msg += "which may lead to wrong result"
                 warnings.warn(msg, Warning, stacklevel=3)
 
         # check if statistical error are positive
         mask = stat_err < 0.0
         if np.any(mask):
             stat_err[mask] = 0.0
-            msg = f'spectrum ({specfile}) has some statistical errors < 0, '
-            msg += 'which are reset to 0'
+            msg = f"spectrum ({specfile}) has some statistical errors < 0, "
+            msg += "which are reset to 0"
             warnings.warn(msg, Warning, stacklevel=3)
 
         # check if systematic error are positive
         mask = sys_err < 0.0
         if np.any(mask):
             sys_err[mask] = 0.0
-            msg = f'spectrum ({specfile}) has some systematic errors < 0, '
-            msg += 'which are reset to 0'
+            msg = f"spectrum ({specfile}) has some systematic errors < 0, "
+            msg += "which are reset to 0"
             warnings.warn(msg, Warning, stacklevel=3)
 
         # total error of counts
@@ -747,47 +750,47 @@ class Spectrum:
         error = np.sqrt(stat_var + sys_var)
 
         # search name in header
-        excluded_name = ('', 'none', 'unknown')
-        for key in ('DETNAM', 'INSTRUME', 'TELESCOP'):
-            name = str(header.get(key, ''))
+        excluded_name = ("", "none", "unknown")
+        for key in ("DETNAM", "INSTRUME", "TELESCOP"):
+            name = str(header.get(key, ""))
             if name.lower() not in excluded_name:
                 break
             else:
-                name = ''
+                name = ""
         self._name = str(name)
 
-        excluded_file = ('none', 'None', 'NONE')
+        excluded_file = ("none", "None", "NONE")
 
         # get backfile
-        self._backfile = get_field('BACKFILE', '', excluded_file)
+        self._backfile = get_field("BACKFILE", "", excluded_file)
 
         # get respfile
-        self._respfile = get_field('RESPFILE', '', excluded_file)
+        self._respfile = get_field("RESPFILE", "", excluded_file)
 
         # get ancrfile
-        self._ancrfile = get_field('ANCRFILE', '', excluded_file)
+        self._ancrfile = get_field("ANCRFILE", "", excluded_file)
 
         # get corrfile
-        self._corrfile = get_field('CORRFILE', '', excluded_file)
+        self._corrfile = get_field("CORRFILE", "", excluded_file)
 
         # get background scaling factor
-        back_scale = np.float64(get_field('BACKSCAL', 1.0))
+        back_scale = np.float64(get_field("BACKSCAL", 1.0))
         if isinstance(back_scale, NDArray):
-            back_scale = np.array(back_scale, dtype=np.float64, order='C')
+            back_scale = np.array(back_scale, dtype=np.float64, order="C")
         else:
             back_scale = np.float64(back_scale)
         self._back_scale = back_scale
 
         # get area scaling factor
-        area_scale = get_field('AREASCAL', 1.0)
+        area_scale = get_field("AREASCAL", 1.0)
         if isinstance(area_scale, NDArray):
-            area_scale = np.array(area_scale, dtype=np.float64, order='C')
+            area_scale = np.array(area_scale, dtype=np.float64, order="C")
         else:
             area_scale = np.float64(area_scale)
         self._area_scale = area_scale
 
         # get correction scaling factor
-        self._corr_scale = np.float64(get_field('CORRSCAL', 0.0))
+        self._corr_scale = np.float64(get_field("CORRSCAL", 0.0))
 
         self._header = header
         self._data = data
@@ -825,8 +828,8 @@ class Spectrum:
 
         """
         if not () == np.shape(self.area_scale) == np.shape(self.back_scale):
-            msg = 'grouping is not implemented yet for the spectrum with '
-            msg += '``AREASCAL`` and/or ``BACKSCAL`` array'
+            msg = "grouping is not implemented yet for the spectrum with "
+            msg += "``AREASCAL`` and/or ``BACKSCAL`` array"
             raise NotImplementedError(msg)
 
         l0 = len(self._raw_counts)
@@ -836,8 +839,8 @@ class Spectrum:
             l1 = len(grouping)
             l2 = len(noticed)
             if not l0 == l1 == l2:
-                msg = f'length of grouping ({l1}) and noticed ({l2}) must be '
-                msg += f'matched to spectrum channel ({l0})'
+                msg = f"length of grouping ({l1}) and noticed ({l2}) must be "
+                msg += f"matched to spectrum channel ({l0})"
                 raise ValueError(msg)
 
             noticed = np.array(noticed, dtype=bool)
@@ -951,13 +954,13 @@ class Response:
 
     def __init__(self, respfile: str, ancrfile: str | None = None):
         if ancrfile is None:
-            ancrfile = ''
+            ancrfile = ""
 
         self._respfile = respfile
         self._ancrfile = ancrfile
 
         # test if file is '/path/to/respfile{n}'
-        match = re.compile(r'(.+){(.+)}').match(respfile)
+        match = re.compile(r"(.+){(.+)}").match(respfile)
         if match:  # respfile file is of type II
             file = match.group(1)
             resp_id = int(match.group(2))
@@ -966,86 +969,86 @@ class Response:
             resp_id = 1
 
         with fits.open(file) as rsp_hdul:
-            if 'MATRIX' in rsp_hdul:
+            if "MATRIX" in rsp_hdul:
                 if ancrfile is None:
-                    msg = f'{file} is probably a rmf, '
-                    msg += 'ancrfile (arf) maybe needed but not provided'
+                    msg = f"{file} is probably a rmf, "
+                    msg += "ancrfile (arf) maybe needed but not provided"
                     warnings.warn(msg, Warning)
 
-                ext = ('MATRIX', resp_id)
+                ext = ("MATRIX", resp_id)
 
-            elif 'SPECRESP MATRIX' in rsp_hdul:
-                ext = ('SPECRESP MATRIX', resp_id)
+            elif "SPECRESP MATRIX" in rsp_hdul:
+                ext = ("SPECRESP MATRIX", resp_id)
 
             else:
-                msg = f'cannot read response matrix data from {respfile}'
-                raise IOError(msg)
+                msg = f"cannot read response matrix data from {respfile}"
+                raise OSError(msg)
 
-            self._read_ebounds(rsp_hdul['EBOUNDS'].data)
+            self._read_ebounds(rsp_hdul["EBOUNDS"].data)
             self._read_resp(rsp_hdul[ext].header, rsp_hdul[ext].data)
 
         self._read_ancrfile()
         # self._drop_zeros()
 
     def _read_ebounds(self, ebounds_data):
-        ch_emin = ebounds_data['E_MIN']
-        ch_emax = ebounds_data['E_MAX']
+        ch_emin = ebounds_data["E_MIN"]
+        ch_emax = ebounds_data["E_MAX"]
         ch_egrid = np.column_stack((ch_emin, ch_emax))
-        ch_egrid = np.asarray(ch_egrid, dtype=np.float64, order='C')
+        ch_egrid = np.asarray(ch_egrid, dtype=np.float64, order="C")
         self._channel_egrid = self._raw_channel_egrid = ch_egrid
 
     def _read_resp(self, resp_header, resp_data):
-        nchan = resp_header.get('DETCHANS', None)
+        nchan = resp_header.get("DETCHANS", None)
         if nchan is None:
             msg = f'keyword "DETCHANS" not found in "{self._respfile}" header'
-            raise IOError(msg)
+            raise OSError(msg)
         else:
             nchan = int(nchan)
 
-        fchan_idx = resp_data.names.index('F_CHAN') + 1
+        fchan_idx = resp_data.names.index("F_CHAN") + 1
         # set first channel number to 1 if not found
-        first_chan = int(resp_header.get(f'TLMIN{fchan_idx}', 1))
+        first_chan = int(resp_header.get(f"TLMIN{fchan_idx}", 1))
 
         channel = np.arange(first_chan, first_chan + nchan)
         self._channel = self._raw_channel = channel
 
-        n_grp = resp_data['N_GRP']
-        f_chan = resp_data['F_CHAN'] - first_chan
-        n_chan = resp_data['N_CHAN']
+        n_grp = resp_data["N_GRP"]
+        f_chan = resp_data["F_CHAN"] - first_chan
+        n_chan = resp_data["N_CHAN"]
 
         # if ndim == 1 and dtype is 'O', it is an array of array
-        if f_chan.ndim == 1 and f_chan.dtype != np.dtype('O'):
+        if f_chan.ndim == 1 and f_chan.dtype != np.dtype("O"):
             # f_chan is scalar in each row, make it an array
             f_chan = f_chan[:, None]
 
-        if n_chan.ndim == 1 and n_chan.dtype != np.dtype('O'):
+        if n_chan.ndim == 1 and n_chan.dtype != np.dtype("O"):
             # n_chan is scalar in each row, make it an array
             n_chan = n_chan[:, None]
 
-        reduced_matrix = resp_data['MATRIX']
+        reduced_matrix = resp_data["MATRIX"]
         full_matrix = np.zeros((len(resp_data), nchan))
 
         for i in range(len(resp_data)):
-            n = n_grp[i]    # n channel subsets
-            f = f_chan[i]   # first channel of each subset
+            n = n_grp[i]  # n channel subsets
+            f = f_chan[i]  # first channel of each subset
             nc = n_chan[i]  # channel number of each subset
-            e = f + nc      # end channel of each subset
+            e = f + nc  # end channel of each subset
             idx = np.append(0, nc).cumsum()  # reduced idx of subsets
             reduced_i = reduced_matrix[i]  # reduced matrix of the row
-            full_i = full_matrix[i]        # full matrix of the row
+            full_i = full_matrix[i]  # full matrix of the row
 
             for j in range(n):
                 # reduced matrix of j-th channel subset
-                reduced_ij = reduced_i[idx[j]:idx[j + 1]]
+                reduced_ij = reduced_i[idx[j] : idx[j + 1]]
 
                 # restore to the corresponding position in full matrix
-                full_i[f[j]:e[j]] = reduced_ij
+                full_i[f[j] : e[j]] = reduced_ij
 
         self._matrix = self._raw_matrix = full_matrix
 
         # assume ph_egrid is continuous, no check here
-        ph_egrid = np.append(resp_data['ENERG_LO'], resp_data['ENERG_HI'][-1])
-        ph_egrid = np.asarray(ph_egrid, dtype=np.float64, order='C')
+        ph_egrid = np.append(resp_data["ENERG_LO"], resp_data["ENERG_HI"][-1])
+        ph_egrid = np.asarray(ph_egrid, dtype=np.float64, order="C")
         self._ph_egrid = ph_egrid
 
     def _read_ancrfile(self):
@@ -1053,12 +1056,12 @@ class Response:
 
         if ancrfile:
             with fits.open(ancrfile) as arf_hdul:
-                arf = arf_hdul['SPECRESP'].data['SPECRESP']
+                arf = arf_hdul["SPECRESP"].data["SPECRESP"]
 
             if len(arf) != len(self._raw_matrix):
                 respfile = self._respfile
-                msg = f'rmf ({respfile}) and arf ({ancrfile}) are not matched'
-                raise IOError(msg)
+                msg = f"rmf ({respfile}) and arf ({ancrfile}) are not matched"
+                raise OSError(msg)
 
             self._raw_matrix *= arf[:, None]
             self._matrix = self._raw_matrix
@@ -1102,11 +1105,11 @@ class Response:
         ch_emin, ch_emax = self._raw_channel_egrid.T
         ch_egrid = np.append(ch_emin, ch_emax[-1])
         ch, ph = np.meshgrid(ch_egrid, self._ph_egrid)
-        plt.pcolormesh(ch, ph, self._raw_matrix, cmap='jet')
+        plt.pcolormesh(ch, ph, self._raw_matrix, cmap="jet")
         plt.loglog()
-        plt.xlabel('Measured Energy [keV]')
-        plt.ylabel('Photon Energy [keV]')
-        plt.colorbar(label='Effective Area [cm$^2$]')
+        plt.xlabel("Measured Energy [keV]")
+        plt.ylabel("Photon Energy [keV]")
+        plt.colorbar(label="Effective Area [cm$^2$]")
 
         if erange is not None:
             emin = np.expand_dims(erange[:, 0], axis=1)
@@ -1120,14 +1123,14 @@ class Response:
                 ignored.append((ch_emin[0], ch_emin[idx[0][0]]))
             for i in range(len(idx) - 1):
                 this_noticed_right = ch_emax[idx[i][-1]]
-                next_noticed_left = ch_emin[idx[i+1][0]]
+                next_noticed_left = ch_emin[idx[i + 1][0]]
                 ignored.append((this_noticed_right, next_noticed_left))
             if ch_emax[idx[-1][-1]] < ch_emax[-1]:
                 ignored.append((ch_emax[idx[-1][-1]], ch_emax[-1]))
 
             y = (self._ph_egrid[0], self._ph_egrid[-1])
             for i in ignored:
-                plt.fill_betweenx(y, *i, alpha=0.4, color='w', hatch='x')
+                plt.fill_betweenx(y, *i, alpha=0.4, color="w", hatch="x")
 
         plt.show()
 
@@ -1151,8 +1154,8 @@ class Response:
         l1 = len(grouping)
         l2 = len(noticed)
         if not l0 == l1 == l2:
-            msg = f'length of grouping ({l1}) and good ({l2}) must match to '
-            msg += f'original channel ({l0})'
+            msg = f"length of grouping ({l1}) and good ({l2}) must match to "
+            msg += f"original channel ({l0})"
             raise ValueError(msg)
 
         grp_idx = np.flatnonzero(grouping == 1)  # transform to index
