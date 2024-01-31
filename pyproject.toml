@@ -45,7 +45,7 @@ docs = [
     "sphinx_rtd_theme",
     "numpydoc"
 ]
-dev = ["pre-commit>=3.6.0", "black", "ruff"]
+dev = ["pre-commit>=3.6.0", "ruff"]
 
 
 [project.urls]
@@ -67,30 +67,21 @@ build.targets.wheel.packages = ["src/elisa"]
 [[tool.hatch.envs.all.matrix]]
 python = ["3.9", "3.10", "3.11"]
 
-
-[tool.black]
-target-version = ["py39"]
-line-length = 79
-skip-string-normalization = true
-
-
 [tool.ruff]
 format.quote-style = "single"
 target-version = "py39"
 line-length = 79
-select = ["F", "I", "E", "W", "YTT", "B", "Q", "PLE", "PLR", "PLW", "UP"]
-ignore = [
-    "E741",     # Allow ambiguous variable names
-    "PLR0911",  # Allow many return statements
-    "PLR0913",  # Allow many arguments to functions
-    "PLR0915",  # Allow many statements
-    "PLR2004",  # Allow magic numbers in comparisons
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "C",  # flake8-comprehensions
+    "B",  # flake8-bugbear
+    "UP",  # pyupgrade
 ]
-unfixable = [
-    "F401",  # Don't touch unused imports
-]
+extend-select = ["Q"]
 extend-include = ["*.ipynb"]
-exclude = []
 isort.known-first-party = ["elisa"]
 isort.combine-as-imports = true
 
