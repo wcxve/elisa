@@ -89,6 +89,7 @@ ignore = [
 unfixable = [
     "F401",  # Don't touch unused imports
 ]
+extend-include = ["*.ipynb"]
 exclude = []
 isort.known-first-party = ["elisa"]
 isort.combine-as-imports = true
