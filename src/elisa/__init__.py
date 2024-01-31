@@ -1,4 +1,5 @@
 from . import data, infer, model, util
+from .__about__ import __version__ as __version__
 from .data import *  # noqa F403
 from .infer import *  # noqa F403
 from .model import *  # noqa F403
