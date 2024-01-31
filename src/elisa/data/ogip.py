@@ -8,20 +8,19 @@ import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 
-from .grouping import (
+from elisa.data.grouping import (
     group_const,
     group_min,
-    group_sig,
-    group_pos,
     group_opt,
     group_optmin,
-    group_optsig
+    group_optsig,
+    group_pos,
+    group_sig,
 )
+from elisa.util.typing import NumpyArray as NDArray
 
 __all__ = ['Data']
 # TODO: support creating Data object from array
-
-NDArray = np.ndarray
 
 
 class Data:
@@ -117,8 +116,8 @@ class Data:
         back_poisson: bool | None = None,
         ignore_bad: bool = True,
         record_channel: bool = False,
-        corrfile: str | None = None,
-        corrnorm: str | None = None
+        corrfile: bool | None = None,
+        corrnorm: bool | None = None,
     ):
         erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
 
@@ -154,9 +153,10 @@ class Data:
             raise ValueError('respfile is required for data')
 
         if len(spec._raw_counts) != len(resp._raw_channel):
-            msg = f'specfile ({specfile}) and respfile ({respfile}) are not '
-            msg += 'matched'
-            raise IOError(msg)
+            raise OSError(
+                f'specfile ({specfile}) and respfile ({respfile}) are not '
+                'matched'
+            )
 
         # check background file
         if backfile:
@@ -167,27 +167,34 @@ class Data:
             back = None
 
         if back and len(spec._raw_counts) != len(back._raw_counts):
-            msg = f'specfile ({specfile}) and backfile ({backfile}) are not '
-            msg += 'matched'
-            raise IOError(msg)
+            raise OSError(
+                f'specfile ({specfile}) and backfile ({backfile}) are not '
+                'matched'
+            )
 
         # bad quality
         bad = (1, 5) if ignore_bad else (1,)
 
-        # check if quality of spectrum and background are matched
+        # check if the quality of spectrum and background are matched
         good_quality = ~np.isin(spec.quality, bad)
         if back:
             back_good = ~np.isin(back.quality, bad)
             if not np.all(good_quality == back_good):
                 good_quality &= back_good
-                msg = 'ignore bad channels defined by the union of spectrum '
-                msg += f'({specfile})and background ({backfile}) quality'
-                warnings.warn(msg, Warning, stacklevel=2)
+                warnings.warn(
+                    'ignore bad channels defined by the union of spectrum '
+                    f'({specfile})and background ({backfile}) quality',
+                    Warning,
+                    stacklevel=2,
+                )
 
-        # corrfile and corrnorm not supported yet
+        # corrfile and corrnorm are not supported yet
         if corrfile or corrnorm:
-            msg = 'correction to data is not yet supported.'
-            warnings.warn(msg, Warning, stacklevel=2)
+            warnings.warn(
+                'correction to data is not yet supported',
+                Warning,
+                stacklevel=2,
+            )
 
         # check correction file
         # use poisson=True to bypass stat_err check, which takes no effect
@@ -241,7 +248,9 @@ class Data:
         # background attributes
         if self._has_back:
             self._back_exposure = back.exposure
-            self._back_effexpo = back.exposure*back.area_scale*back.back_scale
+            self._back_effexpo = (
+                back.exposure * back.area_scale * back.back_scale
+            )
             self._back_poisson = back.poisson
         else:
             self._back_exposure = None
@@ -300,9 +309,9 @@ class Data:
         Notes
         -----
         If there are ignored channels in a channel group, this may cause an
-        inconsistency in a spectral plot, i.e., the error bar of a channel
-        group will cover these bad channels, whilst these bad channels are
-        never used in fitting.
+        inconsistency in a spectral plot. That is to say, the error bar of a
+        channel group will cover these bad channels, whilst these bad channels
+        are never used in fitting.
 
         """
         ch_emin, ch_emax = self._resp._raw_channel_egrid.T
@@ -314,15 +323,13 @@ class Data:
         def apply_grouping(group_func, mask, *args):
             """function operating the grouping array defined above."""
             data = (i[mask] * self._good_quality[mask] for i in args)
-            grouping_flag, grouping_success = group_func(*data, scale)
+            grouping_flag, grouping_success = group_func(*data, float(scale))
             grouping[mask] = grouping_flag
             return grouping_success
 
         def apply_map(func, *args):
-            """map the apply function and return success flag."""
-            return all(
-                apply_grouping(func, mask, *args) for mask in ch_mask
-            )
+            """map the apply function and return a success flag."""
+            return all(apply_grouping(func, mask, *args) for mask in ch_mask)
 
         if method == 'const':
             success = group_const()
@@ -346,8 +353,9 @@ class Data:
             if self.has_back and self.back_poisson:
                 back_counts = self._back._raw_counts
             else:
-                msg = 'Poisson background is required for "bmin" method'
-                raise ValueError(msg)
+                raise ValueError(
+                    'Poisson background is required for "bmin" method'
+                )
             success = apply_map(group_min, back_counts)
 
         elif method == 'bpos':
@@ -355,22 +363,31 @@ class Data:
                 back_counts = self._back._raw_counts
                 back_error = self._back._raw_error
             else:
-                msg = 'background data is required for "bpos" method'
-                raise ValueError(msg)
-
+                raise ValueError(
+                    'background data is required for "bpos" method'
+                )
             success = apply_map(group_pos, back_counts, back_error)
 
         else:
             supported = (
-                'const', 'min', 'sig', 'opt', 'optmin', 'optsig', 'bmin',
-                'bpos'
+                'const',
+                'min',
+                'sig',
+                'opt',
+                'optmin',
+                'optsig',
+                'bmin',
+                'bpos',
             )
-            msg = f'supported grouping method are: {", ".join(supported)}'
-            raise ValueError(msg)
+            raise ValueError(
+                f'supported grouping method are: {", ".join(supported)}'
+            )
 
         if not success:
-            msg = f'"{method}" grouping failed in some {self._name} channels'
-            warnings.warn(msg, GroupWaring)
+            warnings.warn(
+                f'"{method}" grouping failed in some {self._name} channels',
+                GroupWaring,
+            )
 
         self._set_data(grouping)
 
@@ -609,11 +626,7 @@ class Spectrum:
 
     """
 
-    def __init__(
-        self,
-        specfile: str,
-        poisson: bool | None = None
-    ):
+    def __init__(self, specfile: str, poisson: bool | None = None):
         # test if file is '/path/to/specfile{n}'
         match = re.compile(r'(.+){(.+)}').match(specfile)
         if match:
@@ -636,27 +649,28 @@ class Spectrum:
 
             nchan = len(data)
             if int(header.get('DETCHANS', nchan)) != nchan:
-                raise IOError(msg)
+                raise OSError(msg)
 
             if header.get('HDUCLAS4', '') == 'TYPE:II':
-                raise IOError(msg)
+                raise OSError(msg)
 
         else:
             data = data[spec_id].array  # set data to the specified row
 
         # check if COUNTS or RATE exists
         if 'COUNTS' not in data.names and 'RATE' not in data.names:
-            raise IOError(f'"COUNTS" or "RATE" not found in {specfile}')
+            raise OSError(f'"COUNTS" or "RATE" not found in {specfile}')
 
         # get poisson flag
         poisson = header.get('POISSERR', poisson)
         if poisson is None:
-            msg = '`poisson` must be set if "POISSERR" is undefined in header'
-            raise ValueError(msg)
+            raise ValueError(
+                '`poisson` must be set if "POISSERR" is undefined in header'
+            )
 
         # check if STAT_ERR exists for non-Poisson spectrum
         if not poisson and 'STAT_ERR' not in data.names:
-            raise IOError(f'"STAT_ERR" not found in {specfile}')
+            raise OSError(f'"STAT_ERR" not found in {specfile}')
 
         def get_field(field, default=None, excluded=None):
             """Get value of specified field, return default if not found."""
@@ -694,8 +708,11 @@ class Spectrum:
                 stat_err *= exposure
 
                 if 'COUNTS' in data.names:
-                    msg = f'"STAT_ERR" in {specfile} is assumed for "RATE"'
-                    warnings.warn(msg, Warning, stacklevel=3)
+                    warnings.warn(
+                        f'"STAT_ERR" in {specfile} is assumed for "RATE"',
+                        Warning,
+                        stacklevel=3,
+                    )
 
         # get fractional systematic error of counts
         sys_err = get_field('SYS_ERR', 0)
@@ -721,25 +738,20 @@ class Spectrum:
         if poisson:  # check if counts are integers
             diff = np.abs(counts - np.round(counts))
             if np.any(diff > 1e-8 * counts):
-                msg = f'spectrum ({specfile}) has non-integer counts, '
-                msg += 'which may lead to wrong result'
-                warnings.warn(msg, Warning, stacklevel=3)
+                warnings.warn(
+                    f'spectrum ({specfile}) has non-integer counts, '
+                    'which may lead to wrong result',
+                    Warning,
+                    stacklevel=3,
+                )
 
-        # check if statistical error are positive
-        mask = stat_err < 0.0
-        if np.any(mask):
-            stat_err[mask] = 0.0
-            msg = f'spectrum ({specfile}) has some statistical errors < 0, '
-            msg += 'which are reset to 0'
-            warnings.warn(msg, Warning, stacklevel=3)
+        # check if statistical errors are positive
+        if not poisson and np.any(stat_err <= 0.0):
+            raise OSError(f'spectrum ({specfile}) has statistical errors <= 0')
 
-        # check if systematic error are positive
-        mask = sys_err < 0.0
-        if np.any(mask):
-            sys_err[mask] = 0.0
-            msg = f'spectrum ({specfile}) has some systematic errors < 0, '
-            msg += 'which are reset to 0'
-            warnings.warn(msg, Warning, stacklevel=3)
+        # check if systematic errors are non-negative
+        if np.any(sys_err < 0.0):
+            raise OSError(f'spectrum ({specfile}) has systematic errors < 0')
 
         # total error of counts
         stat_var = np.square(stat_err)
@@ -770,7 +782,7 @@ class Spectrum:
         # get corrfile
         self._corrfile = get_field('CORRFILE', '', excluded_file)
 
-        # get background scaling factor
+        # get the background scaling factor
         back_scale = np.float64(get_field('BACKSCAL', 1.0))
         if isinstance(back_scale, NDArray):
             back_scale = np.array(back_scale, dtype=np.float64, order='C')
@@ -778,7 +790,7 @@ class Spectrum:
             back_scale = np.float64(back_scale)
         self._back_scale = back_scale
 
-        # get area scaling factor
+        # get the area scaling factor
         area_scale = get_field('AREASCAL', 1.0)
         if isinstance(area_scale, NDArray):
             area_scale = np.array(area_scale, dtype=np.float64, order='C')
@@ -786,7 +798,7 @@ class Spectrum:
             area_scale = np.float64(area_scale)
         self._area_scale = area_scale
 
-        # get correction scaling factor
+        # get the correction scaling factor
         self._corr_scale = np.float64(get_field('CORRSCAL', 0.0))
 
         self._header = header
@@ -819,15 +831,16 @@ class Spectrum:
         Notes
         -----
         If there are ignored channels in a channel group, this may cause an
-        inconsistency in a spectral plot, i.e., the error bar of a channel
-        group will cover these bad channels, whilst these bad channels are
-        never used in fitting.
+        inconsistency in a spectral plot. That is to say, the error bar of a
+        channel group will cover these bad channels, whilst these bad channels
+        are never used in fitting.
 
         """
         if not () == np.shape(self.area_scale) == np.shape(self.back_scale):
-            msg = 'grouping is not implemented yet for the spectrum with '
-            msg += '``AREASCAL`` and/or ``BACKSCAL`` array'
-            raise NotImplementedError(msg)
+            raise NotImplementedError(
+                'grouping is not implemented yet for the spectrum with '
+                '``AREASCAL`` and/or ``BACKSCAL`` array'
+            )
 
         l0 = len(self._raw_counts)
         if noticed is None:
@@ -836,9 +849,10 @@ class Spectrum:
             l1 = len(grouping)
             l2 = len(noticed)
             if not l0 == l1 == l2:
-                msg = f'length of grouping ({l1}) and noticed ({l2}) must be '
-                msg += f'matched to spectrum channel ({l0})'
-                raise ValueError(msg)
+                raise ValueError(
+                    f'length of grouping ({l1}) and noticed ({l2}) must be '
+                    f'matched to spectrum channel ({l0})'
+                )
 
             noticed = np.array(noticed, dtype=bool)
 
@@ -968,9 +982,11 @@ class Response:
         with fits.open(file) as rsp_hdul:
             if 'MATRIX' in rsp_hdul:
                 if ancrfile is None:
-                    msg = f'{file} is probably a rmf, '
-                    msg += 'ancrfile (arf) maybe needed but not provided'
-                    warnings.warn(msg, Warning)
+                    warnings.warn(
+                        f'{file} is probably a rmf, '
+                        'ancrfile (arf) maybe needed but not provided',
+                        Warning,
+                    )
 
                 ext = ('MATRIX', resp_id)
 
@@ -978,8 +994,9 @@ class Response:
                 ext = ('SPECRESP MATRIX', resp_id)
 
             else:
-                msg = f'cannot read response matrix data from {respfile}'
-                raise IOError(msg)
+                raise OSError(
+                    f'cannot read response matrix data from {respfile}'
+                )
 
             self._read_ebounds(rsp_hdul['EBOUNDS'].data)
             self._read_resp(rsp_hdul[ext].header, rsp_hdul[ext].data)
@@ -990,6 +1007,11 @@ class Response:
     def _read_ebounds(self, ebounds_data):
         ch_emin = ebounds_data['E_MIN']
         ch_emax = ebounds_data['E_MAX']
+        if np.any(ch_emin > ch_emax):
+            raise OSError(
+                f'respfile ({self._respfile}) channel energy grids are not '
+                'increasing'
+            )
         ch_egrid = np.column_stack((ch_emin, ch_emax))
         ch_egrid = np.asarray(ch_egrid, dtype=np.float64, order='C')
         self._channel_egrid = self._raw_channel_egrid = ch_egrid
@@ -997,13 +1019,14 @@ class Response:
     def _read_resp(self, resp_header, resp_data):
         nchan = resp_header.get('DETCHANS', None)
         if nchan is None:
-            msg = f'keyword "DETCHANS" not found in "{self._respfile}" header'
-            raise IOError(msg)
+            raise OSError(
+                f'keyword "DETCHANS" not found in "{self._respfile}" header'
+            )
         else:
             nchan = int(nchan)
 
         fchan_idx = resp_data.names.index('F_CHAN') + 1
-        # set first channel number to 1 if not found
+        # set the first channel number to 1 if not found
         first_chan = int(resp_header.get(f'TLMIN{fchan_idx}', 1))
 
         channel = np.arange(first_chan, first_chan + nchan)
@@ -1026,24 +1049,38 @@ class Response:
         full_matrix = np.zeros((len(resp_data), nchan))
 
         for i in range(len(resp_data)):
-            n = n_grp[i]    # n channel subsets
-            f = f_chan[i]   # first channel of each subset
-            nc = n_chan[i]  # channel number of each subset
-            e = f + nc      # end channel of each subset
-            idx = np.append(0, nc).cumsum()  # reduced idx of subsets
-            reduced_i = reduced_matrix[i]  # reduced matrix of the row
-            full_i = full_matrix[i]        # full matrix of the row
+            n = int(n_grp[i])  # n channel subsets
+            if n > 0:
+                f = f_chan[i]  # first channel of each subset
+                nc = n_chan[i]  # channel number of each subset
+                e = f + nc  # end channel of each subset
+                idx = np.append(0, nc).cumsum()  # reduced idx of subsets
+                reduced_i = reduced_matrix[i]  # reduced matrix of the row
+                full_i = full_matrix[i]  # full matrix of the row
 
-            for j in range(n):
-                # reduced matrix of j-th channel subset
-                reduced_ij = reduced_i[idx[j]:idx[j + 1]]
+                for j in range(n):
+                    # reduced matrix of j-th channel subset
+                    reduced_ij = reduced_i[idx[j] : idx[j + 1]]
 
-                # restore to the corresponding position in full matrix
-                full_i[f[j]:e[j]] = reduced_ij
+                    # restore to the corresponding position in full matrix
+                    full_i[int(f[j]) : int(e[j])] = reduced_ij
 
         self._matrix = self._raw_matrix = full_matrix
 
-        # assume ph_egrid is continuous, no check here
+        if not np.allclose(
+            resp_data['ENERG_LO'][1:], resp_data['ENERG_HI'][:-1]
+        ):
+            raise OSError(
+                f'respfile ({self._respfile}) photon energy grids exist '
+                'discontinuity'
+            )
+
+        if np.any(resp_data['ENERG_LO'] > resp_data['ENERG_HI']):
+            raise OSError(
+                f'respfile ({self._respfile}) photon energy grids are not '
+                'increasing'
+            )
+
         ph_egrid = np.append(resp_data['ENERG_LO'], resp_data['ENERG_HI'][-1])
         ph_egrid = np.asarray(ph_egrid, dtype=np.float64, order='C')
         self._ph_egrid = ph_egrid
@@ -1057,8 +1094,9 @@ class Response:
 
             if len(arf) != len(self._raw_matrix):
                 respfile = self._respfile
-                msg = f'rmf ({respfile}) and arf ({ancrfile}) are not matched'
-                raise IOError(msg)
+                raise OSError(
+                    f'rmf ({respfile}) and arf ({ancrfile}) are not matched'
+                )
 
             self._raw_matrix *= arf[:, None]
             self._matrix = self._raw_matrix
@@ -1096,41 +1134,6 @@ class Response:
         self._raw_matrix = self._matrix = matrix[~zero_mask]
         self._ph_egrid = ph_egrid
 
-    def plot(self, erange=None):
-        """Plot the response matrix."""
-        plt.figure()
-        ch_emin, ch_emax = self._raw_channel_egrid.T
-        ch_egrid = np.append(ch_emin, ch_emax[-1])
-        ch, ph = np.meshgrid(ch_egrid, self._ph_egrid)
-        plt.pcolormesh(ch, ph, self._raw_matrix, cmap='jet')
-        plt.loglog()
-        plt.xlabel('Measured Energy [keV]')
-        plt.ylabel('Photon Energy [keV]')
-        plt.colorbar(label='Effective Area [cm$^2$]')
-
-        if erange is not None:
-            emin = np.expand_dims(erange[:, 0], axis=1)
-            emax = np.expand_dims(erange[:, 1], axis=1)
-            mask1 = np.less_equal(emin, ch_emin)
-            mask2 = np.less_equal(ch_emax, emax)
-            idx = [np.flatnonzero(i) for i in np.bitwise_and(mask1, mask2)]
-
-            ignored = []
-            if ch_emin[idx[0][0]] > ch_emin[0]:
-                ignored.append((ch_emin[0], ch_emin[idx[0][0]]))
-            for i in range(len(idx) - 1):
-                this_noticed_right = ch_emax[idx[i][-1]]
-                next_noticed_left = ch_emin[idx[i+1][0]]
-                ignored.append((this_noticed_right, next_noticed_left))
-            if ch_emax[idx[-1][-1]] < ch_emax[-1]:
-                ignored.append((ch_emax[idx[-1][-1]], ch_emax[-1]))
-
-            y = (self._ph_egrid[0], self._ph_egrid[-1])
-            for i in ignored:
-                plt.fill_betweenx(y, *i, alpha=0.4, color='w', hatch='x')
-
-        plt.show()
-
     def group(self, grouping: NDArray, noticed: NDArray | None = None):
         """Group response matrix.
 
@@ -1151,9 +1154,10 @@ class Response:
         l1 = len(grouping)
         l2 = len(noticed)
         if not l0 == l1 == l2:
-            msg = f'length of grouping ({l1}) and good ({l2}) must match to '
-            msg += f'original channel ({l0})'
-            raise ValueError(msg)
+            raise ValueError(
+                f'length of grouping ({l1}) and good ({l2}) must match to '
+                f'original channel ({l0})'
+            )
 
         grp_idx = np.flatnonzero(grouping == 1)  # transform to index
 
@@ -1188,6 +1192,50 @@ class Response:
             a = np.where(noticed, 1.0, 0.0)
             matrix = np.add.reduceat(a * self._raw_matrix, grp_idx, axis=1)
             self._matrix = matrix[:, non_empty]
+
+    def plot(self, erange: NDArray | None = None):
+        """Plot the response matrix."""
+        plt.figure()
+        ch_emin, ch_emax = self._raw_channel_egrid.T
+        matrix = self._raw_matrix
+
+        idx = np.flatnonzero(ch_emin[1:] - ch_emax[:-1])
+        if len(idx) > 0:
+            ch_emin = np.insert(ch_emin, idx + 1, ch_emax[idx])
+            ch_emax = np.insert(ch_emax, idx + 1, ch_emin[idx + 1])
+            matrix = np.insert(matrix, idx + 1, np.nan, axis=1)
+
+        ch_egrid = np.append(ch_emin, ch_emax[-1])
+        ch, ph = np.meshgrid(ch_egrid, self._ph_egrid)
+        plt.pcolormesh(ch, ph, matrix, cmap='jet')
+        plt.loglog()
+        plt.xlabel('Measured Energy [keV]')
+        plt.ylabel('Photon Energy [keV]')
+        plt.colorbar(label='Effective Area [cm$^2$]')
+
+        if erange is not None:
+            erange = np.atleast_2d(erange)
+            emin = np.expand_dims(erange[:, 0], axis=1)
+            emax = np.expand_dims(erange[:, 1], axis=1)
+            mask1 = np.less_equal(emin, ch_emin)
+            mask2 = np.less_equal(ch_emax, emax)
+            idx = [np.flatnonzero(i) for i in np.bitwise_and(mask1, mask2)]
+
+            ignored = []
+            if ch_emin[idx[0][0]] > ch_emin[0]:
+                ignored.append((ch_emin[0], ch_emin[idx[0][0]]))
+            for i in range(len(idx) - 1):
+                this_noticed_right = ch_emax[idx[i][-1]]
+                next_noticed_left = ch_emin[idx[i + 1][0]]
+                ignored.append((this_noticed_right, next_noticed_left))
+            if ch_emax[idx[-1][-1]] < ch_emax[-1]:
+                ignored.append((ch_emax[idx[-1][-1]], ch_emax[-1]))
+
+            y = (self._ph_egrid[0], self._ph_egrid[-1])
+            for i in ignored:
+                plt.fill_betweenx(y, *i, alpha=0.4, color='w', hatch='x')
+
+        plt.show()
 
     @property
     def ph_egrid(self) -> NDArray:
