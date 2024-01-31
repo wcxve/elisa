@@ -69,6 +69,7 @@ python = ["3.9", "3.10", "3.11"]
 
 [tool.ruff]
 format.quote-style = "single"
+lint.pydocstyle.convention = "numpy"
 target-version = "py39"
 line-length = 79
 select = [
@@ -80,8 +81,13 @@ select = [
     "B",  # flake8-bugbear
     "UP",  # pyupgrade
 ]
+ignore = [
+    "B028",  # allow warning without stacklevel
+    "C901",  # allow functions with a high complexity
+]
 extend-select = ["Q"]
 extend-include = ["*.ipynb"]
+flake8-quotes.inline-quotes = "single"
 isort.known-first-party = ["elisa"]
 isort.combine-as-imports = true
 
