@@ -71,7 +71,7 @@ class Data:
         from the `backfile` header. This value must be set if ``POISSERR``
         is undefined in the header.
     ignore_bad : bool, optional
-        Whether to ignore channels whose ``QUALITY`` are 5.
+        Whether to ignore channels with ``QUALITY==5``.
         The default is True. The possible values for spectral ``QUALITY`` are
             *  0: good
             *  1: defined bad by software
@@ -232,7 +232,7 @@ class Data:
         self._resp_matrix = None
 
         # NOTE:
-        # grouping of area/background scale is not supported currently,
+        # grouping of area or background scale is not supported currently,
         # so we hard code effexpo here, but it should be moved into _set_data
         # once grouping of area/background scale is implemented.
 
@@ -277,7 +277,7 @@ class Data:
             self._set_data(spec.grouping)
 
     def group(self, method: str, scale: float | int):
-        """Adaptively group the spectrum.
+        """Group the spectrum adaptively.
 
         Parameters
         ----------
