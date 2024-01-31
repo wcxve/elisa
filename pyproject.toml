@@ -85,6 +85,7 @@ ignore = [
     "B028",  # allow warning without stacklevel
     "C901",  # allow functions with a high complexity
 ]
+ignore-init-module-imports = true
 extend-select = ["Q"]
 extend-include = ["*.ipynb"]
 flake8-quotes.inline-quotes = "single"
