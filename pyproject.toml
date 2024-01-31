@@ -75,6 +75,7 @@ skip-string-normalization = true
 
 
 [tool.ruff]
+format.quote-style = "single"
 target-version = "py39"
 line-length = 79
 select = ["F", "I", "E", "W", "YTT", "B", "Q", "PLE", "PLR", "PLW", "UP"]
