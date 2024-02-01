@@ -4,6 +4,8 @@ from __future__ import annotations
 import numpy as np
 from scipy.stats import norm
 
+from elisa.util.typing import NumpyArray as NDArray
+
 __all__ = [
     'group_const',
     'group_min',
@@ -14,7 +16,6 @@ __all__ = [
     'group_optsig',
 ]
 
-NDArray = np.ndarray
 GroupResultType = tuple[NDArray, bool]
 
 
@@ -51,7 +52,7 @@ def group_min(data: NDArray, n: int) -> GroupResultType:
             if group_counts < n:
                 # if the last group does not have enough counts,
                 # then combine the last two groups to ensure all
-                # groups meet the counts requirement
+                # groups meet the count requirement
                 ng -= 1
 
             break
@@ -113,7 +114,7 @@ def group_pos(data: NDArray, error: NDArray, p: float) -> GroupResultType:
 
         if i == nc_minus_1:
             if x < 0.0:
-                # if the error of last group is not small enough,
+                # if the error of the last group is not small enough,
                 # then combine the last two groups to ensure all
                 # groups meet the scale requirement
                 ng -= 1
