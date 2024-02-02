@@ -17,6 +17,7 @@ SampleFn = Callable[[Optional[str], Optional[PRNGKey]], JAXFloat]
 
 
 __all__ = [
+    'ParameterBase',
     'Parameter',
     'UniformParameter',
     'ConstantValue',
