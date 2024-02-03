@@ -4,7 +4,7 @@ from __future__ import annotations
 import threading
 from abc import ABCMeta, abstractmethod
 from collections.abc import Sequence
-from typing import Any, Callable, Literal, Optional
+from typing import Any, Callable, Literal
 
 import jax.numpy as jnp
 import numpyro
@@ -12,9 +12,6 @@ from numpyro.distributions import Distribution, LogUniform, Uniform
 from tinygp import kernels, means, noise
 
 from elisa.util.typing import JAXArray, JAXFloat, PRNGKey
-
-SampleFn = Callable[[Optional[str], Optional[PRNGKey]], JAXFloat]
-
 
 __all__ = [
     'ParameterBase',
@@ -40,7 +37,7 @@ class ParameterContext:
     context = threading.local()
     params: dict[str, JAXFloat]
 
-    def __init__(self, mapping: dict[str, str], stack_name: str | None):
+    def __init__(self, mapping: dict[str, str], stack_name: str | None = None):
         if not hasattr(type(self).context, 'stack'):
             type(self).context.stack = {}
 
@@ -72,7 +69,7 @@ class ParameterContext:
     ) -> ParameterContext | None:
         """Return the context."""
         if stack_name is None:
-            stack_name = 'current'
+            stack_name = 'default'
         else:
             stack_name = str(stack_name)
 
@@ -85,12 +82,14 @@ class ParameterContext:
 class ParameterBase(metaclass=ABCMeta):
     """Parameter base."""
 
-    _component: int | None = None
-
-    def __init__(self, fn: SampleFn):
-        # fn is a wrapper of numpyro.sample or numpyro.deterministic
-        self._fn = fn
+    def __init__(self):
         self._id = hex(id(self))[2:]
+        self._mid: str | None = None  # id of model to which the param belongs
+
+    @abstractmethod
+    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
+        """A wrapper for numpyro.sample or numpyro.deterministic."""
+        pass
 
     def sample(self, rng_key: PRNGKey | None = None) -> JAXFloat:
         """Get a sample from the parameter's underlying distribution."""
@@ -101,10 +100,10 @@ class ParameterBase(metaclass=ABCMeta):
                     name = ctx.mapping[self._id]
                 else:
                     name = None
-                ctx.params[self._id] = self._fn(name, rng_key)
+                ctx.params[self._id] = self._fn(name=name, rng_key=rng_key)
             return ctx.params[self._id]
         else:
-            return self._fn(None, rng_key)
+            return self._fn(name=None, rng_key=rng_key)
 
     @property
     @abstractmethod
@@ -115,7 +114,7 @@ class ParameterBase(metaclass=ABCMeta):
     @property
     @abstractmethod
     def latex(self) -> str:
-        """LaTeX presentation of the parameter."""
+        r""":math:`\LaTeX` format of the parameter."""
         pass
 
     @property
@@ -212,14 +211,13 @@ class ParameterBase(metaclass=ABCMeta):
         )
 
 
-class _Parameter(ParameterBase, metaclass=ABCMeta):
+class _Parameter(ParameterBase):
     """Handle name, latex, and default value of a parameter."""
 
     def __init__(
         self,
         name: str,
-        latex: str,
-        fn: SampleFn,
+        latex: str | None,
         default: Any | None = None,
     ):
         if latex is None:
@@ -231,7 +229,7 @@ class _Parameter(ParameterBase, metaclass=ABCMeta):
         if default is not None:
             self.default = default
 
-        super().__init__(fn)
+        super().__init__()
 
     @property
     def name(self) -> str:
@@ -257,7 +255,7 @@ class _Parameter(ParameterBase, metaclass=ABCMeta):
 
 
 class Parameter(_Parameter):
-    """Parameter definition given a distribution.
+    r"""Parameter definition given a distribution.
 
     Parameters
     ----------
@@ -277,7 +275,7 @@ class Parameter(_Parameter):
     fixed : bool, optional
         Whether the parameter is fixed. The default is False.
     latex : str, optional
-        LaTex presentation of the parameter. The default is as `name`.
+        :math:`\LaTeX` format of the parameter. The default is as `name`.
 
     """
 
@@ -322,14 +320,13 @@ class Parameter(_Parameter):
         self._log = bool(log)
         self._fixed = bool(fixed)
 
-        def fn(name: str, rng_key: PRNGKey | None) -> JAXFloat:
-            """Sample from the distribution."""
-            if self.fixed:
-                return self._default
-            else:
-                return numpyro.sample(name, self._dist, rng_key=rng_key)
+        super().__init__(name, latex, default)
 
-        super().__init__(name, latex, fn, default)
+    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
+        if self.fixed:
+            return self._default
+        else:
+            return numpyro.sample(name, self._dist, rng_key=rng_key)
 
     @property
     def default(self) -> JAXFloat:
@@ -365,7 +362,7 @@ class Parameter(_Parameter):
 
 
 class UniformParameter(Parameter):
-    """Define the parameter by a uniform distribution.
+    r"""Define the parameter by a uniform distribution.
 
     Parameters
     ----------
@@ -382,7 +379,7 @@ class UniformParameter(Parameter):
     fixed : bool
         Whether the parameter is fixed. The default is False.
     latex : str
-        LaTeX presentation of the parameter. The default is as `name`.
+        :math:`\LaTeX` format of the parameter. The default is as `name`.
 
     """
 
@@ -543,10 +540,8 @@ class UniformParameter(Parameter):
 class ConstantParameter(_Parameter, metaclass=ABCMeta):
     """Constant parameter."""
 
-    def __init__(
-        self, name: str, value: Any, fn: Callable, latex: str | None = None
-    ):
-        super().__init__(name, latex, fn, value)
+    def __init__(self, name: str, value: Any, latex: str | None = None):
+        super().__init__(name, latex, value)
 
     @property
     def log(self) -> bool:
@@ -558,7 +553,7 @@ class ConstantParameter(_Parameter, metaclass=ABCMeta):
 
 
 class ConstantValue(ConstantParameter):
-    """Parameter with a fixed value.
+    r"""Parameter with a fixed value.
 
     Parameters
     ----------
@@ -567,15 +562,18 @@ class ConstantValue(ConstantParameter):
     value: float
         Parameter value.
     latex : str, optional
-        LaTeX presentation of the parameter. The default is as `name`.
+        :math:`\LaTeX` format of the parameter. The default is as `name`.
 
     """
 
     def __init__(self, name: str, value: float, latex: str | None = None):
-        super().__init__(name, value, lambda _, __: self.default, latex)
+        super().__init__(name, value, latex)
 
     def __repr__(self) -> str:
         return f'{self.name} = {self.default:.4g}'
+
+    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
+        return self.default
 
     @property
     def default(self) -> JAXFloat:
@@ -600,14 +598,7 @@ class ConstantInterval(ConstantParameter):
         method: Literal['gk', 'cc', 'ts', 'romberg', 'rombergts'] = 'gk',
         **kwargs: dict,
     ):
-        def fn(_, __) -> JAXFloat:
-            """Get a value lying within the interval from ParameterContext."""
-            ctx = ParameterContext.get_context(stack_name=self._id)
-            if ctx is None:
-                raise RuntimeError('cannot sample from an interval')
-            return ctx.params[self._id]
-
-        super().__init__(name, interval, fn, latex)
+        super().__init__(name, interval, latex)
 
         method = str(method)
         supported = ['gk', 'cc', 'ts', 'romberg', 'rombergts']
@@ -619,6 +610,13 @@ class ConstantInterval(ConstantParameter):
     def __repr__(self) -> str:
         return f'{self.name} = [{self.default[0]:.4g}, {self.default[1]:.4g}]'
 
+    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
+        """Get a value lying within the interval from ParameterContext."""
+        ctx = ParameterContext.get_context(stack_name=self._id)
+        if ctx is None:
+            raise RuntimeError('cannot sample from an interval')
+        return ctx.params[self._id]
+
     @property
     def default(self) -> JAXArray:
         return self._default
@@ -626,7 +624,6 @@ class ConstantInterval(ConstantParameter):
     @default.setter
     def default(self, default):
         if jnp.shape(default) != (2,):
-            print(jnp.shape(default))
             raise ValueError('interval must be a 2-element sequence')
 
         self._default = jnp.asarray(default, float)
@@ -637,7 +634,7 @@ class ConstantInterval(ConstantParameter):
 
 
 class CompositeParameter(ParameterBase):
-    """Compose parameters into a new parameter.
+    r"""Compose parameters into a new parameter.
 
     Parameters
     ----------
@@ -648,8 +645,8 @@ class CompositeParameter(ParameterBase):
     op_name : str
         Name of the composition operator `op`.
     op_latex : str, optional
-        LaTeX presentation of the composition operator `op`. The default is as
-        `op_name`.
+        :math:`\LaTeX` format of the composition operator `op`. The default is
+        as `op_name`.
 
     """
 
@@ -722,15 +719,7 @@ class CompositeParameter(ParameterBase):
         self._nodes = tuple(nodes)
         self._name_mapping = self._get_mapping('name')
 
-        def fn(name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
-            """Get the value of the composite parameter."""
-            values = [i.sample(rng_key) for i in self._params]
-            new_value = self._op(*values)
-            if name is not None:
-                numpyro.deterministic(name, new_value)
-            return new_value
-
-        super().__init__(fn)
+        super().__init__()
 
     def _get_mapping(self, label_type: Literal['name', 'latex']):
         namespace = []
@@ -761,6 +750,14 @@ class CompositeParameter(ParameterBase):
 
         return mapping
 
+    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
+        """Get the value of the composite parameter."""
+        values = [i.sample(rng_key) for i in self._params]
+        new_value = self._op(*values)
+        if name is not None:
+            numpyro.deterministic(name, new_value)
+        return new_value
+
     @property
     def name(self) -> str:
         name = self._name
@@ -786,7 +783,7 @@ class CompositeParameter(ParameterBase):
 
     @property
     def log(self) -> bool:
-        return any(i.log for i in self._params)
+        return all(i.log for i in self._params)
 
     @property
     def fixed(self) -> bool:
@@ -809,6 +806,10 @@ class GPParameter(_Parameter):
         latex: str | None = None,
     ):
         self._log = bool(log)
+        super().__init__(name, latex, None)
+
+    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
+        """Sample from the Gaussian process."""
         raise NotImplementedError
 
     @property
@@ -882,4 +883,3 @@ class GPParameter(_Parameter):
 #         return quadgk(integrand, (0.1, 2.1))
 #
 #     f = jax.jit(interal)
-#

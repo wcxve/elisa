@@ -1,35 +1,274 @@
-"""The spectral model."""
+"""The spectral model bases."""
 from __future__ import annotations
 
 import inspect
 from abc import ABCMeta, abstractmethod
-from typing import Any, Literal
+from functools import singledispatchmethod
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, Union
 
+import jax
 import jax.numpy as jnp
 
-from elisa.model.core.parameter import ParameterBase
-from elisa.util.typing import Array, JAXArray
+from elisa.model.core.parameter import ParameterBase, UniformParameter
+from elisa.util.typing import Array, Float, JAXArray, JAXFloat, NumPyArray
 
-ParamConfig = tuple[tuple[str, str, str, float, float, float, bool, bool], ...]
-ExtraKw = tuple[tuple[str, Any], ...]
-
-
-# __all__ = [
-#     'ModelBase',
-#     'Model',
-#     'CompositeModel',
-#     'Component',
-# ]
+ComponentID = str
+ComponentName = str
+ParamName = str
+ParamsMappingByName = dict[ComponentID, dict[ParamName, Union[Float, Array]]]
+ParamsFloat = dict[ComponentID, dict[ParamName, JAXFloat]]
+ParamsArray = dict[ComponentID, dict[ParamName, JAXArray]]
+ParamsMappingByID = Union[ParamsFloat, ParamsArray]
 
 
 class ModelBase(metaclass=ABCMeta):
-    """Base model class."""
+    r"""Base model class.
 
-    def __init__(self):
-        self._id = hex(id(self))[2:]
+    Actual model evaluation is performed under `_eval` method, which must be
+    overriden by subclass.
+
+    Support subscription to get a component by name, or a parameter by index.
+
+    Informative repr shows the component name, :math:`LaTeX` format, type,
+    and parameters.
+
+    """
+
+    _name_to_id: dict[ComponentName, ComponentID]
+    _id_to_name: dict[ComponentID, ComponentName]
+    _params: tuple[tuple[ComponentName, ParamName], ...]
+    __initialized: bool = False
+
+    def __init__(self, mapping: dict[ComponentName, ComponentBase]):
+        self._name_to_id = {k: v._id for k, v in mapping.items()}
+        self._id_to_name = {v: k for k, v in self._name_to_id.items()}
+        self._params = tuple(
+            (k, p) for k, v in mapping.items() for p in v.param_names
+        )
+        for k, v in mapping.items():
+            setattr(self, k, v)
+        self.__initialized = True
 
     @abstractmethod
-    def eval(self, egrid: Array, *args, **kwargs) -> JAXArray:
+    def _eval(self, egrid: JAXArray, params: ParamsFloat) -> JAXArray:
+        """Evaluate the model.
+
+        Note that `params` is a mapping from model id to parameter dict.
+        This method should read its parameters from `params` according to
+        component id, and return the model value depend on the parameters.
+
+        """
+        pass
+
+    @property
+    @abstractmethod
+    def _name_by_id(self) -> str:
+        """Model name by id."""
+        pass
+
+    @property
+    @abstractmethod
+    def _latex_by_id(self) -> str:
+        r""":math:`\LaTeX` format by id."""
+        pass
+
+    def _validate_params(
+        self, params: ParamsMappingByName
+    ) -> tuple[ParamsMappingByID, tuple[int, ...]]:
+        """Check if `params` is valid for the model."""
+        params = {k: params[v] for k, v in self._id_to_name.items()}
+
+        shapes = jax.tree_util.tree_flatten(
+            tree=jax.tree_map(jnp.shape, params),
+            is_leaf=lambda i: isinstance(i, tuple),
+        )[0]
+
+        if not shapes:
+            raise ValueError('params are empty')
+
+        shape = shapes[0]
+        if any(s != shape for s in shapes[1:]):
+            raise ValueError('all params must have the same shape')
+
+        return params, shape
+
+    def eval(self, egrid: Array, params: ParamsMappingByName) -> JAXArray:
+        """Evaluate the model.
+
+        Parameters
+        ----------
+        egrid : ndarray
+            Photon energy grid in units of keV.
+        params : dict
+            Parameter dict for the model.
+
+        Returns
+        -------
+        value : JAXArray
+            The model value.
+
+        """
+        params, shape = self._validate_params(params)
+
+        f = self._eval
+
+        # iteratively vmap over params dimensions
+        for _ in range(len(shape)):
+            f = jax.vmap(f, in_axes=(None, 0))
+
+        return f(jnp.asarray(egrid), params)
+
+    def ne(
+        self,
+        egrid: Array,
+        params: ParamsMappingByName,
+        comps: bool = False,
+    ) -> JAXArray | dict[str, JAXArray]:
+        r"""Calculate :math:`N(E)`.
+
+        Parameters
+        ----------
+        egrid : ndarray
+            Photon energy grid in units of keV.
+        params : dict
+            Parameter dict for the model.
+        comps : bool, optional
+            Whether to return the result of each component. Defaults to False.
+
+        Returns
+        -------
+        ne : JAXArray, or dict[str, JAXArray]
+            The differential photon flux in units of :math:`\mathrm{cm}^{-2} \,
+            \mathrm{s}^{-1} \, \mathrm{keV}^{-1}`.
+
+        """
+        if self.type != 'add':
+            msg = f'ne is undefined for {self.type} type model "{self}"'
+            raise TypeError(msg)
+
+    def ene(  # noqa: B027
+        self,
+        egrid: Array,
+        params: dict[str, dict[str, float | Array]],
+        comps: bool = False,
+    ) -> JAXArray | dict[str, JAXArray]:
+        r"""Calculate :math:`E N(E)`, i.e. :math:`F(\nu)`.
+
+        Parameters
+        ----------
+        egrid : ndarray
+            Photon energy grid in units of keV.
+        params : dict
+            Parameter dict for the model.
+        comps : bool, optional
+            Whether to return the result of each component. Defaults to False.
+
+        Returns
+        -------
+        ene : JAXArray, or dict[str, JAXArray]
+            The differential energy flux in units of :math:`\mathrm {erg} \,
+            \mathrm{cm}^{-2} \, \mathrm{s}^{-1} \, \mathrm{keV}^{-1}`.
+
+        """
+        pass
+
+    def eene(  # noqa: B027
+        self,
+        egrid: Array,
+        params: dict[str, dict[str, float | Array]],
+        comps: bool = False,
+    ) -> JAXArray | dict[str, JAXArray]:
+        r"""Calculate :math:`E^2 N(E)`, i.e. :math:`\nu F(\nu)`.
+
+        Parameters
+        ----------
+        egrid : ndarray
+            Photon energy grid in units of keV.
+        params : dict
+            Parameter dict for the model.
+        comps : bool, optional
+            Whether to return the result of each component. Defaults to False.
+
+        Returns
+        -------
+        eene : JAXArray or dict[str, JAXArray]
+            The energy flux in units of :math:`\mathrm {erg} \,
+            \mathrm{cm}^{-2} \, \mathrm{s}^{-1}`.
+
+        """
+        pass
+
+    def ce(  # noqa: B027
+        self,
+        egrid: Array,
+        params: dict[str, dict[str, float | Array]],
+        resp_matrix: Array,
+        ch_width: Array,
+        comps: bool = False,
+    ) -> JAXArray | dict[str, JAXArray]:
+        r"""Calculate the folded model, i.e. :math:`C(E)`.
+
+        Parameters
+        ----------
+        egrid : ndarray
+            Photon energy grid of `resp_matrix`, in units of keV.
+        params : dict
+            Parameter dict for the model.
+        resp_matrix : ndarray
+            Instrumental response matrix used to fold the model.
+        ch_width : ndarray
+            Measured energy channel width of `resp_matrix`.
+        comps : bool, optional
+            Whether to return the result of each component. Defaults to False.
+
+        Returns
+        -------
+        ce : JAXArray or dict[str, JAXArray]
+            The folded model in units of :math:`\mathrm{s}^{-1} \,
+            \mathrm{keV}^{-1}`.
+
+        """
+        pass
+
+    def flux(  # noqa: B027
+        self,
+        params: dict[str, dict[str, float | Array]],
+        emin: float | int | JAXFloat,
+        emax: float | int | JAXFloat,
+        energy: bool = True,
+        comps: bool = False,
+        ngrid: int = 1000,
+        log: bool = True,
+    ) -> jax.Array | dict[str, jax.Array]:
+        r"""Calculate the flux of model between `emin` and `emax`.
+
+        Parameters
+        ----------
+        params : dict
+            Parameter dict for the model.
+        emin : float or int
+            Minimum value of energy range, in units of keV.
+        emax : float or int
+            Maximum value of energy range, in units of keV.
+        energy : bool, optional
+            Calculate energy flux in units of :math:`\mathrm {erg} \,
+            \mathrm{cm}^{-2} \, \mathrm{s}^{-1}` when True. Calculate photon
+            flux in units of :math:`\mathrm{cm}^{-2} \, \mathrm{s}^{-1}` when
+            False. The default is True.
+        comps : bool, optional
+            Whether to return the result of each component. Defaults to False.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+
+        Returns
+        -------
+        flux : JAXArray or dict[str, JAXArray]
+            The model flux.
+
+        """
         pass
 
     @property
@@ -41,7 +280,7 @@ class ModelBase(metaclass=ABCMeta):
     @property
     @abstractmethod
     def latex(self) -> str:
-        """LaTeX representation of the model."""
+        r""":math:`\LaTeX` format of the model."""
         pass
 
     @property
@@ -50,7 +289,56 @@ class ModelBase(metaclass=ABCMeta):
         """Model type."""
         pass
 
+    def __delattr__(self, key: str):
+        if self.__initialized and hasattr(self, key):
+            raise AttributeError("can't delete attribute")
+
+        super().__delattr__(key)
+
+    def __setattr__(self, key: str, value: Any):
+        if self.__initialized and (
+            not hasattr(self, key) or key in self._name_to_id
+        ):
+            raise AttributeError("can't set attribute")
+
+        super().__setattr__(key, value)
+
+    @singledispatchmethod
+    def __getitem__(self, key):
+        raise TypeError(f'unsupported key {key} ({type(key).__name__})')
+
+    @__getitem__.register(str)
+    def _(self, key: str) -> ComponentBase:
+        if key not in self._name_to_id:
+            raise KeyError(key)
+
+        return getattr(self, key)
+
+    @__getitem__.register(int)
+    def _(self, key: int) -> ParameterBase:
+        if key < 0 or key >= len(self._params):
+            raise IndexError(key)
+
+        cname, pname = self._params[key]
+        return getattr(getattr(self, cname), pname)
+
+    @singledispatchmethod
+    def __setitem__(self, key, value):
+        typ = type(key).__name__
+        raise TypeError(f'unsupported key {key} ({typ}) for item assignment')
+
+    @__setitem__.register(int)
+    def _(self, key: int, value: Any):
+        if key < 0 or key >= len(self._params):
+            raise IndexError(key)
+
+        cname, pname = self._params[key]
+        setattr(getattr(self, cname), pname, value)
+
     def __repr__(self) -> str:
+        return self.name
+
+    def _repr_html_(self) -> str:
         return self.name
 
     def __add__(self, other: ModelBase) -> CompositeModel:
@@ -65,43 +353,53 @@ class ModelBase(metaclass=ABCMeta):
     def __rmul__(self, other: ModelBase) -> CompositeModel:
         return CompositeModel(other, self, '*')
 
+    del _
+
 
 class Model(ModelBase):
-    def __init__(self, component: Component):
-        self._component = component
-        self._name = str(component.name)
-        self._latex = str(component.latex)
-        self._type = component.type
-        self._fn = component.eval
-        super().__init__()
+    """Model defined by a single component."""
 
-    def eval(self, egrid: Array, *args, **kwargs) -> JAXArray:
-        pass
+    @property
+    def _name_by_id(self) -> str:
+        return self._component_id
+
+    @property
+    def _latex_by_id(self) -> str:
+        return self._component_id
+
+    def __init__(self, component: ComponentBase):
+        self._component = component
+        self._component_id = component._id
+        self._component_eval = component._eval
+        super().__init__({component.name: component})
+
+    def _eval(self, egrid: JAXArray, params: ParamsFloat) -> JAXArray:
+        params = params[self._component_id]
+        return self._component_eval(egrid, params)
 
     @property
     def name(self) -> str:
-        """Model name."""
-        return self._name
+        return self._component.name
 
     @property
     def latex(self) -> str:
-        """LaTeX representation of the model."""
-        return self._latex
+        return self._component.latex
 
     @latex.setter
     def latex(self, latex: str):
-        self._latex = str(latex)
+        self._component.latex = latex
 
     @property
     def type(self) -> Literal['add', 'mul']:
-        """Model type."""
-        return self._type
+        return self._component.type
 
 
 class CompositeModel(ModelBase):
-    _name: str
-    _latex: str
+    """Model defined by sum or multiplication of two components."""
+
     _type: Literal['add', 'mul']
+    _operands: tuple[ModelBase, ModelBase]
+    _op_str: Literal['+', '*']
 
     def __init__(self, lhs: ModelBase, rhs: ModelBase, op: Literal['+', '*']):
         # check if the type of lhs and rhs are both model
@@ -111,8 +409,7 @@ class CompositeModel(ModelBase):
                 f"'{type(lhs).__name__}' and '{type(rhs).__name__}'"
             )
 
-        self._lhs = lhs
-        self._rhs = rhs
+        self._operands = (lhs, rhs)
         self._op_str = op
 
         # check if operand is legal for the operator
@@ -145,44 +442,44 @@ class CompositeModel(ModelBase):
         else:
             raise NotImplementedError(f'op {op}')
 
-        if isinstance(lhs, CompositeModel):
-            lhs_name = lhs._name
-            lhs_latex = lhs._latex
-            if op == '*' and lhs._op_str == '+':
+        lhs_name = lhs._name_by_id
+        lhs_latex = lhs._latex_by_id
+        rhs_name = rhs._name_by_id
+        rhs_latex = rhs._latex_by_id
+
+        if op == '*':
+            if isinstance(lhs, CompositeModel) and lhs._op_str == '+':
                 lhs_name = f'({lhs_name})'
                 lhs_latex = f'({lhs_latex})'
-        else:
-            lhs_name = lhs._id
-            lhs_latex = lhs._id
 
-        if isinstance(rhs, CompositeModel):
-            rhs_name = rhs._name
-            rhs_latex = rhs._latex
-            if op == '*' and rhs._op_str == '+':
+            if isinstance(rhs, CompositeModel) and rhs._op_str == '+':
                 rhs_name = f'({rhs_name})'
                 rhs_latex = f'({rhs_latex})'
-        else:
-            rhs_name = rhs._id
-            rhs_latex = rhs._id
 
-        self._name = op_name % (lhs_name, rhs_name)
-        self._latex = op_latex % (lhs_latex, rhs_latex)
+        self.__name_by_id = op_name % (lhs_name, rhs_name)
+        self.__latex_by_id = op_latex % (lhs_latex, rhs_latex)
 
         nodes = []
         for m in [lhs, rhs]:
             stack = [m]
             while stack:
                 node = stack.pop(0)
-                if isinstance(node, CompositeModel):
-                    stack = [node._lhs, node._rhs] + stack
+                if hasattr(node, '_operands'):
+                    stack = list(node._operands) + stack
                 elif node not in nodes:
                     nodes.append(node)
-        self._nodes = tuple(nodes)
+        self._nodes: tuple[Model, ...] = tuple(nodes)
         self._name_mapping = self._get_mapping('name')
 
-        super().__init__()
+        mapping = {
+            self._name_mapping[node._component_id]: node._component
+            for node in self._nodes
+        }
+        super().__init__(mapping)
 
-    def _get_mapping(self, label_type: Literal['name', 'latex']):
+    def _get_mapping(
+        self, label_type: Literal['name', 'latex']
+    ) -> dict[str, str]:
         namespace = []
         labels = []
         suffixes = []
@@ -203,29 +500,40 @@ class CompositeModel(ModelBase):
         suffixes = [template % n if n > 1 else '' for n in suffixes]
 
         mapping = {
-            node._id: label + suffix
+            node._component_id: label + suffix
             for node, label, suffix in zip(self._nodes, labels, suffixes)
         }
 
         return mapping
 
-    def eval(self, egrid: Array, *args, **kwargs) -> JAXArray:
-        ...
+    def _eval(self, egrid: Array, params: ParamsFloat) -> JAXArray:
+        lhs = self._operands[0]._eval(egrid, params)
+        rhs = self._operands[1]._eval(egrid, params)
+        return self._op(lhs, rhs)
+
+    @property
+    def _name_by_id(self) -> str:
+        return self.__name_by_id
+
+    @property
+    def _latex_by_id(self) -> str:
+        return self.__latex_by_id
 
     @property
     def name(self) -> str:
-        name = self._name
+        name = self._name_by_id
         for k, v in self._name_mapping.items():
             name = name.replace(k, v)
         return name
 
     @property
     def latex(self) -> str:
-        latex = self._latex
+        latex = self._latex_by_id
         for k, v in self._get_mapping('latex').items():
             latex = latex.replace(k, v)
         return latex
 
+    @property
     def type(self) -> Literal['add', 'mul']:
         return self._type
 
@@ -233,224 +541,276 @@ class CompositeModel(ModelBase):
 class ComponentMeta(ABCMeta):
     """Avoid cumbersome coding for subclass ``__init__``."""
 
-    def __new__(cls, name, bases, dct, **kwargs) -> ComponentMeta:
-        # check config and then define subclass __init__ method
-        if isinstance(config := dct.get('_config', None), tuple):
-            if any(len(cfg) != 8 for cfg in config):
+    def __new__(metacls, name, bases, dct, **kwargs) -> ComponentMeta:
+        config = dct.get('_config', None)
+
+        # check config
+        if isinstance(config, tuple):
+            if not config:
+                raise ValueError(f'empty parameter configurations for {name}')
+
+            if not all(isinstance(cfg, ParamConfig) for cfg in config):
                 raise ValueError(
-                    f'each parameter configuration of {name} should have '
-                    '8 values: name (str), latex (str), unit (str), '
-                    'default (float), min (float), max (float), '
-                    'log (bool), fixed (bool)'
+                    f'each parameter config of {name} must be a ParamConfig'
                 )
 
-            init_def = 'self, '
-            init_body = ''
-            for cfg in config:
-                init_def += f'{cfg[0]}: ParameterBase | None = None, '
-                init_body += f'{cfg[0]}={cfg[0]}, '
+            for i, cfg in enumerate(config):
+                dct[cfg.name] = property(
+                    fget=_param_getter(cfg.name),
+                    fset=_param_setter(cfg.name, i),
+                    doc=f'{name} parameter :math:`{cfg.latex}`.',
+                )
 
-            init_def += 'latex: str | None = None'
-            init_body += 'latex=latex'
+        # create the class
+        cls = super().__new__(metacls, name, bases, dct)
 
-            if hasattr(cls, '_extra_kw') and isinstance(cls._extra_kw, tuple):
-                pos_args = []
-                for kw in cls._extra_kw:
-                    # FIXME: repr may fail!
-                    if len(kw) == 2:
-                        init_def += f', {kw[0]}={repr(kw[1])}'
-                    else:
-                        pos_args.append(kw[0])
-                    init_body += f', {kw[0]}={kw[0]}'
+        # define __init__ method of the newly created class if necessary
+        if config is not None and '__init__' not in dct:
+            # signature of __init__ method
+            sig1 = ['self']
+            sig1 += [
+                f'{i[0]}: ParameterBase | float | None = None' for i in config
+            ]
+            sig1 += ['latex: str | None = None']
 
-                if pos_args:
-                    s = init_def
-                    init_def = s[:6] + ', '.join(pos_args) + ', ' + s[6:]
+            params = '{%s}' % ', '.join(f"'{i[0]}': {i[0]}" for i in config)
 
-            func_code = f'def __init__({init_def}):\n    '
-            func_code += 'super(type(self), type(self))'
-            func_code += f'.__init__(self, {init_body})\n'
+            # signature of super().__init__ method
+            sig2 = [f'params={params}', 'latex=latex']
 
+            if args := getattr(cls, '_args', None):
+                sig1 = [f'{i}' for i in args] + sig1
+                sig2 = [f'{i}={i}' for i in args] + sig2
+
+            if kwargs := getattr(cls, '_kwargs', None):
+                sig1 = sig1 + [f'{i}=None' for i in kwargs]
+                sig2 = [f'{i}={i}' for i in kwargs] + sig2
+
+            func_code = (
+                f'def __init__({", ".join(sig1)}):\n'
+                f'    super(type(self), self).__init__({", ".join(sig2)})\n'
+                f'__init__.__qualname__ = "{name}.__init__"'
+            )
             exec(func_code, tmp := {'ParameterBase': ParameterBase})
-            __init__ = tmp['__init__']
-            __init__.__qualname__ = f'{name}.__init__'
-            dct['__init__'] = __init__
+            cls.__init__ = tmp['__init__']
 
-        return super().__new__(cls, name, bases, dct)
+        return cls
 
     def __init__(cls, name, bases, dct, **kwargs) -> None:
         super().__init__(name, bases, dct, **kwargs)
-        sig = inspect.signature(cls.__init__)
-        parameters = tuple(sig.parameters.values())
-        cls.__signature__ = sig.replace(parameters=parameters[1:])
+
+        # restore the signature of __init__ method
+        # see https://stackoverflow.com/a/65385559
+        signature = inspect.signature(cls.__init__)
+        cls.__signature__ = signature.replace(
+            parameters=tuple(signature.parameters.values())[1:],
+            return_annotation=Model,
+        )
 
     def __call__(cls, *args, **kwargs) -> Model:
         # return Model object after Component initialization
         return Model(super().__call__(*args, **kwargs))
 
 
-class Component(metaclass=ComponentMeta):
-    def __init__(self, latex: str | None = None, **params) -> None:
-        name = self.__class__.__name__
+def _param_getter(name: str):
+    def _(self: ComponentBase):
+        return getattr(self, f'_{name}')
+
+    return _
+
+
+def _param_setter(name: str, idx: int):
+    def _(self: ComponentBase, param: Any):
+        cfg = self._config[idx]
+
+        if param is None:
+            # use default configuration
+            setattr(
+                self,
+                f'_{name}',
+                UniformParameter(
+                    name=cfg.name,
+                    default=cfg.default,
+                    min=cfg.min,
+                    max=cfg.max,
+                    log=cfg.log,
+                    fixed=cfg.fixed,
+                    latex=cfg.latex,
+                ),
+            )
+
+        elif isinstance(param, (float, int, jnp.number, JAXArray, NumPyArray)):
+            # fixed to the given value
+            if jnp.shape(param) != ():
+                raise ValueError('scalar value is expected')
+
+            setattr(
+                self,
+                f'_{name}',
+                UniformParameter(
+                    name=cfg.name,
+                    default=param,
+                    min=cfg.min,
+                    max=cfg.max,
+                    log=cfg.log,
+                    fixed=True,
+                    latex=cfg.latex,
+                ),
+            )
+
+        elif isinstance(param, ParameterBase):
+            # given parameter instance
+            setattr(self, f'_{name}', param)
+
+        else:
+            # other input types are not supported yet
+            raise TypeError(
+                f'{type(self).__name__}.{cfg.name} got unsupported value '
+                f'{param} ({type(param).__name__})'
+            )
+
+    return _
+
+
+class ParamConfig(NamedTuple):
+    """Configuration of a uniform parameter."""
+
+    name: str
+    latex: str
+    unit: str
+    default: float
+    min: float
+    max: float
+    log: bool = False
+    fixed: bool = False
+
+
+class ComponentBase(metaclass=ComponentMeta):
+    """Base class to define a spectral component."""
+
+    _args: tuple[str, ...] = ()  # extra args passed to subclass __init__
+    _kwargs: tuple[str, ...] = ()  # extra kwargs passed to subclass __init__
+    _config: tuple[ParamConfig, ...]
+    _id: ComponentID
+    __initialized: bool = False
+
+    def __init__(self, params: dict, latex: str | None):
+        self._id = hex(id(self))[2:]
 
         if latex is None:
-            latex = r'\mathrm{%s}' % name
+            latex = r'\mathrm{%s}' % self.__class__.__name__
+        self.latex = latex
 
-        self.name = name.lower()
-        self.latex = str(latex)
-        self.params = params
+        self._name = self.__class__.__name__.lower()
+
+        # parse parameters from params, which is a dict of parameters
+        for cfg in self._config:
+            setattr(self, cfg.name, params[cfg.name])
+
+        self._param_names = tuple(cfg.name for cfg in self._config)
+
+        self.__initialized = True
+
+    if TYPE_CHECKING:
+
+        @abstractmethod
+        def _eval(self, *args, **kwargs) -> JAXArray:
+            pass
+
+    else:
+
+        @abstractmethod
+        def _eval(
+            self, egrid: Array, params: dict[str, float | JAXFloat]
+        ) -> JAXArray:
+            pass
 
     @property
-    @abstractmethod
-    def _config(self) -> ParamConfig:
-        """Configuration of parameters."""
-        pass
+    def name(self) -> str:
+        """Component name."""
+        return self._name
 
     @property
-    def _extra_kw(self) -> ExtraKw:
-        """Extra keywords passed to ``__init__`` method.
+    def latex(self) -> str:
+        r""":math:`\LaTeX` format of the component."""
+        return self._latex
 
-        Note that element of inner tuple should respect :func:`repr`.
-
-        """
-        return ()
-
-    @staticmethod
-    @abstractmethod
-    def eval(*args, **kwargs) -> JAXArray:
-        pass
+    @latex.setter
+    def latex(self, latex: str):
+        self._latex = str(latex)
 
     @property
     @abstractmethod
     def type(self) -> Literal['add', 'mul']:
-        pass
-
-
-class AdditiveComponent(Component, metaclass=ABCMeta):
-    """Prototype class to define additive component."""
-
-    def eval(self, egrid: Array, *args, **kwargs) -> JAXArray:
-        return self.integrate(egrid, *args, **kwargs)
-
-    @abstractmethod
-    def integrate(self, *args, **kwargs) -> JAXArray:
+        """Component type."""
         pass
 
     @property
-    def type(self) -> Literal['add']:
-        """Model type is additive."""
-        return 'add'
-
-
-class NumIntAdditive(AdditiveComponent, metaclass=ABCMeta):
-    _extra_kw = (('method', 'trapz'),)
-
-    def __init__(self, method='trapz', **kwargs):
-        self.method = method
-        super().__init__(**kwargs)
-
-    @staticmethod
-    @abstractmethod
-    def continnum(egrid: Array, *args, **kwargs) -> JAXArray:
-        pass
-
-    def integrate(self, egrid: Array, *args, **kwargs) -> JAXArray:
-        if self.method == 'trapz':
-            de = egrid[1:] - egrid[:-1]
-            f_grid = self.continnum(egrid, *args, **kwargs)
-            return 0.5 * (f_grid[:-1] + f_grid[1:]) * de
-
-        elif self.method == 'simpson':
-            de = egrid[1:] - egrid[:-1]
-            e_mid = (egrid[:-1] + egrid[1:]) / 2.0
-            f_grid = self.continnum(egrid, *args, **kwargs)
-            f_mid = self.continnum(e_mid, *args, **kwargs)
-            return de / 6.0 * (f_grid[:-1] + 4.0 * f_mid + f_grid[1:])
-
-        else:
-            raise NotImplementedError(f'integration method "{self.method}"')
+    def param_names(self) -> tuple[str, ...]:
+        """Component's parameter names."""
+        return self._param_names
 
     @property
-    def method(self) -> str:
-        """Numerical integration method."""
-        return self._method
+    def nparam(self) -> int:
+        """Number of parameters."""
+        return len(self._param_names)
 
-    @method.setter
-    def method(self, method: str):
-        method = str(method)
+    @property
+    @abstractmethod
+    def _config(self) -> tuple[ParamConfig, ...]:
+        """Default configuration of parameters."""
+        pass
 
-        if method not in ('trapz', 'simpson'):
-            raise ValueError(
-                f'available integration methods are "trapz" and "simpson", '
-                f'but got "{method}"'
-            )
+    def __repr__(self) -> str:
+        return self.name
 
-        self._method = method
+    def __delattr__(self, key: str):
+        if self.__initialized and hasattr(self, key):
+            raise AttributeError("can't delete attribute")
 
+        super().__delattr__(key)
 
-class Powerlaw(AdditiveComponent):
-    r"""The power law function, defined as
+    def __setattr__(self, key: str, value: Any):
+        if self.__initialized and not hasattr(self, key):
+            raise AttributeError("can't set attribute")
 
-    .. math::
-        N(E) = K \left(\frac{E}{E_\mathrm{pivot}}\right)^{-\alpha},
+        super().__setattr__(key, value)
 
-    where :math:`E_\mathrm{pivot}` is the pivot energy fixed at 1 keV.
+    @singledispatchmethod
+    def __getitem__(self, key):
+        raise TypeError(f'unsupported key {key} ({type(key).__name__})')
 
-    Parameters
-    ----------
-    alpha : ParameterBase
-        The power law photon index, dimensionless.
-    K : ParameterBase
-        The normalization at 1 keV, in units of :math:`\mathrm{cm}^{-2} \,
-        \mathrm{s}^{-1} \, \mathrm{keV}^{-1}`.
-    latex : str, optional
-        LaTeX representation of the model. The default is as its class name.
+    @__getitem__.register(str)
+    def _(self, key: str) -> ParameterBase:
+        if key not in self.param_names:
+            raise KeyError(key)
 
-    """
+        return getattr(self, key)
 
-    _config = (
-        ('alpha', r'\alpha', '', -1.01, -10.0, 3.0, False, False),
-        ('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10, False, False),
-    )
+    @__getitem__.register(int)
+    def _(self, key: int) -> ParameterBase:
+        if key < 0 or key >= self.nparam:
+            raise IndexError(key)
 
-    @staticmethod
-    def integrate(egrid, alpha, K) -> JAXArray:
-        # we ignore the case of alpha = 1.0
-        tmp = 1.0 - alpha
-        f = K / tmp * jnp.power(egrid, tmp)
-        return f[1:] - f[:-1]
+        return getattr(self, self.param_names[key])
 
+    @singledispatchmethod
+    def __setitem__(self, key, value):
+        typ = type(key).__name__
+        raise TypeError(f'unsupported key {key} ({typ}) for item assignment')
 
-class Cutoffpl(NumIntAdditive):
-    r"""The cut-off power law function, defined as
+    @__setitem__.register(str)
+    def _(self, key: str, value: Any):
+        if key not in self.param_names:
+            raise KeyError(key)
 
-    .. math::
-        N(E) = K \left(\frac{E}{E_\mathrm{pivot}}\right)^{-\alpha}
-                \exp\left(-\frac{E}{E_\mathrm{c}}\right),
+        setattr(self, key, value)
 
-    where :math:`E_\mathrm{pivot}` is the pivot energy fixed at 1 keV.
+    @__setitem__.register(int)
+    def _(self, key: int, value: Any):
+        if key < 0 or key >= self.nparam:
+            raise IndexError(key)
 
-    Parameters
-    ----------
-    alpha : ParameterBase, optional
-        The power law photon index, dimensionless.
-    Ec : ParameterBase, optional
-        The folding energy of exponential rolloff, in units of keV.
-    K : ParameterBase, optional
-        The normalization at 1 keV, in units of :math:`\mathrm{cm}^{-2} \,
-        \mathrm{s}^{-1} \, \mathrm{keV}^{-1}`.
-    latex : str, optional
-        LaTeX representation of the model. The default is as its class name.
+        setattr(self, self.param_names[key], value)
 
-    """
-
-    _config = (
-        ('alpha', r'\alpha', '', 1.0, -3.0, 10.0, False, False),
-        ('Ec', r'E_\mathrm{c}', 'keV', 15.0, 0.01, 10000.0, False, False),
-        ('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10, False, False),
-    )
-
-    @staticmethod
-    def _continnum(egrid, alpha, Ec, K) -> JAXArray:
-        e = egrid
-        return K * jnp.power(e, alpha) * jnp.exp(-e / Ec)
+    del _
