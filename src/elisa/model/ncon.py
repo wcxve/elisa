@@ -31,12 +31,7 @@ class NormalizationConvolution(Component, ABC):
 
     """
 
-    _extra_kw = (
-        ('emin',),
-        ('emax',),
-        ('ngrid', 1000),
-        ('elog', True)
-    )
+    _extra_kw = (('emin',), ('emax',), ('ngrid', 1000), ('elog', True))
 
     def __init__(
         self,
@@ -44,7 +39,7 @@ class NormalizationConvolution(Component, ABC):
         emax: float | int,
         ngrid: int = 1000,
         elog: bool = True,
-        **kwargs
+        **kwargs,
     ):
         if emin >= emax:
             raise ValueError('emin must be less than emax')

@@ -45,7 +45,7 @@ class Node(ABC):
         fmt: str,
         is_operation: bool = False,
         predecessor: list[Node] | None = None,
-        attrs: dict[str, Any] | None = None
+        attrs: dict[str, Any] | None = None,
     ):
         if attrs is None:
             attrs = dict()
@@ -72,7 +72,7 @@ class Node(ABC):
             fmt=fmt,
             type=self.type,
             is_operation=is_operation,
-            id=node_id
+            id=node_id,
         )
         self._attrs.update(attrs)
 
@@ -156,10 +156,7 @@ class OperationNode(Node, ABC):
         fmt = r'\times' if op == '*' else op
 
         super().__init__(
-            name=op,
-            fmt=fmt,
-            is_operation=True,
-            predecessor=[lh, rh]
+            name=op, fmt=fmt, is_operation=True, predecessor=[lh, rh]
         )
 
     def _label_with_id(self, label: str) -> str:
@@ -262,7 +259,7 @@ class ParameterNode(Node):
         distribution: Distribution | float | int,
         min: float | None = None,
         max: float | None = None,
-        dist_expr: str | None = None
+        dist_expr: str | None = None,
     ):
         self._validate_input(distribution)
 
@@ -273,7 +270,7 @@ class ParameterNode(Node):
             distribution=distribution,
             min='' if min is None else f'{min:.4g}',
             max='' if max is None else f'{max:.4g}',
-            dist_expr='' if dist_expr is None else str(dist_expr)
+            dist_expr='' if dist_expr is None else str(dist_expr),
         )
 
         super().__init__(name=name, fmt=fmt, attrs=attrs)
@@ -314,7 +311,7 @@ class ParameterNode(Node):
             'default': {name: self.default},
             'min': {name: self.attrs['min']},
             'max': {name: self.attrs['max']},
-            'dist_expr': {name: self.attrs['dist_expr']}
+            'dist_expr': {name: self.attrs['dist_expr']},
         }
 
         return info
@@ -406,7 +403,7 @@ class ParameterOperationNode(OperationNode):
             'default': get_field('default'),
             'min': get_field('min'),
             'max': get_field('max'),
-            'dist_expr': get_field('dist_expr')
+            'dist_expr': get_field('dist_expr'),
         }
         composite = info['composite']
 
@@ -460,7 +457,7 @@ class ModelNode(Node):
         mtype: str,
         params: dict[str, ParameterNodeType],
         func: Callable,
-        is_ncon: bool
+        is_ncon: bool,
     ):
         if mtype not in {'add', 'mul', 'con'}:
             raise TypeError(f'unrecognized model type "{mtype}"')
@@ -476,17 +473,10 @@ class ModelNode(Node):
             self._params_name = tuple(params.keys())
             predecessor = list(params.values())
 
-        attrs = dict(
-            mtype=mtype,
-            func=func,
-            is_ncon=is_ncon
-        )
+        attrs = dict(mtype=mtype, func=func, is_ncon=is_ncon)
 
         super().__init__(
-            name=name,
-            fmt=fmt,
-            predecessor=predecessor,
-            attrs=attrs
+            name=name, fmt=fmt, predecessor=predecessor, attrs=attrs
         )
 
     def __add__(self, other: ModelNodeType) -> ModelOperationNode:
@@ -533,7 +523,7 @@ class ModelNode(Node):
             'default': get_site_field('default'),
             'min': get_site_field('min'),
             'max': get_site_field('max'),
-            'dist_expr': get_site_field('dist_expr')
+            'dist_expr': get_site_field('dist_expr'),
         }
 
     def generate_func(self, mapping: dict[str, str]) -> Callable:
@@ -552,6 +542,7 @@ class ModelNode(Node):
         # notation: p=params, e=egrid, f=flux_input, ff=flux_func
         # params structure should be {model_id: {param1: ..., param2: ...}}
         if mtype == 'add':
+
             def wrapper_add(p, e, *_):
                 """Evaluate add model."""
                 return func(e, **p[model_name])
@@ -559,6 +550,7 @@ class ModelNode(Node):
             return wrapper_add
 
         elif mtype == 'mul':
+
             def wrapper_mul(p, e, *_):
                 """Evaluate mul model."""
                 return func(e, **p[model_name])
@@ -567,18 +559,18 @@ class ModelNode(Node):
 
         else:  # mtype == 'con'
             if self.attrs['is_ncon']:
+
                 def wrapper_ncon(p, _=None, f=None, ff=None):
                     """Evaluate ncon model, f and ff must be provided."""
                     other_kwargs = dict(
-                        flux_input=f,
-                        flux_func=ff,
-                        func_params=p
+                        flux_input=f, flux_func=ff, func_params=p
                     )
                     return func(**p[model_name], **other_kwargs)
 
                 return wrapper_ncon
 
             else:
+
                 def wrapper_con(p, e, f, *_):
                     """Evaluate con model."""
                     return func(e, f, **p[model_name])
@@ -657,8 +649,10 @@ class ModelOperationNode(OperationNode):
         self.attrs['is_ncon'] = is_ncon
 
         # for a convolution model, fmt is *
-        if not isinstance(lh, ModelOperationNode) and \
-                lh.attrs.get('mtype', '') == 'con':
+        if (
+            not isinstance(lh, ModelOperationNode)
+            and lh.attrs.get('mtype', '') == 'con'
+        ):
             self.attrs['fmt'] = '*'
 
     def __add__(self, other: ModelNodeType) -> ModelOperationNode:
@@ -676,7 +670,7 @@ class ModelOperationNode(OperationNode):
     def params(self) -> dict[str, ParameterNodeType]:
         """Parameter dict."""
         lh, rh = self.predecessor
-        return lh.params |rh.params
+        return lh.params | rh.params
 
     @property
     def comps(self) -> dict[str, ModelNode]:
@@ -703,7 +697,7 @@ class ModelOperationNode(OperationNode):
             'default': get_field('default'),
             'min': get_field('min'),
             'max': get_field('max'),
-            'dist_expr': get_field('dist_expr')
+            'dist_expr': get_field('dist_expr'),
         }
 
     def generate_func(self, mapping: dict[str, str]) -> Callable:
@@ -717,6 +711,7 @@ class ModelOperationNode(OperationNode):
 
         # notation: p=params, e=egrid, f=flux, ff=flux_func
         if op == '+':
+
             def wrapper_add_add(p, e, *_):
                 """add + add"""
                 return m1(p, e) + m2(p, e)
@@ -725,6 +720,7 @@ class ModelOperationNode(OperationNode):
 
         if type1 != 'con':  # type1 is add or mul
             if type2 != 'con':  # type2 is add or mul
+
                 def wrapper_op(p, e, *_):  # add * add not allowed
                     """add * mul, mul * add, mul * mul"""
                     return m1(p, e) * m2(p, e)
@@ -733,6 +729,7 @@ class ModelOperationNode(OperationNode):
 
             else:  # type2 is con
                 if rh.attrs['is_ncon']:  # type2 is ncon
+
                     def wrapper_mul_ncon(p, e, f, ff):
                         """mul * ncon"""
                         return m1(p, e) * m2(p, e, f, ff)
@@ -740,6 +737,7 @@ class ModelOperationNode(OperationNode):
                     return wrapper_mul_ncon
 
                 else:  # type2 is con
+
                     def wrapper_mul_con(p, e, f, *_):
                         """mul * con"""
                         return m1(p, e) * m2(p, e, f)
@@ -749,6 +747,7 @@ class ModelOperationNode(OperationNode):
         else:  # type1 is con
             if lh.attrs['is_ncon']:  # type1 is ncon
                 if type2 == 'add':
+
                     def wrapper_ncon_add(p, e, *_):
                         """ncon * add"""
                         return m1(p, e, m2(p, e), m2)
@@ -756,8 +755,10 @@ class ModelOperationNode(OperationNode):
                     return wrapper_ncon_add
 
                 elif type2 == 'mul':
+
                     def wrapper_ncon_mul(p, e, f, ff):
                         """ncon * mul"""
+
                         def m2_ff(p_, e_, *_):
                             """mul * add, this will be * by ncon"""
                             return m2(p_, e_) * ff(p_, e_)
@@ -767,8 +768,10 @@ class ModelOperationNode(OperationNode):
                     return wrapper_ncon_mul
 
                 else:  # type2 == 'con'
+
                     def wrapper_ncon_con(p, e, f, ff):
                         """ncon * con"""
+
                         def m2_ff(p_, e_, *_):
                             """con * add, this will be * by ncon"""
                             return m2(p_, e_, ff(p_, e_))
@@ -779,6 +782,7 @@ class ModelOperationNode(OperationNode):
 
             else:  # type1 is con
                 if type2 == 'add':
+
                     def wrapper_con_add(p, e, *_):
                         """con * add"""
                         return m1(p, e, m2(p, e))
@@ -786,6 +790,7 @@ class ModelOperationNode(OperationNode):
                     return wrapper_con_add
 
                 elif type2 == 'mul':
+
                     def wrapper_con_mul(p, e, f, *_):
                         """con * mul"""
                         return m1(p, e, m2(p, e) * f)
@@ -794,6 +799,7 @@ class ModelOperationNode(OperationNode):
 
                 else:
                     if rh.attrs['is_ncon']:
+
                         def wrapper_con_ncon(p, e, f, ff):
                             """con * ncon"""
                             return m1(p, e, m2(p, e, f, ff))
@@ -801,6 +807,7 @@ class ModelOperationNode(OperationNode):
                         return wrapper_con_ncon
 
                     else:
+
                         def wrapper_con_con(p, e, f, *_):
                             """con * con"""
                             return m1(p, e, m2(p, e, f))
@@ -819,17 +826,16 @@ class LabelSpace:
     """
 
     def __init__(self, node: Node):
-
         self.node = node
 
         self._label_space = {
             'name': self._get_sub_nodes_label('name'),
-            'fmt': self._get_sub_nodes_label('fmt')
+            'fmt': self._get_sub_nodes_label('fmt'),
         }
 
         self._label_map = {
             'name': self._get_suffix_mapping('name'),
-            'fmt': self._get_suffix_mapping('fmt')
+            'fmt': self._get_suffix_mapping('fmt'),
         }
 
     @property

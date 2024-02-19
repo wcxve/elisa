@@ -37,7 +37,7 @@ class Parameter:
     def __init__(self, node: ParameterNodeType):
         if not isinstance(node, (ParameterNode, ParameterOperationNode)):
             raise ValueError(
-                "node must be ParameterNode or ParameterOperationNode"
+                'node must be ParameterNode or ParameterOperationNode'
             )
 
         self._node = node
@@ -156,14 +156,14 @@ class UniformParameter(Parameter):
         min: float,
         max: float,
         frozen: bool = False,
-        log: bool = False
+        log: bool = False,
     ):
         self._config = {
             'default': float(default),
             'min': float(min),
             'max': float(max),
             'frozen': bool(frozen),
-            'log': bool(log)
+            'log': bool(log),
         }
 
         self._check_and_set_values()
@@ -175,7 +175,7 @@ class UniformParameter(Parameter):
             distribution=self._get_distribution(),
             min=self._config['min'],
             max=self._config['max'],
-            dist_expr=self.get_expression()
+            dist_expr=self.get_expression(),
         )
         super().__init__(node)
 
@@ -286,14 +286,10 @@ class UniformParameter(Parameter):
             _max = float(max)
 
         if _min <= 0.0 and config['log']:
-            raise ValueError(
-                f'min ({_min}) must be positive for LogUniform'
-            )
+            raise ValueError(f'min ({_min}) must be positive for LogUniform')
 
         if _min > _max:
-            raise ValueError(
-                f'min ({_min}) must not larger than max ({_max})'
-            )
+            raise ValueError(f'min ({_min}) must not larger than max ({_max})')
 
         if _default < _min:
             raise ValueError(
@@ -334,7 +330,7 @@ class UniformParameter(Parameter):
 
     def get_expression(self) -> str:
         """Get expression of distribution."""
-        default = self._config["default"]
+        default = self._config['default']
 
         if self._config['frozen']:
             expr = str(default)
@@ -391,12 +387,10 @@ class Model:
         self,
         node: ModelNodeType,
         params: Optional[dict[str, Parameter]] = None,
-        params_fmt: Optional[dict[str, str]] = None
+        params_fmt: Optional[dict[str, str]] = None,
     ):
         if not isinstance(node, (ModelNode, ModelOperationNode)):
-            raise ValueError(
-                'node must be ModelNode or ModelOperationNode'
-            )
+            raise ValueError('node must be ModelNode or ModelOperationNode')
 
         if isinstance(node, ModelNode) and not (
             isinstance(params, dict)
@@ -427,9 +421,7 @@ class Model:
             else:
                 params_fmt = {i: r'\mathrm{%s}' % i for i in params.keys()}
 
-            self._params_fmt = {
-                node.name: ModelParameterFormat(params_fmt)
-            }
+            self._params_fmt = {node.name: ModelParameterFormat(params_fmt)}
 
     def __repr__(self):
         return self._label.name
@@ -441,9 +433,11 @@ class Model:
         return SuperModel(self, other, '*')
 
     def __setattr__(self, key, value):
-        if hasattr(self, '_params_name') \
-                and self._params_name is not None \
-                and key in self._params_name:
+        if (
+            hasattr(self, '_params_name')
+            and self._params_name is not None
+            and key in self._params_name
+        ):
             self._set_param(key, value)
 
         super().__setattr__(key, value)
@@ -495,7 +489,7 @@ class Model:
 
         shapes = jax.tree_util.tree_flatten(
             tree=jax.tree_map(jnp.shape, params),
-            is_leaf=lambda i: isinstance(i, tuple)
+            is_leaf=lambda i: isinstance(i, tuple),
         )[0]
 
         if not shapes:
@@ -510,14 +504,11 @@ class Model:
         if shape == ():
             eval_fn = lambda f: f(egrid, params)
         elif len(shape) == 1:
-            eval_fn = lambda f: \
-                jax.vmap(f, in_axes=(None, 0))(egrid, params)
+            eval_fn = lambda f: jax.vmap(f, in_axes=(None, 0))(egrid, params)
         elif len(shape) == 2:
-            eval_fn = lambda f: \
-                jax.vmap(
-                    jax.vmap(f, in_axes=(None, 0)),
-                    in_axes=(None, 0)
-                )(egrid, params)
+            eval_fn = lambda f: jax.vmap(
+                jax.vmap(f, in_axes=(None, 0)), in_axes=(None, 0)
+            )(egrid, params)
         else:
             raise ValueError(f'params ndim should <= 2, got {len(shape)}')
 
@@ -527,7 +518,7 @@ class Model:
         self,
         egrid: jax.Array,
         params: dict[str, dict[str, float | jax.Array]],
-        comps: bool = False
+        comps: bool = False,
     ) -> jax.Array | dict[str, jax.Array]:
         """Calculate :math:`N_E` over `egrid`.
 
@@ -553,7 +544,7 @@ class Model:
 
         shapes = jax.tree_util.tree_flatten(
             tree=jax.tree_map(jnp.shape, params),
-            is_leaf=lambda i: isinstance(i, tuple)
+            is_leaf=lambda i: isinstance(i, tuple),
         )[0]
 
         if not shapes:
@@ -570,14 +561,16 @@ class Model:
         if shape == ():
             eval_fn = lambda f: f(egrid, params) / de
         elif len(shape) == 1:
-            eval_fn = lambda f: \
-                jax.vmap(f, in_axes=(None, 0))(egrid, params) / de
+            eval_fn = (
+                lambda f: jax.vmap(f, in_axes=(None, 0))(egrid, params) / de
+            )
         elif len(shape) == 2:
-            eval_fn = lambda f: \
-                jax.vmap(
-                    jax.vmap(f, in_axes=(None, 0)),
-                    in_axes=(None, 0)
-                )(egrid, params) / de
+            eval_fn = (
+                lambda f: jax.vmap(
+                    jax.vmap(f, in_axes=(None, 0)), in_axes=(None, 0)
+                )(egrid, params)
+                / de
+            )
         else:
             raise ValueError(f'params ndim should <= 2, got {len(shape)}')
 
@@ -590,7 +583,7 @@ class Model:
         self,
         egrid: jax.Array,
         params: dict[str, dict[str, float | jax.Array]],
-        comps: bool = False
+        comps: bool = False,
     ) -> jax.Array | dict[str, jax.Array]:
         r"""Calculate :math:`E N_E` (:math:`F_\nu`) over `egrid`.
 
@@ -626,7 +619,7 @@ class Model:
         self,
         egrid: jax.Array,
         params: dict[str, dict[str, float | jax.Array]],
-        comps: bool = False
+        comps: bool = False,
     ):
         r"""Calculate :math:`E^2 N_E` (:math:`\nu F_\nu`) over `egrid`.
 
@@ -664,7 +657,7 @@ class Model:
         params: dict[str, dict[str, float | jax.Array]],
         resp_matrix: jax.Array,
         ch_width: jax.Array,
-        comps: bool = False
+        comps: bool = False,
     ) -> jax.Array | dict[str, jax.Array]:
         """Calculate the folded spectral model (:math:`C_E`).
 
@@ -708,7 +701,7 @@ class Model:
         energy: bool = True,
         comps: bool = False,
         ngrid: int = 1000,
-        elog: bool = True
+        elog: bool = True,
     ) -> jax.Array | dict[str, jax.Array]:
         """Calculate flux of the model between `emin` and `emax`.
 
@@ -849,8 +842,9 @@ class Model:
         if self._comp_fn is None:
             mapping = self._label.mapping
             self._comp_fn = {
-                m._label._label('name', mapping):
-                jax.jit(m._fn_wrapper(mapping['name']))
+                m._label._label('name', mapping): jax.jit(
+                    m._fn_wrapper(mapping['name'])
+                )
                 for m in self._get_comp()
             }
 
@@ -873,7 +867,7 @@ class Model:
             params=self._node.params,
             mname=mapping['name'],
             mfmt=mapping['fmt'],
-            mpfmt=self._params_fmt
+            mpfmt=self._params_fmt,
         )
         return info
 
@@ -934,9 +928,7 @@ class SuperModel(Model):
 
     def __getitem__(self, name: str) -> Model:
         if name not in self._comps_name:
-            raise ValueError(
-                f'{self} has no "{name}" component'
-            )
+            raise ValueError(f'{self} has no "{name}" component')
 
         return getattr(self, name)
 
@@ -997,7 +989,7 @@ class ComponentMeta(ABCMeta):
             par_def = str(init_def)
 
             init_def += 'fmt=None'
-            init_body += f'fmt=fmt'
+            init_body += 'fmt=fmt'
 
             if hasattr(cls, '_extra_kw') and isinstance(cls._extra_kw, tuple):
                 pos_args = []
@@ -1014,7 +1006,7 @@ class ComponentMeta(ABCMeta):
                     init_def = s[:6] + ', '.join(pos_args) + ', ' + s[6:]
 
             func_code = f'def __init__({init_def}):\n    '
-            func_code += f'super(type(self), type(self))'
+            func_code += 'super(type(self), type(self))'
             func_code += f'.__init__(self, {init_body})\n'
             func_code += f'def {name}({par_def}):\n    '
             func_code += f'return {par_body}'
@@ -1108,7 +1100,7 @@ class Component(Model, ABC, metaclass=ComponentMeta):
             mtype=mtype,
             params={k: v._node for k, v in params_dict.items()},
             func=self._func,
-            is_ncon=is_ncon
+            is_ncon=is_ncon,
         )
 
         params_fmt = {cfg[0]: cfg[1] for cfg in self._config}
@@ -1151,7 +1143,7 @@ def generate_parameter(
     distribution: Distribution,
     min: Optional[float] = None,
     max: Optional[float] = None,
-    dist_expr: Optional[str] = None
+    dist_expr: Optional[str] = None,
 ) -> Parameter:
     """Create :class:`Parameter` instance.
 
@@ -1190,7 +1182,7 @@ def generate_model(
     mtype: str,
     params: dict[str, Parameter],
     func: Callable,
-    is_ncon: bool
+    is_ncon: bool,
 ) -> Model:
     """Create :class:`Model` instance.
 

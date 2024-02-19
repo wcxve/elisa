@@ -32,9 +32,7 @@ class MultiplicativeComponent(Component, ABC):
 
 
 class Constant(MultiplicativeComponent):
-    _config = (
-        ParamConfig('factor', 'f', 1.0, 1e-5, 1e5, False, False),
-    )
+    _config = (ParamConfig('factor', 'f', 1.0, 1e-5, 1e5, False, False),)
 
     @staticmethod
     def _continnum(egrid, factor):

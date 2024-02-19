@@ -5,7 +5,6 @@ from typing import Callable, Optional
 
 import jax
 import numpy as np
-
 from jax.experimental.mesh_utils import create_device_mesh
 from jax.sharding import PositionalSharding
 from numpyro import handlers
@@ -55,10 +54,7 @@ class Simulator:
         self._sharding = PositionalSharding(device)
 
     def sample_from_one_set(
-        self,
-        params: dict[str, float],
-        n: int,
-        seed: Optional[int] = None
+        self, params: dict[str, float], n: int, seed: Optional[int] = None
     ) -> dict[str, np.ndarray]:
         """Sample from one set of parameters.
 
@@ -86,13 +82,11 @@ class Simulator:
         dist = self._get_dist(params)
 
         poisson_sample = jax.tree_map(
-            lambda v: _random_poisson(seed, v, n),
-            dist['poisson']
+            lambda v: _random_poisson(seed, v, n), dist['poisson']
         )
 
         normal_sample = jax.tree_map(
-            lambda v: _random_normal(seed, v[0], v[1], n),
-            dist['normal']
+            lambda v: _random_normal(seed, v[0], v[1], n), dist['normal']
         )
 
         sample = poisson_sample | normal_sample
@@ -102,7 +96,7 @@ class Simulator:
     def sample_from_multi_sets(
         self,
         params: dict[str, np.ndarray | jax.Array],
-        seed: Optional[int] = None
+        seed: Optional[int] = None,
     ) -> dict[str, np.ndarray]:
         """Sample from multiple sets of parameters.
 
@@ -130,13 +124,11 @@ class Simulator:
         dist = jax.vmap(self._get_dist)(sharded_params)
 
         poisson_sample = jax.tree_map(
-            lambda v: _random_poisson(seed, v),
-            dist['poisson']
+            lambda v: _random_poisson(seed, v), dist['poisson']
         )
 
         normal_sample = jax.tree_map(
-            lambda v: _random_normal(seed, v[0], v[1]),
-            dist['normal']
+            lambda v: _random_normal(seed, v[0], v[1]), dist['normal']
         )
 
         sample = poisson_sample | normal_sample
@@ -203,7 +195,7 @@ class SimFit:
         n: int,
         seed: Optional[int] = None,
         parallel: bool = True,
-        run_str: Optional[str] = None
+        run_str: Optional[str] = None,
     ):
         """Simulate from one set of parameters and fit the simulation.
 
@@ -258,7 +250,7 @@ class SimFit:
         params: dict[str, jax.Array],
         seed: Optional[int] = None,
         parallel: bool = True,
-        run_str: Optional[str] = None
+        run_str: Optional[str] = None,
     ):
         """Simulate from multiple sets of parameters and fit the simulation.
 

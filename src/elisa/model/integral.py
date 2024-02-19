@@ -5,6 +5,7 @@ form expressions may not exist.
 
 """
 from __future__ import annotations
+
 from functools import wraps
 from inspect import signature
 from typing import Callable
@@ -34,7 +35,7 @@ def {name}(egrid, {def_str}):
 _template: dict = {
     'default': _trapezoid,
     'trapezoid': _trapezoid,
-    'simpson': _simpson
+    'simpson': _simpson,
 }
 
 

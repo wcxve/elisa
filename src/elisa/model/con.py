@@ -4,8 +4,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Callable
 
-import jax.numpy as jnp
-
 from .base import Component
 
 __all__ = []
@@ -29,5 +27,3 @@ class ConvolutionComponent(Component, ABC):
     def _convolve(*args):
         """Return photon flux which has been convolved."""
         pass
-
-

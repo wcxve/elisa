@@ -1,10 +1,10 @@
 """Helper functions for inference module."""
 from __future__ import annotations
 
-from typing import Callable, Optional, Sequence, TypeVar
-
 import re
+from collections.abc import Sequence
 from functools import reduce
+from typing import Callable, Optional, TypeVar
 
 from jax import lax
 from jax.experimental import host_callback
@@ -63,7 +63,7 @@ def make_pretty_table(fields: Sequence[str], rows: Sequence) -> PrettyTable:
         top_right_junction_char='┐',
         top_left_junction_char='┌',
         bottom_right_junction_char='┘',
-        bottom_left_junction_char='└'
+        bottom_left_junction_char='└',
     )
     table.add_rows(rows)
     return table
@@ -119,7 +119,7 @@ def progress_bar_factory(
     neval: int,
     ncores: int,
     init_str: Optional[str] = None,
-    run_str: Optional[str] = None
+    run_str: Optional[str] = None,
 ) -> Callable:
     """Add a progress bar to fori_loop kernel.
     Adapt from: https://www.jeremiecoullon.com/2021/01/29/jax_progress_bar/
@@ -141,7 +141,7 @@ def progress_bar_factory(
     else:
         run_str = str(run_str)
 
-    process_re = re.compile(r"\d+$")
+    process_re = re.compile(r'\d+$')
 
     if neval > 20:
         print_rate = int(neval_single / 20)
@@ -169,9 +169,7 @@ def progress_bar_factory(
     def _update_progress_bar(iter_num):
         _ = lax.cond(
             iter_num == 1,
-            lambda _: host_callback.id_tap(
-                _update_tqdm, 0, result=iter_num
-            ),
+            lambda _: host_callback.id_tap(_update_tqdm, 0, result=iter_num),
             lambda _: iter_num,
             operand=None,
         )

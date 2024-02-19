@@ -1,7 +1,8 @@
 """Subsequent analysis of likelihood or Bayesian fit."""
 from __future__ import annotations
 
-from typing import Literal, NamedTuple, Optional, Sequence
+from collections.abc import Sequence
+from typing import Literal, NamedTuple, Optional
 
 import arviz as az
 import jax
@@ -43,11 +44,7 @@ class BootstrapResult(NamedTuple):
 class MLEResult:
     """MLE result obtained from likelihood fit."""
 
-    def __init__(
-        self,
-        minuit: Minuit,
-        fit: _fit.LikelihoodFit
-    ):
+    def __init__(self, minuit: Minuit, fit: _fit.LikelihoodFit):
         self._minuit = minuit
         self._helper = helper = fit._helper
         self._free_names = free_names = fit._free_names
@@ -86,8 +83,8 @@ class MLEResult:
             'deviance': {
                 'total': stat_total,
                 'group': stat_group,
-                'point': stat_info['point']
-            }
+                'point': stat_info['point'],
+            },
         }
 
         k = len(free_names)
@@ -101,7 +98,7 @@ class MLEResult:
     def __repr__(self):
         tab = make_pretty_table(
             ['Parameter', 'Value', 'Error'],
-            [(k, f'{v[0]:.4g}', f'{v[1]:.4g}') for k, v in self._mle.items()]
+            [(k, f'{v[0]:.4g}', f'{v[1]:.4g}') for k, v in self._mle.items()],
         )
         s = 'MLE:\n' + tab.get_string() + '\n'
 
@@ -244,10 +241,7 @@ class MLEResult:
 
         cl_ = 1.0 - 2.0 * norm.sf(cl) if cl >= 1.0 else cl
 
-        mle = {
-            k: v for k, v in self._result['params'].items()
-            if k in params
-        }
+        mle = {k: v for k, v in self._result['params'].items() if k in params}
 
         helper = self._helper
 
@@ -257,8 +251,7 @@ class MLEResult:
             mle0 = self._minuit.values.to_dict()
 
             others = {  # set other unconstrained free parameter to mle
-                i: mle0[i]
-                for i in (set(mle0.keys()) - set(free_params))
+                i: mle0[i] for i in (set(mle0.keys()) - set(free_params))
             }
 
             ci = self._minuit.merrors
@@ -284,12 +277,13 @@ class MLEResult:
             # confidence interval of function of parameters,
             # see, e.g. https://doi.org/10.1007/s11222-021-10012-y
             for p in composite_params:
+
                 def loss(x):
                     """The loss when calculating CI of composite parameter."""
                     unconstr = {k: v for k, v in zip(self._free_names, x[1:])}
                     p0 = helper.to_params_dict(unconstr)[p]
                     diff = (p0 / x[0] - 1) / 1e-3
-                    return helper.deviance_unconstr(x[1:]) + diff*diff
+                    return helper.deviance_unconstr(x[1:]) + diff * diff
 
                 mle_p = mle[p]
 
@@ -317,8 +311,10 @@ class MLEResult:
             else:
                 boot_result = self.boot(n=n)
             interval = jax.tree_map(
-                lambda x: tuple(np.quantile(x, q=(0.5 - cl_/2, 0.5 + cl_/2))),
-                {k: v for k, v in boot_result.params.items() if k in params}
+                lambda x: tuple(
+                    np.quantile(x, q=(0.5 - cl_ / 2, 0.5 + cl_ / 2))
+                ),
+                {k: v for k, v in boot_result.params.items() if k in params},
             )
             error = {
                 k: (interval[k][0] - mle[k], interval[k][1] - mle[k])
@@ -327,7 +323,7 @@ class MLEResult:
             status = {
                 'n': boot_result.n,
                 'n_valid': boot_result.n_valid,
-                'seed': boot_result.seed
+                'seed': boot_result.seed,
             }
 
         else:
@@ -344,14 +340,11 @@ class MLEResult:
             error=format_result(error),
             cl=cl_,
             method=method,
-            status=status
+            status=status,
         )
 
     def boot(
-        self,
-        n: int = 10000,
-        parallel: bool = True,
-        seed: Optional[int] = None
+        self, n: int = 10000, parallel: bool = True, seed: Optional[int] = None
     ) -> BootstrapResult:
         """Parametric bootstrap.
 
@@ -389,7 +382,7 @@ class MLEResult:
             n,
             self._seed,
             parallel,
-            run_str='Bootstrap'
+            run_str='Bootstrap',
         )
 
         boot_result = BootstrapResult(
@@ -401,7 +394,7 @@ class MLEResult:
             n=n,
             n_valid=result['valid'].sum(),
             seed=self._seed,
-            results=boot_result
+            results=boot_result,
         )
 
         self._boot = boot_result
@@ -418,6 +411,7 @@ class MLEResult:
 
 class CredibleInterval(NamedTuple):
     """Credible interval result."""
+
     mle: dict[str, float]
     median: dict[str, float]
     interval: dict[str, tuple[float, float]]
@@ -428,6 +422,7 @@ class CredibleInterval(NamedTuple):
 
 class PPCResult(NamedTuple):
     """Posterior predictive check result."""
+
     ...
 
 
@@ -441,7 +436,7 @@ class PosteriorResult:
         reff: float,
         lnZ: tuple[float, float],
         sampler,
-        fit: _fit.BayesianFit
+        fit: _fit.BayesianFit,
     ):
         self._idata = idata
         self._ess = ess
@@ -621,12 +616,8 @@ class PosteriorResult:
 
         ...
 
-
     def ppc(
-        self,
-        n: int = 10000,
-        parallel: bool = True,
-        seed: Optional[int] = None
+        self, n: int = 10000, parallel: bool = True, seed: Optional[int] = None
     ) -> PPCResult:
         """Perform posterior predictive check.
 

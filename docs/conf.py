@@ -29,7 +29,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
-    'numpydoc.numpydoc'
+    'numpydoc.numpydoc',
 ]
 
 templates_path = ['_templates']

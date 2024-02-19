@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Sequence
 from functools import partial, reduce
-from typing import Callable, Literal, NamedTuple, Optional, Sequence, TypeVar
+from typing import Callable, Literal, NamedTuple, Optional, TypeVar
 
 import arviz as az
 import jax
@@ -19,16 +20,19 @@ from jax.sharding import PositionalSharding
 from numpyro import handlers
 from numpyro.infer import MCMC, NUTS
 from numpyro.infer.initialization import init_to_value
-from numpyro.infer.util import constrain_fn, unconstrain_fn, log_likelihood
+from numpyro.infer.util import constrain_fn, log_likelihood, unconstrain_fn
 from prettytable import PrettyTable
 
 from ..data.ogip import Data
 from ..model.base import Model
 from .analysis import MLEResult, PosteriorResult
-from .likelihood import chi2, cstat, pstat, pgstat, wstat
+from .likelihood import chi2, cstat, pgstat, pstat, wstat
 from .nested_sampling import NestedSampler
 from .util import (
-    make_pretty_table, order_composite, progress_bar_factory, replace_string
+    make_pretty_table,
+    order_composite,
+    progress_bar_factory,
+    replace_string,
 )
 
 __all__ = ['LikelihoodFit', 'BayesianFit']
@@ -58,6 +62,7 @@ class BaseFit(ABC):
         Random number generator seed. The default is 42.
 
     """
+
     # TODO: introduce background model that directly fit the background data
 
     _stat_options: set[str] = {
@@ -65,17 +70,14 @@ class BaseFit(ABC):
         'cstat',
         'pstat',
         'pgstat',
-        'wstat'
+        'wstat',
         # It should be noted that 'lstat' does not have long run coverage
         # property for source estimation, which is probably due to the choice
         # of conjugate prior of Poisson background data.
         # 'lstat' will be included here with a proper prior at some point.
     }
 
-    _stat_with_back: set[str] = {
-        'pgstat',
-        'wstat'
-    }
+    _stat_with_back: set[str] = {'pgstat', 'wstat'}
 
     def __init__(
         self,
@@ -106,9 +108,18 @@ class BaseFit(ABC):
         info = {
             i: reduce(lambda x, y: x | y, (j[i] for j in info_list))
             for i in [
-                'sample', 'composite',
-                'default', 'min', 'max', 'dist_expr',
-                'params', 'mname', 'mfmt', 'mpfmt', 'pname', 'pfmt'
+                'sample',
+                'composite',
+                'default',
+                'min',
+                'max',
+                'dist_expr',
+                'params',
+                'mname',
+                'mfmt',
+                'mpfmt',
+                'pname',
+                'pfmt',
             ]
         }
 
@@ -133,8 +144,7 @@ class BaseFit(ABC):
                 fmt_suffix[comp] = r'^\mathrm{' + joined_name + '}'
 
         info['mname'] = {
-            k: v + name_suffix[k]
-            for k, v in info['mname'].items()
+            k: v + name_suffix[k] for k, v in info['mname'].items()
         }
         info['mfmt'] = {
             # k: r'$\big[' + v + fmt_suffix[k] + r'\big]$'
@@ -166,8 +176,7 @@ class BaseFit(ABC):
         ]
         _name = [info['pname'][i] for i in aux_params]
         _name_suffix = [
-            '' if (n := _name[:i+1].count(name)) == 1
-            else str(n)
+            '' if (n := _name[: i + 1].count(name)) == 1 else str(n)
             for i, name in enumerate(_name)
         ]
         aux_params_name = {
@@ -175,8 +184,7 @@ class BaseFit(ABC):
         }
         _fmt = [info['pfmt'][i] for i in aux_params]
         _fmt_suffix = [
-            '' if (n := _fmt[:i+1].count(fmt)) == 1
-            else '_{%s}' % n
+            '' if (n := _fmt[: i + 1].count(fmt)) == 1 else '_{%s}' % n
             for i, fmt in enumerate(_fmt)
         ]
         aux_params_fmt = {
@@ -196,7 +204,7 @@ class BaseFit(ABC):
         # model information will be displayed
         self._model_info = replace_string(
             id_mapping,
-            {k: (v._node.name, self._stat[k]) for k, v in self._model.items()}
+            {k: (v._node.name, self._stat[k]) for k, v in self._model.items()},
         )
         # model information will be displayed
 
@@ -222,7 +230,12 @@ class BaseFit(ABC):
                         pidx = ''
 
                     params_info[f'{comp}_{i}'] = [
-                        pidx, comp, i, default_dic[j], bound, dist_dic[j]
+                        pidx,
+                        comp,
+                        i,
+                        default_dic[j],
+                        bound,
+                        dist_dic[j],
                     ]
 
                 else:  # composite parameter
@@ -232,9 +245,7 @@ class BaseFit(ABC):
                         if v != f'{comp}_{i}'
                     }
                     expr = replace_string(mapping, params_dic[comp][i])
-                    params_info[f'{comp}_{i}'] = [
-                        '', comp, i, expr, '', ''
-                    ]
+                    params_info[f'{comp}_{i}'] = ['', comp, i, expr, '', '']
 
         for k, v in self._info['sample'].items():
             if k in params_info:
@@ -248,15 +259,12 @@ class BaseFit(ABC):
                 bound = ''
                 pidx = ''
 
-            params_info[k] = [
-                pidx, '', k, default_dic[k], bound, dist_dic[k]
-            ]
+            params_info[k] = [pidx, '', k, default_dic[k], bound, dist_dic[k]]
         self._params_info = params_info
 
         # parameters Tex format
         self._params_fmt = replace_string(
-            id_mapping,
-            params_fmt | aux_params_fmt
+            id_mapping, params_fmt | aux_params_fmt
         )
 
         # parameters of spectral model function
@@ -268,13 +276,15 @@ class BaseFit(ABC):
 
         # free parameters
         self._free = {
-            k: v for k, v in self._info['sample'].items()
+            k: v
+            for k, v in self._info['sample'].items()
             if not isinstance(v, float)
         }
 
         # fixed parameters
         self._fixed = {
-            k: v for k, v in self._info['sample'].items()
+            k: v
+            for k, v in self._info['sample'].items()
             if isinstance(v, float)
         }
 
@@ -291,7 +301,8 @@ class BaseFit(ABC):
         # ordered parameters of interest,
         # which are directly input to model and not fixed
         self._interest_names = tuple(
-            k for k, v in self._params_info.items()
+            k
+            for k, v in self._params_info.items()
             if v[1] and k not in self._fixed
         )
 
@@ -345,9 +356,10 @@ class BaseFit(ABC):
         self,
         data: Data | Sequence[Data],
         model: Model | Sequence[Model],
-        stat: Statistic | Sequence[Statistic]
+        stat: Statistic | Sequence[Statistic],
     ):
         """Check if data, model, and stat are correct and return lists."""
+
         def get_list(inputs, name, itype, tname):
             """Check the model/data/stat, and return a list."""
             if isinstance(inputs, itype):
@@ -466,11 +478,11 @@ class LikelihoodFit(BaseFit):
     def _make_info_table(self) -> None:
         self._tab1 = make_pretty_table(
             ['Data', 'Model', 'Statistic'],
-            list((k, *v) for k, v in self._model_info.items())
+            list((k, *v) for k, v in self._model_info.items()),
         )
         self._tab2 = make_pretty_table(
             ['No.', 'Component', 'Parameter', 'Value', 'Bound'],
-            list(i[:-1] for i in self._params_info.values())
+            list(i[:-1] for i in self._params_info.values()),
         )
 
     def mle(
@@ -478,7 +490,7 @@ class LikelihoodFit(BaseFit):
         init: Optional[dict[str, float]] = None,
         lopt: Literal['minuit', 'lm'] = 'minuit',
         strategy: Literal[0, 1, 2] = 1,
-        gopt: Optional[str] = None
+        gopt: Optional[str] = None,
     ) -> MLEResult:
         """Find the Maximum Likelihood Estimation (MLE) for the model.
 
@@ -526,7 +538,7 @@ class LikelihoodFit(BaseFit):
                 ),
                 termination_kwargs=dict(
                     live_evidence_frac=1e-5,
-                )
+                ),
             )
 
             t0 = time.time()
@@ -549,10 +561,11 @@ class LikelihoodFit(BaseFit):
             init_unconstr = self._init_unconstr
 
         if lopt == 'lm':
-            res = jax.jit(jaxopt.LevenbergMarquardt(
-                self._helper.residual,
-                stop_criterion='grad-l2-norm'
-            ).run)(jnp.array(self._init_unconstr))
+            res = jax.jit(
+                jaxopt.LevenbergMarquardt(
+                    self._helper.residual, stop_criterion='grad-l2-norm'
+                ).run
+            )(jnp.array(self._init_unconstr))
             init_unconstr = res.params
         elif lopt != 'minuit':
             raise ValueError(f'invalid local optimization method {lopt}')
@@ -561,7 +574,7 @@ class LikelihoodFit(BaseFit):
             self._helper.deviance_unconstr,
             np.array(init_unconstr),
             grad=self._helper.deviance_unconstr_grad,
-            name=self._free_names
+            name=self._free_names,
         )
 
         # TODO: use simplex to "polish" the initial guess?
@@ -601,11 +614,11 @@ class BayesianFit(BaseFit):
     def _make_info_table(self) -> None:
         self._tab1 = make_pretty_table(
             ['Data', 'Model', 'Statistic'],
-            list((k, *v) for k, v in self._model_info.items())
+            list((k, *v) for k, v in self._model_info.items()),
         )
         self._tab2 = make_pretty_table(
             ['No.', 'Component', 'Parameter', 'Value', 'Prior'],
-            list(i[:4] + i[-1:] for i in self._params_info.values())
+            list(i[:4] + i[-1:] for i in self._params_info.values()),
         )
 
     def nuts(
@@ -615,7 +628,7 @@ class BayesianFit(BaseFit):
         chains: Optional[int] = None,
         init: Optional[dict[str, float]] = None,
         progress: bool = True,
-        nuts_kwargs: Optional[dict] = None
+        nuts_kwargs: Optional[dict] = None,
     ) -> PosteriorResult:
         """Run the No-U-Turn Sampler (NUTS) of :mod:`numpyro`.
 
@@ -663,7 +676,7 @@ class BayesianFit(BaseFit):
                 dense_mass=dense_mass,
                 max_tree_depth=max_tree_depth,
                 init_strategy=init_to_value(values=init),
-                **nuts_kwargs
+                **nuts_kwargs,
             ),
             num_warmup=warmup,
             num_samples=samples,
@@ -685,7 +698,7 @@ class BayesianFit(BaseFit):
         num_parallel_workers: Optional[int] = None,
         difficult_model: bool = False,
         parameter_estimation: bool = False,
-        term_cond: dict = None
+        term_cond: dict = None,
     ) -> PosteriorResult:
         """Run the Nested Sampler of :mod:`jaxns`.
 
@@ -760,25 +773,18 @@ class BayesianFit(BaseFit):
         if not isinstance(sampler, (MCMC, NestedSampler)):
             raise ValueError(f'unknown sampler type {type(sampler)}')
 
-        coords = {
-            f'{k}_channel': v.channel
-            for k, v in self._data.items()
-        }
+        coords = {f'{k}_channel': v.channel for k, v in self._data.items()}
 
-        dims = {
-           f'{k}_Non': [f'{k}_channel']
-           for k in self._data.keys()
-        } | {
-           f'{k}_Noff': [f'{k}_channel']
-           for k in self._data.keys()
-           if self._stat[k] in self._stat_with_back
+        dims = {f'{k}_Non': [f'{k}_channel'] for k in self._data.keys()} | {
+            f'{k}_Noff': [f'{k}_channel']
+            for k in self._data.keys()
+            if self._stat[k] in self._stat_with_back
         }
 
         if isinstance(sampler, MCMC):  # numpyro sampler
             idata = az.from_numpyro(sampler, coords=coords, dims=dims)
             ess = {
-                k: int(v.values)
-                for k, v in az.ess(idata).data_vars.items()
+                k: int(v.values) for k, v in az.ess(idata).data_vars.items()
             }
 
             # the calculation of reff is according to arviz:
@@ -811,8 +817,7 @@ class BayesianFit(BaseFit):
 
             # get observation data
             observed_data = {
-                f'{k}_Non': v.spec_counts
-                for k, v in self._data.items()
+                f'{k}_Non': v.spec_counts for k, v in self._data.items()
             } | {
                 f'{k}_Noff': v.back_counts
                 for k, v in self._data.items()
@@ -824,7 +829,7 @@ class BayesianFit(BaseFit):
                 log_likelihood=log_like,
                 observed_data=observed_data,
                 coords=coords,
-                dims=dims
+                dims=dims,
             )
             ess = {'total': int(result.ESS)}
             reff = float(result.ESS / result.total_num_samples)
@@ -838,8 +843,9 @@ class BayesianFit(BaseFit):
         for k, v in self._data.items():
             # channel-wise log likelihood of data group
             if f'{k}_Noff' in ln_likelihood:
-                ln_likelihood[k] = ln_likelihood[f'{k}_Non'] \
-                                   + ln_likelihood[f'{k}_Noff']
+                ln_likelihood[k] = (
+                    ln_likelihood[f'{k}_Non'] + ln_likelihood[f'{k}_Noff']
+                )
             else:
                 ln_likelihood[k] = ln_likelihood[f'{k}_Non']
 
@@ -849,13 +855,13 @@ class BayesianFit(BaseFit):
         # channel-wise log likelihood
         ln_likelihood['channels'] = (
             ('chain', 'draw', 'channel'),
-            np.concatenate([ln_likelihood[i] for i in self._data], axis=-1)
+            np.concatenate([ln_likelihood[i] for i in self._data], axis=-1),
         )
 
         # channel-wise net counts
         observation['channels'] = (
             ('channel',),
-            np.concatenate([observation[i] for i in self._data], axis=-1)
+            np.concatenate([observation[i] for i in self._data], axis=-1),
         )
 
         # total log likelihood
@@ -872,6 +878,7 @@ class BayesianFit(BaseFit):
 
 class HelperFn(NamedTuple):
     """A collection of helper functions."""
+
     numpyro_model: Callable
     to_dict: Callable
     to_constr_dict: Callable
@@ -924,7 +931,11 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         p = params_by_group(constr_dict)
         return jax.tree_map(
             lambda mi, pi, ei, ri, ti: mi(ei, pi) @ ri * ti,
-            spec_model, p, egrid, resp, expo
+            spec_model,
+            p,
+            egrid,
+            resp,
+            expo,
         )
 
     # ========================= create numpyro model ==========================
@@ -943,11 +954,9 @@ def generate_helper(fit: BaseFit) -> HelperFn:
     def numpyro_model(predictive=False):
         """The numpyro model."""
         params = {
-            name: numpyro.sample(name, dist)
-            for name, dist in free.items()
+            name: numpyro.sample(name, dist) for name, dist in free.items()
         } | {
-            k: numpyro.deterministic(k, jnp.array(v))
-            for k, v in fixed.items()
+            k: numpyro.deterministic(k, jnp.array(v)) for k, v in fixed.items()
         }
         for name, (arg_names, fn) in composite.items():
             args = (params[arg_name] for arg_name in arg_names)
@@ -959,7 +968,8 @@ def generate_helper(fit: BaseFit) -> HelperFn:
 
         jax.tree_map(
             lambda f, m: f(m, predictive=predictive),
-            stat_fn, model_counts(params)
+            stat_fn,
+            model_counts(params),
         )
 
     # ============================ other functions ============================
@@ -1002,7 +1012,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
             model=numpyro_model,
             model_args=(),
             model_kwargs={},
-            params=to_dict(unconstr_array)
+            params=to_dict(unconstr_array),
         )
 
     @jax.jit
@@ -1012,7 +1022,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
             model=numpyro_model,
             model_args=(),
             model_kwargs={},
-            params=to_dict(constr_array)
+            params=to_dict(constr_array),
         )
 
     @jax.jit
@@ -1032,10 +1042,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         p = to_constr_dict(unconstr_array)
         return -2.0 * jax.tree_util.tree_reduce(
             lambda x, y: x + y,
-            jax.tree_map(
-                lambda x: x.sum(),
-                log_likelihood(numpyro_model, p)
-            )
+            jax.tree_map(lambda x: x.sum(), log_likelihood(numpyro_model, p)),
         )
 
     # deviance_unconstr_info will be used in simulation,
@@ -1048,8 +1055,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         deviance = jax.tree_map(lambda x: -2.0 * x, log_like)
 
         group = {
-            k: sum(deviance[i].sum() for i in v)
-            for k, v in group_name.items()
+            k: sum(deviance[i].sum() for i in v) for k, v in group_name.items()
         }
 
         point = {
@@ -1067,7 +1073,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
             model_args=(),
             model_kwargs={},
             params=unconstr_dict,
-            return_deterministic=True
+            return_deterministic=True,
         )
 
     @jax.jit
@@ -1085,8 +1091,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
 
     @jax.jit
     def params_covar(
-        unconstr_array: Sequence,
-        cov_unconstr: Sequence
+        unconstr_array: Sequence, cov_unconstr: Sequence
     ) -> jnp.ndarray:
         """Covariance matrix in constrained space."""
         jac = jax.jacobian(to_params_array)(unconstr_array)
@@ -1112,16 +1117,16 @@ def generate_helper(fit: BaseFit) -> HelperFn:
             'stat_rep': {
                 'total': jnp.empty(n),
                 'group': {k: jnp.empty(n) for k in data_names},
-                'point': {k: jnp.empty((n, v)) for k, v in ndata.items()}
+                'point': {k: jnp.empty((n, v)) for k, v in ndata.items()},
             },
             'params_fit': {k: jnp.empty(n) for k in params_names},
             'model_fit': {k: jnp.empty((n, v)) for k, v in ndata.items()},
             'stat_fit': {
                 'total': jnp.empty(n),
                 'group': {k: jnp.empty(n) for k in data_names},
-                'point': {k: jnp.empty((n, v)) for k, v in ndata.items()}
+                'point': {k: jnp.empty((n, v)) for k, v in ndata.items()},
             },
-            'valid': jnp.full(n, True, bool)
+            'valid': jnp.full(n, True, bool),
         }
 
     @jax.jit
@@ -1130,20 +1135,17 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         sim_data, result, init = args
 
         new_data = jax.tree_map(lambda x: x[i], sim_data)
-        new_residual = handlers.substitute(
-            fn=residual,
-            data=new_data
-        )
+        new_residual = handlers.substitute(fn=residual, data=new_data)
         new_deviance_info = handlers.substitute(
-            fn=deviance_unconstr_info,
-            data=new_data
+            fn=deviance_unconstr_info, data=new_data
         )
 
         # update best fit params to result
         params = to_params_dict(to_dict(init[i]))
         for k in result['params_rep']:
-            result['params_rep'][k] = \
+            result['params_rep'][k] = (
                 result['params_rep'][k].at[i].set(params[k])
+            )
 
         # update unfit model to result
         model = model_counts(to_constr_dict(init[i]))
@@ -1164,16 +1166,16 @@ def generate_helper(fit: BaseFit) -> HelperFn:
 
         # fit simulation data
         res = jaxopt.LevenbergMarquardt(
-            residual_fun=new_residual,
-            stop_criterion='grad-l2-norm'
+            residual_fun=new_residual, stop_criterion='grad-l2-norm'
         ).run(init[i])
         state = res.state
 
         # update best fit params to result
         params = to_params_dict(to_dict(res.params))
         for k in result['params_fit']:
-            result['params_fit'][k] = \
+            result['params_fit'][k] = (
                 result['params_fit'][k].at[i].set(params[k])
+            )
 
         # update best fit model to result
         model = model_counts(to_constr_dict(res.params))
@@ -1219,7 +1221,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         fn = progress_bar_factory(neval, ncores, run_str=run_str)(sim_fit_one)
 
         fit_results = jax.pmap(
-            lambda *args: lax.fori_loop(0, neval//ncores, fn, args)[1]
+            lambda *args: lax.fori_loop(0, neval // ncores, fn, args)[1]
         )(sim_data_, result_, init_)
 
         return jax.tree_map(lambda x: jnp.hstack(x), fit_results)
@@ -1247,7 +1249,7 @@ def generate_helper(fit: BaseFit) -> HelperFn:
         sim_result_container=sim_result_container,
         sim_fit_one=sim_fit_one,
         sim_sequence_fit=sim_sequence_fit,
-        sim_parallel_fit=sim_parallel_fit
+        sim_parallel_fit=sim_parallel_fit,
     )
 
 
@@ -1272,7 +1274,11 @@ def _likelihood_fn(data: Data, stat: str) -> Callable:
         ratio = data.spec_effexpo / data.back_effexpo
         return partial(
             pgstat,
-            name=name, spec=spec, back=back, back_error=back_error, ratio=ratio
+            name=name,
+            spec=spec,
+            back=back,
+            back_error=back_error,
+            ratio=ratio,
         )
     elif stat == 'wstat':
         spec = data.spec_counts
