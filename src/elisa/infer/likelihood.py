@@ -4,7 +4,6 @@ from __future__ import annotations
 import jax
 import jax.numpy as jnp
 import numpyro
-
 from jax import lax
 from jax.scipy.special import xlogy
 from numpyro.distributions import Normal, Poisson
@@ -14,11 +13,7 @@ NDArray = jnp.ndarray
 
 
 def pgstat_background(
-    s: NDArray,
-    n: NDArray,
-    b_est: NDArray,
-    b_err: NDArray,
-    a: float | NDArray
+    s: NDArray, n: NDArray, b_est: NDArray, b_err: NDArray, a: float | NDArray
 ) -> jax.Array:
     """Optimized background for PG-statistics given estimate of source counts.
 
@@ -40,9 +35,13 @@ def pgstat_background(
     b : jax.Array
         The profile background.
 
+    Notes
+    -----
+    The optimized background here differs from XSPEC [1]_ in non-negativity.
+
     References
     ----------
-    .. [1] https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html
+    .. [1] `XSPEC Manual Appendix B: Statistics in XSPEC <https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html>`_.
 
     """
     variance = b_err * b_err
@@ -51,16 +50,9 @@ def pgstat_background(
     c = a * e - s
     d = jnp.sqrt(c * c + 4.0 * a * f)
     b = jnp.where(
-        jnp.bitwise_or(
-            jnp.greater_equal(e, 0.0),
-            jnp.greater_equal(f, 0.0)
-        ),
-        jnp.where(
-            jnp.greater(n, 0.0),
-            (c + d) / (2 * a),
-            e
-        ),
-        0.0
+        jnp.bitwise_or(jnp.greater_equal(e, 0.0), jnp.greater_equal(f, 0.0)),
+        jnp.where(jnp.greater(n, 0.0), (c + d) / (2 * a), e),
+        0.0,
     )
     return b
 
@@ -105,10 +97,10 @@ def wstat_background(
             jnp.where(
                 jnp.less_equal(s, a / (a + 1) * n_on),
                 n_on / (1 + a) - s / a,
-                0.0
+                0.0,
             ),
-            (c + d) / (2 * a * (a + 1))
-        )
+            (c + d) / (2 * a * (a + 1)),
+        ),
     )
     return b
 
@@ -145,7 +137,7 @@ class PoissonWithGoodness(Poisson):
                 .at[nonzero]
                 .add(tmp - gof)
                 .reshape(shape),
-                a_max=0.0
+                a_max=0.0,
             )
 
         else:
@@ -159,7 +151,7 @@ def chi2(
     name: str,
     spec: jnp.ndarray,
     error: jnp.ndarray,
-    predictive: bool
+    predictive: bool,
 ):
     """Chi-squared statistic, i.e. Gaussian likelihood."""
     spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
@@ -170,16 +162,11 @@ def chi2(
         numpyro.sample(
             name=f'{name}_Non',
             fn=NormalWithGoodness(spec_model, error),
-            obs=None if predictive else spec_data
+            obs=None if predictive else spec_data,
         )
 
 
-def cstat(
-    model: jnp.ndarray,
-    name: str,
-    spec: jnp.ndarray,
-    predictive: bool
-):
+def cstat(model: jnp.ndarray, name: str, spec: jnp.ndarray, predictive: bool):
     """C-statistic, i.e. Poisson likelihood."""
     spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
 
@@ -189,7 +176,7 @@ def cstat(
         numpyro.sample(
             name=f'{name}_Non',
             fn=PoissonWithGoodness(spec_model),
-            obs=None if predictive else spec_data
+            obs=None if predictive else spec_data,
         )
 
 
@@ -199,7 +186,7 @@ def pstat(
     spec: jnp.ndarray,
     back: jnp.ndarray,
     ratio: jnp.ndarray | float,
-    predictive: bool
+    predictive: bool,
 ):
     """P-statistic, i.e. Poisson likelihood for data with known background."""
     spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
@@ -211,7 +198,7 @@ def pstat(
         numpyro.sample(
             name=f'{name}_Non',
             fn=PoissonWithGoodness(spec_model),
-            obs=None if predictive else spec_data
+            obs=None if predictive else spec_data,
         )
 
 
@@ -222,7 +209,7 @@ def pgstat(
     back: NDArray,
     back_error: NDArray,
     ratio: NDArray | float,
-    predictive: bool
+    predictive: bool,
 ):
     """PG-statistic, i.e. Poisson likelihood for data and profile Gaussian
     likelihood for background.
@@ -239,13 +226,13 @@ def pgstat(
         numpyro.sample(
             name=f'{name}_Non',
             fn=PoissonWithGoodness(spec_model),
-            obs=None if predictive else spec_data
+            obs=None if predictive else spec_data,
         )
 
         numpyro.sample(
             name=f'{name}_Noff',
             fn=NormalWithGoodness(back_model, back_error),
-            obs=None if predictive else back_data
+            obs=None if predictive else back_data,
         )
 
 
@@ -255,11 +242,13 @@ def wstat(
     spec: NDArray,
     back: NDArray,
     ratio: NDArray | float,
-    predictive: bool
+    predictive: bool,
 ):
     """W-statistic, i.e. Poisson likelihood for data and profile Poisson
     likelihood for background.
     """
+    model = numpyro.deterministic(f'{name}_model', model)
+
     spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
     back_data = numpyro.primitives.mutable(f'{name}_Noff_data', back)
 
@@ -272,11 +261,11 @@ def wstat(
         numpyro.sample(
             name=f'{name}_Non',
             fn=PoissonWithGoodness(spec_model),
-            obs=None if predictive else spec_data
+            obs=None if predictive else spec_data,
         )
 
         numpyro.sample(
             name=f'{name}_Noff',
             fn=PoissonWithGoodness(back_model),
-            obs=None if predictive else back_data
+            obs=None if predictive else back_data,
         )
