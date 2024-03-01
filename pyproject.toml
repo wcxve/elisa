@@ -83,7 +83,7 @@ select = [
     "UP",  # pyupgrade
 ]
 ignore = [
-    "B028",  # allow warning without stacklevel
+    "B028",  # allow warnings without stacklevel
     "C901",  # allow functions with a high complexity
 ]
 ignore-init-module-imports = true
