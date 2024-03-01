@@ -1232,7 +1232,7 @@ class NumIntAdditive(NumericalIntegral, AdditiveComponent):
         pass
 
 
-class AnaIntMultiplicative(MultiplicativeComponent):
+class AnaIntMultiplicative(AnalyticalIntegral, MultiplicativeComponent):
     """Prototype multiplicative component with integral expression defined."""
 
     @staticmethod
