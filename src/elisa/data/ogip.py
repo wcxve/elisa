@@ -17,14 +17,15 @@ from elisa.data.grouping import (
     group_pos,
     group_sig,
 )
-from elisa.util.typing import NumpyArray as NDArray
+from elisa.util.typing import NumPyArray as NDArray
 
-__all__ = ['Data']
+__all__ = ['Data', 'Spectrum', 'Response']
+# TODO: support multiple sources
 # TODO: support creating Data object from array
 
 
 class Data:
-    """Handle observation data in OGIP standards [1]_ [2]_ [3]_ [4]_.
+    """Handle observation data in OGIP standards [1]_ [2]_.
 
     Load the observation spectrum, the telescope response and the possible
     background, and handle the grouping of spectrum and response.
@@ -55,7 +56,7 @@ class Data:
             * const: `scale` number channels
             * min: counts >= `scale` for src + bkg
             * sig: src significance >= `scale`-sigma
-            * opt: optimal binning, see Kaastra & Bleeker (2016, A&A)
+            * opt: optimal binning, see Kaastra & Bleeker (2016) [3]_
             * optmin: opt with counts >= `scale` for src + bkg
             * optsig: opt with src significance >= `scale`-sigma
             * bmin: counts >= `scale` for bkg (useful for wstat)
@@ -95,10 +96,12 @@ class Data:
 
     References
     ----------
-    .. [1] https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html
-    .. [2] https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html
-    .. [3] https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
-    .. [4] https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html
+    .. [1] `The OGIP Spectral File Format <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html>`_
+            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html>`_
+    .. [2] `The Calibration Requirements for Spectral Analysis (Definition of
+            RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`_
+            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`_
+    .. [3] `Kaastra & Bleeker 2016, A&A, 587, A151 <https://doi.org/10.1051/0004-6361/201527395>`_
 
     """
 
@@ -386,7 +389,7 @@ class Data:
         if not success:
             warnings.warn(
                 f'"{method}" grouping failed in some {self._name} channels',
-                GroupWaring,
+                GroupingWaring,
             )
 
         self._set_data(grouping)
@@ -607,7 +610,7 @@ class Data:
 
 
 class Spectrum:
-    """Handle spectral data in OGIP standards [1]_ [2]_.
+    """Handle spectral data in OGIP standards [1]_.
 
     Parameters
     ----------
@@ -621,8 +624,8 @@ class Spectrum:
 
     References
     ----------
-    .. [1] https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html
-    .. [2] https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html
+    .. [1] `The OGIP Spectral File Format <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html>`_
+            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html>`_
 
     """
 
@@ -947,7 +950,7 @@ class Spectrum:
 
 
 class Response:
-    """Handle telescope response in OGIP standards [1]_ [2]_.
+    """Handle telescope response in OGIP standards [1]_.
 
     Parameters
     ----------
@@ -958,8 +961,9 @@ class Response:
 
     References
     ----------
-    .. [1] https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html
-    .. [2] https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html
+    .. [1] `The Calibration Requirements for Spectral Analysis (Definition of
+            RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`_
+            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`_
 
     """
 
@@ -1284,5 +1288,5 @@ class Response:
         return self._matrix
 
 
-class GroupWaring(Warning):
+class GroupingWaring(Warning):
     """Issued by grouping scale not being met for all channels."""
