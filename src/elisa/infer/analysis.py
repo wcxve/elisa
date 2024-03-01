@@ -1,7 +1,8 @@
 """Subsequent analysis of likelihood or Bayesian fit."""
 from __future__ import annotations
 
-from typing import Literal, NamedTuple, Optional, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 import arviz as az
 import jax
@@ -10,9 +11,12 @@ from iminuit import Minuit
 from iminuit.util import FMin
 from scipy.stats import norm
 
-from . import fit as _fit  # avoid circular import
+from elisa.util.misc import make_pretty_table
+
 from .simulation import SimFit
-from .util import make_pretty_table
+
+if TYPE_CHECKING:
+    from .fit import BayesianFit, LikelihoodFit
 
 
 class ConfidenceInterval(NamedTuple):
@@ -30,83 +34,49 @@ class BootstrapResult(NamedTuple):
     """Parametric bootstrap result."""
 
     mle: dict[str, float]
-    params: dict[str, jax.Array]
+    params: dict[str, np.ndarray]
     stat: dict
     p_value: dict
-    valid: jax.Array
     n: int
     n_valid: int
     seed: int
-    results: dict
+    result: dict
 
 
 class MLEResult:
     """MLE result obtained from likelihood fit."""
 
-    def __init__(
-        self,
-        minuit: Minuit,
-        fit: _fit.LikelihoodFit
-    ):
+    def __init__(self, minuit: Minuit, fit: LikelihoodFit, result: dict):
         self._minuit = minuit
-        self._helper = helper = fit._helper
-        self._free_names = free_names = fit._free_names
-        self._params_names = params = fit._params_names
+        self._helper = fit._helper
+        self._free_names = fit._free_names
+        self._params_names = fit._params_names
         self._interest_params = fit._interest_names
         self._composite_params = fit._composite
-        self._ndata = ndata = fit._ndata
+        self._ndata = fit._ndata
         self._dof = fit._dof
         self._stat_type = fit._stat
         self._simfit = SimFit(fit)
         self._seed = fit._seed
+        self._result = result
+        self._mle = result['mle']
+        self._fit_statistic = result['fit_stat']
+        self._aic = result['aic']
+        self._bic = result['bic']
+        self._status = result['status']
+        self._obs_data = result['obs_data']
+        self._simulation = result['simulation']
         self._boot: BootstrapResult | None = None
-
-        mle_unconstr = np.array(minuit.values)
-        mle = np.array(helper.to_params_array(mle_unconstr))
-
-        cov_unconstr = np.array(helper.unconstr_covar(mle_unconstr))
-        if np.isnan(cov_unconstr).any() and minuit.covariance is not None:
-            cov_unconstr = np.array(minuit.covariance)
-        cov = helper.params_covar(mle_unconstr, cov_unconstr)
-        err = np.sqrt(np.diagonal(cov))
-
-        stat_info = helper.deviance_unconstr_info(mle_unconstr)
-        stat_group = stat_info['group']
-        stat = {k: float(stat_group[k]) for k in ndata if k != 'total'}
-        stat_total = minuit.fval
-        stat |= {'total': stat_total}
-
-        unconstr_dict = {k: v for k, v in zip(free_names, mle_unconstr)}
-        param_dict = helper.to_params_dict(unconstr_dict)
-        constr_dict = {k: float(param_dict[k]) for k in free_names}
-        self._result = {
-            'unconstr': unconstr_dict,
-            'constr': constr_dict,
-            'params': param_dict,
-            'deviance': {
-                'total': stat_total,
-                'group': stat_group,
-                'point': stat_info['point']
-            }
-        }
-
-        k = len(free_names)
-        n = ndata['total']
-        self._mle = {p: (v, e) for p, v, e in zip(params, mle, err)}
-        self._stat = stat
-        self._aic = stat_total + 2 * k + 2 * k * (k + 1) / (n - k - 1)
-        self._bic = stat_total + k * np.log(n)
-        self._status = minuit.fmin
 
     def __repr__(self):
         tab = make_pretty_table(
             ['Parameter', 'Value', 'Error'],
-            [(k, f'{v[0]:.4g}', f'{v[1]:.4g}') for k, v in self._mle.items()]
+            [(k, f'{v[0]:.4g}', f'{v[1]:.4g}') for k, v in self._mle.items()],
         )
         s = 'MLE:\n' + tab.get_string() + '\n'
 
         stat_type = self._stat_type
-        stat_value = self._stat
+        stat_value = self._fit_statistic
         ndata = self._ndata
         stat = [
             f'{i}: {stat_type[i]}={stat_value[i]:.2f}, ndata={ndata[i]}'
@@ -138,7 +108,7 @@ class MLEResult:
     @property
     def statistic(self) -> dict[str, float]:
         """Fit statistic."""
-        return self._stat
+        return self._fit_statistic
 
     @property
     def ndata(self) -> dict[str, int]:
@@ -171,10 +141,10 @@ class MLEResult:
 
     def ci(
         self,
-        params: Optional[str | Sequence[str]] = None,
+        params: str | Sequence[str] | None = None,
         cl: float | int = 1,
         method: Literal['profile', 'boot'] = 'profile',
-        n: Optional[int] = None,
+        **kwargs: dict,
     ) -> ConfidenceInterval:
         """Calculate confidence intervals for given parameters.
 
@@ -188,8 +158,8 @@ class MLEResult:
         Parameters
         ----------
         params : str or list of str, optional
-            Parameters to calculate confidence intervals. If not provided,
-            confidence intervals are calculated for all parameters.
+            Parameters to calculate confidence intervals. Will calculate for
+            all parameters if not provided.
         cl : float or int, optional
             Confidence level for the confidence interval. If 0 < `cl` < 1, the
             value is interpreted as the confidence level. If `cl` >= 1, it is
@@ -199,10 +169,9 @@ class MLEResult:
             Method used to calculate confidence. Either profile likelihood or
             parametric bootstrap method. The default is profile likelihood
             method.
-        n : int, optional
-            Number of bootstrap to calculate confidence intervals. Takes effect
-            only if `method` is 'boot'. If None, set to the default value as in
-            :meth:`LikelihoodFit.boot`.
+        **kwargs : dict, optional
+            Other kwargs forwarded to :meth:`MLEResult.boot`. Takes effect only
+            if `method` is 'boot'.
 
         Returns
         -------
@@ -234,7 +203,7 @@ class MLEResult:
                 )
                 raise ValueError(f'parameters: {params_err} are not exist')
 
-            params = list(str(i) for i in params)
+            params = [str(i) for i in params]
 
         else:
             raise ValueError('params must be str, or sequence of str')
@@ -242,12 +211,12 @@ class MLEResult:
         free_params = [i for i in params if i in self._free_names]
         composite_params = [i for i in params if i in self._composite_params]
 
+        if cl <= 0.0:
+            raise ValueError('cl must be non-negative')
+
         cl_ = 1.0 - 2.0 * norm.sf(cl) if cl >= 1.0 else cl
 
-        mle = {
-            k: v for k, v in self._result['params'].items()
-            if k in params
-        }
+        mle = {k: v for k, v in self._result['params'].items() if k in params}
 
         helper = self._helper
 
@@ -257,8 +226,7 @@ class MLEResult:
             mle0 = self._minuit.values.to_dict()
 
             others = {  # set other unconstrained free parameter to mle
-                i: mle0[i]
-                for i in (set(mle0.keys()) - set(free_params))
+                i: mle0[i] for i in (set(mle0.keys()) - set(free_params))
             }
 
             ci = self._minuit.merrors
@@ -281,20 +249,25 @@ class MLEResult:
                 for k, v in ci.items()
             }
 
+            def loss_factory(p):
+                """Factory to create loss function for composite parameter."""
+
+                @jax.jit
+                def _(x):
+                    """The loss when calculating CI of free parameter."""
+                    unconstr = dict(zip(free_params, x))
+                    p0 = helper.to_params_dict(unconstr)[p]
+                    return helper.deviance_unconstr(x) + (p0 / mle[p] - 1) ** 2
+
+                return _
+
             # confidence interval of function of parameters,
             # see, e.g. https://doi.org/10.1007/s11222-021-10012-y
             for p in composite_params:
-                def loss(x):
-                    """The loss when calculating CI of composite parameter."""
-                    unconstr = {k: v for k, v in zip(self._free_names, x[1:])}
-                    p0 = helper.to_params_dict(unconstr)[p]
-                    diff = (p0 / x[0] - 1) / 1e-3
-                    return helper.deviance_unconstr(x[1:]) + diff*diff
-
+                loss = loss_factory(p)
                 mle_p = mle[p]
-
                 m = Minuit(
-                    jax.jit(loss),
+                    loss,
                     [mle_p, *self._minuit.values],
                     grad=jax.jit(jax.grad(loss)),
                 )
@@ -312,47 +285,46 @@ class MLEResult:
                 }
 
         elif method == 'boot':
-            if n is None:
-                boot_result = self.boot()
-            else:
-                boot_result = self.boot(n=n)
+            self.boot(**kwargs)
+            boot_result = self._boot
+
             interval = jax.tree_map(
-                lambda x: tuple(np.quantile(x, q=(0.5 - cl_/2, 0.5 + cl_/2))),
-                {k: v for k, v in boot_result.params.items() if k in params}
+                lambda x: tuple(
+                    np.quantile(x, q=(0.5 - cl_ / 2, 0.5 + cl_ / 2))
+                ),
+                {k: v for k, v in boot_result.params.items() if k in params},
             )
+
             error = {
                 k: (interval[k][0] - mle[k], interval[k][1] - mle[k])
                 for k in params
             }
+
             status = {
                 'n': boot_result.n,
                 'n_valid': boot_result.n_valid,
-                'seed': boot_result.seed
+                'seed': boot_result.seed,
             }
 
         else:
             raise ValueError('method must be either "profile" or "boot"')
 
-        def format_result(v):
-            """Order the result dict and use float as result type."""
-            formatted = jax.tree_map(float, v)
-            return {k: formatted[k] for k in params}
-
         return ConfidenceInterval(
-            mle=format_result(mle),
-            interval=format_result(interval),
-            error=format_result(error),
+            mle=_format_result(mle, params),
+            interval=_format_result(interval, params),
+            error=_format_result(error, params),
             cl=cl_,
             method=method,
-            status=status
+            status=status,
         )
 
     def boot(
         self,
         n: int = 10000,
         parallel: bool = True,
-        seed: Optional[int] = None
-    ) -> BootstrapResult:
+        seed: int | None = None,
+        progress: bool = True,
+    ):
         """Parametric bootstrap.
 
         Parameters
@@ -364,11 +336,8 @@ class MLEResult:
         seed : int, optional
             The random seed used in parametric bootstrap. Defaults to the seed
             as in the fitting context.
-
-        Returns
-        -------
-        BootstrapResult
-            The boostrap result.
+        progress : bool, optional
+            Whether to display progress bar. The default is True.
 
         """
         if not self._minuit.valid:
@@ -380,35 +349,46 @@ class MLEResult:
         else:
             seed = int(seed)
 
-        # directly return previous result if the configuration is the same
+        # reuse previous result if all setup is the same
         if self._boot and self._boot.n == n and self._boot.seed == seed:
-            return self._boot
+            return
 
-        boot_result = result = self._simfit.run_one_set(
+        boot_result = self._simfit.run_one_set(
             self._result['constr'],
             n,
-            self._seed,
+            seed,
             parallel,
-            run_str='Bootstrap'
+            run_str='Bootstrap',
+            progress=progress,
         )
 
-        boot_result = BootstrapResult(
+        p_value = {
+            'rep': jax.tree_map(
+                lambda obs, sim: np.sum(sim >= obs, axis=0) / len(sim),
+                self._result['stat'],
+                boot_result['stat_rep'],
+            ),
+            'fit': jax.tree_map(
+                lambda obs, sim: np.sum(sim >= obs, axis=0) / len(sim),
+                self._result['stat'],
+                boot_result['stat_fit'],
+            ),
+        }
+
+        self._boot = BootstrapResult(
             mle=self._result['unconstr'],
-            params=result['params_fit'],
-            stat=result['stat_fit'],
-            p_value=...,
-            valid=result['valid'],
+            params=boot_result['params_fit'],
+            stat=boot_result['stat_fit'],
+            p_value=p_value,
             n=n,
-            n_valid=result['valid'].sum(),
-            seed=self._seed,
-            results=boot_result
+            n_valid=boot_result['n_valid'],
+            seed=seed,
+            result=boot_result,
         )
 
-        self._boot = boot_result
-
-        return boot_result
-
-    def plot_data(self):
+    def plot_data(
+        self, plots='data ldata chi pchi deviance pit ne ene eene fv vfv'
+    ):
         ...
 
     def plot_corner(self):
@@ -418,17 +398,25 @@ class MLEResult:
 
 class CredibleInterval(NamedTuple):
     """Credible interval result."""
-    mle: dict[str, float]
+
     median: dict[str, float]
     interval: dict[str, tuple[float, float]]
+    error: dict[str, tuple[float, float]]
     prob: float
-    hdi: bool
-    sample_method: Literal['nuts', 'ns']
+    method: str
 
 
 class PPCResult(NamedTuple):
     """Posterior predictive check result."""
-    ...
+
+    params_rep: dict[str, np.ndarray]
+    params_fit: dict[str, np.ndarray]
+    p_value: dict
+    n: int
+    n_valid: int
+    seed: int
+    idata: az.InferenceData
+    result: dict
 
 
 class PosteriorResult:
@@ -437,16 +425,19 @@ class PosteriorResult:
     def __init__(
         self,
         idata: az.InferenceData,
-        ess: dict[str, int],
-        reff: float,
-        lnZ: tuple[float, float],
         sampler,
-        fit: _fit.BayesianFit
+        mle: MLEResult,
+        fit: BayesianFit,
     ):
         self._idata = idata
-        self._ess = ess
-        self._reff = reff
-        self._lnZ = lnZ
+        self._ess = idata.attrs['ess']
+        self._reff = idata.attrs['reff']
+        self._lnZ = idata.attrs['lnZ']
+        self._rhat = None
+        self._divergence = None
+        self._waic = None
+        self._loo = None
+        self._mle = mle
         self._sampler = sampler
         self._helper = fit._helper
         self._free_names = fit._free_names
@@ -501,23 +492,33 @@ class PosteriorResult:
         .. [1] : https://arxiv.org/abs/1903.08008
 
         """
-        posterior = self._idata['posterior']
+        if self._rhat is None:
+            posterior = self._idata['posterior']
 
-        if len(posterior['chain']) == 1:
-            return {k: float('nan') for k in posterior.data_vars.keys()}
-        else:
-            return {
-                k: float(v.values)
-                for k, v in az.rhat(posterior).data_vars.items()
-            }
+            if len(posterior['chain']) == 1:
+                rhat = {k: float('nan') for k in posterior.data_vars.keys()}
+            else:
+                rhat = {
+                    k: float(v.values)
+                    for k, v in az.rhat(posterior).data_vars.items()
+                }
+
+            self._rhat = rhat
+
+        return self._rhat
 
     @property
     def divergence(self) -> int:
         """Number of divergent samples."""
-        if 'sample_stats' in self._idata:
-            return int(self._idata['sample_stats']['diverging'].sum())
-        else:
-            return 0
+        if self._divergence is None:
+            if 'sample_stats' in self._idata:
+                n = int(self._idata['sample_stats']['diverging'].sum())
+            else:
+                n = 0
+
+            self._divergence = n
+
+        return self._divergence
 
     @property
     def waic(self) -> float:
@@ -533,7 +534,12 @@ class PosteriorResult:
         .. [2] https://arxiv.org/abs/1004.2316
 
         """
-        return az.waic(self._idata, var_name='channels', scale='deviance')
+        if self._waic is None:
+            self._waic = az.waic(
+                self._idata, var_name='channels', scale='deviance'
+            )
+
+        return self._waic
 
     @property
     def loo(self) -> float:
@@ -542,17 +548,24 @@ class PosteriorResult:
 
         Estimates the expected log point-wise predictive density (elpd) using
         PSIS-LOO-CV. Also calculates LOO's standard error and the effective
-        number of parameters. For more information, see [1]_ and [2]_.
+        number of parameters. For more information, see [1]_, [2]_ and [3]_.
 
         References
         ----------
-        .. [1] https://arxiv.org/abs/1507.04544
-        .. [2] https://arxiv.org/abs/1507.02646
+        .. [1] https://avehtari.github.io/modelselection/CV-FAQ.html
+        .. [2] https://arxiv.org/abs/1507.04544
+        .. [3] https://arxiv.org/abs/1507.02646
 
         """
-        return az.loo(
-            self._idata, var_name='channels', reff=self._reff, scale='deviance'
-        )
+        if self._loo is None:
+            self._loo = az.loo(
+                self._idata,
+                var_name='channels',
+                reff=self._reff,
+                scale='deviance',
+            )
+
+        return self._loo
 
     @property
     def lnZ(self) -> tuple[float, float]:
@@ -565,7 +578,7 @@ class PosteriorResult:
 
     def ci(
         self,
-        params: Optional[str | Sequence[str]] = None,
+        params: str | Sequence[str] | None = None,
         prob: float | int = 1,
         hdi: bool = False,
     ) -> CredibleInterval:
@@ -574,8 +587,8 @@ class PosteriorResult:
         Parameters
         ----------
         params : str or list of str, optional
-            Parameters to calculate credible intervals. If not provided,
-            credible intervals are calculated for all parameters.
+            Parameters to calculate credible intervals. Will calculate for all
+            parameters if not provided.
         prob : float or int, optional
             The probability mass of samples within the credible interval. If
             0 < `prob` < 1, the value is interpreted as the probability mass.
@@ -593,7 +606,7 @@ class PosteriorResult:
 
         """
         if params is None:
-            params = self._interest_params
+            params = list(self._interest_params)
 
         elif isinstance(params, str):
             # check if params exist
@@ -612,53 +625,196 @@ class PosteriorResult:
                 )
                 raise ValueError(f'parameters: {params_err} are not exist')
 
-            params = list(str(i) for i in params)
+            params = [str(i) for i in params]
 
         else:
             raise ValueError('params must be str, or sequence of str')
 
+        if prob <= 0.0:
+            raise ValueError('prob must be non-negative')
+
         prob_ = 1.0 - 2.0 * norm.sf(prob) if prob >= 1.0 else prob
 
-        ...
+        if hdi:
+            median = self._idata['posterior'].median()
+            median = {
+                k: float(v) for k, v in median.data_vars.items() if k in params
+            }
+            interval = az.hdi(self._idata, prob_, var_names=params)
+            interval = {
+                k: (float(v[0]), float(v[1]))
+                for k, v in interval.data_vars.items()
+            }
+        else:
+            q = [0.5, 0.5 - prob_ / 2.0, 0.5 + prob_ / 2.0]
+            quantile = self._idata['posterior'].quantile(q)
+            quantile = {
+                k: v for k, v in quantile.data_vars.items() if k in params
+            }
+            median = {k: float(v[0]) for k, v in quantile.items()}
+            interval = {
+                k: (float(v[1]), float(v[2])) for k, v in quantile.items()
+            }
 
+        error = {
+            k: (interval[k][0] - median[k], interval[k][1] - median[k])
+            for k in params
+        }
+
+        return CredibleInterval(
+            median=_format_result(median, params),
+            interval=_format_result(interval, params),
+            error=_format_result(error, params),
+            prob=prob_,
+            method='HDI' if hdi else 'ETI',
+        )
 
     def ppc(
         self,
         n: int = 10000,
         parallel: bool = True,
-        seed: Optional[int] = None
-    ) -> PPCResult:
+        seed: int | None = None,
+        progress: bool = True,
+    ):
         """Perform posterior predictive check.
 
         Parameters
         ----------
         n : int, optional
-            The number of posterior prediction. The default is 10000.
+            The number of posterior predictions. The default is 10000.
         parallel : bool, optional
             Whether to run the fit in parallel. The default is True.
         seed : int, optional
             The random seed used in prediction. Defaults to the seed as in the
             fitting context.
-
-        Returns
-        -------
-        PPCResult
-            The posterior predictive check result.
+        progress : bool, optional
+            Whether to display progress bar. The default is True.
 
         """
-        ...
-        # random select n posterior samples
-        # ppp, rep and fit
+        if seed is None:
+            seed = self._seed
+        else:
+            seed = int(seed)
 
-    def plot_data(self):
-        ...
+        # directly return previous results if the configuration is the same
+        if self._ppc and self._ppc.n == n and self._ppc.seed == seed:
+            return self._ppc
 
-    def plot_corner(self):
-        ...
+        idata = self._idata
 
-    def plot_loopit(self):
-        ...
+        # random select n samples from posterior
+        rng = np.random.default_rng(seed)
+        i = rng.integers(0, idata['posterior'].chain.size, n)
+        j = rng.integers(0, idata['posterior'].draw.size, n)
 
-    def plot_trace(self, params, fig_path=None):
-        # az.plot_trace()
-        ...
+        posterior = {
+            k: v.values[i, j] for k, v in idata['posterior'].data_vars.items()
+        }
+
+        ppc_result = self._simfit.run_multi_sets(
+            posterior, seed, parallel, run_str='PPC', progress=progress
+        )
+
+        # filter out invalid results
+        i = i[ppc_result['valid']]
+        j = j[ppc_result['valid']]
+
+        posterior = {
+            k: v.values[i, j] for k, v in idata['posterior'].data_vars.items()
+        }
+
+        # coords and dims for creating idata for ppc
+        chain_str = np.char.add(i.astype(str), '_')
+        draw_str = np.char.add(chain_str, j.astype(str))
+        coords = {
+            k: v.values for k, v in idata['observed_data'].coords.items()
+        } | {'chain': [0], 'draw': draw_str}
+        dims = {
+            k: list(v.dims)
+            for k, v in idata['observed_data'].items()
+            if k != 'total'
+        }
+
+        log_likelihood = {
+            k: v.values[None, i, j]
+            for k, v in idata['log_likelihood'].data_vars.items()
+        }
+
+        posterior_predictive = {
+            k.replace('_spec', '_Non').replace('_back', '_Noff'): v[None, ...]
+            for k, v in ppc_result['data'].items()
+        }
+        posterior_predictive |= {
+            'channels': np.concatenate(
+                [
+                    posterior_predictive[k]
+                    for k in self._ndata.keys()
+                    if k != 'total'
+                ],
+                axis=-1,
+            )
+        }
+
+        observed_data = {
+            k: v.values
+            for k, v in idata['observed_data'].data_vars.items()
+            if k != 'total'
+        }
+
+        idata_ppc = az.from_dict(
+            posterior=posterior,
+            posterior_predictive=posterior_predictive,
+            log_likelihood=log_likelihood,
+            observed_data=observed_data,
+            coords=coords,
+            dims=dims,
+        )
+        idata_ppc['observed_data']['total'] = (
+            (),
+            idata['observed_data']['total'].values,
+        )
+
+        # stat for observed data and params for computing ppp
+        stat = -2.0 * idata_ppc['log_likelihood']
+        stat_obs = {
+            'total': stat['total'].values[0],
+            'group': {
+                k: stat[k].sum(dim=f'{k}_channel').values[0]
+                for k in self._ndata.keys()
+                if k != 'total'
+            },
+            'point': {
+                k: stat[k].values[0]
+                for k in self._ndata.keys()
+                if k != 'total'
+            },
+        }
+        p_value = {
+            'rep': jax.tree_map(
+                lambda obs, sim: np.sum(sim >= obs, axis=0) / len(sim),
+                stat_obs,
+                ppc_result['stat_rep'],
+            ),
+            'fit': jax.tree_map(
+                lambda obs, sim: np.sum(sim >= obs, axis=0) / len(sim),
+                self._mle._result['stat'],
+                ppc_result['stat_fit'],
+            ),
+        }
+
+        self._ppc = PPCResult(
+            params_rep=posterior,
+            params_fit=ppc_result['params_fit'],
+            p_value=p_value,
+            n=n,
+            n_valid=ppc_result['n_valid'],
+            seed=seed,
+            idata=idata_ppc,
+            result=ppc_result,
+        )
+
+
+def _format_result(v, params_order):
+    """Order the result dict and use float type."""
+    formatted = jax.tree_map(float, v)
+    return {k: formatted[k] for k in params_order}
