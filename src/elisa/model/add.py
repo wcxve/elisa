@@ -1,258 +1,515 @@
-"""Models of additive type."""
+"""Additive models."""
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Callable
-
 import jax.numpy as jnp
+from jax.scipy import stats
 
-from .base import Component, ParamConfig
-from .integral import integral, list_methods
-
+from elisa.model.model import AnaIntAdditive, NumIntAdditive, ParamConfig
+from elisa.util.typing import JAXArray, NameValMapping
 
 __all__ = [
-    'Band', 'BandEp',
-    'Bbody', 'Bbodyrad',
-    'Compt', 'Cutoffpl',
+    'Blackbody',
+    'BlackbodyRad',
+    'Band',
+    'BandEp',
+    'Compt',
+    'CutoffPL',
+    'Gauss',
     'OTTB',
-    'Powerlaw',
+    'OTTS',
+    'PowerLaw',
 ]
 
 
-class AdditiveComponent(Component, ABC):
-    """Prototype class to define additive component."""
+class Blackbody(NumIntAdditive):
+    r"""Blackbody function.
 
-    @property
-    def type(self) -> str:
-        """Model type is additive."""
-        return 'add'
+    .. math::
+        N(E) = \frac{C K E^2}{(kT)^4 [\exp(E/kT)-1]},
 
-    @property
-    def _func(self) -> Callable:
-        """Return function that integrates continnum over energy grid."""
-        return self._integral
+    where :math:`C=8.0525`.
 
-    @abstractmethod
-    def _integral(self, *args) -> Callable:
-        """Return integral function, overriden by subclass."""
-        pass
+    Parameters
+    ----------
+    kT : ParameterBase, optional
+        The temperature :math:`kT`, in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K = L_{39}/D_{10}^2`, where :math:`L_{39}` is the
+        source luminosity in units of 10³⁹ erg s⁻¹ and :math:`D_{10}` is the
+        distance to the source in units of 10 kpc.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
 
-
-class NumIntAdditive(AdditiveComponent, ABC):
-    """Prototype class with numerical integral to define additive model."""
-
-    _extra_kw = (('method', 'default'),)
-
-    def __init__(self, method='default', **kwargs):
-        self.method = str(method)
-        super().__init__(**kwargs)
-
-    @property
-    def method(self) -> str:
-        """Numerical integral method."""
-        return self._method
-
-    @method.setter
-    def method(self, value: str):
-        """Numerical integral method."""
-        value = str(value)
-
-        methods = list_methods()
-        if value not in methods:
-            methods = '"' + '", "'.join(methods) + '"'
-            raise ValueError(
-                f'available numerical integral options are: {methods}, '
-                f'but got "{value}"'
-            )
-
-        self._method = value
-
-    @property
-    def _integral(self) -> Callable:
-        """Wrap continnum function with numerical integral method."""
-        name = self.__class__.__name__.lower()
-        return integral(self._continnum, name, self._method)
-
-    @staticmethod
-    @abstractmethod
-    def _continnum(*args, **kwargs):
-        """Continnum to be integrated over energy grids."""
-        pass
-
-
-class Bbody(NumIntAdditive):
-    """TODO"""
+    """
 
     _config = (
-        ParamConfig('kT', 'kT', 3.0, 0.0001, 200.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig('kT', 'kT', 'keV', 3.0, 1e-4, 200.0),
+        ParamConfig('K', 'K', '10^37 erg s^-1 kpc^-2', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
-    def _continnum(egrid, kT, K):
-        e = egrid
-        x = e / kT
-        tmp = 8.0525 * K * e / (kT * kT * kT)
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        kT = params['kT']
+        K = params['K']
+        x = egrid / kT
+        tmp = 8.0525 * K * egrid / (kT * kT * kT)
         x_ = jnp.where(
             jnp.greater_equal(x, 50.0),
             1.0,  # avoid exponential overflow
             x,
         )
+
         return jnp.where(
             jnp.less_equal(x, 1e-4),
             tmp,
             jnp.where(
                 jnp.greater_equal(x, 50.0),
                 0.0,  # avoid exponential overflow
-                tmp * x / jnp.expm1(x_)
-            )
+                tmp * x / jnp.expm1(x_),
+            ),
         )
-        # return 8.0525 * K * e*e / (kT*kT*kT*kT * jnp.expm1(energy / kT))
+        # return 8.0525 * K * e*e / (kT*kT*kT*kT * jnp.expm1(e / kT))
 
 
-class Bbodyrad(NumIntAdditive):
-    """TODO"""
+class BlackbodyRad(NumIntAdditive):
+    r"""Blackbody function with normalization proportional to the surface area.
+
+    .. math::
+        N(E) = \frac{C K E^2}{\exp(E/kT)-1},
+
+    where :math:`C=1.0344 \times 10^{-3}` cm⁻² s⁻¹ keV⁻³.
+
+    Parameters
+    ----------
+    kT : ParameterBase, optional
+        The temperature :math:`kT`, in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K = R_\mathrm{km}^2/D_{10}^2`, where
+        :math:`R_\mathrm{km}` is the source radius in km and :math:`D_{10}` is
+        the distance to the source in units of 10 kpc.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    """
 
     _config = (
-        ParamConfig('kT', 'kT', 3.0, 0.0001, 200.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig('kT', 'kT', 'keV', 3.0, 1e-4, 200.0),
+        ParamConfig('K', 'K', '', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
-    def _continnum(egrid, kT, K):
-        e = egrid
-        x = e / kT
-        tmp = 1.0344e-3 * K * e
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        kT = params['kT']
+        K = params['K']
+
+        x = egrid / kT
+        tmp = 1.0344e-3 * K * egrid
         x_ = jnp.where(
             jnp.greater_equal(x, 50.0),
             1.0,  # avoid exponential overflow
             x,
         )
+
         return jnp.where(
             jnp.less_equal(x, 1e-4),
             tmp * kT,
             jnp.where(
                 jnp.greater_equal(x, 50.0),
                 0.0,  # avoid exponential overflow
-                tmp * e / jnp.expm1(x_)
-            )
+                tmp * egrid / jnp.expm1(x_),
+            ),
         )
         # return 1.0344e-3 * K * e*e / jnp.expm1(e / kT)
 
 
 class Band(NumIntAdditive):
-    """TODO"""
+    r"""Gamma-ray burst continuum developed by Band et al. (1993) [1]_.
+
+    .. math::
+        N(E) = K
+        \begin{cases}
+        \bigl(\frac{E}{E_0}\bigr)^\alpha
+            \exp\bigl(-\frac{E}{E_\mathrm{c}}\bigr),
+            &\text{if } E < (\alpha-\beta) E_\mathrm{c},
+        \\\\
+        \left[\frac{(\alpha-\beta)E_\mathrm{c}}{E_0}\right]^{\alpha-\beta}
+            \exp(\beta-\alpha) \bigl(\frac{E}{E_0}\bigr)^\beta,
+            &\text{otherwise,}
+        \end{cases}
+
+    where :math:`E_0` is the pivot energy fixed at 100 keV.
+
+    Parameters
+    ----------
+    alpha : ParameterBase, optional
+        The low-energy power law index :math:`\alpha`, dimensionless.
+    beta : ParameterBase, optional
+        The high-energy power law index :math:`\beta`, dimensionless.
+    Ec : ParameterBase, optional
+        The characteristic energy :math:`E_\mathrm{c}`, in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    References
+    ----------
+    .. [1] `Band, D., et al. 1993, ApJ, 413, 281
+           <https://adsabs.harvard.edu/full/1993ApJ...413..281B>`_
+
+    """
 
     _config = (
-        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
-        ParamConfig('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
-        ParamConfig('Ec', r'E_\mathrm{c}', 300.0, 10.0, 10000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 5.0),
+        ParamConfig('beta', r'\beta', '', -2.0, -10.0, 10.0),
+        ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 300.0, 10.0, 1e4),
+        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
-    def _continnum(egrid, alpha, beta, Ec, K):
-        Epiv = 100.0
-        # workaround for beta > alpha, as in xspec
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        alpha = params['alpha']
+        beta = params['beta']
+        Ec = params['Ec']
+        K = params['K']
+
+        e0 = 100.0
+
+        # workaround for beta > alpha, as in XSPEC
         amb_ = alpha - beta
         inv_Ec = 1.0 / Ec
         amb = jnp.where(jnp.less(amb_, inv_Ec), inv_Ec, amb_)
-        Ebreak = Ec*amb
+        Ebreak = Ec * amb
 
-        log_func = jnp.where(
+        log = jnp.where(
             jnp.less(egrid, Ebreak),
-            alpha * jnp.log(egrid / Epiv) - egrid / Ec,
-            amb * jnp.log(amb * Ec / Epiv) - amb + beta * jnp.log(egrid / Epiv)
+            alpha * jnp.log(egrid / e0) - egrid / Ec,
+            amb * jnp.log(amb * Ec / e0) - amb + beta * jnp.log(egrid / e0),
         )
-        return K * jnp.exp(log_func)
+
+        return K * jnp.exp(log)
 
 
 class BandEp(NumIntAdditive):
-    """TODO"""
+    r"""Gamma-ray burst continuum developed by Band et al. (1993) [1]_,
+    parametrized by the peak of :math:`\nu F_\nu`.
+
+    .. math::
+        N(E) = K
+        \begin{cases}
+        \bigl(\frac{E}{E_0}\bigr)^\alpha
+            \exp\left[-\frac{(2+\alpha)E}{E_\mathrm{p}}\right],
+            &\text{if } E < \frac{(\alpha-\beta)E_\mathrm{p}}{2+\alpha},
+        \\\\
+        \left[\frac{(\alpha-\beta)E_\mathrm{p}}{(2+\alpha)E_0}\right]
+            ^{\alpha-\beta}
+            \exp(\beta-\alpha)\bigl(\frac{E}{E_0}\bigr)^\beta,
+            &\text{otherwise},
+        \end{cases}
+
+    where :math:`E_0` is the pivot energy fixed at 100 keV.
+
+    Parameters
+    ----------
+    alpha : ParameterBase, optional
+        The low-energy power law index :math:`\alpha`, dimensionless.
+    beta : ParameterBase, optional
+        The high-energy power law index :math:`\beta`, dimensionless.
+    Ep : ParameterBase, optional
+        The peak energy :math:`E_\mathrm{p}` of :math:`\nu F_\nu`,
+        in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    References
+    ----------
+    .. [1] `Band, D., et al. 1993, ApJ, 413, 281
+           <https://adsabs.harvard.edu/full/1993ApJ...413..281B>`_
+
+    """
 
     _config = (
-        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 5.0, False, False),
-        ParamConfig('beta', r'\beta', -2.0, -10.0, 10.0, False, False),
-        ParamConfig('Ep', r'E_\mathrm{p}', 300.0, 10.0, 10000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 5.0),
+        ParamConfig('beta', r'\beta', '', -2.0, -10.0, 10.0),
+        ParamConfig('Ep', r'E_\mathrm{p}', 'keV', 300.0, 10.0, 1e4),
+        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
-    def _continnum(egrid, alpha, beta, Ep, K):
-        e = egrid
-        Epiv = 100.0
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        alpha = params['alpha']
+        beta = params['beta']
+        Ep = params['Ep']
+        K = params['K']
+
+        e0 = 100.0
+
         Ec = Ep / (2.0 + alpha)
         Ebreak = (alpha - beta) * Ec
 
-        # workaround for beta > alpha, as in xspec
+        # workaround for beta > alpha, as in XSPEC
         amb_ = alpha - beta
         inv_Ec = 1.0 / Ec
         amb = jnp.where(jnp.less(amb_, inv_Ec), inv_Ec, amb_)
 
-        log_func = jnp.where(
-            jnp.less(e, Ebreak),
-            alpha * jnp.log(e / Epiv) - e / Ec,
-            amb * jnp.log(amb * Ec / Epiv) - amb + beta * jnp.log(e / Epiv)
+        log = jnp.where(
+            jnp.less(egrid, Ebreak),
+            alpha * jnp.log(egrid / e0) - egrid / Ec,
+            amb * jnp.log(amb * Ec / e0) - amb + beta * jnp.log(egrid / e0),
         )
-        return K * jnp.exp(log_func)
+
+        return K * jnp.exp(log)
+
+
+class BrokenPL(AnaIntAdditive):
+    pass
+
+
+class DoubleBrokenPL(AnaIntAdditive):
+    pass
+
+
+class SmoothlyBrokenPL(NumIntAdditive):
+    pass
+
+
+class DoubleSmoothlyBrokenPL(NumIntAdditive):
+    pass
+
+
+class CutoffPL(NumIntAdditive):
+    r"""Power law with high-energy exponential cutoff.
+
+    .. math::
+        N(E) = K \left(\frac{E}{E_0}\right)^{-\alpha}
+                \exp \left(-\frac{E}{E_\mathrm{c}}\right),
+
+    where :math:`E_0` is the pivot energy fixed at 1 keV.
+
+    Parameters
+    ----------
+    alpha : ParameterBase, optional
+        The power law photon index :math:`\alpha`, dimensionless.
+    Ec : ParameterBase, optional
+        The e-folding energy of exponential cutoff :math:`E_\mathrm{c}`,
+        in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    """
+
+    _config = (
+        ParamConfig('alpha', r'\alpha', '', 1.0, -3.0, 10.0),
+        ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 15.0, 0.01, 1e4),
+        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+    )
+
+    @staticmethod
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        alpha = params['alpha']
+        Ec = params['Ec']
+        K = params['K']
+        return K * jnp.power(egrid, -alpha) * jnp.exp(-egrid / Ec)
 
 
 class Compt(NumIntAdditive):
-    """TODO"""
+    r"""Power law with high-energy exponential cutoff, parametrized by the peak
+    of :math:`\nu F_\nu`.
+
+    .. math::
+        N(E) = K \left(\frac{E}{E_0}\right)^{-\alpha}
+                \exp \left[-\frac{(2-\alpha)E}{E_\mathrm{p}}\right],
+
+    where :math:`E_0` is the pivot energy fixed at 1 keV.
+
+    Parameters
+    ----------
+    alpha : ParameterBase, optional
+        The power law photon index :math:`\alpha`, dimensionless.
+    Ep : ParameterBase, optional
+        The peak energy :math:`E_\mathrm{p}` of :math:`\nu F_\nu`,
+        in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    """
 
     _config = (
-        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
-        ParamConfig('Ep', r'E_\mathrm{p}', 15.0, 0.01, 10000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 3.0),
+        ParamConfig('Ep', r'E_\mathrm{p}', 'keV', 15.0, 0.01, 1e4),
+        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
-    def _continnum(egrid, alpha, Ep, K):
-        e = egrid
-        return K * jnp.power(e, alpha) * jnp.exp(-e * (2.0 + alpha) / Ep)
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        alpha = params['alpha']
+        Ep = params['Ep']
+        K = params['K']
+        neg_inv_Ec = (alpha - 2.0) / Ep
+        return K * jnp.power(egrid, -alpha) * jnp.exp(egrid * neg_inv_Ec)
 
 
-class Cutoffpl(NumIntAdditive):
-    """TODO"""
+class Gauss(NumIntAdditive):
+    r"""Gaussian line profile.
+
+    .. math::
+        N(E) = \frac{K}{\sqrt{2\pi} \sigma}
+                \exp\left[
+                    -\frac{\left(E - E_\mathrm{l}\right)^2}{2 \sigma^2}
+                \right].
+
+    Parameters
+    ----------
+    El : ParameterBase, optional
+        The line energy :math:`E_\mathrm{l}`, in units of keV.
+    sigma : ParameterBase, optional
+        The line width :math:`\sigma`, in units of keV.
+    K : ParameterBase, optional
+        The total photon flux :math:`K` of the line, in units of cm⁻² s⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    """
 
     _config = (
-        ParamConfig('alpha', r'\alpha', -1.0, -10.0, 3.0, False, False),
-        ParamConfig('Ec', r'E_\mathrm{c}', 15.0, 0.01, 10000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig('El', r'E_\mathrm{l}', 'keV', 6.5, 0.0, 1e6),
+        ParamConfig('sigma', r'\sigma', 'keV', 0.1, 0.0, 20),
+        ParamConfig('K', 'K', 'cm^-2 s^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
-    def _continnum(egrid, alpha, Ec, K):
-        e = egrid
-        return K * jnp.power(e, alpha) * jnp.exp(-e / Ec)
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        El = params['El']
+        sigma = params['sigma']
+        K = params['K']
+        return K * stats.norm.pdf((egrid - El) / sigma)
+
+
+class LogParabola(NumIntAdditive):
+    pass
+
+
+class Lorentz(NumIntAdditive):
+    pass
 
 
 class OTTB(NumIntAdditive):
-    """TODO"""
+    r"""Optically-thin thermal bremsstrahlung.
+
+    .. math::
+        N(E) = K \left(\frac{E}{E_0}\right)^{-1} \exp\left(-\frac{E}{kT}\right)
+                \exp\left(\frac{E_0}{kT}\right),
+
+    where :math:`E_0` is the pivot energy fixed at 1 keV.
+
+    Parameters
+    ----------
+    kT : ParameterBase, optional
+        The electron energy :math:`kT`, in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    """
 
     _config = (
-        ParamConfig('kT', 'kT', 30.0, 0.1, 1000.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig('kT', 'kT', 'keV', 30.0, 0.1, 1e3),
+        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
-    def _continnum(egrid, kT, K):
-        e = egrid
-        Epiv = 1.0
-        return K * jnp.exp((Epiv - e) / kT) * Epiv / e
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        kT = params['kT']
+        K = params['K']
+        return K * jnp.exp((1.0 - egrid) / kT) / egrid
 
 
-class Powerlaw(AdditiveComponent):
-    """TODO"""
+class OTTS(NumIntAdditive):
+    r"""Optically-thin thermal synchrotron [1]_.
+
+    .. math::
+        N(E) = K \exp\left[-\left(\frac{E}{E_\mathrm{c}}\right)^{1/3}\right].
+
+    Parameters
+    ----------
+    Ec : ParameterBase, optional
+        The energy scale :math:`E_\mathrm{c}`, in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    References
+    ----------
+    .. [1] `Liang, E. P., et al., 1983, ApJ, 271, 776
+           <https://adsabs.harvard.edu/full/1983ApJ...271..766L>`_
+
+    """
 
     _config = (
-        ParamConfig('alpha', r'\alpha', 1.01, -3.0, 10.0, False, False),
-        ParamConfig('K', 'K', 1.0, 1e-10, 1e10, False, False),
+        ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 100.0, 1e-3, 1e3),
+        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
-    def _integral(egrid, alpha, K):
-        # we ignore the case of alpha = 1.0
-        tmp = 1.0 - alpha
-        f = K / tmp * jnp.power(egrid, tmp)
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        Ec = params['Ec']
+        K = params['K']
+        return K * jnp.exp(-jnp.power(egrid / Ec, 1.0 / 3.0))
+
+
+class PowerLaw(AnaIntAdditive):
+    r"""Power law function.
+
+    .. math::
+        N(E) = K \left(\frac{E}{E_0}\right)^{-\alpha},
+
+    where :math:`E_0` is the pivot energy fixed at 1 keV.
+
+    Parameters
+    ----------
+    alpha : ParameterBase, optional
+        The power law photon index :math:`\alpha`, dimensionless.
+    K : ParameterBase, optional
+        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+
+    """
+
+    _config = (
+        ParamConfig('alpha', r'\alpha', '', 1.01, -3.0, 10.0),
+        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+    )
+
+    @staticmethod
+    def integral(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        # ignore the case of alpha = 1.0
+        one_minus_alpha = 1.0 - params['alpha']
+        f = params['K'] / one_minus_alpha * jnp.power(egrid, one_minus_alpha)
         return f[1:] - f[:-1]

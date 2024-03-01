@@ -1,17 +1,30 @@
 """The parameter."""
 from __future__ import annotations
 
-import threading
 from abc import ABCMeta, abstractmethod
-from collections.abc import Sequence
-from typing import Any, Callable, Literal
+from collections.abc import Iterable, Sequence
+from typing import Any, Callable, Literal, NamedTuple, get_args
 
 import jax.numpy as jnp
-import numpyro
 from numpyro.distributions import Distribution, LogUniform, Uniform
-from tinygp import kernels, means, noise
 
-from elisa.util.typing import JAXArray, JAXFloat, PRNGKey
+from elisa.util.integrate import (
+    AdaptQuadMethod,
+    IntegralFactory,
+    make_integral_factory,
+)
+from elisa.util.misc import build_namespace
+
+# from tinygp import kernels, means, noise
+from elisa.util.typing import (
+    CompID,
+    CompParamName,
+    JAXArray,
+    JAXFloat,
+    ParamID,
+    ParamIDStrMapping,
+    ParamIDValMapping,
+)
 
 __all__ = [
     'ParameterBase',
@@ -20,90 +33,88 @@ __all__ = [
     'ConstantValue',
     'ConstantInterval',
     'CompositeParameter',
-    'GPParameter',
+    # 'GPParameter',
 ]
 
 
-class ParameterContext:
-    """Context to store the values of parameters.
+class AssignmentTracker:
+    """Track component assignment of a parameter."""
 
-    Parameters
-    ----------
-    mapping : dict
-        A name mapping of parameters.
+    def __init__(self):
+        self._history = []
 
-    """
+    def append(self, cid: CompID, pname: CompParamName) -> None:
+        """Append a new assignment record."""
+        record = (cid, pname)
+        if record not in self._history:
+            self._history.append((cid, pname))
 
-    context = threading.local()
-    params: dict[str, JAXFloat]
+    def remove(self, cid: CompID, pname: CompParamName) -> None:
+        """Remove an assignment record."""
+        self._history.remove((cid, pname))
 
-    def __init__(self, mapping: dict[str, str], stack_name: str | None = None):
-        if not hasattr(type(self).context, 'stack'):
-            type(self).context.stack = {}
-
-        if stack_name is None:
-            self.stack_name = 'default'
+    def comp_param(
+        self,
+        comp_ids: Iterable[CompID],
+    ) -> tuple[CompID, CompParamName] | None:
+        """Get the earliest component assignment record within comp_ids."""
+        id_set = set(comp_ids)
+        flag = [i[0] in id_set for i in self._history]
+        if any(flag):
+            return self._history[flag.index(True)]
         else:
-            if stack_name == 'default':
-                raise ValueError('default is a preserved name')
+            return None
 
-            self.stack_name = str(stack_name)
 
-        # FIXME: solve conflict when using the same stack name?
-        if self.stack_name in type(self).context.stack:
-            raise RuntimeError(f'stack {self.stack_name} already exists')
+class ParamInfo(NamedTuple):
+    """Parameter information."""
 
-        self.params = {}
-        self.mapping = mapping
-
-    def __enter__(self) -> ParameterContext:
-        type(self).context.stack[self.stack_name] = self
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        type(self).context.stack.pop(self.stack_name)
-
-    @classmethod
-    def get_context(
-        cls, stack_name: str | None = None
-    ) -> ParameterContext | None:
-        """Return the context."""
-        if stack_name is None:
-            stack_name = 'default'
-        else:
-            stack_name = str(stack_name)
-
-        if not hasattr(cls.context, 'stack'):
-            cls.context.stack = {}
-
-        return cls.context.stack.get(stack_name, None)
+    name: str | Callable[[ParamIDStrMapping], str]  # fn for composite
+    latex: str | Callable[[ParamIDStrMapping], str]  # fn for composite
+    default: Any
+    bound: str
+    prior: str
+    log: bool
+    fixed: bool
+    tracker: AssignmentTracker
+    id_to_value: Callable[[ParamIDValMapping], JAXFloat]
+    dist: Distribution | None = None
+    composite: bool = False
+    integrate: IntegralFactory | bool = False  # True for composite interval
 
 
 class ParameterBase(metaclass=ABCMeta):
     """Parameter base."""
 
+    _id: ParamID
+    _tracker: AssignmentTracker
+
     def __init__(self):
         self._id = hex(id(self))[2:]
-        self._mid: str | None = None  # id of model to which the param belongs
+        self._tracker = AssignmentTracker()
 
-    @abstractmethod
-    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
-        """A wrapper for numpyro.sample or numpyro.deterministic."""
-        pass
+    def _id_to_label(
+        self,
+        mapping: ParamIDStrMapping,
+        label_type: Literal['name', 'latex'],
+    ) -> str:
+        """Get the label of the parameter."""
+        if label_type not in {'name', 'latex'}:
+            raise ValueError(f'unknown label type: {label_type}')
 
-    def sample(self, rng_key: PRNGKey | None = None) -> JAXFloat:
-        """Get a sample from the parameter's underlying distribution."""
-        ctx = ParameterContext.get_context()
-        if ctx is not None:
-            if self._id not in ctx.params:
-                if self._id in ctx.mapping:
-                    name = ctx.mapping[self._id]
-                else:
-                    name = None
-                ctx.params[self._id] = self._fn(name=name, rng_key=rng_key)
-            return ctx.params[self._id]
-        else:
-            return self._fn(name=None, rng_key=rng_key)
+        return mapping[self._id]
+
+    @property
+    def _id_to_value(self) -> Callable[[ParamIDValMapping], JAXFloat]:
+        """Gets the mapping function from id to value."""
+        pid = self._id
+        default = self.default
+
+        def id_to_value(mapping: ParamIDValMapping) -> JAXFloat:
+            """Get the value of the parameter from mapping."""
+            return mapping.get(pid, default)
+
+        return id_to_value
 
     @property
     @abstractmethod
@@ -135,6 +146,12 @@ class ParameterBase(metaclass=ABCMeta):
         """Whether the parameter is fixed."""
         pass
 
+    @property
+    @abstractmethod
+    def _info(self) -> dict[ParamID, ParamInfo]:
+        """Parameter information."""
+        pass
+
     def __repr__(self) -> str:
         return self.name
 
@@ -163,16 +180,16 @@ class ParameterBase(metaclass=ABCMeta):
         return self._make_composite_parameter(other, self, '/')
 
     def __pow__(self, other: ParameterBase) -> CompositeParameter:
-        return self._make_composite_parameter(self, other, '**')
+        return self._make_composite_parameter(self, other, '^')
 
     def __rpow__(self, other: ParameterBase) -> CompositeParameter:
-        return self._make_composite_parameter(other, self, '**')
+        return self._make_composite_parameter(other, self, '^')
 
     @staticmethod
     def _make_composite_parameter(
         lhs: ParameterBase,
         rhs: ParameterBase,
-        op: Literal['+', '-', '*', '/', '**'],
+        op: Literal['+', '-', '*', '/', '^'],
     ) -> CompositeParameter:
         # check if the type of lhs and rhs are both parameter
         if not (
@@ -183,31 +200,37 @@ class ParameterBase(metaclass=ABCMeta):
                 f"'{type(lhs).__name__}' and '{type(rhs).__name__}'"
             )
 
+        op_symbol = op
+
         if op == '+':
             op = jnp.add
-            op_name = '%s + %s'
-            op_latex = '{%s} + {%s}'
+            op_name = '{} + {}'
+            op_latex = '{{{}}} + {{{}}}'
         elif op == '-':
             op = jnp.subtract
-            op_name = '%s - %s'
-            op_latex = '{%s} - {%s}'
+            op_name = '{} - {}'
+            op_latex = '{{{}}} - {{{}}}'
         elif op == '*':
             op = jnp.multiply
-            op_name = '%s * %s'
-            op_latex = r'{%s} \times {%s}'
+            op_name = '{} * {}'
+            op_latex = r'{{{}}} \times {{{}}}'
         elif op == '/':
             op = jnp.divide
-            op_name = '%s / %s'
-            op_latex = r'{%s} / {%s}'
-        elif op == '**':
+            op_name = '{} / {}'
+            op_latex = r'{{{}}} / {{{}}}'
+        elif op == '^':
             op = jnp.power
-            op_name = '%s^%s'
-            op_latex = r'{%s}^{%s}'
+            op_name = '{}^{}'
+            op_latex = r'{{{}}}^{{{}}}'
         else:
             raise NotImplementedError(f'op {op}')
 
         return CompositeParameter(
-            params=[lhs, rhs], op=op, op_name=op_name, op_latex=op_latex
+            params=[lhs, rhs],
+            op=op,
+            op_name=op_name,
+            op_latex=op_latex,
+            op_symbol=op_symbol,
         )
 
 
@@ -266,9 +289,9 @@ class Parameter(_Parameter):
     default : float
         Parameter default value.
     min : float, optional
-        Parameter minimum value. The default is None.
+        Parameter minimum value, for display purpose only. The default is None.
     max : float, optional
-        Parameter maximum value. The default is None.
+        Parameter maximum value, for display purpose only. The default is None.
     log : bool, optional
         Whether the parameter is parameterized in a logarithmic scale.
         The default is False.
@@ -292,13 +315,13 @@ class Parameter(_Parameter):
         latex: str | None = None,
     ):
         if not isinstance(dist, Distribution):
-            raise ValueError('dist must be a numpyro distribution')
+            raise ValueError('prior must be a numpyro distribution')
 
         if jnp.shape(default) != ():
             raise ValueError('default must be a scalar')
 
         if not bool(dist._validate_sample(default)):
-            raise ValueError('default should be within the dist support')
+            raise ValueError('default should be within the prior support')
 
         self._dist = dist
         self._default = jnp.asarray(default, float)
@@ -322,12 +345,6 @@ class Parameter(_Parameter):
 
         super().__init__(name, latex, default)
 
-    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
-        if self.fixed:
-            return self._default
-        else:
-            return numpyro.sample(name, self._dist, rng_key=rng_key)
-
     @property
     def default(self) -> JAXFloat:
         return self._default
@@ -338,19 +355,9 @@ class Parameter(_Parameter):
             raise ValueError('default must be a scalar')
 
         if not bool(self._dist._validate_sample(default)):
-            raise ValueError('default should be within the dist support')
+            raise ValueError('default should be within the prior support')
 
         self._default = jnp.asarray(default, float)
-
-    @property
-    def min(self) -> JAXFloat | None:
-        """Minimum value of the parameter."""
-        return self._min
-
-    @property
-    def max(self) -> JAXFloat | None:
-        """Maximum value of the parameter."""
-        return self._max
 
     @property
     def log(self) -> bool:
@@ -359,6 +366,30 @@ class Parameter(_Parameter):
     @property
     def fixed(self) -> bool:
         return self._fixed
+
+    @property
+    def _dist_expr(self) -> str:
+        return self._dist.__class__.__name__
+
+    @property
+    def _info(self) -> dict[ParamID, ParamInfo]:
+        vmin = f'{self._min:.4g}' if self._min is not None else 'n/a'
+        vmax = f'{self._max:.4g}' if self._max is not None else 'n/a'
+
+        info = ParamInfo(
+            name=self.name,
+            latex=self.latex,
+            default=self.default,
+            bound='' if self.fixed else f'({vmin}, {vmax})',
+            prior='' if self.fixed else self._dist_expr,
+            log=self.log,
+            fixed=self.fixed,
+            tracker=self._tracker,
+            id_to_value=self._id_to_value,
+            dist=None if self.fixed else self._dist,
+        )
+
+        return {self._id: info}
 
 
 class UniformParameter(Parameter):
@@ -376,9 +407,9 @@ class UniformParameter(Parameter):
         Parameter maximum value.
     log : bool, optional
         Whether the parameter is logarithmically uniform. The default is False.
-    fixed : bool
+    fixed : bool, optional
         Whether the parameter is fixed. The default is False.
-    latex : str
+    latex : str, optional
         :math:`\LaTeX` format of the parameter. The default is as `name`.
 
     """
@@ -439,6 +470,7 @@ class UniformParameter(Parameter):
 
     @property
     def min(self) -> JAXFloat:
+        """Parameter minimum value."""
         return self._min
 
     @min.setter
@@ -447,6 +479,7 @@ class UniformParameter(Parameter):
 
     @property
     def max(self) -> JAXFloat:
+        """Parameter maximum value."""
         return self._max
 
     @max.setter
@@ -476,6 +509,13 @@ class UniformParameter(Parameter):
     @fixed.setter
     def fixed(self, fixed: bool):
         self._fixed = bool(fixed)
+
+    @property
+    def _dist_expr(self) -> str:
+        if self._log:
+            return f'LogUniform({self.min:.4g}, {self.max:.4g})'
+        else:
+            return f'Uniform({self.min:.4g}, {self.max:.4g})'
 
     def _check_and_set_values(
         self,
@@ -537,8 +577,19 @@ class UniformParameter(Parameter):
                 self._dist = Uniform(self._min, self._max)
 
 
-class ConstantParameter(_Parameter, metaclass=ABCMeta):
-    """Constant parameter."""
+class ConstantParameter(_Parameter):
+    r"""Constant parameter.
+
+    Parameters
+    ----------
+    name : str
+        Parameter name.
+    value : array_like
+        The constant value of parameter.
+    latex : str, optional
+        :math:`\LaTeX` format of the parameter. The default is as `name`.
+
+    """
 
     def __init__(self, name: str, value: Any, latex: str | None = None):
         super().__init__(name, latex, value)
@@ -572,9 +623,6 @@ class ConstantValue(ConstantParameter):
     def __repr__(self) -> str:
         return f'{self.name} = {self.default:.4g}'
 
-    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
-        return self.default
-
     @property
     def default(self) -> JAXFloat:
         return self._default
@@ -586,36 +634,68 @@ class ConstantValue(ConstantParameter):
 
         self._default = jnp.asarray(default, float)
 
+    @property
+    def _info(self) -> dict[ParamID, ParamInfo]:
+        info = ParamInfo(
+            name=self.name,
+            latex=self.latex,
+            default=self.default,
+            bound='',  # this is not supposed to be used
+            prior='',  # this is not supposed to be used
+            log=self.log,
+            fixed=self.fixed,
+            tracker=self._tracker,
+            id_to_value=self._id_to_value,
+        )
+
+        return {self._id: info}
+
 
 class ConstantInterval(ConstantParameter):
-    """Constant parameter to be integrated over a given interval."""
+    r"""Constant parameter to be integrated over a given interval.
+
+    Parameters
+    ----------
+    name: str
+        Parameter name.
+    interval: array_like
+        The interval, a 2-element sequence.
+    method : {'quadgk', 'quadcc', 'quadts', 'romberg', 'rombergts'}, optional
+        Numerical integration method used to integrate over the parameter.
+        Available options are:
+            * 'quadgk' : global adaptive quadrature with Gauss-Konrod rule
+            * 'quadcc' : global adaptive quadrature with Clenshaw-Curtis rule
+            * 'quadts' : global adaptive quadrature with trapz tanh-sinh rule
+            * 'romberg' : Romberg integration
+            * 'rombergts' : Romberg integration with tanh-sinh (a.k.a. double
+              exponential) transformation
+        The default is 'quadgk'.
+    latex : str, optional
+        :math:`\LaTeX` format of the parameter. The default is as `name`.
+    kwargs : dict, optional
+        Extra kwargs passed to integration methods. See [1]_ for details.
+
+    References
+    ----------
+    .. [1] `quadax docs <https://quadax.readthedocs.io/en/latest/api.html
+            #adaptive-integration-of-a-callable-function-or-method>`_
+
+    """
 
     def __init__(
         self,
         name: str,
         interval: Sequence[float],
+        method: AdaptQuadMethod = 'quadgk',
         latex: str | None = None,
-        method: Literal['gk', 'cc', 'ts', 'romberg', 'rombergts'] = 'gk',
-        **kwargs: dict,
+        **kwargs,
     ):
         super().__init__(name, interval, latex)
-
-        method = str(method)
-        supported = ['gk', 'cc', 'ts', 'romberg', 'rombergts']
-        if method not in supported:
-            raise ValueError(f'method must be one of {supported}')
-        self._method = method
-        self._kwargs = kwargs
+        self.method = method
+        self._integrate_kwargs = {'epsabs': 0.0, 'epsrel': 1.4e-8} | kwargs
 
     def __repr__(self) -> str:
         return f'{self.name} = [{self.default[0]:.4g}, {self.default[1]:.4g}]'
-
-    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
-        """Get a value lying within the interval from ParameterContext."""
-        ctx = ParameterContext.get_context(stack_name=self._id)
-        if ctx is None:
-            raise RuntimeError('cannot sample from an interval')
-        return ctx.params[self._id]
 
     @property
     def default(self) -> JAXArray:
@@ -628,9 +708,46 @@ class ConstantInterval(ConstantParameter):
 
         self._default = jnp.asarray(default, float)
 
+    @property
+    def method(self) -> AdaptQuadMethod:
+        """Numerical integration method."""
+        return self._method
+
+    @method.setter
+    def method(self, value: AdaptQuadMethod):
+        supported = get_args(AdaptQuadMethod)
+        if value not in supported:
+            raise ValueError(f'method must be one of {supported}')
+
+        self._method = value
+
+    @property
+    def _info(self) -> dict[ParamID, ParamInfo]:
+        factory = make_integral_factory(
+            param_id=self._id,
+            interval=self.default,
+            method=self.method,
+            kwargs=self._integrate_kwargs,
+        )
+
+        info = ParamInfo(
+            name=self.name,
+            latex=self.latex,
+            default=self.default,
+            bound='',  # this is not supposed to be used
+            prior='',  # this is not supposed to be used
+            log=self.log,
+            fixed=self.fixed,
+            tracker=self._tracker,
+            integrate=factory,
+            id_to_value=self._id_to_value,
+        )
+
+        return {self._id: info}
+
 
 # class DependentInterval(ParameterBase):
-#     """Interval defined by functions of a parameter."""
+#     """Interval whose bounds are defined by function of parameters."""
 
 
 class CompositeParameter(ParameterBase):
@@ -651,9 +768,7 @@ class CompositeParameter(ParameterBase):
     """
 
     _params: tuple[ParameterBase, ...]
-    _intervals: tuple[ConstantInterval, ...]
-    _name: str
-    _latex: str
+    _has_interval: bool
 
     def __init__(
         self,
@@ -661,6 +776,8 @@ class CompositeParameter(ParameterBase):
         op: Callable[..., JAXFloat],
         op_name: str,
         op_latex: str,
+        *,
+        op_symbol: Literal['+', '-', '*', '/', '^'] | None = None,
     ):
         # check if the type of params is parameter or sequence
         if not isinstance(params, (ParameterBase, Sequence)):
@@ -680,32 +797,25 @@ class CompositeParameter(ParameterBase):
                 'parameters must be a Parameter or a sequence of Parameter'
             )
 
-        self._params = tuple(params)
+        if op_symbol not in {'+', '-', '*', '/', '^', None}:
+            raise ValueError('`op_symbol` is for internal use only')
+
+        super().__init__()
+
         self._op = op
+        self._op_name = str(op_name)
+        self._op_latex = self._op_name if op_latex is None else str(op_latex)
+        self._op_symbol = op_symbol
+        self._params = tuple(params)
 
-        intervals = []
         for p in self._params:
-            if isinstance(p, ConstantInterval) and p not in intervals:
-                intervals.append(p)
-            if isinstance(p, CompositeParameter):
-                for i in p._intervals:
-                    if i not in intervals:
-                        intervals.append(i)
-        self._intervals = tuple(intervals)
-
-        op_name = str(op_name)
-        if op_latex is None:
-            op_latex = op_name
+            if isinstance(p, ConstantInterval) or (
+                isinstance(p, CompositeParameter) and p._has_interval
+            ):
+                self._has_interval = True
+                break
         else:
-            op_latex = str(op_latex)
-        self._name = op_name % tuple(
-            f'({p._name})' if isinstance(p, CompositeParameter) else p._id
-            for p in self._params
-        )
-        self._latex = op_latex % tuple(
-            f'({p._latex})' if isinstance(p, CompositeParameter) else p._id
-            for p in self._params
-        )
+            self._has_interval = False
 
         nodes = []
         for p in self._params:
@@ -717,64 +827,127 @@ class CompositeParameter(ParameterBase):
                 elif node not in nodes:
                     nodes.append(node)
         self._nodes = tuple(nodes)
-        self._name_mapping = self._get_mapping('name')
+        self._nodes_id = tuple(p._id for p in self._nodes)
 
-        super().__init__()
+        pid_to_pname = dict(
+            zip(
+                self._nodes_id,
+                build_namespace([p.name for p in self._nodes], prime=True),
+            )
+        )
+        self._name = self._id_to_label(pid_to_pname, 'name')
 
-    def _get_mapping(self, label_type: Literal['name', 'latex']):
-        namespace = []
-        labels = []
-        nprime = []
-        counter = {}
-        for node in self._nodes:
-            label = getattr(node, label_type)
-            labels.append(label)
-            if label not in namespace:
-                counter[label] = 0
-                namespace.append(label)
-            else:
-                counter[label] += 1
-                namespace.append(f'{label}#{counter[label]}')
+    def _id_to_label(
+        self,
+        mapping: dict[ParamID, str],
+        label_type: Literal['name', 'latex'],
+    ) -> str:
+        if label_type not in {'name', 'latex'}:
+            raise ValueError(f'unknown label type: {label_type}')
 
-            nprime.append(counter[label])
-
-        if label_type == 'name':
-            primes = ['"' * (n // 2) + "'" * (n % 2) for n in nprime]
+        if self._id in mapping:
+            return mapping[self._id]
         else:
-            primes = ["'" * n for n in nprime]
+            if self._op_symbol:
+                op = self._op_symbol
+                lhs, rhs = self._params
 
-        mapping = {
-            node._id: label + suffix
-            for node, label, suffix in zip(self._nodes, labels, primes)
-        }
+                if op == '+':
+                    lhs_fmt = rhs_fmt = '{}'
 
-        return mapping
+                elif op == '-':
+                    lhs_fmt = '{}'
 
-    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
-        """Get the value of the composite parameter."""
-        values = [i.sample(rng_key) for i in self._params]
-        new_value = self._op(*values)
-        if name is not None:
-            numpyro.deterministic(name, new_value)
-        return new_value
+                    if isinstance(
+                        rhs, CompositeParameter
+                    ) and rhs._op_symbol not in {'*', '/', '^'}:
+                        rhs_fmt = '({})'
+                    else:
+                        rhs_fmt = '{}'
+
+                elif op == '*':
+                    if isinstance(
+                        lhs, CompositeParameter
+                    ) and lhs._op_symbol not in {'*', '/', '^'}:
+                        lhs_fmt = '({})'
+                    else:
+                        lhs_fmt = '{}'
+
+                    if isinstance(
+                        rhs, CompositeParameter
+                    ) and rhs._op_symbol not in {'*', '/', '^'}:
+                        rhs_fmt = '({})'
+                    else:
+                        rhs_fmt = '{}'
+
+                elif op == '/':
+                    if isinstance(
+                        lhs, CompositeParameter
+                    ) and lhs._op_symbol not in {'*', '/', '^'}:
+                        lhs_fmt = '({})'
+                    else:
+                        lhs_fmt = '{}'
+
+                    rhs_fmt = '({})'
+
+                elif op == '^':
+                    if isinstance(lhs, CompositeParameter):
+                        lhs_fmt = '({})'
+                    else:
+                        lhs_fmt = '{}'
+
+                    if isinstance(rhs, CompositeParameter):
+                        rhs_fmt = '({})'
+                    else:
+                        rhs_fmt = '{}'
+
+                else:
+                    raise NotImplementedError(f'op_symbol: {op}')
+
+                labels = (
+                    lhs_fmt.format(lhs._id_to_label(mapping, label_type)),
+                    rhs_fmt.format(rhs._id_to_label(mapping, label_type)),
+                )
+
+            else:
+                labels = tuple(
+                    (
+                        '({})' if isinstance(p, CompositeParameter) else '{}'
+                    ).format(p._id_to_label(mapping, label_type))
+                    for p in self._params
+                )
+
+            temp = self._op_name if label_type == 'name' else self._op_latex
+            return temp.format(*labels)
+
+    @property
+    def _id_to_value(self) -> Callable[[ParamIDValMapping], JAXFloat]:
+        fns = [param._id_to_value for param in self._params]
+
+        def id_to_value(mapping: ParamIDValMapping) -> JAXFloat:
+            """Get the value of the composite parameter."""
+            return self._op(*[fn(mapping) for fn in fns])
+
+        return id_to_value
 
     @property
     def name(self) -> str:
-        name = self._name
-        for k, v in self._name_mapping.items():
-            name = name.replace(k, v)
-        return name
+        return self._name
 
     @property
     def latex(self) -> str:
-        latex = self._latex
-        for k, v in self._get_mapping('latex').items():
-            latex = latex.replace(k, v)
-        return latex
+        pid_to_latex = dict(
+            zip(
+                self._nodes_id,
+                build_namespace([p.latex for p in self._nodes], True, True),
+            )
+        )
+
+        return self._id_to_label(pid_to_latex, 'latex')
 
     @property
     def default(self) -> JAXFloat:
-        if self._intervals:
+        if self._has_interval:
             raise RuntimeError(
                 'cannot get default value of a composite interval'
             )
@@ -789,97 +962,64 @@ class CompositeParameter(ParameterBase):
     def fixed(self) -> bool:
         return all(i.fixed for i in self._params)
 
-
-class GPParameter(_Parameter):
-    """Parameter sampled from a Gaussian process."""
-
-    def __init__(
-        self,
-        name: str,
-        kernel: kernels.Kernel,
-        x: JAXFloat,
-        *,
-        diag: JAXFloat | None = None,
-        noise: noise.Noise | None = None,
-        mean: means.MeanBase | Callable | JAXFloat | None = None,
-        log: bool = False,
-        latex: str | None = None,
-    ):
-        self._log = bool(log)
-        super().__init__(name, latex, None)
-
-    def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
-        """Sample from the Gaussian process."""
-        raise NotImplementedError
-
     @property
-    def default(self):
-        raise RuntimeError('cannot get default value of a GPParameter')
+    def _info(self) -> dict[ParamID, ParamInfo]:
+        info = {
+            self._id: ParamInfo(
+                name=lambda mapping: self._id_to_label(mapping, 'name'),
+                latex=lambda mapping: self._id_to_label(mapping, 'latex'),
+                default=jnp.nan,  # this is not supposed to be used
+                bound='',  # this is not supposed to be used
+                prior='',  # this is not supposed to be used
+                log=self.log,
+                fixed=self.fixed,
+                tracker=self._tracker,
+                id_to_value=self._id_to_value,
+                integrate=self._has_interval,
+                composite=True,
+            )
+        }
 
-    @property
-    def log(self) -> bool:
-        return self._log
+        for p in self._params:
+            info |= p._info
 
-    @property
-    def fixed(self) -> bool:
-        return False
+        return info
 
 
-# if __name__ == '__main__':
-#     import jax
-#     from numpyro.infer import MCMC, NUTS
-#     numpyro.enable_x64(True)
-#     numpyro.set_host_device_count(4)
+# class GPParameter(_Parameter):
+#     """Parameter sampled from a Gaussian process."""
 #
-#     a = UniformParameter('a', 2.0, 0.1, 5, log=True)
-#     b = UniformParameter('b', 2.0, 0.1, 5, log=True)
-#     c = a + b
-#     def numpyro_model():
-#         with ParameterContext({a._id: 'a', b._id: 'b', c._id: 'c'}):
-#             c.sample()
+#     def __init__(
+#         self,
+#         name: str,
+#         kernel: kernels.Kernel,
+#         x: JAXFloat,
+#         *,
+#         diag: JAXFloat | None = None,
+#         noise: noise.Noise | None = None,
+#         mean: means.MeanBase | Callable | JAXFloat | None = None,
+#         log: bool = False,
+#         latex: str | None = None,
+#     ):
+#         self._log = bool(log)
+#         super().__init__(name, latex, None)
 #
-#     sampler = MCMC(
-#         NUTS(numpyro_model),
-#         num_warmup=1000, num_samples=1000, num_chains=4)
+#     def _fn(self, name: str | None, rng_key: PRNGKey | None) -> JAXFloat:
+#         """Sample from the Gaussian process."""
+#         raise NotImplementedError
 #
-#     sampler.run(jax.random.PRNGKey(0))
-#     import arviz as az
-#     idata = az.from_numpyro(sampler)
-#     params = {}
+#     @property
+#     def default(self) -> None:
+#         return None
 #
-#     def set(a):
-#         params['a'] = a
+#     @property
+#     def log(self) -> bool:
+#         return self._log
 #
-#     from functools import partial
+#     @property
+#     def fixed(self) -> bool:
+#         return False
 #
-#     def powerlaw(e, alpha, K):
-#         tmp = 1.0 - alpha
-#         f = K / tmp * jnp.power(e, tmp)
-#         return f[1:] - f[:-1]
-#
-#     def alpha():
-#         return params['a']*params['t'] + params['b']
-#
-#     def K():
-#         return params['K']
-#
-#     def set_t(t):
-#         params['t'] = t
-#
-#     def eval(e):
-#         return powerlaw(e, alpha(), K())
-#
-#     from quadax import quadgk
-#
-#     def interal(e, a, b, K):
-#         params['a'] = a
-#         params['b'] = b
-#         params['K'] = K
-#
-#         def integrand(t):
-#             params['t'] = t
-#             return eval(e)
-#
-#         return quadgk(integrand, (0.1, 2.1))
-#
-#     f = jax.jit(interal)
+#     @property
+#     def _info(self) -> dict[ParamID, ParamInfo]:
+#         return ...
