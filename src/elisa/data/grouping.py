@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 from scipy.stats import norm
 
-from elisa.util.typing import NumpyArray as NDArray
+from elisa.util.typing import NumPyArray as NDArray
 
 __all__ = [
     'group_const',
