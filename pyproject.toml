@@ -86,6 +86,7 @@ select = [
 ignore = [
     "B028",  # allow warnings without stacklevel
     "C901",  # allow functions with a high complexity
+    "E731",  # allow lambda functions
 ]
 ignore-init-module-imports = true
 extend-select = ["Q"]
