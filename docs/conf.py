@@ -14,7 +14,7 @@ sys.path.append(path.parent.parent.as_posix() + '/src')
 import elisa  # noqa: E402
 
 project = 'elisa'
-copyright = '2023, Wang-Chen Xue & contributors'
+copyright = '2023-2024, Wang-Chen Xue & contributors'
 author = 'Wang-Chen Xue'
 release = elisa.__version__
 
