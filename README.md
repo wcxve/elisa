@@ -1,4 +1,4 @@
-# Elisa
+# elisa
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-lib?color=blue&logo=Python&logoColor=white)](https://pypi.org/project/elisa-lib)
 [![PyPI - Version](https://img.shields.io/pypi/v/elisa-lib?color=blue&logo=PyPI&logoColor=white)](https://pypi.org/project/elisa-lib)
