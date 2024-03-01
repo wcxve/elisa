@@ -13,7 +13,7 @@ path = pathlib.Path(__file__)
 sys.path.append(path.parent.parent.as_posix() + '/src')
 import elisa  # noqa: E402
 
-project = 'Elisa'
+project = 'elisa'
 copyright = '2023, Wang-Chen Xue & contributors'
 author = 'Wang-Chen Xue'
 release = elisa.__version__
@@ -29,7 +29,7 @@ extensions = [
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
     'sphinx.ext.viewcode',
-    'numpydoc.numpydoc'
+    'numpydoc.numpydoc',
 ]
 
 templates_path = ['_templates']
