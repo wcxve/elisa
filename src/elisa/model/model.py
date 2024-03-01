@@ -1394,13 +1394,13 @@ class ConvolutionComponent(ComponentBase):
         params : dict
             Parameter dict for the convolution model.
         model_fn : callable
-            The model function to be convolved, which takes energy grid as
-            input and returns the model value at the grid.
+            The model function to be convolved, which takes the energy grid as
+            input and returns the model value over the grid.
 
         Returns
         -------
         value : ndarray
-            The convolved model value at the energy grid.
+            The convolved model value over `egrid`.
 
         """
         pass

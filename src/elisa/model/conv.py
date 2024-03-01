@@ -1,6 +1,7 @@
 """ConvolutionComponent models."""
 from __future__ import annotations
 
+from abc import abstractmethod
 from typing import Callable
 
 import jax
@@ -12,7 +13,7 @@ from elisa.util.typing import ConvolveEval, JAXArray, NameValMapping
 __all__ = ['EnFlux', 'PhFlux', 'RedShift', 'VelocityShift']
 
 
-class FluxNorm(ConvolutionComponent):
+class NormConvolution(ConvolutionComponent):
     _args = ('emin', 'emax')
     _kwargs = ('ngrid', 'elog')
     _supported = frozenset({'add'})
@@ -38,6 +39,36 @@ class FluxNorm(ConvolutionComponent):
         self._prev_config: tuple | None = None
 
         super().__init__(params, latex)
+
+    @staticmethod
+    @abstractmethod
+    def convolve(
+        egrid: JAXArray,
+        params: NameValMapping,
+        model_fn: Callable[[JAXArray], JAXArray],
+        flux_egrid: JAXArray,
+    ) -> JAXArray:
+        """Convolve a model function.
+
+        Parameters
+        ----------
+        egrid : ndarray
+            Photon energy grid in units of keV.
+        params : dict
+            Parameter dict for the convolution model.
+        model_fn : callable
+            The model function to be convolved, which takes the energy grid as
+            input and returns the model flux over the grid.
+        flux_egrid : ndarray
+            Photon energy grid used to calculate flux in units of keV.
+
+        Returns
+        -------
+        value : ndarray
+            The re-normalized model over `egrid`, in units of cm⁻² s⁻¹ keV⁻¹.
+
+        """
+        pass
 
     @property
     def eval(self) -> ConvolveEval:
@@ -107,7 +138,7 @@ class FluxNorm(ConvolutionComponent):
         self._elog = bool(value)
 
 
-class PhFlux(FluxNorm):
+class PhFlux(NormConvolution):
     r"""Normalize an additive model by photon flux between `emin` and `emax`.
 
     Warnings
@@ -125,7 +156,7 @@ class PhFlux(FluxNorm):
         Flux parameter, in units of cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
-    ngrid : int or None, optional
+    ngrid : int, optional
         The energy grid number to use. The default is 1000.
     elog : bool, optional
         Whether to use logarithmically regular energy grids.
@@ -152,7 +183,7 @@ class PhFlux(FluxNorm):
         return F / mflux * flux
 
 
-class EnFlux(FluxNorm):
+class EnFlux(NormConvolution):
     r"""Normalize an additive model by energy flux between `emin` and `emax`.
 
     Warnings
@@ -170,7 +201,7 @@ class EnFlux(FluxNorm):
         Flux parameter, in units of erg cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
-    ngrid : int or None, optional
+    ngrid : int, optional
         The energy grid number to use. The default is 1000.
     elog : bool, optional
         Whether to use logarithmically regular energy grids.
