@@ -37,8 +37,6 @@ from elisa.util.misc import (
     replace_string,
 )
 
-__all__ = ['LikelihoodFit', 'BayesianFit']
-
 Statistic = Literal['chi2', 'cstat', 'pstat', 'pgstat', 'wstat']
 T = TypeVar('T')
 
@@ -55,11 +53,13 @@ class BaseFit(ABC):
     stat : str or sequence of str
         The likelihood option for the data and model. Available likelihood
         options are:
+
             * 'chi2' : Gaussian data
             * 'cstat' : Poisson data
             * 'pstat' : Poisson data with known background
             * 'pgstat' : Poisson data with Gaussian background
             * 'wstat' : Poisson data with Poisson background
+
     seed : int, optional
         Random number generator seed. The default is 42.
 
@@ -595,19 +595,25 @@ class LikelihoodFit(BaseFit):
         strategy : {0, 1, 2}, optional
             Optimization strategy to use in Minuit.
             Available options are:
+
                 * 0: Fast.
                 * 1: Default.
                 * 2: Careful. This improves accuracy at the cost of time.
+
         lopt : {'minuit', 'lm'}, optional
             Local optimization algorithm to use.
             Available options are:
+
                 * 'minuit': Migrad algorithm of Minuit.
                 * 'lm': Levenberg-Marquardt algorithm of :mod:`jaxopt`.
+
             The default is 'minuit'.
         gopt : {'ns'}, optional
             Global optimization algorithm to find the initial guess for MLE.
             Available options are:
+
                 * 'ns' : nested sampling of :mod:`jaxns`.
+
             The default is None.
         nboot : int, optional
             Number of parametric bootstrap based on the MLE. These simulation

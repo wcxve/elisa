@@ -6,8 +6,6 @@ from multiprocessing import cpu_count
 
 from numpyro import enable_x64, set_host_device_count
 
-__all__ = ['jax_enable_x64', 'set_cpu_cores']
-
 
 def jax_enable_x64(use_x64: bool) -> None:
     """Changes the default float precision of arrays in JAX.

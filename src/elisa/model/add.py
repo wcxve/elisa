@@ -8,10 +8,10 @@ from elisa.model.model import AnaIntAdditive, NumIntAdditive, ParamConfig
 from elisa.util.typing import JAXArray, NameValMapping
 
 __all__ = [
-    'Blackbody',
-    'BlackbodyRad',
     'Band',
     'BandEp',
+    'Blackbody',
+    'BlackbodyRad',
     'Compt',
     'CutoffPL',
     'Gauss',
@@ -19,6 +19,151 @@ __all__ = [
     'OTTS',
     'PowerLaw',
 ]
+
+
+class Band(NumIntAdditive):
+    r"""Gamma-ray burst continuum developed by Band et al. (1993) [1]_.
+
+    .. math::
+        N(E) = K
+        \begin{cases}
+        \bigl(\frac{E}{E_0}\bigr)^\alpha
+            \exp\bigl(-\frac{E}{E_\mathrm{c}}\bigr),
+            &\text{if } E < (\alpha-\beta) E_\mathrm{c},
+        \\\\
+        \left[\frac{(\alpha-\beta)E_\mathrm{c}}{E_0}\right]^{\alpha-\beta}
+            \exp(\beta-\alpha) \bigl(\frac{E}{E_0}\bigr)^\beta,
+            &\text{otherwise,}
+        \end{cases}
+
+    where :math:`E_0` is the pivot energy fixed at 100 keV.
+
+    Parameters
+    ----------
+    alpha : ParameterBase, optional
+        The low-energy power law index :math:`\alpha`, dimensionless.
+    beta : ParameterBase, optional
+        The high-energy power law index :math:`\beta`, dimensionless.
+    Ec : ParameterBase, optional
+        The characteristic energy :math:`E_\mathrm{c}`, in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    References
+    ----------
+    .. [1] `Band, D., et al. 1993, ApJ, 413, 281
+           <https://adsabs.harvard.edu/full/1993ApJ...413..281B>`__
+
+    """
+
+    _config = (
+        ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 5.0),
+        ParamConfig('beta', r'\beta', '', -2.0, -10.0, 10.0),
+        ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 300.0, 10.0, 1e4),
+        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+    )
+
+    @staticmethod
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        alpha = params['alpha']
+        beta = params['beta']
+        Ec = params['Ec']
+        K = params['K']
+
+        e0 = 100.0
+
+        # workaround for beta > alpha, as in XSPEC
+        amb_ = alpha - beta
+        inv_Ec = 1.0 / Ec
+        amb = jnp.where(jnp.less(amb_, inv_Ec), inv_Ec, amb_)
+        Ebreak = Ec * amb
+
+        log = jnp.where(
+            jnp.less(egrid, Ebreak),
+            alpha * jnp.log(egrid / e0) - egrid / Ec,
+            amb * jnp.log(amb * Ec / e0) - amb + beta * jnp.log(egrid / e0),
+        )
+
+        return K * jnp.exp(log)
+
+
+class BandEp(NumIntAdditive):
+    r"""Gamma-ray burst continuum developed by Band et al. (1993) [1]_,
+    parametrized by the peak of :math:`\nu F_\nu`.
+
+    .. math::
+        N(E) = K
+        \begin{cases}
+        \bigl(\frac{E}{E_0}\bigr)^\alpha
+            \exp\left[-\frac{(2+\alpha)E}{E_\mathrm{p}}\right],
+            &\text{if } E < \frac{(\alpha-\beta)E_\mathrm{p}}{2+\alpha},
+        \\\\
+        \left[\frac{(\alpha-\beta)E_\mathrm{p}}{(2+\alpha)E_0}\right]
+            ^{\alpha-\beta}
+            \exp(\beta-\alpha)\bigl(\frac{E}{E_0}\bigr)^\beta,
+            &\text{otherwise},
+        \end{cases}
+
+    where :math:`E_0` is the pivot energy fixed at 100 keV.
+
+    Parameters
+    ----------
+    alpha : ParameterBase, optional
+        The low-energy power law index :math:`\alpha`, dimensionless.
+    beta : ParameterBase, optional
+        The high-energy power law index :math:`\beta`, dimensionless.
+    Ep : ParameterBase, optional
+        The peak energy :math:`E_\mathrm{p}` of :math:`\nu F_\nu`,
+        in units of keV.
+    K : ParameterBase, optional
+        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    method : {'trapz', 'simpson'}, optional
+        Numerical integration method. Defaults to 'trapz'.
+
+    References
+    ----------
+    .. [1] `Band, D., et al. 1993, ApJ, 413, 281
+           <https://adsabs.harvard.edu/full/1993ApJ...413..281B>`__
+
+    """
+
+    _config = (
+        ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 5.0),
+        ParamConfig('beta', r'\beta', '', -2.0, -10.0, 10.0),
+        ParamConfig('Ep', r'E_\mathrm{p}', 'keV', 300.0, 10.0, 1e4),
+        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+    )
+
+    @staticmethod
+    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        alpha = params['alpha']
+        beta = params['beta']
+        Ep = params['Ep']
+        K = params['K']
+
+        e0 = 100.0
+
+        Ec = Ep / (2.0 + alpha)
+        Ebreak = (alpha - beta) * Ec
+
+        # workaround for beta > alpha, as in XSPEC
+        amb_ = alpha - beta
+        inv_Ec = 1.0 / Ec
+        amb = jnp.where(jnp.less(amb_, inv_Ec), inv_Ec, amb_)
+
+        log = jnp.where(
+            jnp.less(egrid, Ebreak),
+            alpha * jnp.log(egrid / e0) - egrid / Ec,
+            amb * jnp.log(amb * Ec / e0) - amb + beta * jnp.log(egrid / e0),
+        )
+
+        return K * jnp.exp(log)
 
 
 class Blackbody(NumIntAdditive):
@@ -124,151 +269,6 @@ class BlackbodyRad(NumIntAdditive):
             ),
         )
         # return 1.0344e-3 * K * e*e / jnp.expm1(e / kT)
-
-
-class Band(NumIntAdditive):
-    r"""Gamma-ray burst continuum developed by Band et al. (1993) [1]_.
-
-    .. math::
-        N(E) = K
-        \begin{cases}
-        \bigl(\frac{E}{E_0}\bigr)^\alpha
-            \exp\bigl(-\frac{E}{E_\mathrm{c}}\bigr),
-            &\text{if } E < (\alpha-\beta) E_\mathrm{c},
-        \\\\
-        \left[\frac{(\alpha-\beta)E_\mathrm{c}}{E_0}\right]^{\alpha-\beta}
-            \exp(\beta-\alpha) \bigl(\frac{E}{E_0}\bigr)^\beta,
-            &\text{otherwise,}
-        \end{cases}
-
-    where :math:`E_0` is the pivot energy fixed at 100 keV.
-
-    Parameters
-    ----------
-    alpha : ParameterBase, optional
-        The low-energy power law index :math:`\alpha`, dimensionless.
-    beta : ParameterBase, optional
-        The high-energy power law index :math:`\beta`, dimensionless.
-    Ec : ParameterBase, optional
-        The characteristic energy :math:`E_\mathrm{c}`, in units of keV.
-    K : ParameterBase, optional
-        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
-    latex : str, optional
-        :math:`\LaTeX` format of the component. Defaults to class name.
-    method : {'trapz', 'simpson'}, optional
-        Numerical integration method. Defaults to 'trapz'.
-
-    References
-    ----------
-    .. [1] `Band, D., et al. 1993, ApJ, 413, 281
-           <https://adsabs.harvard.edu/full/1993ApJ...413..281B>`_
-
-    """
-
-    _config = (
-        ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 5.0),
-        ParamConfig('beta', r'\beta', '', -2.0, -10.0, 10.0),
-        ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 300.0, 10.0, 1e4),
-        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
-    )
-
-    @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
-        alpha = params['alpha']
-        beta = params['beta']
-        Ec = params['Ec']
-        K = params['K']
-
-        e0 = 100.0
-
-        # workaround for beta > alpha, as in XSPEC
-        amb_ = alpha - beta
-        inv_Ec = 1.0 / Ec
-        amb = jnp.where(jnp.less(amb_, inv_Ec), inv_Ec, amb_)
-        Ebreak = Ec * amb
-
-        log = jnp.where(
-            jnp.less(egrid, Ebreak),
-            alpha * jnp.log(egrid / e0) - egrid / Ec,
-            amb * jnp.log(amb * Ec / e0) - amb + beta * jnp.log(egrid / e0),
-        )
-
-        return K * jnp.exp(log)
-
-
-class BandEp(NumIntAdditive):
-    r"""Gamma-ray burst continuum developed by Band et al. (1993) [1]_,
-    parametrized by the peak of :math:`\nu F_\nu`.
-
-    .. math::
-        N(E) = K
-        \begin{cases}
-        \bigl(\frac{E}{E_0}\bigr)^\alpha
-            \exp\left[-\frac{(2+\alpha)E}{E_\mathrm{p}}\right],
-            &\text{if } E < \frac{(\alpha-\beta)E_\mathrm{p}}{2+\alpha},
-        \\\\
-        \left[\frac{(\alpha-\beta)E_\mathrm{p}}{(2+\alpha)E_0}\right]
-            ^{\alpha-\beta}
-            \exp(\beta-\alpha)\bigl(\frac{E}{E_0}\bigr)^\beta,
-            &\text{otherwise},
-        \end{cases}
-
-    where :math:`E_0` is the pivot energy fixed at 100 keV.
-
-    Parameters
-    ----------
-    alpha : ParameterBase, optional
-        The low-energy power law index :math:`\alpha`, dimensionless.
-    beta : ParameterBase, optional
-        The high-energy power law index :math:`\beta`, dimensionless.
-    Ep : ParameterBase, optional
-        The peak energy :math:`E_\mathrm{p}` of :math:`\nu F_\nu`,
-        in units of keV.
-    K : ParameterBase, optional
-        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
-    latex : str, optional
-        :math:`\LaTeX` format of the component. Defaults to class name.
-    method : {'trapz', 'simpson'}, optional
-        Numerical integration method. Defaults to 'trapz'.
-
-    References
-    ----------
-    .. [1] `Band, D., et al. 1993, ApJ, 413, 281
-           <https://adsabs.harvard.edu/full/1993ApJ...413..281B>`_
-
-    """
-
-    _config = (
-        ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 5.0),
-        ParamConfig('beta', r'\beta', '', -2.0, -10.0, 10.0),
-        ParamConfig('Ep', r'E_\mathrm{p}', 'keV', 300.0, 10.0, 1e4),
-        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
-    )
-
-    @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
-        alpha = params['alpha']
-        beta = params['beta']
-        Ep = params['Ep']
-        K = params['K']
-
-        e0 = 100.0
-
-        Ec = Ep / (2.0 + alpha)
-        Ebreak = (alpha - beta) * Ec
-
-        # workaround for beta > alpha, as in XSPEC
-        amb_ = alpha - beta
-        inv_Ec = 1.0 / Ec
-        amb = jnp.where(jnp.less(amb_, inv_Ec), inv_Ec, amb_)
-
-        log = jnp.where(
-            jnp.less(egrid, Ebreak),
-            alpha * jnp.log(egrid / e0) - egrid / Ec,
-            amb * jnp.log(amb * Ec / e0) - amb + beta * jnp.log(egrid / e0),
-        )
-
-        return K * jnp.exp(log)
 
 
 class BrokenPL(AnaIntAdditive):
@@ -467,7 +467,7 @@ class OTTS(NumIntAdditive):
     References
     ----------
     .. [1] `Liang, E. P., et al., 1983, ApJ, 271, 776
-           <https://adsabs.harvard.edu/full/1983ApJ...271..766L>`_
+           <https://adsabs.harvard.edu/full/1983ApJ...271..766L>`__
 
     """
 

@@ -19,8 +19,7 @@ from elisa.data.grouping import (
 )
 from elisa.util.typing import NumPyArray as NDArray
 
-__all__ = ['Data', 'Spectrum', 'Response']
-# TODO: support multiple sources
+# TODO: support multiple sources in a single data object
 # TODO: support creating Data object from array
 
 
@@ -53,14 +52,17 @@ class Data:
     group : str or None, optional
         Method to group spectrum and background adaptively, these options are
         available so that each channel group has:
-            * const: `scale` number channels
-            * min: counts >= `scale` for src + bkg
-            * sig: src significance >= `scale`-sigma
-            * opt: optimal binning, see Kaastra & Bleeker (2016) [3]_
-            * optmin: opt with counts >= `scale` for src + bkg
-            * optsig: opt with src significance >= `scale`-sigma
-            * bmin: counts >= `scale` for bkg (useful for wstat)
-            * bpos: bkg < 0 with probability < `scale` (useful for pgstat)
+
+            * 'const': `scale` number channels
+            * 'min': counts >= `scale` for src + bkg
+            * 'sig': src significance >= `scale`-sigma
+            * 'opt': optimal binning, see Kaastra & Bleeker (2016) [3]_
+            * 'optmin': opt with counts >= `scale` for src + bkg
+            * 'optsig': opt with src significance >= `scale`-sigma
+            * 'bmin': counts >= `scale` for bkg (useful for wstat)
+            * 'bpos': bkg < 0 with probability < `scale` (useful for pgstat)
+
+        The default is None.
     scale : float or None, optional
         Grouping scale. Only takes effect if `group` is not None.
     spec_poisson : bool or None, optional
@@ -74,11 +76,13 @@ class Data:
     ignore_bad : bool, optional
         Whether to ignore channels with ``QUALITY==5``.
         The default is True. The possible values for spectral ``QUALITY`` are
+
             *  0: good
             *  1: defined bad by software
             *  2: defined dubious by software
             *  5: defined bad by user
             * -1: reason for bad flag unknown
+
     record_channel : bool, optional
         Whether to record channel information in the label of grouped
         channel. Only takes effect if `group` is not None or spectral data
@@ -96,12 +100,12 @@ class Data:
 
     References
     ----------
-    .. [1] `The OGIP Spectral File Format <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html>`_
-            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html>`_
+    .. [1] `The OGIP Spectral File Format <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html>`__
+            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html>`__
     .. [2] `The Calibration Requirements for Spectral Analysis (Definition of
-            RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`_
-            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`_
-    .. [3] `Kaastra & Bleeker 2016, A&A, 587, A151 <https://doi.org/10.1051/0004-6361/201527395>`_
+            RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`__
+            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`__
+    .. [3] `Kaastra & Bleeker 2016, A&A, 587, A151 <https://doi.org/10.1051/0004-6361/201527395>`__
 
     """
 
@@ -287,14 +291,16 @@ class Data:
         method : str
             Method to group spectrum and background adaptively, these options
             are available so that each channel group has:
-                * const: `scale` number channels
-                * min: counts >= `scale` for src + bkg
-                * sig: src significance >= `scale`-sigma
-                * opt: optimal binning, see Kaastra & Bleeker (2016, A&A)
-                * optmin: opt with counts >= `scale` for src + bkg
-                * optsig: opt with src significance >= `scale`-sigma
-                * bmin: counts >= `scale` for bkg (useful for W-stat)
-                * bpos: bkg < 0 with probability < `scale` (useful for PG-stat)
+
+                * 'const': `scale` number channels
+                * 'min': counts >= `scale` for src + bkg
+                * 'sig': src significance >= `scale`-sigma
+                * 'opt': optimal binning, see Kaastra & Bleeker (2016, A&A)
+                * 'optmin': opt with counts >= `scale` for src + bkg
+                * 'optsig': opt with src significance >= `scale`-sigma
+                * 'bmin': counts >= `scale` for bkg (useful for W-stat)
+                * 'bpos': bkg<0 with probability < `scale` (useful for PG-stat)
+
         scale : float
             Grouping scale.
 
@@ -624,8 +630,8 @@ class Spectrum:
 
     References
     ----------
-    .. [1] `The OGIP Spectral File Format <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html>`_
-            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html>`_
+    .. [1] `The OGIP Spectral File Format <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html>`__
+            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html>`__
 
     """
 
@@ -962,8 +968,8 @@ class Response:
     References
     ----------
     .. [1] `The Calibration Requirements for Spectral Analysis (Definition of
-            RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`_
-            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`_
+            RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`___
+            and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`__
 
     """
 

@@ -41,12 +41,14 @@ def make_integral_factory(
     method : {'quadgk', 'quadcc', 'quadts', 'romberg', 'rombergts'}, optional
         Numerical integration method used to integrate over the parameter.
         Available options are:
+
             * 'quadgk' : global adaptive quadrature with Gauss-Konrod rule
             * 'quadcc' : global adaptive quadrature with Clenshaw-Curtis rule
             * 'quadts' : global adaptive quadrature with trapz tanh-sinh rule
             * 'romberg' : Romberg integration
             * 'rombergts' : Romberg integration with tanh-sinh (a.k.a. double
               exponential) transformation
+
         The default is 'quadgk'.
     kwargs : dict, optional
         Extra kwargs passed to integration methods. See [1]_ for details.
@@ -59,8 +61,7 @@ def make_integral_factory(
 
     References
     ----------
-    .. [1] `quadax docs <https://quadax.readthedocs.io/en/latest/api.html
-            #adaptive-integration-of-a-callable-function-or-method>`_
+    .. [1] `quadax docs <https://quadax.readthedocs.io/en/latest/api.html#adaptive-integration-of-a-callable-function-or-method>`__
 
     """
     if method not in _QUAD_FN:

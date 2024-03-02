@@ -5,6 +5,33 @@ import numpy as np
 from jax import Array
 from jax.typing import ArrayLike
 
+__all__ = [
+    'PyFloat',
+    'JAXFloat',
+    'Float',
+    'PRNGKey',
+    'NumPyArray',
+    'JAXArray',
+    'Array',
+    'ArrayLike',
+    'CompID',
+    'CompName',
+    'CompParamName',
+    'ParamID',
+    'ParamName',
+    'NameValMapping',
+    'CompIDParamValMapping',
+    'CompIDStrMapping',
+    'ParamIDStrMapping',
+    'ParamIDValMapping',
+    'CompEval',
+    'ConvolveEval',
+    'ModelEval',
+    'ModelCompiledFn',
+    'NameLaTeX',
+    'AdditiveFn',
+]
+
 T = TypeVar('T')
 
 PyFloat = Union[float, np.inexact]  # must include 0-d NDArray with float dtype

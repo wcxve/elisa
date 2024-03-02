@@ -23,7 +23,6 @@ from numpyro.infer import Predictive
 from numpyro.infer.reparam import Reparam
 from numpyro.infer.util import _guess_max_plate_nesting, _validate_model, log_density
 
-__all__ = ["NestedSampler"]
 
 tfpd = tfp.distributions
 

@@ -44,8 +44,12 @@ xspec = ["xspex"]
 test = ["pytest", "pytest-cov", "coverage[toml]"]
 docs = [
     "sphinx",
-    "sphinx_rtd_theme",
-    "numpydoc"
+    "sphinx-autodoc-typehints",
+    "sphinx-book-theme",
+    "sphinx-copybutton",
+    "sphinx-design",
+    "myst-nb",
+    "numpydoc",
 ]
 dev = ["pre-commit>=3.6.0", "ruff"]
 

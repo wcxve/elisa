@@ -6,7 +6,7 @@ build:
     python: "3.9"
   jobs:
     pre_build:
-     - sphinx-apidoc -e -o docs/apidoc src/elisa
+     - sphinx-apidoc -e -o -T docs/apidoc src/elisa
 
 sphinx:
   configuration: docs/conf.py

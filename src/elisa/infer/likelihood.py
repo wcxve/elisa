@@ -41,7 +41,7 @@ def pgstat_background(
 
     References
     ----------
-    .. [1] `XSPEC Manual Appendix B: Statistics in XSPEC <https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html>`_.
+    .. [1] `XSPEC Manual Appendix B: Statistics in XSPEC <https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html>`__.
 
     """
     variance = b_err * b_err

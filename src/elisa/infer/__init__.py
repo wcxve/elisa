@@ -1,3 +1,4 @@
-from .fit import BayesianFit, LikelihoodFit
-
-__all__ = ['BayesianFit', 'LikelihoodFit']
+from .fit import (
+    BayesianFit as BayesianFit,
+    LikelihoodFit as LikelihoodFit,
+)
