@@ -26,7 +26,7 @@ dependencies = [
     "corner>=2.2.2",
     "iminuit",
     "jax",
-    "jaxns>=2.3.4",
+    "jaxns>=2.4.8",
     "jaxopt",
     "numpy",
 #    "numpy<=1.24.4 ; sys_platform != 'darwin' or platform_machine != 'arm64'",
@@ -89,14 +89,12 @@ ignore = [
     "E731",  # allow lambda functions
 ]
 ignore-init-module-imports = true
-extend-select = ["Q"]
+extend-exclude = ["src/elisa/infer/nested_sampling.py"]
 extend-include = ["*.ipynb"]
+extend-select = ["Q"]
 flake8-quotes.inline-quotes = "single"
 isort.known-first-party = ["elisa"]
 isort.combine-as-imports = true
-
-[tool.ruff.lint.per-file-ignores]
-"nested_sampling.py" = ["E501"]
 
 [tool.coverage.run]
 parallel = true
@@ -112,7 +110,5 @@ omit = [
 source = ["src", "*/site-packages"]
 
 [tool.coverage.report]
-omit = [
-    "src/elisa/infer/nested_sampling.py",
-]
+omit = ["src/elisa/infer/nested_sampling.py"]
 show_missing = true
