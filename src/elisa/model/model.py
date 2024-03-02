@@ -286,7 +286,7 @@ class CompiledModel:
         self._pname_to_pid = {
             model_info.name[pid]: pid for pid in model_info.sample
         }
-        self._nparams = len(model_info.sample)
+        self._nparam = len(model_info.sample)
 
         self.__initialized = True
 
@@ -295,24 +295,12 @@ class CompiledModel:
         """Model type."""
         return self._type
 
-    def _eval_comps(
-        self,
-        egrid: JAXArray,
-        params: ParamIDValMapping,
-        id_to_label: CompIDStrMapping | None = None,
-    ) -> dict[str, JAXArray]:
-        """Evaluate additive components."""
-        if self.type != 'add':
-            raise RuntimeError(f'{self} cannot evaluate additive components')
-
-        return ...
-
     def _prepare_eval(self, params: Sequence | Mapping | None):
         """Check if `params` is valid for the model."""
         if isinstance(params, Sequence):
-            if len(params) != self._nparams:
+            if len(params) != self._nparam:
                 raise ValueError(
-                    f'got {len(params)} params, expected {self._nparams}'
+                    f'got {len(params)} params, expected {self._nparam}'
                 )
 
             params = [jnp.asarray(p, float) for p in params]
@@ -372,7 +360,7 @@ class CompiledModel:
 
         Returns
         -------
-        value : JAXArray
+        value : jax.Array
             The model value.
 
         """
@@ -399,7 +387,7 @@ class CompiledModel:
 
         Returns
         -------
-        ne : JAXArray, or dict[str, JAXArray]
+        ne : jax.Array, or dict[str, jax.Array]
             The differential photon flux in units of cm⁻² s⁻¹ keV⁻¹.
 
         """
@@ -441,7 +429,7 @@ class CompiledModel:
 
         Returns
         -------
-        ene : JAXArray, or dict[str, JAXArray]
+        ene : jax.Array, or dict[str, jax.Array]
             The differential energy flux in units of erg cm⁻² s⁻¹ keV⁻¹.
 
         """
@@ -486,7 +474,7 @@ class CompiledModel:
 
         Returns
         -------
-        eene : JAXArray or dict[str, JAXArray]
+        eene : jax.Array, or dict[str, jax.Array]
             The energy flux in units of erg cm⁻² s⁻¹.
 
         """
@@ -537,7 +525,7 @@ class CompiledModel:
 
         Returns
         -------
-        ce : JAXArray or dict[str, JAXArray]
+        ce : jax.Array, or dict[str, jax.Array]
             The folded model in units of s⁻¹ keV⁻¹.
 
         """
@@ -575,9 +563,9 @@ class CompiledModel:
 
         Warnings
         --------
-        The flux is calculated by trapzoidal rule, which may not be accurate
+        The flux is calculated by trapezoidal rule, which may not be accurate
         if not enough energy bins are used when the difference between
-        `emin` and emax` is large.
+        `emin` and `emax` is large.
 
         Parameters
         ----------
@@ -602,7 +590,7 @@ class CompiledModel:
 
         Returns
         -------
-        flux : JAXArray or dict[str, JAXArray]
+        flux : jax.Array, or dict[str, jax.Array]
             The model flux.
 
         """
@@ -674,7 +662,7 @@ class Model(ModelBase):
 
 
 class CompositeModel(ModelBase):
-    """Model defined by sum or product of two components."""
+    """Model defined by sum or product of two models."""
 
     _operands: tuple[ModelBase, ModelBase]
     _op: Callable[[JAXArray, JAXArray], JAXArray]
@@ -1102,6 +1090,7 @@ class AnalyticalIntegral(ComponentBase):
     @staticmethod
     @abstractmethod
     def integral(*args, **kwargs) -> JAXArray:
+        """Calculate the model value over grid."""
         pass
 
 
@@ -1135,6 +1124,7 @@ class NumericalIntegral(ComponentBase):
         if self.method == 'trapz':
 
             def fn(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+                """Numerical integration using trapezoidal rule."""
                 if mtype == 'add':
                     factor = 0.5 * (egrid[1:] - egrid[:-1])
                 else:
@@ -1145,6 +1135,7 @@ class NumericalIntegral(ComponentBase):
         elif self.method == 'simpson':
 
             def fn(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+                """Numerical integration using Simpson's 1/3 rule."""
                 if mtype == 'add':
                     factor = (egrid[1:] - egrid[:-1]) / 6.0
                 else:
@@ -1162,6 +1153,7 @@ class NumericalIntegral(ComponentBase):
     @staticmethod
     @abstractmethod
     def continnum(*args, **kwargs) -> JAXArray:
+        """Calculate the model value at the energy grid."""
         pass
 
     @property
@@ -1351,6 +1343,7 @@ class ConvolvedModel(ModelBase):
         _model_fn = self._model.eval
 
         def fn(egrid: JAXArray, params: CompIDParamValMapping) -> JAXArray:
+            """The convolved model evaluation function."""
             return _fn(egrid, params[comp_id], lambda e: _model_fn(e, params))
 
         return fn
