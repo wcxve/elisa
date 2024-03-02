@@ -105,12 +105,14 @@ source = ["elisa"]
 omit = [
     "docs/*",
     "tests/*",
-    "*__init__*",
-    "src/elisa/infer/nested_sampling.py",
+    "*__init__*"
 ]
 
 [tool.coverage.paths]
 source = ["src", "*/site-packages"]
 
 [tool.coverage.report]
+omit = [
+    "src/elisa/infer/nested_sampling.py",
+]
 show_missing = true
