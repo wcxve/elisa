@@ -5,5 +5,4 @@ Welcome to elisa's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   quick-start
    modules
