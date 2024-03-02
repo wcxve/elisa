@@ -51,7 +51,7 @@ class BaseFit(ABC):
     data : Data or sequence of Data
         The observation data.
     model : Model or sequence of Model
-        The model used  to fit the data.
+        The model used to fit the data.
     stat : str or sequence of str
         The likelihood option for the data and model. Available likelihood
         options are:
