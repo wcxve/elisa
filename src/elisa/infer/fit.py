@@ -54,11 +54,11 @@ class BaseFit(ABC):
         The likelihood option for the data and model. Available likelihood
         options are:
 
-            * 'chi2' : Gaussian data
-            * 'cstat' : Poisson data
-            * 'pstat' : Poisson data with known background
-            * 'pgstat' : Poisson data with Gaussian background
-            * 'wstat' : Poisson data with Poisson background
+            * 'chi2': Gaussian data
+            * 'cstat': Poisson data
+            * 'pstat': Poisson data with known background
+            * 'pgstat': Poisson data with Gaussian background
+            * 'wstat': Poisson data with Poisson background
 
     seed : int, optional
         Random number generator seed. The default is 42.
