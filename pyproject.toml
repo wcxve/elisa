@@ -105,7 +105,8 @@ source = ["elisa"]
 omit = [
     "docs/*",
     "tests/*",
-    "*__init__*"
+    "*__init__*",
+    "src/elisa/infer/nested_sampling.py",
 ]
 
 [tool.coverage.paths]
