@@ -8,14 +8,13 @@ from typing import Any, Callable, Literal, NamedTuple, get_args
 import jax.numpy as jnp
 from numpyro.distributions import Distribution, LogUniform, Uniform
 
+# from tinygp import kernels, means, noise
 from elisa.util.integrate import (
     AdaptQuadMethod,
     IntegralFactory,
     make_integral_factory,
 )
 from elisa.util.misc import build_namespace
-
-# from tinygp import kernels, means, noise
 from elisa.util.typing import (
     CompID,
     CompParamName,
@@ -25,16 +24,6 @@ from elisa.util.typing import (
     ParamIDStrMapping,
     ParamIDValMapping,
 )
-
-__all__ = [
-    'ParameterBase',
-    'Parameter',
-    'UniformParameter',
-    'ConstantValue',
-    'ConstantInterval',
-    'CompositeParameter',
-    # 'GPParameter',
-]
 
 
 class AssignmentTracker:

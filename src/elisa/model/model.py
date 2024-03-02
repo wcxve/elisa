@@ -37,16 +37,6 @@ from elisa.util.typing import (
     T,
 )
 
-__all__ = [
-    'AdditiveComponent',
-    'MultiplicativeComponent',
-    'ConvolutionComponent',
-    'AnaIntAdditive',
-    'NumIntAdditive',
-    'AnaIntMultiplicative',
-    'NumIntMultiplicative',
-]
-
 
 class ModelBase(metaclass=ABCMeta):
     """Base model class."""
@@ -582,6 +572,12 @@ class CompiledModel:
         log: bool = True,
     ) -> jax.Array | dict[str, jax.Array]:
         r"""Calculate the flux of model between `emin` and `emax`.
+
+        Warnings
+        --------
+        The flux is calculated by trapzoidal rule, which may not be accurate
+        if not enough energy bins are used when the difference between
+        `emin` and emax` is large.
 
         Parameters
         ----------
