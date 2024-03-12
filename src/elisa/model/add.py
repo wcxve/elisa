@@ -1,4 +1,5 @@
 """Additive models."""
+
 from __future__ import annotations
 
 import jax.numpy as jnp

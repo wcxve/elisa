@@ -1,4 +1,5 @@
 """Subsequent analysis of likelihood or Bayesian fit."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -388,8 +389,7 @@ class MLEResult:
 
     def plot_data(
         self, plots='data ldata chi pchi deviance pit ne ene eene fv vfv'
-    ):
-        ...
+    ): ...
 
     def plot_corner(self):
         # correlation map or bootstrap distribution

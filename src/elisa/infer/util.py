@@ -1,4 +1,5 @@
 """Helper functions for inference module."""
+
 from __future__ import annotations
 
 

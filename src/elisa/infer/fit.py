@@ -1,4 +1,5 @@
 """Model fit in maximum likelihood or Bayesian way."""
+
 from __future__ import annotations
 
 import time
