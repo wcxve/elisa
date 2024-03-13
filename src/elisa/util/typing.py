@@ -24,6 +24,7 @@ __all__ = [
     'CompIDStrMapping',
     'ParamIDStrMapping',
     'ParamIDValMapping',
+    'ParamNameValMapping',
     'CompEval',
     'ConvolveEval',
     'ModelEval',
@@ -53,6 +54,7 @@ CompIDParamValMapping = dict[CompID, NameValMapping]
 CompIDStrMapping = dict[CompID, str]
 ParamIDStrMapping = dict[ParamID, str]
 ParamIDValMapping = dict[ParamID, JAXFloat]
+ParamNameValMapping = dict[ParamName, JAXFloat]
 CompEval = Callable[[JAXArray, NameValMapping], JAXArray]
 ConvolveEval = Callable[
     [JAXArray, NameValMapping, Callable[[JAXArray], JAXArray]], JAXArray
