@@ -42,14 +42,14 @@ def make_integral_factory(
         Numerical integration method used to integrate over the parameter.
         Available options are:
 
-            * 'quadgk' : global adaptive quadrature with Gauss-Konrod rule
-            * 'quadcc' : global adaptive quadrature with Clenshaw-Curtis rule
-            * 'quadts' : global adaptive quadrature with trapz tanh-sinh rule
-            * 'romberg' : Romberg integration
-            * 'rombergts' : Romberg integration with tanh-sinh (a.k.a. double
-              exponential) transformation
+            * ``'quadgk'``: global adaptive quadrature by Gauss-Konrod rule
+            * ``'quadcc'``: global adaptive quadrature by Clenshaw-Curtis rule
+            * ``'quadts'``: global adaptive quadrature by trapz tanh-sinh rule
+            * ``'romberg'``: Romberg integration
+            * ``'rombergts'``: Romberg integration by tanh-sinh
+              (a.k.a. double exponential) transformation
 
-        The default is 'quadgk'.
+        The default is ``'quadgk'``.
     kwargs : dict, optional
         Extra kwargs passed to integration methods. See [1]_ for details.
 
@@ -90,8 +90,8 @@ def make_integral_factory(
             """New model_fn with interval param being integrated out."""
             args = (egrid, params)
             quad_result = quad(integrand, interval, args, **kwargs)[0]
-            # when the integrand is independent of the interval parameter,
-            # the result is unaffected due to the 1/(b-a) factor
+            # if the integrand is independent of the interval parameter,
+            # then the result is the same due to the 1/(b-a) factor
             return quad_result / (interval[1] - interval[0])
 
         return integral
