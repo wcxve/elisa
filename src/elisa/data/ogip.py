@@ -19,7 +19,7 @@ from elisa.data.grouping import (
 )
 from elisa.util.typing import NumPyArray as NDArray
 
-# TODO: support multiple sources in a single data object
+# TODO: support multiple response in a single data object
 # TODO: support creating Data object from array
 
 
@@ -53,14 +53,15 @@ class Data:
         Method to group spectrum and background adaptively, these options are
         available so that each channel group has:
 
-            * 'const': `scale` number channels
-            * 'min': counts >= `scale` for src + bkg
-            * 'sig': src significance >= `scale`-sigma
-            * 'opt': optimal binning, see Kaastra & Bleeker (2016) [3]_
-            * 'optmin': opt with counts >= `scale` for src + bkg
-            * 'optsig': opt with src significance >= `scale`-sigma
-            * 'bmin': counts >= `scale` for bkg (useful for wstat)
-            * 'bpos': bkg < 0 with probability < `scale` (useful for pgstat)
+            * ``'const'``: `scale` number channels
+            * ``'min'``: counts >= `scale` for src + bkg
+            * ``'sig'``: src significance >= `scale`-sigma
+            * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [3]_
+            * ``'optmin'``: opt with counts >= `scale` for src + bkg
+            * ``'optsig'``: opt with src significance >= `scale`-sigma
+            * ``'bmin'``: counts >= `scale` for bkg, useful for ``wstat``
+            * ``'bpos'``: bkg < 0 with probability < `scale`, useful for
+              ``pgstat``
 
         The default is None.
     scale : float or None, optional
@@ -77,11 +78,11 @@ class Data:
         Whether to ignore channels with ``QUALITY==5``.
         The default is True. The possible values for spectral ``QUALITY`` are
 
-            *  0: good
-            *  1: defined bad by software
-            *  2: defined dubious by software
-            *  5: defined bad by user
-            * -1: reason for bad flag unknown
+            * ``0``: good
+            * ``1``: defined bad by software
+            * ``2``: defined dubious by software
+            * ``5``: defined bad by user
+            * ``-1``: reason for bad flag unknown
 
     record_channel : bool, optional
         Whether to record channel information in the label of grouped
@@ -238,14 +239,8 @@ class Data:
         self._ch_error = None
         self._resp_matrix = None
 
-        # NOTE:
-        # grouping of area or background scale is not supported currently,
-        # so we hard code effexpo here, but it should be moved into _set_data
-        # once grouping of area/background scale is implemented.
-
         # spectrum attributes
         self._spec_exposure = spec.exposure
-        self._spec_effexpo = spec.exposure * spec.area_scale * spec.back_scale
         self._spec_poisson = spec.poisson
         self._spec_counts = None
         self._spec_error = None
@@ -255,14 +250,14 @@ class Data:
         # background attributes
         if self._has_back:
             self._back_exposure = back.exposure
-            self._back_effexpo = (
-                back.exposure * back.area_scale * back.back_scale
-            )
             self._back_poisson = back.poisson
+            self._back_ratio = (
+                spec.exposure * spec.area_scale * spec.back_scale
+            ) / (back.exposure * back.area_scale * back.back_scale)
         else:
             self._back_exposure = None
-            self._back_effexpo = None
             self._back_poisson = None
+            self._back_ratio = None
         self._back_counts = None
         self._back_error = None
 
@@ -284,7 +279,7 @@ class Data:
             self._set_data(spec.grouping)
 
     def group(self, method: str, scale: float | int):
-        """Group the spectrum adaptively.
+        """Group the spectrum.
 
         Parameters
         ----------
@@ -292,14 +287,15 @@ class Data:
             Method to group spectrum and background adaptively, these options
             are available so that each channel group has:
 
-                * 'const': `scale` number channels
-                * 'min': counts >= `scale` for src + bkg
-                * 'sig': src significance >= `scale`-sigma
-                * 'opt': optimal binning, see Kaastra & Bleeker (2016, A&A)
-                * 'optmin': opt with counts >= `scale` for src + bkg
-                * 'optsig': opt with src significance >= `scale`-sigma
-                * 'bmin': counts >= `scale` for bkg (useful for W-stat)
-                * 'bpos': bkg<0 with probability < `scale` (useful for PG-stat)
+            * ``'const'``: `scale` number channels
+            * ``'min'``: counts >= `scale` for src + bkg
+            * ``'sig'``: src significance >= `scale`-sigma
+            * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [1]_
+            * ``'optmin'``: opt with counts >= `scale` for src + bkg
+            * ``'optsig'``: opt with src significance >= `scale`-sigma
+            * ``'bmin'``: counts >= `scale` for bkg (useful for ``wstat``)
+            * ``'bpos'``: bkg < 0 with probability < `scale`, useful for
+              ``pgstat``
 
         scale : float
             Grouping scale.
@@ -321,6 +317,10 @@ class Data:
         inconsistency in a spectral plot. That is to say, the error bar of a
         channel group will cover these bad channels, whilst these bad channels
         are never used in fitting.
+
+        References
+        ----------
+        .. [1] `Kaastra & Bleeker 2016, A&A, 587, A151 <https://doi.org/10.1051/0004-6361/201527395>`__
 
         """
         ch_emin, ch_emax = self._resp._raw_channel_egrid.T
@@ -406,15 +406,16 @@ class Data:
         self._resp.group(grouping, self._good_quality)
         self._grouping = grouping
 
+        ch = self._spec._header.get('CHANTYPE', 'Ch')
         if self._record_channel:
             groups_channel = np.array(
-                [f'{self.name}_Ch{"+".join(c)}' for c in self._resp.channel]
+                [f'{self.name}_{ch}_{"+".join(c)}' for c in self._resp.channel]
             )
         else:
             grp_idx = np.flatnonzero(grouping == 1)  # transform to index
             non_empty = np.add.reduceat(self._good_quality, grp_idx) != 0
             groups_channel = np.array(
-                [f'{self.name}_Ch{c}' for c in np.flatnonzero(non_empty)]
+                [f'{self.name}_{ch}_{c}' for c in np.flatnonzero(non_empty)]
             )
 
         ch_emin = self._resp.ch_emin
@@ -448,10 +449,9 @@ class Data:
         # net spectrum attribute
         unit = 1.0 / (self._ch_width * self._spec_exposure)
         if self._has_back:
-            ratio = self._spec_effexpo / self._back_effexpo
-            net = self._spec_counts - ratio * self._back_counts
+            net = self._spec_counts - self._back_ratio * self._back_counts
             var = np.square(self._spec_error)
-            var += np.square(ratio * self._back_error)
+            var += np.square(self._back_ratio * self._back_error)
             net_error = np.sqrt(var)
             ce = net * unit
             ce_error = net_error * unit
@@ -515,9 +515,9 @@ class Data:
         return self._spec_exposure
 
     @property
-    def spec_effexpo(self) -> float | NDArray:
-        """Effective exposure of spectrum."""
-        return self._spec_effexpo
+    def area_factor(self) -> float | NDArray:
+        """Area scaling factor."""
+        return self._spec.area_scale
 
     @property
     def has_back(self) -> bool:
@@ -545,9 +545,9 @@ class Data:
         return self._back_exposure
 
     @property
-    def back_effexpo(self) -> float | NDArray | None:
-        """Effective exposure of background."""
-        return self._back_effexpo
+    def back_ratio(self) -> float | NDArray | None:
+        """Ratio of spectrum to background effective exposure."""
+        return self._back_ratio
 
     @property
     def net_counts(self) -> NDArray:
@@ -816,7 +816,6 @@ class Spectrum:
         self._error = self._raw_error = error
         self._grouping = grouping
         self._exposure = exposure
-        self._eff_exposure = exposure * area_scale * back_scale
         self._poisson = poisson
         self._quality = quality
 
@@ -845,6 +844,12 @@ class Spectrum:
         are never used in fitting.
 
         """
+        # TODO:
+        #   * area_scale array grouping info can be hardcode into grouped
+        #     response matrix when calculating model
+        #   * back_scale array grouping info can be ...? using average?
+        #   * net counts and model folding calculation should be re-implemented
+        #     in likelihood and helper modules
         if not () == np.shape(self.area_scale) == np.shape(self.back_scale):
             raise NotImplementedError(
                 'grouping is not implemented yet for the spectrum with '
@@ -903,11 +908,6 @@ class Spectrum:
     def exposure(self) -> float:
         """Exposure time of the spectrum, in unit of second."""
         return self._exposure
-
-    @property
-    def eff_exposure(self) -> float | NDArray:
-        """Effective exposure, corrected with area and background scaling."""
-        return self._eff_exposure
 
     @property
     def poisson(self) -> bool:
@@ -1065,8 +1065,8 @@ class Response:
                 nc = n_chan[i]  # channel number of each subset
                 e = f + nc  # end channel of each subset
                 idx = np.append(0, nc).cumsum()  # reduced idx of subsets
-                reduced_i = reduced_matrix[i]  # reduced matrix of the row
-                full_i = full_matrix[i]  # full matrix of the row
+                reduced_i = reduced_matrix[i]  # row of the reduced matrix
+                full_i = full_matrix[i]  # row of the full matrix
 
                 for j in range(n):
                     # reduced matrix of j-th channel subset
