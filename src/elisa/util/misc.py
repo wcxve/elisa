@@ -13,12 +13,104 @@ from tqdm.auto import tqdm
 
 T = TypeVar('T')
 
+_SUPERSCRIPT = dict(
+    zip(
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-=()',
+        'ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁⱽᵂᕽʸᶻᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾',
+    )
+)
+_SUBSCRIPT = dict(
+    zip(
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-=()',
+        'ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢₐᵦ𝒸𝒹ₑ𝒻𝓰ₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ𝓌ₓᵧ𝓏₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎',
+    )
+)
+
+
+def add_suffix(
+    strings: str | Sequence[str],
+    suffix: str | Sequence[str],
+    subscript: bool = True,
+    unicode: bool = False,
+    latex: bool = False,
+    mathrm: bool = False,
+) -> str | list[str]:
+    """Add suffix to a sequence of strings.
+
+    Parameters
+    ----------
+    strings : sequence of str
+        The sequence of strings.
+    suffix : sequence of str
+        The sequence of suffixes.
+    subscript : bool, optional
+        If True, add suffix as subscript, otherwise superscript.
+        The default is True.
+    latex : bool, optional
+        If True, add suffix following LaTeX format. The default is False.
+    unicode : bool, optional
+        If True, add suffix with Unicode string. The default is False.
+    mathrm : bool, optional
+        If True, add suffix in mathrm when latex is True. The default is False.
+
+    Returns
+    -------
+    str or list of str
+        The strings with suffix added.
+
+    """
+    return_list = False
+
+    if isinstance(strings, str):
+        strings = [strings]
+    else:
+        strings = list(strings)
+        return_list = True
+
+    if isinstance(suffix, str):
+        suffix = [suffix]
+    else:
+        suffix = list(suffix)
+        return_list = True
+
+    if len(strings) != len(suffix):
+        raise ValueError('length of `strings` and `suffix` must be the same')
+
+    def to_unicode(string: str):
+        """Replace suffix with unicode."""
+        if subscript:
+            return ''.join(f'{_SUBSCRIPT.get(i, i)}' for i in string)
+        else:
+            return ''.join(f'{_SUPERSCRIPT.get(i, i)}' for i in string)
+
+    if latex:
+        symbol = '_' if subscript else '^'
+        rm = r'\mathrm' if mathrm else ''
+        strings = [
+            rf'{{{i}}}{symbol}{rm}{{{j}}}' if j else i
+            for i, j in zip(strings, suffix)
+        ]
+    elif unicode:
+        strings = [
+            f'{i}{to_unicode(j)}' if j else i for i, j in zip(strings, suffix)
+        ]
+    else:
+        symbol = '_' if subscript else '^'
+        strings = [
+            f'{i}{symbol}{j}' if j else i for i, j in zip(strings, suffix)
+        ]
+
+    if return_list:
+        return strings
+    else:
+        return strings[0]
+
 
 def build_namespace(
     names: Sequence[str],
     latex: bool = False,
     prime: bool = False,
-) -> list[str]:
+) -> dict[str, list[str | int]]:
     """Build a namespace from a sequence of names.
 
     Parameters
@@ -33,17 +125,13 @@ def build_namespace(
 
     Returns
     -------
-    namespace: list of str
-        A list of non-duplicate names.
+    namespace: dict
+        A dict of non-duplicate names and suffixes in original name order.
 
     """
-    # 'ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁⱽᵂᕽʸᶻ'
-    # 'ᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ'
-    # '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾'
-    # '₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎'
     namespace = []
     names_ = []
-    suffixes = []
+    suffixes_n = []
     counter = {}
 
     for name in names:
@@ -56,19 +144,22 @@ def build_namespace(
             counter[name] += 1
             namespace.append(f'{name}#{counter[name]}')
 
-        suffixes.append(counter[name])
+        suffixes_n.append(counter[name])
 
     if prime:
-        suffixes = [i - 1 for i in suffixes]
+        suffixes = [i - 1 for i in suffixes_n]
         if latex:
             suffixes = ["'" * n for n in suffixes]
         else:
             suffixes = ['"' * (n // 2) + "'" * (n % 2) for n in suffixes]
     else:
         template = '_{%d}' if latex else '_%d'
-        suffixes = [template % n if n > 1 else '' for n in suffixes]
+        suffixes = [template % n if n > 1 else '' for n in suffixes_n]
 
-    return [name + suffix for name, suffix in zip(names_, suffixes)]
+    return {
+        'namespace': list(map(''.join, zip(names_, suffixes))),
+        'suffix_num': [str(n) if n > 1 else '' for n in suffixes_n],
+    }
 
 
 def make_pretty_table(fields: Sequence[str], rows: Sequence) -> PrettyTable:
