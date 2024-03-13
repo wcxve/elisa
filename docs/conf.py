@@ -6,16 +6,18 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
+from __future__ import annotations
+
 import pathlib
 import sys
+from datetime import datetime
 
 path = pathlib.Path(__file__)
 sys.path.append(path.parent.parent.as_posix() + '/src')
 import elisa  # noqa: E402
 
 project = 'elisa'
-copyright = '2023-2024, W.-C. Xue & contributors'
-author = 'elisa developers'
+copyright = f'2023-{datetime.now().year}, Wang-Chen Xue & contributors'
 release = elisa.__version__
 
 # -- General configuration ---------------------------------------------------
@@ -28,12 +30,12 @@ extensions = [
     'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'sphinx.ext.viewcode',
+    'numpydoc',
     'sphinx_autodoc_typehints',
     'sphinx_book_theme',
     'sphinx_copybutton',
     'sphinx_design',
     'myst_nb',
-    'numpydoc',
 ]
 
 source_suffix = {
@@ -69,6 +71,8 @@ html_theme_options = {
 # html_static_path = ['_static']
 html_baseurl = 'https://elisa-lib.readthedocs.io/en/latest/'
 
+autodoc_member_order = 'bysource'
+
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3.9', None),
     'arviz': ('https://python.arviz.org/en/stable/', None),
@@ -102,16 +106,19 @@ numpydoc_attributes_as_param_list = False
 numpydoc_class_members_toctree = False
 numpydoc_show_class_members = True
 numpydoc_show_inherited_class_members = True
+numpydoc_xref_aliases = {
+    'Data': 'elisa.data.ogip.Data',
+    'Model': 'elisa.models.model.Model',
+    'Parameter': 'elisa.models.parameter.Parameter',
+}
 numpydoc_xref_param_type = True
 numpydoc_xref_ignore = {'optional', 'type_without_description', 'BadException'}
 # Run docstring validation as part of build process
 # numpydoc_validation_checks = {"all", "GL01", "SA04", "RT03"}
 # The name of the Pygments (syntax highlighting) style to use.
+
 pygments_style = 'sphinx'
 
-numpydoc_xref_aliases = {
-    'ParameterBase': 'elisa.model.parameter.ParameterBase',
-}
-
+typehints_document_rtype = False
 typehints_use_signature = True
 typehints_use_signature_return = True
