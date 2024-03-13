@@ -1,4 +1,4 @@
-from elisa.model.parameter import UniformParameter
+from elisa.models.parameter import UniformParameter
 
 
 def test_param_name():

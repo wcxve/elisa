@@ -1,4 +1,4 @@
-from elisa.model.add import PowerLaw
+from elisa.models.add import PowerLaw
 
 
 def test_model_name():
