@@ -29,7 +29,7 @@ pip install elisa-lib
 The latest version
 
 ```console
-pip install git+https://github.com/wcxve/elisa
+pip install -U git+https://github.com/wcxve/elisa
 ```
 
 ## Documentation
