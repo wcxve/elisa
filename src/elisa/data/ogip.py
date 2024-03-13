@@ -293,7 +293,7 @@ class Data:
             * ``'const'``: `scale` number channels
             * ``'min'``: total (source + background) counts >= `scale`
             * ``'sig'``: source significance >= `scale` sigma
-            * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [3]_
+            * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [1]_
             * ``'optmin'``: optimal binning with total counts >= `scale`
             * ``'optsig'``: optimal binning with source significance >= `scale`
               sigma
