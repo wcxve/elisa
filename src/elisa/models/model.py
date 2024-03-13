@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import inspect
-from abc import ABCMeta, abstractmethod
+from abc import ABC, ABCMeta, abstractmethod
 from collections.abc import Mapping, Sequence
 from enum import Enum
 from functools import reduce
@@ -10,9 +10,10 @@ from typing import Any, Callable, Literal, NamedTuple
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from numpyro.distributions import Distribution
 
-from elisa.model.parameter import ParameterBase, ParamInfo, UniformParameter
+from elisa.models.parameter import Parameter, ParamInfo, UniformParameter
 from elisa.util.integrate import IntegralFactory
 from elisa.util.misc import build_namespace
 from elisa.util.typing import (
@@ -34,22 +35,22 @@ from elisa.util.typing import (
     ParamID,
     ParamIDStrMapping,
     ParamIDValMapping,
-    T,
+    ParamNameValMapping,
 )
 
 
-class ModelBase(metaclass=ABCMeta):
+class Model(ABC):
     """Base model class."""
 
-    _comps: tuple[ComponentBase, ...]
-    _additive_comps: tuple[ModelBase, ...]
+    _comps: tuple[Component, ...]
+    _additive_comps: tuple[Model, ...]
     __initialized: bool = False
 
     def __init__(
         self,
         name: str,
         latex: str,
-        comps: list[ComponentBase],
+        comps: list[Component],
     ):
         self._name = str(name)
         self._latex = str(latex)
@@ -57,7 +58,10 @@ class ModelBase(metaclass=ABCMeta):
         self._comps_id = tuple(comp._id for comp in comps)
 
         cid_to_cname = dict(
-            zip(self._comps_id, build_namespace([c.name for c in comps]))
+            zip(
+                self._comps_id,
+                build_namespace([c.name for c in comps])['namespace'],
+            )
         )
 
         self._cid_to_cname = cid_to_cname
@@ -69,19 +73,13 @@ class ModelBase(metaclass=ABCMeta):
 
         self.__initialized = True
 
-    def compile(
-        self,
-        comps: Sequence[ComponentBase, ...] | None = None,
-        cid_to_cname: CompIDStrMapping | None = None,
-    ) -> CompiledModel:
+    def compile(self, *, model_info: ModelInfo | None = None) -> CompiledModel:
         """Compile the model for fast evaluation.
 
         Parameters
         ----------
-        comps : sequence of ComponentBase, optional
-            Components to compile.
-        cid_to_cname : dict, optional
-            Mapping from component id to name.
+        model_info : ModelInfo, optional
+            Optional model information used to compile the model.
 
         Returns
         -------
@@ -92,35 +90,37 @@ class ModelBase(metaclass=ABCMeta):
         if self.type == 'conv':
             raise RuntimeError('cannot compile convolution model')
 
-        if comps is None and cid_to_cname is None:
-            comps = self._comps
-            cid_to_cname = self._cid_to_cname
+        if model_info is None:
+            model_info = get_model_info(self._comps, self._cid_to_cname)
         else:
-            if comps is None:
-                comps = self._comps
-            else:
-                if set(self._comps) - set(comps) != set():
-                    raise ValueError('comps must contain all components')
+            if not isinstance(model_info, ModelInfo):
+                raise TypeError('`model_info` must be a ModelInfo instance')
 
-                comps = tuple(comps)
+            if not set(self._comps_id).issubset(set(model_info.cid_to_params)):
+                raise ValueError('inconsistent model information')
 
-            cid = [c._id for c in comps]
+        # model name
+        name = self._id_to_label(model_info.cid_to_name, 'name')
 
-            if cid_to_cname is None:
-                names = build_namespace([c.name for c in comps])
-                cid_to_cname = dict(zip(cid, names))
-            else:
-                if set(cid) - set(cid_to_cname) != set():
-                    raise ValueError('cid_to_cname must contain all component')
+        # model parameter id
+        params_id = {
+            pid
+            for c in self._comps
+            for p in c.param_names
+            for pid in c[p]._nodes_id
+        }
+        params_id = tuple(params_id.intersection(model_info.sample))
 
-                cid_to_cname = dict(cid_to_cname)
-
-        model_info = get_model_info(comps, cid_to_cname)
-
+        # compiled model evaluation function
         fn = self._compile_model_fn(model_info)
         additive_fn = self._compile_additive_fn(model_info)
 
-        return CompiledModel(self.name, fn, additive_fn, model_info, self.type)
+        # model type
+        mtype = self.type
+
+        return CompiledModel(
+            name, params_id, fn, additive_fn, mtype, model_info
+        )
 
     @property
     @abstractmethod
@@ -139,7 +139,9 @@ class ModelBase(metaclass=ABCMeta):
         cid_to_latex = dict(
             zip(
                 self._comps_id,
-                build_namespace([c.latex for c in self._comps], latex=True),
+                build_namespace([c.latex for c in self._comps], latex=True)[
+                    'namespace'
+                ],
             )
         )
 
@@ -157,7 +159,7 @@ class ModelBase(metaclass=ABCMeta):
         return tuple(self._cid_to_cname.values())
 
     @property
-    def _additive_comps(self) -> tuple[ModelBase, ...]:
+    def _additive_comps(self) -> tuple[Model, ...]:
         if self.type != 'add':
             return ()
         else:
@@ -182,10 +184,10 @@ class ModelBase(metaclass=ABCMeta):
     def _compile_model_fn(self, model_info: ModelInfo) -> ModelCompiledFn:
         """Get the model evaluation function."""
         pid_to_value = {
-            comp._id: model_info.cid_pval[comp._id] for comp in self._comps
+            c._id: model_info.cid_to_params[c._id] for c in self._comps
         }
 
-        eval_fn = self.eval
+        eval_fn = jax.jit(self.eval)
 
         @jax.jit
         def fn(egrid: JAXArray, params: ParamIDValMapping) -> JAXArray:
@@ -245,22 +247,22 @@ class ModelBase(metaclass=ABCMeta):
 
         super().__setattr__(key, value)
 
-    def __getitem__(self, key: str) -> ComponentBase:
+    def __getitem__(self, key: str) -> Component:
         if key not in self._cid_to_cname.values():
             raise KeyError(key)
 
         return getattr(self, key)
 
-    def __add__(self, other: ModelBase) -> CompositeModel:
+    def __add__(self, other: Model) -> CompositeModel:
         return CompositeModel(self, other, '+')
 
-    def __radd__(self, other: ModelBase) -> CompositeModel:
+    def __radd__(self, other: Model) -> CompositeModel:
         return CompositeModel(other, self, '+')
 
-    def __mul__(self, other: ModelBase) -> CompositeModel:
+    def __mul__(self, other: Model) -> CompositeModel:
         return CompositeModel(self, other, '*')
 
-    def __rmul__(self, other: ModelBase) -> CompositeModel:
+    def __rmul__(self, other: Model) -> CompositeModel:
         return CompositeModel(other, self, '*')
 
 
@@ -272,53 +274,67 @@ class CompiledModel:
     def __init__(
         self,
         name: str,
+        params_id: tuple[ParamID, ...],
         fn: ModelCompiledFn,
         additive_fn: AdditiveFn | None,
-        model_info: ModelInfo,
         mtype: Literal['add', 'mul'],
+        model_info: ModelInfo,
     ):
+        pname_to_pid = {model_info.name[pid]: pid for pid in params_id}
         self.name = name
+        self._pname_to_pid = pname_to_pid
+        self._params_name = tuple(pname_to_pid)
+        self._params_id = params_id
+        self._params_default = dict(model_info.default)
+        self._value_sequence_to_params: Callable[
+            [Sequence[JAXFloat]], ParamIDValMapping
+        ] = jax.jit(lambda sequence: dict(zip(params_id, sequence)))
+        self._value_mapping_to_params: Callable[
+            [ParamNameValMapping], ParamIDValMapping
+        ] = jax.jit(
+            lambda mapping: {v: mapping[k] for k, v in pname_to_pid.items()}
+        )
         self._fn = fn
         self._additive_fn = additive_fn
-        self._model_info = model_info
         self._type = mtype
-
-        self._pname_to_pid = {
-            model_info.name[pid]: pid for pid in model_info.sample
-        }
-        self._nparam = len(model_info.sample)
-
+        self._model_info = model_info
+        self._nparam = len(pname_to_pid)
         self.__initialized = True
+
+    @property
+    def params_name(self) -> tuple[str, ...]:
+        """Parameter names."""
+        return self._params_name
 
     @property
     def type(self) -> Literal['add', 'mul']:
         """Model type."""
         return self._type
 
-    def _prepare_eval(self, params: Sequence | Mapping | None):
+    def _prepare_eval(self, params: ArrayLike | Sequence | Mapping | None):
         """Check if `params` is valid for the model."""
-        if isinstance(params, Sequence):
+        if isinstance(params, (np.ndarray, JAXArray, Sequence)):
             if len(params) != self._nparam:
                 raise ValueError(
                     f'got {len(params)} params, expected {self._nparam}'
                 )
 
             params = [jnp.asarray(p, float) for p in params]
-            params = dict(zip(self._pname_to_pid.values(), params))
+            params = self._value_sequence_to_params(params)
 
         elif isinstance(params, Mapping):
-            if set(params) != set(self._model_info.sample):
-                missing = set(self._model_info.sample) - set(params)
+            if not set(self.params_name).issubset(params):
+                missing = set(params) - set(self.params_name)
                 raise ValueError(f'missing parameters: {", ".join(missing)}')
 
             params = jax.tree_map(jnp.asarray, params)
-            params = {self._pname_to_pid[k]: v for k, v in params.items()}
+            params = self._value_mapping_to_params(params)
 
         elif params is None:
-            params = self._model_info.default
+            params = self._params_default
 
         else:
-            raise TypeError('params must be a sequence or a mapping')
+            raise TypeError('params must be a array, sequence or mapping')
 
         shapes = jax.tree_util.tree_flatten(
             tree=jax.tree_map(jnp.shape, params),
@@ -561,11 +577,10 @@ class CompiledModel:
     ) -> jax.Array | dict[str, jax.Array]:
         r"""Calculate the flux of model between `emin` and `emax`.
 
-        Warnings
-        --------
-        The flux is calculated by trapezoidal rule, which may not be accurate
-        if not enough energy bins are used when the difference between
-        `emin` and `emax` is large.
+        .. warning::
+            The flux is calculated by trapezoidal rule, which may not be
+            accurate if not enough energy bins are used when the difference
+            between `emin` and `emax` is large.
 
         Parameters
         ----------
@@ -636,12 +651,12 @@ class CompiledModel:
         super().__setattr__(key, value)
 
 
-class Model(ModelBase):
+class UniComponentModel(Model):
     """Model defined by a single additive or multiplicative component."""
 
-    _component: ComponentBase
+    _component: Component
 
-    def __init__(self, component: ComponentBase):
+    def __init__(self, component: Component):
         self._component = component
         super().__init__(component._id, component._id, [component])
 
@@ -654,25 +669,25 @@ class Model(ModelBase):
             """The model evaluation function"""
             return _fn(egrid, params[comp_id])
 
-        return fn
+        return jax.jit(fn)
 
     @property
     def type(self) -> Literal['add', 'mul']:
         return self._component.type
 
 
-class CompositeModel(ModelBase):
+class CompositeModel(Model):
     """Model defined by sum or product of two models."""
 
-    _operands: tuple[ModelBase, ModelBase]
+    _operands: tuple[Model, Model]
     _op: Callable[[JAXArray, JAXArray], JAXArray]
     _op_symbol: Literal['+', '*']
     _type: Literal['add', 'mul']
-    __additive_comps: tuple[ModelBase, ...] | None = None
+    __additive_comps: tuple[Model, ...] | None = None
 
-    def __init__(self, lhs: ModelBase, rhs: ModelBase, op: Literal['+', '*']):
+    def __init__(self, lhs: Model, rhs: Model, op: Literal['+', '*']):
         # check if the type of lhs and rhs are both model
-        if not (isinstance(lhs, ModelBase) and isinstance(rhs, ModelBase)):
+        if not (isinstance(lhs, Model) and isinstance(rhs, Model)):
             raise TypeError(
                 f'unsupported operand types for {op}: '
                 f"'{type(lhs).__name__}' and '{type(rhs).__name__}'"
@@ -752,10 +767,10 @@ class CompositeModel(ModelBase):
             """The model evaluation function"""
             return op(lhs(egrid, params), rhs(egrid, params))
 
-        return fn
+        return jax.jit(fn)
 
     @property
-    def _additive_comps(self) -> tuple[ModelBase, ...]:
+    def _additive_comps(self) -> tuple[Model, ...]:
         if self.__additive_comps is not None:
             return self.__additive_comps
 
@@ -827,9 +842,7 @@ class ComponentMeta(ABCMeta):
         # define __init__ method of the newly created class if necessary
         if config is not None and '__init__' not in dct:
             # signature of __init__ method
-            sig1 = [
-                f'{i[0]}: ParameterBase | float | None = None' for i in config
-            ]
+            sig1 = [f'{i[0]}: Parameter | float | None = None' for i in config]
             sig1 += ['latex: str | None = None']
 
             params = '{%s}' % ', '.join(f"'{i[0]}': {i[0]}" for i in config)
@@ -850,7 +863,7 @@ class ComponentMeta(ABCMeta):
                 f'    super(type(self), self).__init__({", ".join(sig2)})\n'
                 f'__init__.__qualname__ = "{name}.__init__"'
             )
-            exec(func_code, tmp := {'ParameterBase': ParameterBase})
+            exec(func_code, tmp := {'Parameter': Parameter})
             cls.__init__ = tmp['__init__']
 
         return cls
@@ -863,29 +876,29 @@ class ComponentMeta(ABCMeta):
         signature = inspect.signature(cls.__init__)
         cls.__signature__ = signature.replace(
             parameters=tuple(signature.parameters.values())[1:],
-            return_annotation=Model,
+            return_annotation=UniComponentModel,
         )
 
-    def __call__(cls, *args, **kwargs) -> Model | ConvolutionModel:
+    def __call__(cls, *args, **kwargs) -> UniComponentModel | ConvolutionModel:
         # return Model/ConvolutionModel after Component initialization
         component = super().__call__(*args, **kwargs)
 
         if component.type != 'conv':
-            return Model(component)
+            return UniComponentModel(component)
         else:
             return ConvolutionModel(component)
 
 
-def _param_getter(name: str) -> Callable[[ComponentBase], ParameterBase]:
-    def getter(self: ComponentBase) -> ParameterBase:
+def _param_getter(name: str) -> Callable[[Component], Parameter]:
+    def getter(self: Component) -> Parameter:
         """Get parameter."""
         return getattr(self, f'__{name}')
 
     return getter
 
 
-def _param_setter(name: str, idx: int) -> Callable[[ComponentBase, Any], None]:
-    def setter(self: ComponentBase, param: Any) -> None:
+def _param_setter(name: str, idx: int) -> Callable[[Component, Any], None]:
+    def setter(self: Component, param: Any) -> None:
         """Set parameter."""
 
         if param is not None and getattr(self, f'__{name}', None) is param:
@@ -922,7 +935,7 @@ def _param_setter(name: str, idx: int) -> Callable[[ComponentBase, Any], None]:
                 latex=cfg.latex,
             )
 
-        elif isinstance(param, ParameterBase):
+        elif isinstance(param, Parameter):
             # given parameter instance
             param = param
 
@@ -933,7 +946,7 @@ def _param_setter(name: str, idx: int) -> Callable[[ComponentBase, Any], None]:
                 f'{param} ({type(param).__name__})'
             )
 
-        prev_param: ParameterBase | None = getattr(self, f'__{name}', None)
+        prev_param: Parameter | None = getattr(self, f'__{name}', None)
         if prev_param is not None:
             prev_param._tracker.remove(self._id, name)
 
@@ -945,19 +958,34 @@ def _param_setter(name: str, idx: int) -> Callable[[ComponentBase, Any], None]:
 
 
 class ParamConfig(NamedTuple):
-    """Configuration of a uniform parameter."""
+    """Configuration of a uniform parameter for spectral component."""
 
     name: str
+    """Plain name of the parameter."""
+
     latex: str
+    r""":math:`\LaTeX` of the parameter."""
+
     unit: str
+    """Physical unit."""
+
     default: float
+    """Default value of the parameter."""
+
     min: float
+    """Minimum value of the parameter."""
+
     max: float
+    """Maximum value of the parameter."""
+
     log: bool = False
+    """Whether the parameter is parameterized in a logarithmic scale."""
+
     fixed: bool = False
+    """Whether the parameter is fixed."""
 
 
-class ComponentBase(metaclass=ComponentMeta):
+class Component(ABC, metaclass=ComponentMeta):
     """Base class to define a spectral component."""
 
     _config: tuple[ParamConfig, ...]
@@ -1028,7 +1056,7 @@ class ComponentBase(metaclass=ComponentMeta):
         # TODO: show the component name, LaTeX, type and parameters
         return self.name
 
-    def __getitem__(self, key: str) -> ParameterBase:
+    def __getitem__(self, key: str) -> Parameter:
         if key not in self.param_names:
             raise KeyError(key)
 
@@ -1053,7 +1081,7 @@ class ComponentBase(metaclass=ComponentMeta):
         super().__setattr__(key, value)
 
 
-class AdditiveComponent(ComponentBase):
+class AdditiveComponent(Component):
     """Prototype class to define an additive component."""
 
     @property
@@ -1062,7 +1090,7 @@ class AdditiveComponent(ComponentBase):
         return 'add'
 
 
-class MultiplicativeComponent(ComponentBase):
+class MultiplicativeComponent(Component):
     """Prototype class to define a multiplicative component."""
 
     @property
@@ -1071,7 +1099,7 @@ class MultiplicativeComponent(ComponentBase):
         return 'mul'
 
 
-class AnalyticalIntegral(ComponentBase):
+class AnalyticalIntegral(Component):
     """Prototype component to calculate model integral analytically."""
 
     _integral_jit: CompEval | None = None
@@ -1094,7 +1122,7 @@ class AnalyticalIntegral(ComponentBase):
         pass
 
 
-class NumericalIntegral(ComponentBase):
+class NumericalIntegral(Component):
     """Prototype component to calculate model integral numerically."""
 
     _kwargs = ('method',)
@@ -1268,14 +1296,14 @@ class NumIntMultiplicative(NumericalIntegral, MultiplicativeComponent):
         pass
 
 
-class ConvolutionModel(ModelBase):
+class ConvolutionModel(Model):
     """Model defined by a convolution component."""
 
     def __init__(self, component: ConvolutionComponent):
         self._component = component
         super().__init__(component._id, component._id, [component])
 
-    def __call__(self, model: ModelBase) -> ConvolvedModel:
+    def __call__(self, model: Model) -> ConvolvedModel:
         if model.type not in self._component._supported:
             accepted = [f"'{i}'" for i in self._component._supported]
             raise TypeError(
@@ -1296,13 +1324,13 @@ class ConvolutionModel(ModelBase):
         return 'conv'
 
 
-class ConvolvedModel(ModelBase):
+class ConvolvedModel(Model):
     """Model created by convolution."""
 
     _op: ConvolutionComponent
-    _model: ModelBase
+    _model: Model
 
-    def __init__(self, op: ConvolutionComponent, model: ModelBase):
+    def __init__(self, op: ConvolutionComponent, model: Model):
         self._op = op
         self._model = model
         name = f'{op._id}({model._name})'
@@ -1317,7 +1345,7 @@ class ConvolvedModel(ModelBase):
         super().__init__(name, latex, comps)
 
     @property
-    def _additive_comps(self) -> tuple[ModelBase, ...]:
+    def _additive_comps(self) -> tuple[Model, ...]:
         if self.__additive_comps is not None:
             return self.__additive_comps
 
@@ -1346,14 +1374,14 @@ class ConvolvedModel(ModelBase):
             """The convolved model evaluation function."""
             return _fn(egrid, params[comp_id], lambda e: _model_fn(e, params))
 
-        return fn
+        return jax.jit(fn)
 
     @property
     def type(self) -> Literal['add', 'mul']:
         return self._model.type
 
 
-class ConvolutionComponent(ComponentBase):
+class ConvolutionComponent(Component):
     """Prototype class to define a convolution component."""
 
     _supported: frozenset = frozenset({'add', 'mul'})
@@ -1395,70 +1423,17 @@ class ConvolutionComponent(ComponentBase):
         pass
 
 
-class ModelInfo(NamedTuple):
-    """Model information.
-
-    Parameters
-    ----------
-    info : tuple
-        The model parameter information.
-    name : dict
-        The mapping of parameter id to parameter name.
-    latex : dict
-        The mapping of component parameters names to LaTeX.
-    sample : dict
-        The mapping of free parameter id to numpyro Distribution.
-    default : dict
-        The mapping of free parameter id to default value.
-    deterministic : tuple
-        The id of deterministic parameters.
-    fixed : dict
-        The mapping of fixed parameter id to fixed parameter value.
-    log: dict
-        The mapping of parameter id to whether the parameter is logarithmic.
-    cid_pval : dict
-        The mapping of component id to parameter value getter function.
-    integrate : dict
-        The mapping of interval parameter id to integral operator.
-    setup : dict
-        The mapping of component parameter setup.
-
-    """
-
-    info: tuple[tuple[str, str, str, str, str, str], ...]
-    name: ParamIDStrMapping
-    latex: dict[CompParamName, str]
-    sample: dict[ParamID, Distribution]
-    default: ParamIDValMapping
-    deterministic: tuple[ParamID, ...]
-    fixed: ParamIDValMapping
-    log: dict[ParamID, bool]
-    cid_pval: dict[CompID, Callable[[ParamIDValMapping], NameValMapping]]
-    integrate: dict[ParamID, IntegralFactory]
-    setup: dict[CompParamName, tuple[ParamID, ParamSetup]]
-
-
-class ParamSetup(Enum):
-    """Model parameter setup."""
-
-    Free = 0
-    Composite = 1
-    Forwarded = 2
-    Fixed = 3
-    Integrated = 4
-
-
 def get_model_info(
-    comps: Sequence[ComponentBase],
-    cid_to_cname: CompIDStrMapping,
+    comps: Sequence[Component],
+    cid_to_name: CompIDStrMapping,
 ) -> ModelInfo:
     """Get the model information.
 
     Parameters
     ----------
-    comps : sequence of ComponentBase
+    comps : sequence of Component
         The sequence of components.
-    cid_to_cname : mapping
+    cid_to_name : mapping
         The mapping of component id to component name.
 
     Returns
@@ -1477,7 +1452,7 @@ def get_model_info(
     comp_param: dict[ParamID, tuple[CompID, CompParamName] | None] = {
         pid: tmp
         for pid, info in params_info.items()
-        if (tmp := info.tracker.comp_param(cid_to_cname.keys()))
+        if (tmp := info.tracker.get_comp_param(cid_to_name.keys()))
     }
 
     # names of non-composite params with no component assigned (aux params)
@@ -1488,25 +1463,33 @@ def get_model_info(
     }
 
     aux_names = [i.name for i in aux_params.values()]
-    aux_names = build_namespace(aux_names, prime=True)
+    aux_names = build_namespace(aux_names, prime=True)['namespace']
 
-    # name mapping of aux params
+    # name mapping from aux params id to name
     name_mapping: ParamIDStrMapping = dict(zip(aux_params.keys(), aux_names))
 
     # record name mapping of params directly assigned to a component
     name_mapping |= {
-        pid: f'{cid_to_cname[cid]}.{pname}'
+        pid: f'{cid_to_name[cid]}.{pname}'
         for pid, (cid, pname) in comp_param.items()
     }
 
     # record the LaTeX format of aux parameters
     aux_latex = [params_info[pid].latex for pid in aux_params]
-    aux_latex = build_namespace(aux_latex, latex=True, prime=True)
+    aux_latex = build_namespace(aux_latex, latex=True, prime=True)['namespace']
     latex_mapping = dict(zip(aux_params.keys(), aux_latex))
 
     # record the LaTeX format of component parameters from _config
     latex_mapping |= {
         comp[name]._id: comp._config[i].latex
+        for comp in comps
+        for (i, name) in enumerate(comp.param_names)
+    }
+
+    # TODO: record aux params unit & unit consistency check
+    # record the unit of component parameters from _config
+    unit_mapping = {
+        comp[name]._id: comp._config[i].unit
         for comp in comps
         for (i, name) in enumerate(comp.param_names)
     }
@@ -1539,7 +1522,9 @@ def get_model_info(
     }
 
     # ========== generate component parameter value getter function ===========
-    def factory1(id_to_value: T) -> T:
+    def factory1(
+        id_to_value: Callable[[ParamIDValMapping], JAXFloat],
+    ) -> Callable[[ParamIDValMapping], JAXFloat]:
         """Fill in the default parameter values for fn."""
 
         def fn(value_mapping: ParamIDValMapping) -> JAXFloat:
@@ -1551,7 +1536,7 @@ def get_model_info(
     def factory2(
         pname_to_pid: dict[CompParamName, ParamID],
     ) -> Callable[[ParamIDValMapping], NameValMapping]:
-        """Factory for component parameter value getter."""
+        """Generate component parameter value getter."""
 
         def fn(value_mapping: ParamIDValMapping) -> NameValMapping:
             """Component parameter value getter."""
@@ -1566,14 +1551,14 @@ def get_model_info(
     pid_to_value = {
         pid: factory1(params_info[pid].id_to_value) for pid in comp_param
     }
-    cid_to_pval = {
+    cid_to_params = {
         comp._id: factory2({name: comp[name]._id for name in comp.param_names})
         for comp in comps
     }
     # ========== generate component parameter value getter function ===========
 
     # record non-interval params which has a component assigned
-    deterministic = []
+    deterministic = {}
 
     # record the setup of component parameters
     setup: dict[CompParamName, (ParamID, ParamSetup)] = {}
@@ -1585,7 +1570,7 @@ def get_model_info(
 
     for comp in comps:  # iterate through components
         cid = comp._id
-        cname = cid_to_cname[cid]
+        cname = cid_to_name[cid]
         for pname in comp.param_names:  # iterate through parameters of comp
             model_pname = f'{cname}.{pname}'
             pid = comp[pname]._id
@@ -1596,6 +1581,7 @@ def get_model_info(
             prior = info.prior
 
             if (cid, pname) != comp_param[pid]:  # param is linked to another
+                idx = '*'
                 value = name_mapping[pid]
                 setup[model_pname] = (pid, ParamSetup.Forwarded)
 
@@ -1609,8 +1595,13 @@ def get_model_info(
                 elif info.fixed:  # param is composite, but fixed
                     setup[model_pname] = (pid, ParamSetup.Fixed)
                 else:  # param is composite but free to vary, add it to determ
+                    idx = '*'
                     setup[model_pname] = (pid, ParamSetup.Composite)
-                    deterministic.append(pid)
+                    deterministic[pid] = pid_to_value[pid]
+
+            elif info.integrate:  # param is interval
+                value = f'[{info.default[0]:.4g}, {info.default[1]:.4g}]'
+                setup[model_pname] = (pid, ParamSetup.Integrated)
 
             else:  # a single param
                 value = f'{info.default:.4g}'
@@ -1625,17 +1616,17 @@ def get_model_info(
 
             model_info.append((idx, cname, pname, value, bound, prior))
 
-    for pid, info in aux_params.items():
+    for pid, info in aux_params.items():  # iterate through aux params
         idx = ''
         bound = info.bound
         prior = info.prior
 
-        if info.integrate:  # param is integral-type
+        if info.integrate:  # aux param is integral-type
             value = f'[{info.default[0]:.4g}, {info.default[1]:.4g}]'
-        else:  # param is not integral-type, record its default value
+        else:  # aux param is not integral-type, record its default value
             value = f'{info.default:.4g}'
 
-        if not info.fixed:  # param is free to vary
+        if not info.fixed:  # aux param is free to vary
             n += 1
             idx = str(n)
             sample_order.append(pid)
@@ -1651,12 +1642,79 @@ def get_model_info(
         info=tuple(model_info),
         name=name_mapping,
         latex=latex_mapping,
+        unit=unit_mapping,
         sample=sample,
         default=default,
-        deterministic=tuple(deterministic),
+        deterministic=deterministic,
         fixed=fixed,
         log=log,
-        cid_pval=cid_to_pval,
+        cid_to_params=cid_to_params,
+        cid_to_name=cid_to_name,
         integrate=integrate,
         setup=setup,
     )
+
+
+class ModelInfo(NamedTuple):
+    """Model information."""
+
+    info: tuple[tuple[str, str, str, str, str, str], ...]
+    """The model parameter information.
+
+    Each row contains (No., Component, Parameter, Value, Bound, Prior).
+    """
+
+    name: ParamIDStrMapping
+    """The mapping of parameter id to parameter name."""
+
+    latex: dict[CompParamName, str]
+    r"""The mapping of component parameters name to :math:`\LaTeX` format."""
+
+    unit: dict[CompParamName, str]
+    """The mapping of component parameters name to physical unit."""
+
+    sample: dict[ParamID, Distribution]
+    """The mapping of free parameter id to numpyro Distribution."""
+
+    default: ParamIDValMapping
+    """The mapping of free parameter id to default value."""
+
+    deterministic: dict[ParamID, Callable[[ParamIDValMapping], JAXFloat]]
+    """The mapping of deterministic parameters id to value getter."""
+
+    fixed: ParamIDValMapping
+    """The mapping of fixed parameter id to fixed parameter value."""
+
+    log: dict[ParamID, bool]
+    """The mapping of parameter id to logarithmic flag."""
+
+    cid_to_name: dict[CompID, CompName]
+    """The mapping of component id to component name."""
+
+    cid_to_params: dict[CompID, Callable[[ParamIDValMapping], NameValMapping]]
+    """The mapping of component id to parameter value getter function."""
+
+    integrate: dict[ParamID, IntegralFactory]
+    """The mapping of interval parameter id to integral operator."""
+
+    setup: dict[CompParamName, tuple[ParamID, ParamSetup]]
+    """The mapping of component parameter setup."""
+
+
+class ParamSetup(Enum):
+    """Model parameter setup."""
+
+    Free = 0
+    """Parameter is free to vary."""
+
+    Composite = 1
+    """Parameter is composed of other free parameters."""
+
+    Forwarded = 2
+    """Parameter is directly forwarded to another model parameter."""
+
+    Fixed = 3
+    """Parameter is fixed to a value."""
+
+    Integrated = 4
+    """Parameter is integrated out."""
