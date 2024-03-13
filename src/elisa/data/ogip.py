@@ -35,11 +35,11 @@ class Data:
         Energy range of interest in keV, e.g., ``erange=[(0.5, 2), (5, 200)]``.
     specfile : str
         Spectrum file path. For type II pha file, the row specifier must be
-        given in the end of path, e.g., ``specfile='./spec.pha2{1}'``.
+        given in the end of path, e.g., ``specfile='spec.pha2{1}'``.
     backfile : str or None, optional
         Background file path. Read from the `specfile` header if None.
         For type II pha file, the row specifier must be given in the end of
-        path, e.g., ``backfile='./back.pha2{1}'``.
+        path, e.g., ``backfile='back.pha2{1}'``.
     respfile : str or None, optional
         Response file path. Read from the `specfile` header if None.
         The path must be given if ``RESPFILE`` is undefined in the header.
@@ -628,7 +628,7 @@ class Spectrum:
     ----------
     specfile : str
         Spectrum file path. For type II pha file, the row specifier must be
-        given in the end of path, e.g., ``specfile='./spec.pha2{1}'``.
+        given in the end of path, e.g., ``specfile='spec.pha2{1}'``.
     poisson : bool or None, optional
         Whether the spectrum data follows counting statistics, reading from
         the `specfile` header. This value must be set if ``POISSERR`` is
