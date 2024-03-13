@@ -5,9 +5,6 @@
 This module is adapted from
 https://github.com/pyro-ppl/numpyro/raw/master/numpyro/contrib/nested_sampling.py
 
-Since jaxns runs JAX programs when imported, so all jaxns related import statements
-are moved into the functions.
-
 """
 from __future__ import annotations
 
@@ -225,11 +222,11 @@ class NestedSampler:
         # Jaxns requires loglikelihood function to have explicit signatures.
         local_dict = {}
         loglik_fn_def = """def loglik_fn({}):\n
-        \tparams = dict({})\n
+        \tparams = {{{}}}\n
         \treturn log_density_(reparam_model, args, kwargs, params)[0]
         """.format(
-            ", ".join([f"{name}_base" for name in param_names]),
-            ", ".join([f"{name}_base={name}_base" for name in param_names]),
+            ", ".join([f"{name.replace('.', '_')}_base" for name in param_names]),
+            ", ".join([f"'{name}_base': {name.replace('.', '_')}_base" for name in param_names]),
         )
         exec(loglik_fn_def, locals(), local_dict)
         loglik_fn = local_dict["loglik_fn"]
@@ -408,3 +405,144 @@ def reparam_loglike(model, rng_key, *args, **kwargs):
         transform_back,
         [f'{name}_base' for name in param_names],
     )
+
+
+class GlobalOptimizer:
+    """
+    :param callable model: a call with NumPyro primitives
+    :param dict constructor_kwargs: additional keyword arguments to construct an upstream
+        :class:`jaxns.experimental.DefaultGlobalOptimisation` instance.
+    :param dict termination_kwargs: keyword arguments to terminate the sampler. Please
+        refer to the upstream :meth:`jaxns.experimental.DefaultGlobalOptimisation.__call__` method.
+    """
+    def __init__(
+        self,
+        model,
+        *,
+        constructor_kwargs: dict | None = None,
+        termination_kwargs: dict | None = None
+    ):
+        from jaxns.experimental import (
+            DefaultGlobalOptimisation, GlobalOptimisationResults
+        )
+
+        self.model = model
+        self.constructor_kwargs = (
+            constructor_kwargs if constructor_kwargs is not None else {}
+        )
+        self.termination_kwargs = (
+            termination_kwargs if termination_kwargs is not None else {}
+        )
+        self._optimizer: DefaultGlobalOptimisation | None = None
+        self._results: GlobalOptimisationResults | None = None
+
+    def run(self, rng_key, *args, **kwargs):
+        """
+        Run the nested samplers and collect weighted samples.
+
+        :param random.PRNGKey rng_key: Random number generator key to be used for the sampling.
+        :param args: The arguments needed by the `model`.
+        :param kwargs: The keyword arguments needed by the `model`.
+        """
+        from jaxns import Model, Prior
+        from jaxns.experimental import (
+            DefaultGlobalOptimisation, GlobalOptimisationTerminationCondition
+        )
+
+        rng_sampling, rng_predictive = random.split(rng_key)
+        # reparam the model so that latent sites have Uniform(0, 1) priors
+        prototype_trace = trace(seed(self.model, rng_key)).get_trace(*args, **kwargs)
+        param_names = [
+            site["name"]
+            for site in prototype_trace.values()
+            if site["type"] == "sample"
+               and not site["is_observed"]
+               and site["infer"].get("enumerate", "") != "parallel"
+        ]
+        deterministics = [
+            site["name"]
+            for site in prototype_trace.values()
+            if site["type"] == "deterministic"
+        ]
+        reparam_model = reparam(self.model, config={k: UniformReparam() for k in param_names})
+
+        # enable enumerate if needed
+        has_enum = any(
+            site["type"] == "sample"
+            and site["infer"].get("enumerate", "") == "parallel"
+            for site in prototype_trace.values()
+        )
+        if has_enum:
+            from numpyro.contrib.funsor import enum, log_density as log_density_
+
+            max_plate_nesting = _guess_max_plate_nesting(prototype_trace)
+            _validate_model(prototype_trace)
+            reparam_model = enum(reparam_model, -max_plate_nesting - 1)
+        else:
+            log_density_ = log_density
+
+        # Jaxns requires loglikelihood function to have explicit signatures.
+        local_dict = {}
+        loglik_fn_def = """def loglik_fn({}):\n
+        \tparams = {{{}}}\n
+        \treturn log_density_(reparam_model, args, kwargs, params)[0]
+        """.format(
+            ", ".join([f"{name.replace('.', '_')}_base" for name in param_names]),
+            ", ".join(
+                [f"'{name}_base': {name.replace('.', '_')}_base" for name in param_names]
+            ),
+        )
+        exec(loglik_fn_def, locals(), local_dict)
+        loglik_fn = local_dict["loglik_fn"]
+
+        # use NestedSampler with identity prior chain
+        def prior_model():
+            params = []
+            for name in param_names:
+                shape = prototype_trace[name]["fn"].shape()
+                param = yield Prior(
+                    tfpd.Uniform(low=jnp.zeros(shape), high=jnp.ones(shape)),
+                    name=name + "_base",
+                )
+                params.append(param)
+            return tuple(params)
+
+        model = Model(prior_model=prior_model, log_likelihood=loglik_fn)
+
+        default_constructor_kwargs = dict(
+            num_search_chains=model.U_ndims * 20,
+            num_parallel_workers=1,
+            s=1,
+            k=0,
+            gradient_slice=False,
+        )
+        default_termination_kwargs = {}
+        # Fill-in missing values with defaults. This allows user to inspect what was actually used by inspecting
+        # these dictionaries
+        list(
+            map(
+                lambda item: self.constructor_kwargs.setdefault(*item),
+                default_constructor_kwargs.items(),
+            )
+        )
+        list(
+            map(
+                lambda item: self.termination_kwargs.setdefault(*item),
+                default_termination_kwargs.items(),
+            )
+        )
+
+        self._optimizer = DefaultGlobalOptimisation(
+            model=model,
+            **self.constructor_kwargs,
+        )
+
+        self._results = self._optimizer(
+            rng_sampling,
+            term_cond=GlobalOptimisationTerminationCondition(**self.termination_kwargs)
+        )
+
+        return self._results
+
+    def print_summary(self, io=None):
+        self._optimizer.summary(self._results, io)
