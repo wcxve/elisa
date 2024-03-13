@@ -4,7 +4,11 @@ from __future__ import annotations
 import jax.numpy as jnp
 from jax.scipy import stats
 
-from elisa.model.model import AnaIntAdditive, NumIntAdditive, ParamConfig
+from elisa.models.model import (
+    AnaIntAdditive,
+    NumIntAdditive,
+    ParamConfig,
+)
 from elisa.util.typing import JAXArray, NameValMapping
 
 __all__ = [
@@ -40,13 +44,13 @@ class Band(NumIntAdditive):
 
     Parameters
     ----------
-    alpha : ParameterBase, optional
+    alpha : Parameter, optional
         The low-energy power law index :math:`\alpha`, dimensionless.
-    beta : ParameterBase, optional
+    beta : Parameter, optional
         The high-energy power law index :math:`\beta`, dimensionless.
-    Ec : ParameterBase, optional
+    Ec : Parameter, optional
         The characteristic energy :math:`E_\mathrm{c}`, in units of keV.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -112,14 +116,14 @@ class BandEp(NumIntAdditive):
 
     Parameters
     ----------
-    alpha : ParameterBase, optional
+    alpha : Parameter, optional
         The low-energy power law index :math:`\alpha`, dimensionless.
-    beta : ParameterBase, optional
+    beta : Parameter, optional
         The high-energy power law index :math:`\beta`, dimensionless.
-    Ep : ParameterBase, optional
+    Ep : Parameter, optional
         The peak energy :math:`E_\mathrm{p}` of :math:`\nu F_\nu`,
         in units of keV.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -176,9 +180,9 @@ class Blackbody(NumIntAdditive):
 
     Parameters
     ----------
-    kT : ParameterBase, optional
+    kT : Parameter, optional
         The temperature :math:`kT`, in units of keV.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The amplitude :math:`K = L_{39}/D_{10}^2`, where :math:`L_{39}` is the
         source luminosity in units of 10³⁹ erg s⁻¹ and :math:`D_{10}` is the
         distance to the source in units of 10 kpc.
@@ -228,9 +232,9 @@ class BlackbodyRad(NumIntAdditive):
 
     Parameters
     ----------
-    kT : ParameterBase, optional
+    kT : Parameter, optional
         The temperature :math:`kT`, in units of keV.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The amplitude :math:`K = R_\mathrm{km}^2/D_{10}^2`, where
         :math:`R_\mathrm{km}` is the source radius in km and :math:`D_{10}` is
         the distance to the source in units of 10 kpc.
@@ -298,12 +302,12 @@ class CutoffPL(NumIntAdditive):
 
     Parameters
     ----------
-    alpha : ParameterBase, optional
+    alpha : Parameter, optional
         The power law photon index :math:`\alpha`, dimensionless.
-    Ec : ParameterBase, optional
+    Ec : Parameter, optional
         The e-folding energy of exponential cutoff :math:`E_\mathrm{c}`,
         in units of keV.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -338,12 +342,12 @@ class Compt(NumIntAdditive):
 
     Parameters
     ----------
-    alpha : ParameterBase, optional
+    alpha : Parameter, optional
         The power law photon index :math:`\alpha`, dimensionless.
-    Ep : ParameterBase, optional
+    Ep : Parameter, optional
         The peak energy :math:`E_\mathrm{p}` of :math:`\nu F_\nu`,
         in units of keV.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -378,11 +382,11 @@ class Gauss(NumIntAdditive):
 
     Parameters
     ----------
-    El : ParameterBase, optional
+    El : Parameter, optional
         The line energy :math:`E_\mathrm{l}`, in units of keV.
-    sigma : ParameterBase, optional
+    sigma : Parameter, optional
         The line width :math:`\sigma`, in units of keV.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The total photon flux :math:`K` of the line, in units of cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -424,9 +428,9 @@ class OTTB(NumIntAdditive):
 
     Parameters
     ----------
-    kT : ParameterBase, optional
+    kT : Parameter, optional
         The electron energy :math:`kT`, in units of keV.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -455,9 +459,9 @@ class OTTS(NumIntAdditive):
 
     Parameters
     ----------
-    Ec : ParameterBase, optional
+    Ec : Parameter, optional
         The energy scale :math:`E_\mathrm{c}`, in units of keV.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -493,9 +497,9 @@ class PowerLaw(AnaIntAdditive):
 
     Parameters
     ----------
-    alpha : ParameterBase, optional
+    alpha : Parameter, optional
         The power law photon index :math:`\alpha`, dimensionless.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.

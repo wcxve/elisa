@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import jax.numpy as jnp
 
-from elisa.model.model import (
+from elisa.models.model import (
     AnaIntMultiplicative,
     NumIntMultiplicative,
     ParamConfig,
@@ -21,7 +21,7 @@ class Constant(AnaIntMultiplicative):
 
     Parameters
     ----------
-    f : ParameterBase, optional
+    f : Parameter, optional
         The multiplicative factor :math:`f`, dimensionless.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -49,9 +49,9 @@ class Edge(NumIntMultiplicative):
 
     Parameters
     ----------
-    Ec : ParameterBase, optional
+    Ec : Parameter, optional
         The threshold energy :math:`E_\mathrm{c}`, in units of keV.
-    D : ParameterBase, optional
+    D : Parameter, optional
         The absorption depth :math:`D` at the threshold energy, dimensionless.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -82,7 +82,7 @@ class ExpAbs(NumIntMultiplicative):
 
     Parameters
     ----------
-    Ec : ParameterBase, optional
+    Ec : Parameter, optional
         The e-folding energy :math:`E_\mathrm{c}` for the absorption,
         in units of keV.
     latex : str, optional
@@ -114,11 +114,11 @@ class ExpFac(NumIntMultiplicative):
 
     Parameters
     ----------
-    A : ParameterBase, optional
+    A : Parameter, optional
         The amplitude of effect :math:`A`, dimensionless.
-    f : ParameterBase, optional
+    f : Parameter, optional
         The exponential factor :math:`f`, dimensionless.
-    Ec : ParameterBase, optional
+    Ec : Parameter, optional
         The start energy of modification :math:`E_\mathrm{c}`, in units of keV.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -156,11 +156,11 @@ class GAbs(NumIntMultiplicative):
 
     Parameters
     ----------
-    El : ParameterBase, optional
+    El : Parameter, optional
         The line energy :math:`E_\mathrm{l}`, in units of keV.
-    sigma : ParameterBase, optional
+    sigma : Parameter, optional
         The line width :math:`\sigma`, in units of keV.
-    tau : ParameterBase, optional
+    tau : Parameter, optional
         The line depth :math:`\tau`, in units of keV.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -201,9 +201,9 @@ class HighECut(NumIntMultiplicative):
 
     Parameters
     ----------
-    Ec : ParameterBase, optional
+    Ec : Parameter, optional
         The cutoff energy :math:`E_\mathrm{c}`, in units of keV.
-    Ef : ParameterBase, optional
+    Ef : Parameter, optional
         The e-folding energy :math:`E_\mathrm{f}`, in units of keV.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -234,9 +234,9 @@ class PLAbs(AnaIntMultiplicative):
 
     Parameters
     ----------
-    alpha : ParameterBase, optional
+    alpha : Parameter, optional
         The power law index :math:`\alpha`, dimensionless.
-    K : ParameterBase, optional
+    K : Parameter, optional
         The coefficient :math:`K`, dimensionless.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.

@@ -7,7 +7,7 @@ from typing import Callable
 import jax
 import jax.numpy as jnp
 
-from elisa.model.model import ConvolutionComponent, ParamConfig
+from elisa.models.model import ConvolutionComponent, ParamConfig
 from elisa.util.typing import ConvolveEval, JAXArray, NameValMapping
 
 __all__ = ['EnFlux', 'PhFlux', 'RedShift', 'VelocityShift']
@@ -141,10 +141,9 @@ class NormConvolution(ConvolutionComponent):
 class PhFlux(NormConvolution):
     r"""Normalize an additive model by photon flux between `emin` and `emax`.
 
-    Warnings
-    --------
-    The normalization of one of the additive components **must** be fixed to a
-    positive value.
+    .. warning::
+        The normalization of one of the additive components **must** be fixed
+        to a positive value.
 
     Parameters
     ----------
@@ -152,7 +151,7 @@ class PhFlux(NormConvolution):
         Minimum energy, in units of keV.
     emax : float or int
         Maximum energy, in units of keV.
-    F : ParameterBase, optional
+    F : Parameter, optional
         Flux parameter, in units of cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -186,10 +185,9 @@ class PhFlux(NormConvolution):
 class EnFlux(NormConvolution):
     r"""Normalize an additive model by energy flux between `emin` and `emax`.
 
-    Warnings
-    --------
-    The normalization of one of the additive components **must** be fixed to a
-    positive value.
+    .. warning::
+        The normalization of one of the additive components **must** be fixed
+        to a positive value.
 
     Parameters
     ----------
@@ -197,7 +195,7 @@ class EnFlux(NormConvolution):
         Minimum energy, in units of keV.
     emax : float or int
         Maximum energy, in units of keV.
-    F : ParameterBase, optional
+    F : Parameter, optional
         Flux parameter, in units of erg cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -244,7 +242,7 @@ class RedShift(ConvolutionComponent):
 
     Parameters
     ----------
-    z : ParameterBase, optional
+    z : Parameter, optional
         Redshift :math:`z`, dimensionless.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
@@ -270,7 +268,7 @@ class VelocityShift(ConvolutionComponent):
 
     Parameters
     ----------
-    v : ParameterBase, optional
+    v : Parameter, optional
         Velocity :math:`v`, in units of km s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
