@@ -1,5 +1,7 @@
-"""Likelihood functions with goodness term."""
+"""Likelihood functions."""
 from __future__ import annotations
+
+from typing import Callable, Literal, get_args
 
 import jax
 import jax.numpy as jnp
@@ -9,20 +11,46 @@ from jax.scipy.special import xlogy
 from numpyro.distributions import Normal, Poisson
 from numpyro.distributions.util import validate_sample
 
-NDArray = jnp.ndarray
+from elisa.data.ogip import Data
+from elisa.util.typing import (
+    ArrayLike,
+    JAXArray,
+    ModelCompiledFn,
+    ParamNameValMapping,
+)
+
+# TODO:
+#   It should be noted that 'lstat' does not have long run coverage property
+#   for source estimation, which is probably due to the choice of conjugate
+#   prior of Poisson background data.
+#   'lstat' will be included here with a proper prior at some point.
+Statistic = Literal['chi2', 'cstat', 'pstat', 'pgstat', 'wstat']
+
+_STATISTIC_OPTIONS: frozenset[str] = frozenset(get_args(Statistic))
+_STATISTIC_SPEC_NORMAL: frozenset[str] = frozenset({'chi2'})
+_STATISTIC_BACK_NORMAL: frozenset[str] = frozenset({'pgstat'})
+_STATISTIC_WITH_BACK: frozenset[str] = frozenset({'pgstat', 'wstat'})
 
 
 def pgstat_background(
-    s: NDArray, n: NDArray, b_est: NDArray, b_err: NDArray, a: float | NDArray
-) -> jax.Array:
+    s: ArrayLike,
+    n: ArrayLike,
+    b_est: ArrayLike,
+    b_err: ArrayLike,
+    a: ArrayLike,
+) -> JAXArray:
     """Optimized background for PG-statistics given estimate of source counts.
+
+    .. note::
+        The optimized background here is always non-negative, which differs
+        from XSPEC [1]_.
 
     Parameters
     ----------
     s : array_like
         Estimate of source counts.
     n : array_like
-        Observed source and background counts.
+        Observed counts (source and background).
     b_est : array_like
         Estimate of background counts.
     b_err : array_like
@@ -32,12 +60,8 @@ def pgstat_background(
 
     Returns
     -------
-    b : jax.Array
+    b : JAXArray
         The profile background.
-
-    Notes
-    -----
-    The optimized background here differs from XSPEC [1]_ in non-negativity.
 
     References
     ----------
@@ -45,7 +69,7 @@ def pgstat_background(
 
     """
     variance = b_err * b_err
-    e = b_est - a * variance
+    e = jnp.array(b_est - a * variance)
     f = a * variance * n + e * s
     c = a * e - s
     d = jnp.sqrt(c * c + 4.0 * a * f)
@@ -58,12 +82,12 @@ def pgstat_background(
 
 
 def wstat_background(
-    s: NDArray,
-    n_on: NDArray,
-    n_off: NDArray,
-    a: float | NDArray,
-) -> jax.Array:
-    """Optimized background for W-statistics given estimate of source counts.
+    s: ArrayLike,
+    n_on: ArrayLike,
+    n_off: ArrayLike,
+    a: ArrayLike,
+) -> JAXArray:
+    """Optimized background for W-statistics [1]_ given the estimate of source.
 
     Parameters
     ----------
@@ -78,7 +102,7 @@ def wstat_background(
 
     Returns
     -------
-    b : jax.Array
+    b : JAXArray
         The profile background.
 
     References
@@ -105,14 +129,14 @@ def wstat_background(
     return b
 
 
-class NormalWithGoodness(Normal):
+class BetterNormal(Normal):
     @validate_sample
     def log_prob(self, value):
         value_scaled = (value - self.loc) / self.scale
         return -0.5 * value_scaled * value_scaled
 
 
-class PoissonWithGoodness(Poisson):
+class BetterPoisson(Poisson):
     @validate_sample
     def log_prob(self, value):
         if self._validate_args:
@@ -147,125 +171,244 @@ class PoissonWithGoodness(Poisson):
 
 
 def chi2(
-    model: jnp.ndarray,
-    name: str,
-    spec: jnp.ndarray,
-    error: jnp.ndarray,
-    predictive: bool,
-):
-    """Chi-squared statistic, i.e. Gaussian likelihood."""
-    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+    data: Data, model: ModelCompiledFn
+) -> Callable[[ParamNameValMapping, bool], None]:
+    """S^2 statistic, Gaussian likelihood."""
+    name = str(data.name)
+    spec = jnp.array(data.spec_counts, float)
+    error = jnp.array(data.spec_error, float)
+    photon_egrid = jnp.array(data.ph_egrid, float)
+    channel_width = jnp.array(data.ch_width, float)
+    resp_matrix = jnp.array(data.resp_matrix, float)
+    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
 
-    spec_model = numpyro.deterministic(f'{name}_Non_model', model)
+    def likelihood(
+        params: ParamNameValMapping,
+        predictive: bool = False,
+    ) -> None:
+        """Gaussian likelihood defined via numpyro primitives."""
+        source_rate = model(photon_egrid, params) @ resp_matrix
+        numpyro.deterministic(name, source_rate / channel_width)
+        source_counts = source_rate * eff_expo
+        spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+        spec_model = numpyro.deterministic(f'{name}_Non_model', source_counts)
 
-    with numpyro.plate(name, len(spec_data)):
-        numpyro.sample(
-            name=f'{name}_Non',
-            fn=NormalWithGoodness(spec_model, error),
-            obs=None if predictive else spec_data,
-        )
+        with numpyro.plate(f'{name}_plate', len(spec)):
+            dist_on = BetterNormal(spec_model, error)
+            numpyro.sample(
+                name=f'{name}_Non',
+                fn=dist_on,
+                obs=None if predictive else spec_data,
+            )
+
+        # record log likelihood into chains to avoid re-computation
+        if not predictive:
+            loglike_on = numpyro.deterministic(
+                name=f'{name}_Non_loglike', value=dist_on.log_prob(spec_data)
+            )
+            numpyro.deterministic(name=f'{name}_loglike', value=loglike_on)
+
+    return likelihood
 
 
-def cstat(model: jnp.ndarray, name: str, spec: jnp.ndarray, predictive: bool):
-    """C-statistic, i.e. Poisson likelihood."""
-    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+def cstat(
+    data: Data, model: ModelCompiledFn
+) -> Callable[[ParamNameValMapping, bool], None]:
+    """C-statistic, Poisson likelihood."""
+    name = str(data.name)
+    spec = jnp.array(data.spec_counts, float)
+    photon_egrid = jnp.array(data.ph_egrid, float)
+    channel_width = jnp.array(data.ch_width, float)
+    resp_matrix = jnp.array(data.resp_matrix, float)
+    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
 
-    spec_model = numpyro.deterministic(f'{name}_Non_model', model)
+    def likelihood(
+        params: ParamNameValMapping,
+        predictive: bool = False,
+    ) -> None:
+        """Poisson likelihood defined via numpyro primitives."""
+        source_rate = model(photon_egrid, params) @ resp_matrix
+        numpyro.deterministic(name, source_rate / channel_width)
+        source_counts = source_rate * eff_expo
+        spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+        spec_model = numpyro.deterministic(f'{name}_Non_model', source_counts)
 
-    with numpyro.plate(name, len(spec_data)):
-        numpyro.sample(
-            name=f'{name}_Non',
-            fn=PoissonWithGoodness(spec_model),
-            obs=None if predictive else spec_data,
-        )
+        with numpyro.plate(f'{name}_plate', len(spec)):
+            dist_on = BetterPoisson(spec_model)
+            numpyro.sample(
+                name=f'{name}_Non',
+                fn=dist_on,
+                obs=None if predictive else spec_data,
+            )
+
+        # record log likelihood into chains to avoid re-computation
+        if not predictive:
+            loglike_on = numpyro.deterministic(
+                name=f'{name}_Non_loglike', value=dist_on.log_prob(spec_data)
+            )
+            numpyro.deterministic(name=f'{name}_loglike', value=loglike_on)
+
+    return likelihood
 
 
 def pstat(
-    model: jnp.ndarray,
-    name: str,
-    spec: jnp.ndarray,
-    back: jnp.ndarray,
-    ratio: jnp.ndarray | float,
-    predictive: bool,
-):
-    """P-statistic, i.e. Poisson likelihood for data with known background."""
-    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+    data: Data, model: ModelCompiledFn
+) -> Callable[[ParamNameValMapping, bool], None]:
+    """P-statistic, Poisson likelihood for data with a known background."""
+    assert data.has_back, 'Data must have background'
 
-    b = back
-    spec_model = numpyro.deterministic(f'{name}_Non_model', model + ratio * b)
+    name = str(data.name)
+    spec = jnp.array(data.spec_counts, float)
+    back = jnp.array(data.back_counts, float)
+    photon_egrid = jnp.array(data.ph_egrid, float)
+    channel_width = jnp.array(data.ch_width, float)
+    resp_matrix = jnp.array(data.resp_matrix, float)
+    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
+    back_ratio = jnp.array(data.back_ratio, float)
 
-    with numpyro.plate(name, len(spec_data)):
-        numpyro.sample(
-            name=f'{name}_Non',
-            fn=PoissonWithGoodness(spec_model),
-            obs=None if predictive else spec_data,
-        )
+    def likelihood(
+        params: ParamNameValMapping,
+        predictive: bool = False,
+    ) -> None:
+        """Poisson likelihood defined via numpyro primitives."""
+        source_rate = model(photon_egrid, params) @ resp_matrix
+        numpyro.deterministic(name, source_rate / channel_width)
+        model_counts = source_rate * eff_expo + back_ratio * back
+        spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+        spec_model = numpyro.deterministic(f'{name}_Non_model', model_counts)
+
+        with numpyro.plate(f'{name}_plate', len(spec_data)):
+            dist_on = BetterPoisson(spec_model)
+            numpyro.sample(
+                name=f'{name}_Non',
+                fn=dist_on,
+                obs=None if predictive else spec_data,
+            )
+
+        # record log likelihood into chains to avoid re-computation
+        if not predictive:
+            loglike_on = numpyro.deterministic(
+                name=f'{name}_Non_loglike', value=dist_on.log_prob(spec_data)
+            )
+            numpyro.deterministic(name=f'{name}_loglike', value=loglike_on)
+
+    return likelihood
 
 
 def pgstat(
-    model: NDArray,
-    name: str,
-    spec: NDArray,
-    back: NDArray,
-    back_error: NDArray,
-    ratio: NDArray | float,
-    predictive: bool,
-):
-    """PG-statistic, i.e. Poisson likelihood for data and profile Gaussian
+    data: Data, model: ModelCompiledFn
+) -> Callable[[ParamNameValMapping, bool], None]:
+    """PG-statistic, Poisson likelihood for data and profile Gaussian
     likelihood for background.
     """
-    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
-    back_data = numpyro.primitives.mutable(f'{name}_Noff_data', back)
+    assert data.has_back, 'Data must have background'
 
-    b = pgstat_background(model, spec_data, back_data, back_error, ratio)
+    name = str(data.name)
+    spec = jnp.array(data.spec_counts, float)
+    back = jnp.array(data.back_counts, float)
+    back_error = jnp.array(data.back_error, float)
+    photon_egrid = jnp.array(data.ph_egrid, float)
+    channel_width = jnp.array(data.ch_width, float)
+    resp_matrix = jnp.array(data.resp_matrix, float)
+    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
+    back_ratio = jnp.array(data.back_ratio, float)
 
-    spec_model = numpyro.deterministic(f'{name}_Non_model', model + ratio * b)
-    back_model = numpyro.deterministic(f'{name}_Noff_model', b)
-
-    with numpyro.plate(name, len(spec_data)):
-        numpyro.sample(
-            name=f'{name}_Non',
-            fn=PoissonWithGoodness(spec_model),
-            obs=None if predictive else spec_data,
+    def likelihood(params: ParamNameValMapping, predictive: bool = False):
+        """Poisson and Gaussian likelihood defined via numpyro primitives."""
+        model_rate = model(photon_egrid, params) @ resp_matrix
+        numpyro.deterministic(name, model_rate / channel_width)
+        spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+        back_data = numpyro.primitives.mutable(f'{name}_Noff_data', back)
+        source_counts = model_rate * eff_expo
+        b = pgstat_background(
+            source_counts, spec_data, back_data, back_error, back_ratio
         )
+        model_counts = source_counts + back_ratio * b
+        spec_model = numpyro.deterministic(f'{name}_Non_model', model_counts)
+        back_model = numpyro.deterministic(f'{name}_Noff_model', b)
 
-        numpyro.sample(
-            name=f'{name}_Noff',
-            fn=NormalWithGoodness(back_model, back_error),
-            obs=None if predictive else back_data,
-        )
+        with numpyro.plate(f'{name}_plate', len(spec_data)):
+            dist_on = BetterPoisson(spec_model)
+            dist_off = BetterNormal(back_model, back_error)
+            numpyro.sample(
+                name=f'{name}_Non',
+                fn=dist_on,
+                obs=None if predictive else spec_data,
+            )
+            numpyro.sample(
+                name=f'{name}_Noff',
+                fn=dist_off,
+                obs=None if predictive else back_data,
+            )
+
+        # record log likelihood into chains to avoid re-computation
+        if not predictive:
+            loglike_on = numpyro.deterministic(
+                name=f'{name}_Non_loglike', value=dist_on.log_prob(spec_data)
+            )
+            loglike_off = numpyro.deterministic(
+                name=f'{name}_Noff_loglike', value=dist_off.log_prob(back_data)
+            )
+            numpyro.deterministic(
+                name=f'{name}_loglike', value=loglike_on + loglike_off
+            )
+
+    return likelihood
 
 
 def wstat(
-    model: NDArray,
-    name: str,
-    spec: NDArray,
-    back: NDArray,
-    ratio: NDArray | float,
-    predictive: bool,
-):
+    data: Data, model: ModelCompiledFn
+) -> Callable[[ParamNameValMapping, bool], None]:
     """W-statistic, i.e. Poisson likelihood for data and profile Poisson
     likelihood for background.
     """
-    model = numpyro.deterministic(f'{name}_model', model)
+    assert data.has_back, 'Data must have background'
 
-    spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
-    back_data = numpyro.primitives.mutable(f'{name}_Noff_data', back)
+    name = str(data.name)
+    spec = jnp.array(data.spec_counts, float)
+    back = jnp.array(data.back_counts, float)
+    photon_egrid = jnp.array(data.ph_egrid, float)
+    channel_width = jnp.array(data.ch_width, float)
+    resp_matrix = jnp.array(data.resp_matrix, float)
+    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
+    back_ratio = jnp.array(data.back_ratio, float)
 
-    b = wstat_background(model, spec_data, back_data, ratio)
+    def likelihood(params: ParamNameValMapping, predictive: bool = False):
+        """Poisson and Poisson likelihood defined via numpyro primitives."""
+        model_rate = model(photon_egrid, params) @ resp_matrix
+        numpyro.deterministic(name, model_rate / channel_width)
+        spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
+        back_data = numpyro.primitives.mutable(f'{name}_Noff_data', back)
+        source_counts = model_rate * eff_expo
+        b = wstat_background(source_counts, spec_data, back_data, back_ratio)
+        model_counts = source_counts + back_ratio * b
+        spec_model = numpyro.deterministic(f'{name}_Non_model', model_counts)
+        back_model = numpyro.deterministic(f'{name}_Noff_model', b)
 
-    spec_model = numpyro.deterministic(f'{name}_Non_model', model + ratio * b)
-    back_model = numpyro.deterministic(f'{name}_Noff_model', b)
+        with numpyro.plate(f'{name}_plate', len(spec_data)):
+            dist_on = BetterPoisson(spec_model)
+            dist_off = BetterPoisson(back_model)
+            numpyro.sample(
+                name=f'{name}_Non',
+                fn=dist_on,
+                obs=None if predictive else spec_data,
+            )
+            numpyro.sample(
+                name=f'{name}_Noff',
+                fn=dist_off,
+                obs=None if predictive else back_data,
+            )
 
-    with numpyro.plate(name, len(spec_data)):
-        numpyro.sample(
-            name=f'{name}_Non',
-            fn=PoissonWithGoodness(spec_model),
-            obs=None if predictive else spec_data,
-        )
+        # record log likelihood into chains to avoid re-computation
+        if not predictive:
+            loglike_on = numpyro.deterministic(
+                name=f'{name}_Non_loglike', value=dist_on.log_prob(spec_data)
+            )
+            loglike_off = numpyro.deterministic(
+                name=f'{name}_Noff_loglike', value=dist_off.log_prob(back_data)
+            )
+            numpyro.deterministic(
+                name=f'{name}_loglike', value=loglike_on + loglike_off
+            )
 
-        numpyro.sample(
-            name=f'{name}_Noff',
-            fn=PoissonWithGoodness(back_model),
-            obs=None if predictive else back_data,
-        )
+    return likelihood
