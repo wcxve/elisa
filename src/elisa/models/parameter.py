@@ -1,7 +1,7 @@
 """The parameter."""
 from __future__ import annotations
 
-from abc import ABCMeta, abstractmethod
+from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
 from typing import Any, Callable, Literal, NamedTuple, get_args
 
@@ -42,7 +42,7 @@ class AssignmentTracker:
         """Remove an assignment record."""
         self._history.remove((cid, pname))
 
-    def comp_param(
+    def get_comp_param(
         self,
         comp_ids: Iterable[CompID],
     ) -> tuple[CompID, CompParamName] | None:
@@ -58,29 +58,63 @@ class AssignmentTracker:
 class ParamInfo(NamedTuple):
     """Parameter information."""
 
-    name: str | Callable[[ParamIDStrMapping], str]  # fn for composite
-    latex: str | Callable[[ParamIDStrMapping], str]  # fn for composite
+    name: str | Callable[[ParamIDStrMapping], str]
+    """Plain name of the parameter.
+
+    It is a getter function for composite parameter.
+    """
+
+    latex: str | Callable[[ParamIDStrMapping], str]
+    r""":math:`\LaTeX` format of the parameter.
+
+    It is a getter function for composite parameter.
+    """
+
     default: Any
+    """Default value of the parameter."""
+
     bound: str
+    """Value bound expression of the parameter."""
+
     prior: str
+    """Prior distribution expression of the parameter."""
+
     log: bool
+    """Whether the parameter is parameterized in a logarithmic scale."""
+
     fixed: bool
+    """Whether the parameter is fixed."""
+
     tracker: AssignmentTracker
+    """Component assignment tracker."""
+
     id_to_value: Callable[[ParamIDValMapping], JAXFloat]
+    """Mapping function from id to value."""
+
     dist: Distribution | None = None
+    """NumPyro distribution for the parameter."""
+
     composite: bool = False
-    integrate: IntegralFactory | bool = False  # True for composite interval
+    """Whether the parameter is composite."""
+
+    integrate: IntegralFactory | bool = False
+    """Integration factory for the parameter for interval parameter.
+
+    For composite parameter composed by interval parameter, this is True.
+    """
 
 
-class ParameterBase(metaclass=ABCMeta):
+class Parameter(ABC):
     """Parameter base."""
 
     _id: ParamID
     _tracker: AssignmentTracker
+    _nodes_id: tuple[ParamID, ...]
 
     def __init__(self):
         self._id = hex(id(self))[2:]
         self._tracker = AssignmentTracker()
+        self._nodes_id = (self._id,)
 
     def _id_to_label(
         self,
@@ -141,49 +175,50 @@ class ParameterBase(metaclass=ABCMeta):
         """Parameter information."""
         pass
 
+    def __str__(self) -> str:
+        return self.name
+
     def __repr__(self) -> str:
         return self.name
 
-    def __add__(self, other: ParameterBase) -> CompositeParameter:
+    def __add__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(self, other, '+')
 
-    def __radd__(self, other: ParameterBase) -> CompositeParameter:
+    def __radd__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(other, self, '+')
 
-    def __sub__(self, other: ParameterBase) -> CompositeParameter:
+    def __sub__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(self, other, '-')
 
-    def __rsub__(self, other: ParameterBase) -> CompositeParameter:
+    def __rsub__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(other, self, '-')
 
-    def __mul__(self, other: ParameterBase) -> CompositeParameter:
+    def __mul__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(self, other, '*')
 
-    def __rmul__(self, other: ParameterBase) -> CompositeParameter:
+    def __rmul__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(other, self, '*')
 
-    def __truediv__(self, other: ParameterBase) -> CompositeParameter:
+    def __truediv__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(self, other, '/')
 
-    def __rtruediv__(self, other: ParameterBase) -> CompositeParameter:
+    def __rtruediv__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(other, self, '/')
 
-    def __pow__(self, other: ParameterBase) -> CompositeParameter:
+    def __pow__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(self, other, '^')
 
-    def __rpow__(self, other: ParameterBase) -> CompositeParameter:
+    def __rpow__(self, other: Parameter) -> CompositeParameter:
         return self._make_composite_parameter(other, self, '^')
 
     @staticmethod
     def _make_composite_parameter(
-        lhs: ParameterBase,
-        rhs: ParameterBase,
+        lhs: Parameter,
+        rhs: Parameter,
         op: Literal['+', '-', '*', '/', '^'],
     ) -> CompositeParameter:
         # check if the type of lhs and rhs are both parameter
-        if not (
-            isinstance(lhs, ParameterBase) and isinstance(rhs, ParameterBase)
-        ):
+        if not (isinstance(lhs, Parameter) and isinstance(rhs, Parameter)):
             raise TypeError(
                 f'unsupported operand types for {op}: '
                 f"'{type(lhs).__name__}' and '{type(rhs).__name__}'"
@@ -223,7 +258,7 @@ class ParameterBase(metaclass=ABCMeta):
         )
 
 
-class _Parameter(ParameterBase):
+class ParameterHelper(Parameter):
     """Handle name, latex, and default value of a parameter."""
 
     def __init__(
@@ -266,7 +301,7 @@ class _Parameter(ParameterBase):
         pass
 
 
-class Parameter(_Parameter):
+class DistParameter(ParameterHelper):
     r"""Parameter definition given a distribution.
 
     Parameters
@@ -344,7 +379,7 @@ class Parameter(_Parameter):
             raise ValueError('default must be a scalar')
 
         if not bool(self._dist._validate_sample(default)):
-            raise ValueError('default should be within the prior support')
+            raise ValueError('default should be within the dist support')
 
         self._default = jnp.asarray(default, float)
 
@@ -358,18 +393,29 @@ class Parameter(_Parameter):
 
     @property
     def _dist_expr(self) -> str:
-        return self._dist.__class__.__name__
+        dist = self._dist
+        name = dist.__class__.__name__
+        args = [
+            f'{arg}={getattr(dist, arg):.4g}'
+            for arg in self._dist.arg_constraints
+        ]
+        args = ', '.join(args)
+        return f'{name}({args})'
 
     @property
     def _info(self) -> dict[ParamID, ParamInfo]:
-        vmin = f'{self._min:.4g}' if self._min is not None else 'n/a'
-        vmax = f'{self._max:.4g}' if self._max is not None else 'n/a'
+        vmin = f'{self._min:.4g}' if self._min is not None else '???'
+        vmax = f'{self._max:.4g}' if self._max is not None else '???'
+        if vmin == '???' or vmax == '???':
+            bound_expr = str(self._dist.support)
+        else:
+            bound_expr = f'({vmin}, {vmax})'
 
         info = ParamInfo(
             name=self.name,
             latex=self.latex,
             default=self.default,
-            bound='' if self.fixed else f'({vmin}, {vmax})',
+            bound='' if self.fixed else bound_expr,
             prior='' if self.fixed else self._dist_expr,
             log=self.log,
             fixed=self.fixed,
@@ -381,7 +427,7 @@ class Parameter(_Parameter):
         return {self._id: info}
 
 
-class UniformParameter(Parameter):
+class UniformParameter(DistParameter):
     r"""Define the parameter by a uniform distribution.
 
     Parameters
@@ -566,7 +612,7 @@ class UniformParameter(Parameter):
                 self._dist = Uniform(self._min, self._max)
 
 
-class ConstantParameter(_Parameter):
+class ConstantParameter(ParameterHelper):
     r"""Constant parameter.
 
     Parameters
@@ -585,10 +631,12 @@ class ConstantParameter(_Parameter):
 
     @property
     def log(self) -> bool:
+        """Constant parameter is not logarithmically parameterized."""
         return False
 
     @property
     def fixed(self) -> bool:
+        """Constant parameter is fixed."""
         return True
 
 
@@ -653,14 +701,14 @@ class ConstantInterval(ConstantParameter):
         Numerical integration method used to integrate over the parameter.
         Available options are:
 
-            * 'quadgk' : global adaptive quadrature with Gauss-Konrod rule
-            * 'quadcc' : global adaptive quadrature with Clenshaw-Curtis rule
-            * 'quadts' : global adaptive quadrature with trapz tanh-sinh rule
-            * 'romberg' : Romberg integration
-            * 'rombergts' : Romberg integration with tanh-sinh (a.k.a. double
-              exponential) transformation
+            * ``'quadgk'``: global adaptive quadrature by Gauss-Konrod rule
+            * ``'quadcc'``: global adaptive quadrature by Clenshaw-Curtis rule
+            * ``'quadts'``: global adaptive quadrature by trapz tanh-sinh rule
+            * ``'romberg'``: Romberg integration
+            * ``'rombergts'``: Romberg integration by tanh-sinh
+              (a.k.a. double exponential) transformation
 
-        The default is 'quadgk'.
+        The default is ``'quadgk'``.
     latex : str, optional
         :math:`\LaTeX` format of the parameter. The default is as `name`.
     kwargs : dict, optional
@@ -736,16 +784,16 @@ class ConstantInterval(ConstantParameter):
         return {self._id: info}
 
 
-# class DependentInterval(ParameterBase):
+# class DependentInterval(Parameter):
 #     """Interval whose bounds are defined by function of parameters."""
 
 
-class CompositeParameter(ParameterBase):
+class CompositeParameter(Parameter):
     r"""Compose parameters into a new parameter.
 
     Parameters
     ----------
-    params : ParameterBase, or sequence of ParameterBase
+    params : Parameter, or sequence of Parameter
         Parameters to be composed.
     op : callable
         Function to be applied to `params`.
@@ -757,12 +805,12 @@ class CompositeParameter(ParameterBase):
 
     """
 
-    _params: tuple[ParameterBase, ...]
+    _params: tuple[Parameter, ...]
     _has_interval: bool
 
     def __init__(
         self,
-        params: ParameterBase | Sequence[ParameterBase],
+        params: Parameter | Sequence[Parameter],
         op: Callable[..., JAXFloat],
         op_name: str,
         op_latex: str,
@@ -770,19 +818,19 @@ class CompositeParameter(ParameterBase):
         op_symbol: Literal['+', '-', '*', '/', '^'] | None = None,
     ):
         # check if the type of params is parameter or sequence
-        if not isinstance(params, (ParameterBase, Sequence)):
+        if not isinstance(params, (Parameter, Sequence)):
             raise TypeError(
                 'parameters must be a Parameter or a sequence of Parameter'
             )
 
         # make params a list
-        if isinstance(params, ParameterBase):
+        if isinstance(params, Parameter):
             params = [params]
         else:
             params = list(params)
 
         # check if params are all parameters
-        if not all(isinstance(i, ParameterBase) for i in params):
+        if not all(isinstance(i, Parameter) for i in params):
             raise TypeError(
                 'parameters must be a Parameter or a sequence of Parameter'
             )
@@ -807,6 +855,7 @@ class CompositeParameter(ParameterBase):
         else:
             self._has_interval = False
 
+        # correct Parameter's _nodes_id attribute
         nodes = []
         for p in self._params:
             stack = [p]
@@ -822,7 +871,9 @@ class CompositeParameter(ParameterBase):
         pid_to_pname = dict(
             zip(
                 self._nodes_id,
-                build_namespace([p.name for p in self._nodes], prime=True),
+                build_namespace([p.name for p in self._nodes], prime=True)[
+                    'namespace'
+                ],
             )
         )
         self._name = self._id_to_label(pid_to_pname, 'name')
@@ -926,13 +977,9 @@ class CompositeParameter(ParameterBase):
 
     @property
     def latex(self) -> str:
-        pid_to_latex = dict(
-            zip(
-                self._nodes_id,
-                build_namespace([p.latex for p in self._nodes], True, True),
-            )
-        )
-
+        nodes_latex = [p.latex for p in self._nodes]
+        latex = build_namespace(nodes_latex, True, True)['namespace']
+        pid_to_latex = dict(zip(self._nodes_id, latex))
         return self._id_to_label(pid_to_latex, 'latex')
 
     @property
@@ -946,10 +993,12 @@ class CompositeParameter(ParameterBase):
 
     @property
     def log(self) -> bool:
-        return all(i.log for i in self._params)
+        """If any of the sub-parameters is logarithmically parameterized."""
+        return any(i.log for i in self._params)
 
     @property
     def fixed(self) -> bool:
+        """If all the sub-parameters are fixed."""
         return all(i.fixed for i in self._params)
 
     @property
@@ -976,7 +1025,7 @@ class CompositeParameter(ParameterBase):
         return info
 
 
-# class GPParameter(_Parameter):
+# class GPParameter(ParameterHelper):
 #     """Parameter sampled from a Gaussian process."""
 #
 #     def __init__(
