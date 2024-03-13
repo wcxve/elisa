@@ -200,49 +200,6 @@ def make_pretty_table(fields: Sequence[str], rows: Sequence) -> PrettyTable:
     return table
 
 
-# def ordered_composition(
-#     basic_mapping: Sequence[ParamID],
-#     composite_mapping: dict[ParamID, Sequence[ParamID]],
-# ) -> tuple[ParamID, ...]:
-#     """Get ordered composition.
-#
-#     Parameters
-#     ----------
-#     basic_mapping : sequence
-#         Sequence of basic parameter id.
-#     composite_mapping : dict
-#         Mapping of composite parameter id to sequence of parameter id, which
-#         may include id existing in `composite_mapping`.
-#
-#     Returns
-#     -------
-#     ordered : tuple
-#         Ordered keys of `composite_mapping`.
-#
-#     """
-#     nodes = set(i for pids in composite_mapping.values() for i in pids)
-#     available_nodes = set(basic_mapping) | set(composite_mapping)
-#     if nodes - available_nodes != set():
-#         raise ValueError(
-#             '`composition` id must be a subset of union of `basic_mapping` '
-#             'and `composition`'
-#         )
-#
-#     ordered = list(basic_mapping)
-#     remains = dict(composite_mapping)
-#     while remains:
-#         to_del = []
-#         for k, v in remains:
-#             if all(pid in ordered for pid in v):
-#                 to_del.append(k)
-#             ordered.append(k)
-#
-#         for k in to_del:
-#             del remains[k]
-#
-#     return tuple(k for k in ordered if k not in basic_mapping)
-
-
 def replace_string(value: T, mapping: dict[str, str]) -> T:
     """Replace all strings in `value` appeared in `mapping`.
 

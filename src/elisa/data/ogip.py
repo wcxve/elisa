@@ -54,18 +54,21 @@ class Data:
         available so that each channel group has:
 
             * ``'const'``: `scale` number channels
-            * ``'min'``: counts >= `scale` for src + bkg
-            * ``'sig'``: src significance >= `scale`-sigma
+            * ``'min'``: total (source + background) counts >= `scale`
+            * ``'sig'``: source significance >= `scale` sigma
             * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [3]_
-            * ``'optmin'``: opt with counts >= `scale` for src + bkg
-            * ``'optsig'``: opt with src significance >= `scale`-sigma
-            * ``'bmin'``: counts >= `scale` for bkg, useful for ``wstat``
-            * ``'bpos'``: bkg < 0 with probability < `scale`, useful for
-              ``pgstat``
+            * ``'optmin'``: optimal binning with total counts >= `scale`
+            * ``'optsig'``: optimal binning with source significance >= `scale`
+              sigma
+            * ``'bmin'``: background counts >= `scale`, used to avoid bias when
+              using ``wstat`` to simultaneously fit the source and background
+            * ``'bpos'``: background counts < 0 with probability < `scale`,
+              used to avoid bias when using ``pgstat`` to simultaneously fit
+              the source and background
 
         The default is None.
     scale : float or None, optional
-        Grouping scale. Only takes effect if `group` is not None.
+        Grouping scale for the method specified in `group`.
     spec_poisson : bool or None, optional
         Whether the spectrum data follows counting statistics, reading from
         the `specfile` header. This value must be set if ``POISSERR`` is
@@ -288,14 +291,17 @@ class Data:
             are available so that each channel group has:
 
             * ``'const'``: `scale` number channels
-            * ``'min'``: counts >= `scale` for src + bkg
-            * ``'sig'``: src significance >= `scale`-sigma
-            * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [1]_
-            * ``'optmin'``: opt with counts >= `scale` for src + bkg
-            * ``'optsig'``: opt with src significance >= `scale`-sigma
-            * ``'bmin'``: counts >= `scale` for bkg (useful for ``wstat``)
-            * ``'bpos'``: bkg < 0 with probability < `scale`, useful for
-              ``pgstat``
+            * ``'min'``: total (source + background) counts >= `scale`
+            * ``'sig'``: source significance >= `scale` sigma
+            * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [3]_
+            * ``'optmin'``: optimal binning with total counts >= `scale`
+            * ``'optsig'``: optimal binning with source significance >= `scale`
+              sigma
+            * ``'bmin'``: background counts >= `scale`, used to avoid bias when
+              using ``wstat`` to simultaneously fit the source and background
+            * ``'bpos'``: background counts < 0 with probability < `scale`,
+              used to avoid bias when using ``pgstat`` to simultaneously fit
+              the source and background
 
         scale : float
             Grouping scale.
