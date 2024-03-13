@@ -12,6 +12,6 @@ from .parameter import (
     CompositeParameter as CompositeParameter,
     ConstantInterval as ConstantInterval,
     ConstantValue as ConstantValue,
-    Parameter as Parameter,
+    DistParameter as DistParameter,
     UniformParameter as UniformParameter,
 )
