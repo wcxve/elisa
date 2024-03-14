@@ -1581,9 +1581,9 @@ def get_model_info(
             prior = info.prior
 
             if (cid, pname) != comp_param[pid]:  # param is linked to another
-                idx = '*'
+                idx = ''
                 value = name_mapping[pid]
-                setup[model_pname] = (pid, ParamSetup.Forwarded)
+                setup[model_pname] = (value, ParamSetup.Forwarded)
 
             elif info.composite:  # param is composite
                 mapping = dict(name_mapping)
@@ -1591,25 +1591,25 @@ def get_model_info(
                 value = info.name(mapping)
 
                 if info.integrate:  # param is composite interval
-                    setup[model_pname] = (pid, ParamSetup.Integrated)
+                    setup[model_pname] = (model_pname, ParamSetup.Integrated)
                 elif info.fixed:  # param is composite, but fixed
-                    setup[model_pname] = (pid, ParamSetup.Fixed)
+                    setup[model_pname] = (model_pname, ParamSetup.Fixed)
                 else:  # param is composite but free to vary, add it to determ
                     idx = '*'
-                    setup[model_pname] = (pid, ParamSetup.Composite)
+                    setup[model_pname] = (model_pname, ParamSetup.Composite)
                     deterministic[pid] = pid_to_value[pid]
 
             elif info.integrate:  # param is interval
                 value = f'[{info.default[0]:.4g}, {info.default[1]:.4g}]'
-                setup[model_pname] = (pid, ParamSetup.Integrated)
+                setup[model_pname] = (model_pname, ParamSetup.Integrated)
 
             else:  # a single param
                 value = f'{info.default:.4g}'
 
                 if info.fixed:
-                    setup[model_pname] = (pid, ParamSetup.Fixed)
+                    setup[model_pname] = (model_pname, ParamSetup.Fixed)
                 else:
-                    setup[model_pname] = (pid, ParamSetup.Free)
+                    setup[model_pname] = (model_pname, ParamSetup.Free)
                     n += 1
                     idx = str(n)
                     sample_order.append(pid)

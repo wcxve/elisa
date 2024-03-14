@@ -27,13 +27,12 @@ from elisa.infer.likelihood import (
     pstat,
     wstat,
 )
-from elisa.models.model import CompiledModel, ModelInfo
+from elisa.models.model import CompiledModel, ModelInfo, ParamSetup
 from elisa.util.misc import progress_bar_factory
 from elisa.util.typing import (
     JAXArray,
     JAXFloat,
     ParamID,
-    ParamIDValMapping,
     ParamName,
     ParamNameValMapping,
 )
@@ -228,11 +227,6 @@ def get_helper(fit: Fit) -> Helper:
 
     # get deterministic value getter function
     deterministic: dict[ParamID, Callable] = model_info.deterministic
-    forwarded: dict[ParamName, ParamID] = {
-        name: pid_to_pname[pid]
-        for name, (pid, setup) in model_info.setup.items()
-        if setup.name == 'Forwarded'
-    }
 
     # get the likelihood function for each dataset
     likelihood_wrapper = {
@@ -730,9 +724,8 @@ def get_helper(fit: Fit) -> Helper:
             'interest': interest_names,
             'all': params_names,
         },
+        params_setup=model_info.setup,
         free_default=free_default,
-        deterministic=deterministic,
-        forwarded=forwarded,
         get_sites=get_sites,
         get_params=get_params,
         get_models=get_models,
@@ -791,16 +784,13 @@ class Helper(NamedTuple):
     numpyro_model: Callable[[bool], None]
     """The numpyro model for spectral fitting."""
 
-    params_names: dict[str, list[ParamName]]
-    """The names of (free and deterministic) parameters in the model."""
+    params_names: dict
+    """The names of parameters in the model."""
 
     free_default: dict[str, dict[ParamName, JAXFloat] | JAXArray]
     """The default values of free parameters."""
 
-    deterministic: dict[ParamName, Callable[[ParamIDValMapping], JAXFloat]]
-    """The mapping from deterministic names to value getter functions."""
-
-    forwarded: dict[ParamName, ParamName]
+    params_setup: dict[ParamName, tuple[ParamName, ParamSetup]]
     """The mapping from forwarded parameters names to parameters names."""
 
     get_sites: Callable[

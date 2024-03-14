@@ -33,6 +33,69 @@ class FitResult(ABC):
     def __init__(self, helper: Helper):
         self._helper = helper
 
+    def _check_ci_params(self, params) -> list[str]:
+        params_names = self._helper.params_names
+
+        all_params = set(params_names['all']) | set(self._helper.params_setup)
+        forwarded = {
+            k: v[0]
+            for k, v in self._helper.params_setup.items()
+            if v[1].name == 'Forwarded'
+        }
+        fixed = [
+            k
+            for k, v in self._helper.params_setup.items()
+            if v[1].name == 'Fixed'
+        ]
+        integrated = [
+            k
+            for k, v in self._helper.params_setup.items()
+            if v[1].name == 'Integrated'
+        ]
+
+        if params is None:
+            params = set(params_names['interest'])
+
+        elif isinstance(params, str):
+            # check if params exist
+            if params not in all_params:
+                raise ValueError(f'parameter {params} is not exist')
+
+            params = {params}
+
+        elif isinstance(params, Iterable):
+            # check if params exist
+            params = {str(i) for i in params}
+            if not params.issubset(all_params):
+                params_err = params - set(params_names['all'])
+                raise ValueError(f'parameters: {params_err} are not exist')
+
+        else:
+            raise ValueError('params must be str, or sequence of str')
+
+        if params_err := params.intersection(forwarded):
+            forwarded = {i: forwarded[i] for i in params_err}
+            info = ', '.join(f'{k} to {v}' for k, v in forwarded.items())
+            raise RuntimeError(
+                f"parameters are linked: {info}; corresponding parameters' "
+                'name should be used to calculate CIs'
+            )
+
+        if params_err := params.intersection(fixed):
+            info = ', '.join(params_err)
+            raise RuntimeError(
+                f'cannot calculate CIs of fixed parameters: {info}'
+            )
+
+        if params_err := params.intersection(integrated):
+            info = ', '.join(params_err)
+            raise RuntimeError(
+                'cannot calculate CIs of parameters being integrated-out: '
+                f'{info}'
+            )
+
+        return sorted(params, key=params_names['all'].index)
+
     @abstractmethod
     def __repr__(self):
         pass
@@ -189,31 +252,12 @@ class MLEResult(FitResult):
 
         params_names = self._helper.params_names
 
-        if params is None:
-            params = set(params_names['interest'])
+        params = self._check_ci_params(params)
 
-        elif isinstance(params, str):
-            # check if params exist
-            if params not in self._helper.params_names['all']:
-                raise ValueError(f'parameter {params} is not exist')
-
-            params = {params}
-
-        elif isinstance(params, Iterable):
-            # check if params exist
-            params = {str(i) for i in params}
-            if not params.issubset(params_names['all']):
-                params_err = params - set(params_names['all'])
-                raise ValueError(f'parameters: {params_err} are not exist')
-
-        else:
-            raise ValueError('params must be str, or sequence of str')
-
-        free = params.intersection(params_names['free'])
-        composite = params.intersection(params_names['deterministic'])
-        assert free | composite == params
-
-        params = sorted(params, key=params_names['all'].index)
+        params_set = set(params)
+        free = params_set.intersection(params_names['free'])
+        composite = params_set.intersection(params_names['deterministic'])
+        assert free | composite == params_set
 
         if method == 'profile':
             empty = ({}, {})
@@ -544,29 +588,7 @@ class PosteriorResult(FitResult):
         if prob <= 0.0:
             raise ValueError('prob must be non-negative')
 
-        params_names = self._helper.params_names
-
-        if params is None:
-            params = set(params_names['interest'])
-
-        elif isinstance(params, str):
-            # check if params exist
-            if params not in self._helper.params_names['all']:
-                raise ValueError(f'parameter {params} is not exist')
-
-            params = {params}
-
-        elif isinstance(params, Iterable):
-            # check if params exist
-            params = {str(i) for i in params}
-            if not params.issubset(params_names['all']):
-                params_err = params - set(params_names['all'])
-                raise ValueError(f'parameters: {params_err} are not exist')
-
-        else:
-            raise ValueError('params must be str, or sequence of str')
-
-        params = sorted(params, key=params_names['all'].index)
+        params = self._check_ci_params(params)
 
         prob_ = 1.0 - 2.0 * stats.norm.sf(prob) if prob >= 1.0 else prob
 
