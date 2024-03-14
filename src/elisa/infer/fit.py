@@ -164,9 +164,17 @@ class Fit(ABC):
 
         return self.__helper
 
-    def print_summary(self) -> None:
-        """Print the summary of fitting setup."""
-        print(repr(self))
+    def summary(self, file=None) -> None:
+        """Print the summary of fitting setup.
+
+        Parameters
+        ----------
+        file: file-like
+            An object with a ``write(string)`` method. This is passed to
+            :py:func:`print`.
+
+        """
+        print(repr(self), file=file)
 
     @property
     @abstractmethod

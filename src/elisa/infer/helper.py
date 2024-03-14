@@ -717,6 +717,7 @@ def get_helper(fit: Fit) -> Helper:
         nparam=nparam,
         dof=dof,
         data_names=tuple(data.keys()),
+        statistic=stat,
         channels=channels,
         data=obs_data,
         model=dict(model),
@@ -764,6 +765,9 @@ class Helper(NamedTuple):
 
     data_names: tuple[str, ...]
     """Name of each data."""
+
+    statistic: dict[str, Statistic]
+    """The statistic used in each dataset."""
 
     channels: dict[str, np.ndarray]
     """Channel information of the datasets."""

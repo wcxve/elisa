@@ -1,7 +1,7 @@
 """Subsequent analysis of maximum likelihood or Bayesian fit."""
 from __future__ import annotations
 
-from abc import ABC
+from abc import ABC, abstractmethod
 from collections.abc import Iterable, Sequence
 from importlib import metadata
 from typing import TYPE_CHECKING, Literal, NamedTuple
@@ -18,6 +18,7 @@ from numpyro.infer import MCMC
 
 from elisa.__about__ import __version__
 from elisa.infer.nested_sampling import NestedSampler
+from elisa.util.misc import make_pretty_table
 
 if TYPE_CHECKING:
     from elisa.infer.fit import Fit
@@ -25,18 +26,20 @@ if TYPE_CHECKING:
 
 
 class FitResult(ABC):
+    """Fit result."""
+
     _helper: Helper
 
     def __init__(self, helper: Helper):
         self._helper = helper
 
-    # @abstractmethod
-    # def __repr__(self):
-    #     pass
+    @abstractmethod
+    def __repr__(self):
+        pass
 
-    # @abstractmethod
-    # def _repr_html_(self):
-    #     pass
+    @abstractmethod
+    def _repr_html_(self):
+        pass
 
     # def plot_data(
     #     self, plots='data ldata chi pchi deviance pit ne ene eene fv vfv'
@@ -44,12 +47,20 @@ class FitResult(ABC):
     #     ...
     #
     # def plot_corner(self):
-    #     # correlation map or bootstrap distribution
+    #     # correlation map, bootstrap distribution, posterior distribution
     #     ...
 
-    def print_summary(self) -> None:
-        """Print summary of the fit."""
-        print(repr(self))
+    def summary(self, file=None) -> None:
+        """Print the summary of fitting setup.
+
+        Parameters
+        ----------
+        file: file-like
+            An object with a ``write(string)`` method. This is passed to
+            :py:func:`print`.
+
+        """
+        print(repr(self), file=file)
 
     @property
     def ndata(self) -> dict[str, int]:
@@ -98,6 +109,37 @@ class MLEResult(FitResult):
 
         # parametric bootstrap result
         self._boot: BootstrapResult | None = None
+
+    def __repr__(self):
+        tab = make_pretty_table(
+            ['Parameter', 'Value', 'Error'],
+            [(k, f'{v[0]:.4g}', f'{v[1]:.4g}') for k, v in self.mle.items()],
+        )
+        s = 'MLE:\n' + tab.get_string() + '\n'
+
+        stat_type = self._helper.statistic
+        deviance = self.deviance
+        ndata = self.ndata
+        stat = [
+            f'{i}: {stat_type[i]}={deviance[i]:.2f}, ndata={ndata[i]}'
+            for i in self.ndata.keys()
+            if i != 'total'
+        ]
+        total_stat = deviance['total']
+        dof = self.dof
+        stat += [
+            f'Total: stat/dof={total_stat/dof:.2f} ({total_stat:.2f}/{dof})'
+        ]
+        s += '\nStatistic:\n' + '\n'.join(stat) + '\n'
+        s += f'AIC: {self.aic:.2f}\n'
+        s += f'BIC: {self.bic:.2f}\n'
+
+        s += f'\nFit Status:\n{self.status}'
+
+        return s
+
+    def _repr_html_(self):
+        return self.__repr__()
 
     def ci(
         self,
@@ -213,7 +255,7 @@ class MLEResult(FitResult):
         parallel: bool = True,
         progress: bool = True,
     ):
-        """Parametric bootstrap.
+        """Preform parametric bootstrap.
 
         Parameters
         ----------
@@ -463,6 +505,12 @@ class PosteriorResult(FitResult):
             self._init_from_numpyro(sampler)
         else:
             self._init_from_jaxns(sampler)
+
+    def __repr__(self):
+        super().__repr__()
+
+    def _repr_html_(self):
+        return self.__repr__()
 
     def ci(
         self,
@@ -779,16 +827,16 @@ class PosteriorResult(FitResult):
         """Computes split R-hat over MCMC chains.
 
         In general, only fully trust the sample if R-hat is less than 1.01. In
-        early workflow, R-hat below 1.1 is often sufficient. See [1]_ for more
-        information.
+        the early workflow, R-hat below 1.1 is often sufficient. See [1]_ for
+        more information.
 
         References
         ----------
-        .. [1] : https://arxiv.org/abs/1903.08008
+        .. [1] https://arxiv.org/abs/1903.08008
 
         """
         if self._rhat is None:
-            params_names = self._helper.params_names['all']
+            params_names = self._helper.params_names['free']
             posterior = self._idata['posterior'][params_names]
 
             if len(posterior['chain']) == 1:
