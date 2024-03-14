@@ -587,27 +587,27 @@ class Data:
 
     @property
     def ch_emin(self) -> NDArray:
-        """Left edge of measured energy grid."""
+        """Left edge of measurement energy grid."""
         return self._ch_emin
 
     @property
     def ch_emax(self) -> NDArray:
-        """Right edge of measured energy grid."""
+        """Right edge of measurement energy grid."""
         return self._ch_emax
 
     @property
     def ch_emid(self) -> NDArray:
-        """Middle of measured energy grid."""
+        """Middle of measurement energy grid."""
         return self._ch_emid
 
     @property
     def ch_width(self) -> NDArray:
-        """Width of measured energy grid."""
+        """Width of measurement energy grid."""
         return self._ch_width
 
     @property
     def ch_mean(self) -> NDArray:
-        """Geometric mean of measured energy grid."""
+        """Geometric mean of measurement energy grid."""
         return self._ch_mean
 
     @property
@@ -974,7 +974,7 @@ class Response:
     References
     ----------
     .. [1] `The Calibration Requirements for Spectral Analysis (Definition of
-            RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`___
+            RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`__
             and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`__
 
     """
@@ -1265,27 +1265,27 @@ class Response:
 
     @property
     def ch_emin(self) -> NDArray:
-        """Left edge of measured energy grid."""
+        """Left edge of measurement energy grid."""
         return self._channel_egrid[:, 0]
 
     @property
     def ch_emax(self) -> NDArray:
-        """Right edge of measured energy grid."""
+        """Right edge of measurement energy grid."""
         return self._channel_egrid[:, 1]
 
     @property
     def ch_emid(self) -> NDArray:
-        """Middle of measured energy grid."""
+        """Middle of measurement energy grid."""
         return np.mean(self._channel_egrid, axis=1)
 
     @property
     def ch_width(self) -> NDArray:
-        """Width of measured energy grid."""
+        """Width of measurement energy grid."""
         return self._channel_egrid[:, 1] - self._channel_egrid[:, 0]
 
     @property
     def ch_mean(self) -> NDArray:
-        """Geometric mean of measured energy grid."""
+        """Geometric mean of measurement energy grid."""
         return np.sqrt(np.prod(self._channel_egrid, axis=1))
 
     @property
