@@ -1,4 +1,5 @@
 """Numerical integration."""
+
 from __future__ import annotations
 
 from typing import Any, Callable, Literal, get_args

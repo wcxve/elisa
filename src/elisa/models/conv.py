@@ -1,4 +1,5 @@
 """Convolution models."""
+
 from __future__ import annotations
 
 from abc import abstractmethod

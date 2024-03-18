@@ -1,4 +1,5 @@
 """Typing aliases to shorten hints."""
+
 from typing import Callable, TypeVar, Union
 
 import numpy as np
