@@ -1,6 +1,6 @@
 from .__about__ import __version__ as __version__
 from .data import Data as Data, Response as Response, Spectrum as Spectrum
-from .infer import BayesianFit as BayesianFit, MaxLikeFit as MaxLikeFit
+from .infer import BayesFit as BayesFit, MaxLikeFit as MaxLikeFit
 from .models.model import (
     AnaIntAdditive as AnaIntAdditive,
     AnaIntMultiplicative as AnaIntMultiplicative,

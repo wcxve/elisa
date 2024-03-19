@@ -1,4 +1,4 @@
 from .fit import (
-    BayesianFit as BayesianFit,
+    BayesFit as BayesFit,
     MaxLikeFit as MaxLikeFit,
 )
