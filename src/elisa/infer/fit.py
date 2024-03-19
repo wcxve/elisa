@@ -573,6 +573,7 @@ class BayesianFit(Fit):
         num_parallel_workers: int | None = None,
         difficult_model: bool = False,
         parameter_estimation: bool = False,
+        verbose: bool = False,
         term_cond: dict | None = None,
         **ns_kwargs: dict,
     ) -> PosteriorResult:
@@ -622,6 +623,7 @@ class BayesianFit(Fit):
             'num_parallel_workers': num_parallel_workers,
             'difficult_model': difficult_model,
             'parameter_estimation': parameter_estimation,
+            'verbose': verbose,
         }
         constructor_kwargs |= ns_kwargs
 
