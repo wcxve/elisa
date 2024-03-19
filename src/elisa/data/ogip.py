@@ -1,4 +1,5 @@
 """Containers of OGIP/92-007 format data."""
+
 from __future__ import annotations
 
 import re

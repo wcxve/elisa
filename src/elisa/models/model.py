@@ -1,4 +1,5 @@
 """The spectral model bases."""
+
 from __future__ import annotations
 
 import inspect

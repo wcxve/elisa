@@ -1,4 +1,5 @@
 """Likelihood functions."""
+
 from __future__ import annotations
 
 from typing import Callable, Literal, get_args
