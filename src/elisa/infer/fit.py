@@ -481,7 +481,7 @@ class MaxLikeFit(Fit):
         return MLEResult(minuit, self._helper)
 
 
-class BayesianFit(Fit):
+class BayesFit(Fit):
     _tab_config = ('Bayesian Fit', frozenset({'Bound'}))
 
     def nuts(
