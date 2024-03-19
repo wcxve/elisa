@@ -1,4 +1,5 @@
 """Methods for grouping spectrum."""
+
 from __future__ import annotations
 
 import numpy as np

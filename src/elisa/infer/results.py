@@ -1,4 +1,5 @@
 """Subsequent analysis of maximum likelihood or Bayesian fit."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
