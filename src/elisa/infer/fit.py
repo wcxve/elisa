@@ -596,6 +596,8 @@ class BayesianFit(Fit):
         parameter_estimation : bool, optional
             Use more robust default settings for parameter estimation. The
             default is False.
+        verbose : bool, optional
+            Print progress information. The default is False.
         term_cond : dict, optional
             Termination conditions for the sampling. The default is as in
             :class:`jaxns.TermCondition`.
