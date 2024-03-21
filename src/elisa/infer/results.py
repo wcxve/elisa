@@ -179,7 +179,6 @@ class MLEResult(FitResult):
             ['Parameter', 'Value', 'Error'],
             [(k, f'{v[0]:.4g}', f'{v[1]:.4g}') for k, v in self.mle.items()],
         )
-        s = 'MLE:\n' + tab.get_string() + '\n'
 
         stat_type = self._helper.statistic
         deviance = self.deviance
@@ -194,10 +193,10 @@ class MLEResult(FitResult):
         stat += [
             f'Total: stat/dof={total_stat/dof:.2f} ({total_stat:.2f}/{dof})'
         ]
+        s = 'MLE:\n' + tab.get_string() + '\n'
         s += '\nStatistic:\n' + '\n'.join(stat) + '\n'
         s += f'AIC: {self.aic:.2f}\n'
         s += f'BIC: {self.bic:.2f}\n'
-
         s += f'\nFit Status:\n{self.status}'
 
         return s
@@ -805,8 +804,8 @@ class PosteriorResult(FitResult):
             | {'total': loglike['total']}
         )
 
-        # get observation data
-        obs_data = helper.data
+        # get observation counts data
+        obs_data = helper.obs_data
 
         # coords and dims of arviz.InferenceData
         coords = dict(helper.channels)

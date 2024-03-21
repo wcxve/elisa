@@ -1622,9 +1622,9 @@ def get_model_info(
         bound = info.bound
         prior = info.prior
 
-        if info.integrate:  # aux param is integral-type
+        if info.integrate:  # aux param is interval
             value = f'[{info.default[0]:.4g}, {info.default[1]:.4g}]'
-        else:  # aux param is not integral-type, record its default value
+        else:  # aux param is not interval, record its default value
             value = f'{info.default:.4g}'
 
         if not info.fixed:  # aux param is free to vary

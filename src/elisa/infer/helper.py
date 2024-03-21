@@ -207,6 +207,7 @@ def get_helper(fit: Fit) -> Helper:
         """Simulate data given model values.
         Use numpy.random instead of numpyro.infer.Predictive for performance.
         """
+        # TODO: fix the negative counts by setting them to zeros
         models = {i: model_values[f'{i}_model'] for i in simulators.keys()}
         rng = np.random.default_rng(int(rng_seed))
         sim = {k: v(rng, models[k], n) for k, v in simulators.items()}
@@ -244,7 +245,7 @@ def get_helper(fit: Fit) -> Helper:
     # get default re-parameterization of each parameter
     # reparams: dict[ParamName, tuple[Reparam, Callable]] = {
     #     name: reparam_and_inv
-    #     for name, prior in params_prior.items()
+    #     for name, prior in params_prior.items  ()
     #     if (reparam_and_inv := get_reparam(prior)) is not None
     # }
 
@@ -713,7 +714,8 @@ def get_helper(fit: Fit) -> Helper:
         data_names=tuple(data.keys()),
         statistic=stat,
         channels=channels,
-        data=obs_data,
+        obs_data=obs_data,
+        data=dict(data),
         model=dict(model),
         seed=rng_seed,
         sampling_dist=sampling_dist,
@@ -765,13 +767,16 @@ class Helper(NamedTuple):
     channels: dict[str, np.ndarray]
     """Channel information of the datasets."""
 
-    data: dict[str, JAXArray]
+    obs_data: dict[str, JAXArray]
     """The datasets of observations, including net counts, counts in the "on"
     and "off" measurements.
     """
 
+    data: dict[str, Data]
+    """Data instances."""
+
     model: dict[str, CompiledModel]
-    """Compiled spectral model."""
+    """Compiled spectral models."""
 
     seed: dict[str, int]
     """Random number generator seed."""

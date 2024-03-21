@@ -1304,17 +1304,3 @@ class Response:
 
 class GroupingWaring(Warning):
     """Issued by grouping scale not being met for all channels."""
-
-
-if __name__ == '__main__':
-    from pyinstrument import Profiler
-
-    profiler = Profiler()
-    # profiler.start()
-
-    data = Data(
-        [0, np.inf],
-        '/Users/xuewc/xa_vela_p0px1000_Hp.pi.gz',
-        respfile='/Users/xuewc/xa_vela_p0px1000_HpL.rmf.gz',
-        ancrfile='/Users/xuewc/rsl_standard_GVclosed.arf',
-    )
