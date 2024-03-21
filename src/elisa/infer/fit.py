@@ -443,7 +443,8 @@ class MaxLikeFit(Fit):
 
                 * ``'minuit'``: Migrad algorithm of :mod:`iminuit`.
                 * ``'lm'``: Levenberg-Marquardt algorithm of :mod:`jaxopt`.
-                * ``'ns'``: Nested sampling of :mod:`jaxns`.
+                * ``'ns'``: Nested sampling of :mod:`jaxns`. This option first
+                  search MLE globally, then polish it with local minimization.
 
             The default is 'minuit'.
         strategy : {0, 1, 2}, optional
