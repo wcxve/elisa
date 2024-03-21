@@ -1046,7 +1046,7 @@ class Response:
         # set the first channel number to 1 if not found
         first_chan = int(resp_header.get(f'TLMIN{fchan_idx}', 1))
 
-        channel = np.arange(first_chan, first_chan + nchan)
+        channel = tuple((i,) for i in range(first_chan, first_chan + nchan))
         self._channel = self._raw_channel = channel
 
         n_grp = resp_data['N_GRP']
@@ -1179,9 +1179,10 @@ class Response:
         grp_idx = np.flatnonzero(grouping == 1)  # transform to index
 
         if len(grp_idx) == l0:  # case of no group, apply good mask
-            self._channel = self._raw_channel[noticed]
-            self._channel_egrid = self._raw_channel_egrid[noticed]
-            self._matrix = self._raw_matrix[:, noticed]
+            if np.count_nonzero(noticed) != noticed.size:
+                self._channel = self._raw_channel[noticed]
+                self._channel_egrid = self._raw_channel_egrid[noticed]
+                self._matrix = self._raw_matrix[:, noticed]
 
         else:
             non_empty = np.greater(np.add.reduceat(noticed, grp_idx), 0)
@@ -1260,7 +1261,7 @@ class Response:
         return self._ph_egrid
 
     @property
-    def channel(self) -> tuple:
+    def channel(self) -> NDArray:
         """Measurement channel numbers."""
         return self._channel
 
@@ -1303,3 +1304,17 @@ class Response:
 
 class GroupingWaring(Warning):
     """Issued by grouping scale not being met for all channels."""
+
+
+if __name__ == '__main__':
+    from pyinstrument import Profiler
+
+    profiler = Profiler()
+    # profiler.start()
+
+    data = Data(
+        [0, np.inf],
+        '/Users/xuewc/xa_vela_p0px1000_Hp.pi.gz',
+        respfile='/Users/xuewc/xa_vela_p0px1000_HpL.rmf.gz',
+        ancrfile='/Users/xuewc/rsl_standard_GVclosed.arf',
+    )
