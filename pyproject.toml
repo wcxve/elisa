@@ -29,8 +29,6 @@ dependencies = [
     "jaxns>=2.4.8",
     "jaxopt",
     "numpy",
-#    "numpy<=1.24.4 ; sys_platform != 'darwin' or platform_machine != 'arm64'",
-#    "numpy @ https://github.com/numpy/numpy/releases/download/v1.24.4/numpy-1.24.4.tar.gz ; sys_platform == 'darwin' and platform_machine == 'arm64'",
     "numpyro",
     "prettytable",
     "quadax @ git+https://github.com/f0uriest/quadax.git@640afd5bacc1a42f1e3c55c266fc5a02f668b2d1",
@@ -51,7 +49,7 @@ docs = [
     "myst-nb",
     "numpydoc",
 ]
-dev = ["pre-commit>=3.6.0", "ruff"]
+dev = ["pre-commit>=3.6.0", "ruff>=2.0"]
 
 
 [project.urls]
@@ -74,11 +72,22 @@ build.targets.wheel.packages = ["src/elisa"]
 python = ["3.9", "3.10", "3.11"]
 
 [tool.ruff]
-format.quote-style = "single"
-lint.pydocstyle.convention = "numpy"
-target-version = "py39"
 line-length = 79
-select = [
+target-version = "py39"
+extend-exclude = ["src/elisa/infer/nested_sampling.py"]
+extend-include = ["*.ipynb"]
+format.quote-style = "single"
+lint.extend-select = ["Q"]
+lint.flake8-quotes.inline-quotes = "single"
+lint.ignore = [
+    "B028",  # allow warnings without stacklevel
+    "C901",  # allow functions with a high complexity
+    "E731",  # allow lambda functions
+]
+lint.ignore-init-module-imports = true
+lint.isort.known-first-party = ["elisa"]
+lint.isort.combine-as-imports = true
+lint.select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
     "F",  # pyflakes
@@ -87,18 +96,7 @@ select = [
     "B",  # flake8-bugbear
     "UP",  # pyupgrade
 ]
-ignore = [
-    "B028",  # allow warnings without stacklevel
-    "C901",  # allow functions with a high complexity
-    "E731",  # allow lambda functions
-]
-ignore-init-module-imports = true
-extend-exclude = ["src/elisa/infer/nested_sampling.py"]
-extend-include = ["*.ipynb"]
-extend-select = ["Q"]
-flake8-quotes.inline-quotes = "single"
-isort.known-first-party = ["elisa"]
-isort.combine-as-imports = true
+lint.pydocstyle.convention = "numpy"
 
 [tool.coverage.run]
 parallel = true
