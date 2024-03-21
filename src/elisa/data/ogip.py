@@ -165,7 +165,7 @@ class Data:
             raise ValueError('respfile is required for data')
 
         if len(spec._raw_counts) != len(resp._raw_channel):
-            raise OSError(
+            raise ValueError(
                 f'specfile ({specfile}) and respfile ({respfile}) are not '
                 'matched'
             )
@@ -179,7 +179,7 @@ class Data:
             back = None
 
         if back and len(spec._raw_counts) != len(back._raw_counts):
-            raise OSError(
+            raise ValueError(
                 f'specfile ({specfile}) and backfile ({backfile}) are not '
                 'matched'
             )
@@ -665,17 +665,17 @@ class Spectrum:
 
             nchan = len(data)
             if int(header.get('DETCHANS', nchan)) != nchan:
-                raise OSError(msg)
+                raise ValueError(msg)
 
             if header.get('HDUCLAS4', '') == 'TYPE:II':
-                raise OSError(msg)
+                raise ValueError(msg)
 
         else:
             data = data[spec_id].array  # set data to the specified row
 
         # check if COUNTS or RATE exists
         if 'COUNTS' not in data.names and 'RATE' not in data.names:
-            raise OSError(f'"COUNTS" or "RATE" not found in {specfile}')
+            raise ValueError(f'"COUNTS" or "RATE" not found in {specfile}')
 
         # get poisson flag
         poisson = header.get('POISSERR', poisson)
@@ -686,7 +686,7 @@ class Spectrum:
 
         # check if STAT_ERR exists for non-Poisson spectrum
         if not poisson and 'STAT_ERR' not in data.names:
-            raise OSError(f'"STAT_ERR" not found in {specfile}')
+            raise ValueError(f'"STAT_ERR" not found in {specfile}')
 
         def get_field(field, default=None, excluded=None):
             """Get value of specified field, return default if not found."""
@@ -763,11 +763,15 @@ class Spectrum:
 
         # check if statistical errors are positive
         if not poisson and np.any(stat_err <= 0.0):
-            raise OSError(f'spectrum ({specfile}) has statistical errors <= 0')
+            raise ValueError(
+                f'spectrum ({specfile}) has statistical errors <= 0'
+            )
 
         # check if systematic errors are non-negative
         if np.any(sys_err < 0.0):
-            raise OSError(f'spectrum ({specfile}) has systematic errors < 0')
+            raise ValueError(
+                f'spectrum ({specfile}) has systematic errors < 0'
+            )
 
         # total error of counts
         stat_var = np.square(stat_err)
@@ -1011,7 +1015,7 @@ class Response:
                 ext = ('SPECRESP MATRIX', resp_id)
 
             else:
-                raise OSError(
+                raise ValueError(
                     f'cannot read response matrix data from {respfile}'
                 )
 
@@ -1025,7 +1029,7 @@ class Response:
         ch_emin = ebounds_data['E_MIN']
         ch_emax = ebounds_data['E_MAX']
         if np.any(ch_emin > ch_emax):
-            raise OSError(
+            raise ValueError(
                 f'respfile ({self._respfile}) channel energy grids are not '
                 'increasing'
             )
@@ -1036,7 +1040,7 @@ class Response:
     def _read_resp(self, resp_header, resp_data):
         nchan = resp_header.get('DETCHANS', None)
         if nchan is None:
-            raise OSError(
+            raise ValueError(
                 f'keyword "DETCHANS" not found in "{self._respfile}" header'
             )
         else:
@@ -1087,13 +1091,13 @@ class Response:
         if not np.allclose(
             resp_data['ENERG_LO'][1:], resp_data['ENERG_HI'][:-1]
         ):
-            raise OSError(
+            raise ValueError(
                 f'respfile ({self._respfile}) photon energy grids exist '
                 'discontinuity'
             )
 
         if np.any(resp_data['ENERG_LO'] > resp_data['ENERG_HI']):
-            raise OSError(
+            raise ValueError(
                 f'respfile ({self._respfile}) photon energy grids are not '
                 'increasing'
             )
@@ -1111,7 +1115,7 @@ class Response:
 
             if len(arf) != len(self._raw_matrix):
                 respfile = self._respfile
-                raise OSError(
+                raise ValueError(
                     f'rmf ({respfile}) and arf ({ancrfile}) are not matched'
                 )
 
@@ -1261,7 +1265,7 @@ class Response:
         return self._ph_egrid
 
     @property
-    def channel(self) -> NDArray:
+    def channel(self) -> tuple:
         """Measurement channel numbers."""
         return self._channel
 
@@ -1304,3 +1308,17 @@ class Response:
 
 class GroupingWaring(Warning):
     """Issued by grouping scale not being met for all channels."""
+
+
+if __name__ == '__main__':
+    # data = Data(
+    #     [0, np.inf],
+    #     '/Users/xuewc/xa_vela_p0px1000_Hp.pi.gz',
+    #     respfile='/Users/xuewc/xa_vela_p0px1000_HpL.rmf.gz',
+    #     ancrfile='/Users/xuewc/rsl_standard_GVclosed.arf',
+    # )
+    from astropy.io import fits
+
+    with fits.open('/Users/xuewc/xa_vela_p0px1000_HpL.rmf.gz') as hdul:
+        header = hdul[1].header
+        data = hdul[1].data
