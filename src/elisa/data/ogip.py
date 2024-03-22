@@ -8,6 +8,8 @@ import warnings
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
+from scipy.sparse import coo_array, csc_array
+from scipy.sparse._base import _spbase
 
 from elisa.data.grouping import (
     group_const,
@@ -46,6 +48,9 @@ class Data:
         The path must be given if ``RESPFILE`` is undefined in the header.
     ancrfile : str or None, optional
         Ancillary response path. Read from the `specfile` header if None.
+
+    Other Parameters
+    ----------------
     name : str or None, optional
         Data name. Read from the `specfile` header if None. The name must
         be given if ``DETNAM``, ``INSTRUME`` and ``TELESCOP`` are all
@@ -92,6 +97,8 @@ class Data:
         Whether to record channel information in the label of grouped
         channel. Only takes effect if `group` is not None or spectral data
         has ``GROUPING`` defined. The default is False.
+    resp_sparse : bool, optional
+        Whether the response matrix is sparse. The default is False.
     corrfile : str or None, optional
         Correction file applied to `specfile`. Read from the `specfile`
         header if None. The default is None.
@@ -128,6 +135,7 @@ class Data:
         back_poisson: bool | None = None,
         ignore_bad: bool = True,
         record_channel: bool = False,
+        resp_sparse: bool = False,
         corrfile: bool | None = None,
         corrnorm: bool | None = None,
     ):
@@ -233,6 +241,7 @@ class Data:
         self._record_channel = bool(record_channel)
 
         # response attributes
+        self._resp_sparse = bool(resp_sparse)
         self._ph_egrid = resp.ph_egrid
         self._channel = None
         self._ch_emin = None
@@ -439,7 +448,7 @@ class Data:
         self._ch_mean = resp.ch_mean[ch_mask]
         self._ch_width = resp.ch_width[ch_mask]
         self._ch_error = resp.ch_error[:, ch_mask]
-        self._resp_matrix = resp.matrix[:, ch_mask]
+        self._resp_matrix = resp.sparse_matrix.tocsc()[:, ch_mask]
 
         # spectrum attribute
         spec = self._spec
@@ -619,7 +628,17 @@ class Data:
     @property
     def resp_matrix(self) -> NDArray:
         """Response matrix."""
+        return self._resp_matrix.todense()
+
+    @property
+    def sparse_resp_matrix(self) -> _spbase:
+        """Sparse response matrix."""
         return self._resp_matrix
+
+    @property
+    def resp_sparse(self) -> bool:
+        """Whether the response matrix is sparse."""
+        return self._resp_sparse
 
 
 class Spectrum:
@@ -1038,56 +1057,7 @@ class Response:
         self._channel_egrid = self._raw_channel_egrid = ch_egrid
 
     def _read_resp(self, resp_header, resp_data):
-        nchan = resp_header.get('DETCHANS', None)
-        if nchan is None:
-            raise ValueError(
-                f'keyword "DETCHANS" not found in "{self._respfile}" header'
-            )
-        else:
-            nchan = int(nchan)
-
-        fchan_idx = resp_data.names.index('F_CHAN') + 1
-        # set the first channel number to 1 if not found
-        first_chan = int(resp_header.get(f'TLMIN{fchan_idx}', 1))
-
-        channel = tuple((i,) for i in range(first_chan, first_chan + nchan))
-        self._channel = self._raw_channel = channel
-
-        n_grp = resp_data['N_GRP']
-        f_chan = resp_data['F_CHAN'] - first_chan
-        n_chan = resp_data['N_CHAN']
-
-        # if ndim == 1 and dtype is 'O', it is an array of array
-        if f_chan.ndim == 1 and f_chan.dtype != np.dtype('O'):
-            # f_chan is scalar in each row, make it an array
-            f_chan = f_chan[:, None]
-
-        if n_chan.ndim == 1 and n_chan.dtype != np.dtype('O'):
-            # n_chan is scalar in each row, make it an array
-            n_chan = n_chan[:, None]
-
-        reduced_matrix = resp_data['MATRIX']
-        full_matrix = np.zeros((len(resp_data), nchan))
-
-        for i in range(len(resp_data)):
-            n = int(n_grp[i])  # n channel subsets
-            if n > 0:
-                f = f_chan[i]  # first channel of each subset
-                nc = n_chan[i]  # channel number of each subset
-                e = f + nc  # end channel of each subset
-                idx = np.append(0, nc).cumsum()  # reduced idx of subsets
-                reduced_i = reduced_matrix[i]  # row of the reduced matrix
-                full_i = full_matrix[i]  # row of the full matrix
-
-                for j in range(n):
-                    # reduced matrix of j-th channel subset
-                    reduced_ij = reduced_i[idx[j] : idx[j + 1]]
-
-                    # restore to the corresponding position in full matrix
-                    full_i[int(f[j]) : int(e[j])] = reduced_ij
-
-        self._matrix = self._raw_matrix = full_matrix
-
+        # check and read photon energy grid
         if not np.allclose(
             resp_data['ENERG_LO'][1:], resp_data['ENERG_HI'][:-1]
         ):
@@ -1106,6 +1076,62 @@ class Response:
         ph_egrid = np.asarray(ph_egrid, dtype=np.float64, order='C')
         self._ph_egrid = ph_egrid
 
+        # check and read response matrix
+        nchan = resp_header.get('DETCHANS', None)
+        if nchan is None:
+            raise ValueError(
+                f'keyword "DETCHANS" not found in "{self._respfile}" header'
+            )
+        else:
+            nchan = int(nchan)
+
+        fchan_idx = resp_data.names.index('F_CHAN') + 1
+        # set the first channel number to 1 if not found
+        first_chan = int(resp_header.get(f'TLMIN{fchan_idx}', 1))
+
+        channel = tuple(str(c) for c in range(first_chan, first_chan + nchan))
+        self._raw_channel = channel
+        self._channel = tuple((c,) for c in channel)
+
+        n_grp = resp_data['N_GRP']
+        f_chan = resp_data['F_CHAN'] - first_chan
+        n_chan = resp_data['N_CHAN']
+
+        # if ndim == 1 and dtype is 'O', it is an array of array
+        if f_chan.ndim == 1 and f_chan.dtype != np.dtype('O'):
+            # f_chan is scalar in each row, make it an array
+            f_chan = f_chan[:, None]
+
+        if n_chan.ndim == 1 and n_chan.dtype != np.dtype('O'):
+            # n_chan is scalar in each row, make it an array
+            n_chan = n_chan[:, None]
+
+        # the last channel numbers
+        e_chan = f_chan + n_chan
+
+        rows = np.hstack(
+            tuple(np.full(round(n.sum()), i) for i, n in enumerate(n_chan))
+        )
+        cols = []
+        for i in range(len(resp_data)):
+            n = int(n_grp[i])  # n channel subsets
+            if n > 0:
+                f = f_chan[i].astype(int)  # first channel numbers of subsets
+                e = e_chan[i].astype(int)  # last channel numbers of subsets
+                cols.extend(map(np.arange, f, e))
+        cols = np.hstack(cols)
+
+        matrix = resp_data['MATRIX'].ravel()
+        if matrix.dtype != np.dtype('O'):
+            reduced_matrix = matrix
+        else:
+            reduced_matrix = np.hstack(matrix)
+        self._sparse_matrix = coo_array(
+            (reduced_matrix, (rows, cols)), shape=(len(resp_data), nchan)
+        )
+        self._sparse_matrix.eliminate_zeros()
+        self._matrix = self._sparse_matrix
+
     def _read_ancrfile(self):
         ancrfile = self._ancrfile
 
@@ -1113,20 +1139,22 @@ class Response:
             with fits.open(ancrfile) as arf_hdul:
                 arf = arf_hdul['SPECRESP'].data['SPECRESP']
 
-            if len(arf) != len(self._raw_matrix):
+            if len(arf) != self._sparse_matrix.shape[0]:
                 respfile = self._respfile
                 raise ValueError(
                     f'rmf ({respfile}) and arf ({ancrfile}) are not matched'
                 )
 
-            self._raw_matrix *= arf[:, None]
-            self._matrix = self._raw_matrix
+            self._sparse_matrix *= arf[:, None]
+            self._matrix = self._sparse_matrix
 
     def _drop_zeros(self):
-        """Drop zero entries at the beginning or end of photon energy grid."""
-        matrix = self._raw_matrix
+        """Remove leading or trailing rows filled with 0 from the matrix."""
+        matrix = self._sparse_matrix
         ph_egrid = self._ph_egrid
-        zero_mask = np.all(np.less_equal(matrix, 0.0), axis=1)
+        nonzero_rows = np.unique(matrix.nonzero()[0])
+        nonzero_mask = np.isin(range(matrix.shape[0]), nonzero_rows)
+        zero_mask = np.bitwise_not(nonzero_mask)
         if zero_mask.any():
             n_entries = len(ph_egrid) - 1
             last_idx = len(ph_egrid) - 2
@@ -1134,8 +1162,7 @@ class Response:
             diff = np.diff(idx)
             if len(diff) == 0:  # only one zero entry
                 idx = idx[0]
-                if idx in (0, last_idx):  # the beginning/end of grid
-                    matrix = matrix[~zero_mask]
+                if idx in (0, last_idx):  # leading or trailing
                     if idx == 0:
                         ph_egrid = ph_egrid[1:]
                     else:
@@ -1152,7 +1179,7 @@ class Response:
                 ehi = ph_egrid[1:][~zeros_mask2]
                 ph_egrid = np.append(elo, ehi[-1])
 
-        self._raw_matrix = self._matrix = matrix[~zero_mask]
+        self._sparse_matrix = self._matrix = matrix.tocsr()[~zero_mask]
         self._ph_egrid = ph_egrid
 
     def group(self, grouping: NDArray, noticed: NDArray | None = None):
@@ -1184,9 +1211,10 @@ class Response:
 
         if len(grp_idx) == l0:  # case of no group, apply good mask
             if np.count_nonzero(noticed) != noticed.size:
-                self._channel = np.asarray(self._raw_channel)[noticed]
+                channel = np.array(self._raw_channel)[noticed]
+                self._channel = tuple((c,) for c in channel)
                 self._channel_egrid = self._raw_channel_egrid[noticed]
-                self._matrix = self._raw_matrix[:, noticed]
+                self._matrix = self._sparse_matrix.tocsc()[:, noticed]
 
         else:
             non_empty = np.greater(np.add.reduceat(noticed, grp_idx), 0)
@@ -1203,26 +1231,29 @@ class Response:
                     continue
                 slice_i = slice(edge_indices[i], edge_indices[i + 1])
                 quality_slice = noticed[slice_i]
-                channel_slice = channel[slice_i]
-                group_channel.append(
-                    np.asarray(channel_slice)[quality_slice].astype(str)
-                )
+                channel_slice = np.array(channel[slice_i])[quality_slice]
+                group_channel.append(tuple(channel_slice))
                 group_emin.append(min(emin[slice_i]))
                 group_emax.append(max(emax[slice_i]))
 
-            self._channel = tuple(tuple(g) for g in group_channel)
+            self._channel = tuple(group_channel)
             self._channel_egrid = np.column_stack([group_emin, group_emax])
 
             a = np.where(noticed, 1.0, 0.0)
-            matrix = np.add.reduceat(a * self._raw_matrix, grp_idx, axis=1)
-            self._matrix = matrix[:, non_empty]
+            n = self._sparse_matrix.shape[1]
+            idx = np.arange(n)
+            ptr = np.append(grp_idx, n)
+            grouping_matrix = csc_array((a, idx, ptr))
+            matrix = self._sparse_matrix.dot(grouping_matrix)
+            self._matrix = matrix.tocsc()[:, non_empty]
 
     def plot(self, erange: NDArray | None = None):
         """Plot the response matrix."""
-        plt.figure()
         ch_emin, ch_emax = self._raw_channel_egrid.T
-        matrix = self._raw_matrix
+        matrix = self._sparse_matrix.todense()
 
+        # some response matrix has discontinuity in channel energy grid,
+        # insert np.nan to handle this
         idx = np.flatnonzero(ch_emin[1:] - ch_emax[:-1])
         if len(idx) > 0:
             ch_emin = np.insert(ch_emin, idx + 1, ch_emax[idx])
@@ -1231,11 +1262,13 @@ class Response:
 
         ch_egrid = np.append(ch_emin, ch_emax[-1])
         ch, ph = np.meshgrid(ch_egrid, self._ph_egrid)
+        plt.figure()
         plt.pcolormesh(ch, ph, matrix, cmap='jet')
-        plt.loglog()
-        plt.xlabel('Measured Energy [keV]')
+        plt.xlabel('Measurement Energy [keV]')
         plt.ylabel('Photon Energy [keV]')
         plt.colorbar(label='Effective Area [cm$^2$]')
+        plt.xscale('log')
+        plt.yscale('log')
 
         if erange is not None:
             erange = np.atleast_2d(erange)
@@ -1305,22 +1338,13 @@ class Response:
     @property
     def matrix(self) -> NDArray:
         """Response matrix."""
+        return self._matrix.todense()
+
+    @property
+    def sparse_matrix(self) -> _spbase:
+        """Sparse response matrix."""
         return self._matrix
 
 
 class GroupingWaring(Warning):
-    """Issued by grouping scale not being met for all channels."""
-
-
-if __name__ == '__main__':
-    # data = Data(
-    #     [0, np.inf],
-    #     '/Users/xuewc/xa_vela_p0px1000_Hp.pi.gz',
-    #     respfile='/Users/xuewc/xa_vela_p0px1000_HpL.rmf.gz',
-    #     ancrfile='/Users/xuewc/rsl_standard_GVclosed.arf',
-    # )
-    from astropy.io import fits
-
-    with fits.open('/Users/xuewc/xa_vela_p0px1000_HpL.rmf.gz') as hdul:
-        header = hdul[1].header
-        data = hdul[1].data
+    """Issued by grouping scale not being met for all channel groups."""
