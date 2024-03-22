@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Sequence
 from importlib import metadata
-from typing import TYPE_CHECKING, Literal, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import arviz as az
 import jax
@@ -14,7 +13,6 @@ import numpy as np
 import numpyro
 import scipy.stats as stats
 from iminuit import Minuit
-from iminuit.util import FMin
 from numpyro.infer import MCMC
 
 from elisa.__about__ import __version__
@@ -22,6 +20,11 @@ from elisa.infer.nested_sampling import NestedSampler
 from elisa.util.misc import make_pretty_table
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+    from typing import Literal
+
+    from iminuit.util import FMin
+
     from elisa.infer.fit import Fit
     from elisa.infer.helper import Helper
 

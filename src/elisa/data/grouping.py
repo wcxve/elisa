@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from scipy.stats import norm
 
-from elisa.util.typing import NumPyArray as NDArray
+if TYPE_CHECKING:
+    from elisa.util.typing import NumPyArray as NDArray
 
-GroupResultType = tuple[NDArray, bool]
+    GroupResultType = tuple[NDArray, bool]
 
 
 def group_min(data: NDArray, n: int) -> GroupResultType:

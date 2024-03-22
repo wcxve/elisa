@@ -3,28 +3,30 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from collections.abc import Iterable, Sequence
-from typing import Any, Callable, Literal, NamedTuple, get_args
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, NamedTuple, get_args
 
 import jax.numpy as jnp
 from numpyro.distributions import Distribution, LogUniform, Uniform
 
-# from tinygp import kernels, means, noise
-from elisa.util.integrate import (
-    AdaptQuadMethod,
-    IntegralFactory,
-    make_integral_factory,
-)
+from elisa.util.integrate import AdaptQuadMethod, make_integral_factory
 from elisa.util.misc import build_namespace
-from elisa.util.typing import (
-    CompID,
-    CompParamName,
-    JAXArray,
-    JAXFloat,
-    ParamID,
-    ParamIDStrMapping,
-    ParamIDValMapping,
-)
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
+    from typing import Any, Callable, Literal
+
+    # from tinygp import kernels, means, noise
+    from elisa.util.integrate import IntegralFactory
+    from elisa.util.typing import (
+        CompID,
+        CompParamName,
+        JAXArray,
+        JAXFloat,
+        ParamID,
+        ParamIDStrMapping,
+        ParamIDValMapping,
+    )
 
 
 class AssignmentTracker:

@@ -2,22 +2,25 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Literal, get_args
+from typing import TYPE_CHECKING, Literal, get_args
 
 import jax.numpy as jnp
 from quadax import quadcc, quadgk, quadts, romberg, rombergts
 
-from elisa.util.typing import (
-    JAXArray,
-    JAXFloat,
-    ModelCompiledFn,
-    ParamID,
-    ParamIDValMapping,
-)
+if TYPE_CHECKING:
+    from typing import Any, Callable
+
+    from elisa.util.typing import (
+        JAXArray,
+        JAXFloat,
+        ModelCompiledFn,
+        ParamID,
+        ParamIDValMapping,
+    )
+
+    IntegralFactory = Callable[[ModelCompiledFn], ModelCompiledFn]
 
 AdaptQuadMethod = Literal['quadgk', 'quadcc', 'quadts', 'romberg', 'rombergts']
-IntegralFactory = Callable[[ModelCompiledFn], ModelCompiledFn]
-
 _QUAD_FN = dict(
     zip(
         get_args(AdaptQuadMethod), [quadgk, quadcc, quadts, romberg, rombergts]

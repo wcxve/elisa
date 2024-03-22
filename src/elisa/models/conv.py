@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import Callable
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 
 from elisa.models.model import ConvolutionComponent, ParamConfig
-from elisa.util.typing import ConvolveEval, JAXArray, NameValMapping
+
+if TYPE_CHECKING:
+    from typing import Callable
+
+    from elisa.util.typing import ConvolveEval, JAXArray, NameValMapping
 
 __all__ = ['EnFlux', 'PhFlux', 'RedShift', 'VelocityShift']
 

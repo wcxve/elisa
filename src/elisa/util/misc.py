@@ -3,16 +3,19 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
 from functools import reduce
-from typing import Callable, TypeVar
+from typing import TYPE_CHECKING
 
 from jax import lax
 from jax.experimental import host_callback
 from prettytable import PrettyTable
 from tqdm.auto import tqdm
 
-T = TypeVar('T')
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from typing import Callable, TypeVar
+
+    T = TypeVar('T')
 
 _SUPERSCRIPT = dict(
     zip(

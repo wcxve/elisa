@@ -7,37 +7,42 @@ from abc import ABC, ABCMeta, abstractmethod
 from collections.abc import Mapping, Sequence
 from enum import Enum
 from functools import reduce
-from typing import Any, Callable, Literal, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from numpyro.distributions import Distribution
 
-from elisa.models.parameter import Parameter, ParamInfo, UniformParameter
-from elisa.util.integrate import IntegralFactory
+from elisa.models.parameter import Parameter, UniformParameter
 from elisa.util.misc import build_namespace
-from elisa.util.typing import (
-    AdditiveFn,
-    ArrayLike,
-    CompEval,
-    CompID,
-    CompIDParamValMapping,
-    CompIDStrMapping,
-    CompName,
-    CompParamName,
-    ConvolveEval,
-    JAXArray,
-    JAXFloat,
-    ModelCompiledFn,
-    ModelEval,
-    NameValMapping,
-    NumPyArray,
-    ParamID,
-    ParamIDStrMapping,
-    ParamIDValMapping,
-    ParamNameValMapping,
-)
+
+if TYPE_CHECKING:
+    from typing import Any, Callable, Literal
+
+    from numpyro.distributions import Distribution
+
+    from elisa.models.parameter import ParamInfo
+    from elisa.util.integrate import IntegralFactory
+    from elisa.util.typing import (
+        AdditiveFn,
+        ArrayLike,
+        CompEval,
+        CompID,
+        CompIDParamValMapping,
+        CompIDStrMapping,
+        CompName,
+        CompParamName,
+        ConvolveEval,
+        JAXArray,
+        JAXFloat,
+        ModelCompiledFn,
+        ModelEval,
+        NameValMapping,
+        ParamID,
+        ParamIDStrMapping,
+        ParamIDValMapping,
+        ParamNameValMapping,
+    )
 
 
 class Model(ABC):
@@ -314,7 +319,7 @@ class CompiledModel:
 
     def _prepare_eval(self, params: ArrayLike | Sequence | Mapping | None):
         """Check if `params` is valid for the model."""
-        if isinstance(params, (np.ndarray, JAXArray, Sequence)):
+        if isinstance(params, (np.ndarray, jax.Array, Sequence)):
             if len(params) != self._nparam:
                 raise ValueError(
                     f'got {len(params)} params, expected {self._nparam}'
@@ -843,7 +848,9 @@ class ComponentMeta(ABCMeta):
         # define __init__ method of the newly created class if necessary
         if config is not None and '__init__' not in dct:
             # signature of __init__ method
-            sig1 = [f'{i[0]}: Parameter | float | None = None' for i in config]
+            sig1 = [
+                f"{i[0]}: 'Parameter' | float | None = None" for i in config
+            ]
             sig1 += ['latex: str | None = None']
 
             params = '{%s}' % ', '.join(f"'{i[0]}': {i[0]}" for i in config)
@@ -864,7 +871,7 @@ class ComponentMeta(ABCMeta):
                 f'    super(type(self), self).__init__({", ".join(sig2)})\n'
                 f'__init__.__qualname__ = "{name}.__init__"'
             )
-            exec(func_code, tmp := {'Parameter': Parameter})
+            exec(func_code, tmp := {})
             cls.__init__ = tmp['__init__']
 
         return cls
@@ -920,7 +927,7 @@ def _param_setter(name: str, idx: int) -> Callable[[Component, Any], None]:
             )
 
         elif isinstance(
-            param, (float, int, jnp.number, jnp.ndarray, NumPyArray)
+            param, (float, int, jnp.number, jnp.ndarray, np.ndarray)
         ):
             # fixed to the given value
             if jnp.shape(param) != ():

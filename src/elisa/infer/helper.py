@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Callable, Literal, NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -12,33 +12,36 @@ import numpy as np
 import numpyro
 from jax import lax
 from numpyro import handlers
-from numpyro.distributions import Distribution
 from numpyro.infer.util import constrain_fn, unconstrain_fn
 
-from elisa.data.ogip import Data
 from elisa.infer.likelihood import (
     _STATISTIC_BACK_NORMAL,
     _STATISTIC_SPEC_NORMAL,
     _STATISTIC_WITH_BACK,
-    Statistic,
     chi2,
     cstat,
     pgstat,
     pstat,
     wstat,
 )
-from elisa.models.model import CompiledModel, ModelInfo, ParamSetup
 from elisa.util.misc import progress_bar_factory
-from elisa.util.typing import (
-    JAXArray,
-    JAXFloat,
-    ParamID,
-    ParamName,
-    ParamNameValMapping,
-)
 
 if TYPE_CHECKING:
+    from typing import Callable, Literal
+
+    from numpyro.distributions import Distribution
+
+    from elisa.data.ogip import FitData
     from elisa.infer.fit import Fit
+    from elisa.infer.likelihood import Statistic
+    from elisa.models.model import CompiledModel, ModelInfo, ParamSetup
+    from elisa.util.typing import (
+        JAXArray,
+        JAXFloat,
+        ParamID,
+        ParamName,
+        ParamNameValMapping,
+    )
 
 # def get_reparam(dist: Distribution) -> tuple[Reparam, Callable] | None:
 #     """Get reparam for a distribution."""
@@ -71,7 +74,7 @@ if TYPE_CHECKING:
 def get_helper(fit: Fit) -> Helper:
     """Get helper functions for fitting."""
     model_info: ModelInfo = fit._model_info
-    data: dict[str, Data] = fit._data
+    data: dict[str, FitData] = fit._data
     model: dict[str, CompiledModel] = fit._model
     stat: dict[str, Statistic] = fit._stat
     seed0 = fit._seed
@@ -772,8 +775,8 @@ class Helper(NamedTuple):
     and "off" measurements.
     """
 
-    data: dict[str, Data]
-    """Data instances."""
+    data: dict[str, FitData]
+    """FitData instances."""
 
     model: dict[str, CompiledModel]
     """Compiled spectral models."""

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import jax.numpy as jnp
 from jax.scipy import stats
 
@@ -10,7 +12,9 @@ from elisa.models.model import (
     NumIntAdditive,
     ParamConfig,
 )
-from elisa.util.typing import JAXArray, NameValMapping
+
+if TYPE_CHECKING:
+    from elisa.util.typing import JAXArray, NameValMapping
 
 __all__ = [
     'Band',

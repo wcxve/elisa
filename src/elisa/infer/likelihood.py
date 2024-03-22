@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Callable, Literal, get_args
+from typing import TYPE_CHECKING, Literal, get_args
 
 import jax
 import jax.numpy as jnp
@@ -13,13 +13,17 @@ from jax.scipy.special import xlogy
 from numpyro.distributions import Normal, Poisson
 from numpyro.distributions.util import validate_sample
 
-from elisa.data.ogip import Data
-from elisa.util.typing import (
-    ArrayLike,
-    JAXArray,
-    ModelCompiledFn,
-    ParamNameValMapping,
-)
+if TYPE_CHECKING:
+    from typing import Callable
+
+    from elisa.data.ogip import FitData
+    from elisa.util.typing import (
+        ArrayLike,
+        JAXArray,
+        ModelCompiledFn,
+        ParamNameValMapping,
+    )
+
 
 # TODO:
 #   It should be noted that 'lstat' does not have long run coverage property
@@ -172,7 +176,7 @@ class BetterPoisson(Poisson):
             return jnp.clip(logp - gof, a_max=0.0)
 
 
-def _get_resp_matrix(data: Data) -> JAXArray | BCSR:
+def _get_resp_matrix(data: FitData) -> JAXArray | BCSR:
     if data.resp_sparse:
         return BCSR.from_scipy_sparse(data.sparse_resp_matrix.T)
     else:
@@ -180,7 +184,7 @@ def _get_resp_matrix(data: Data) -> JAXArray | BCSR:
 
 
 def chi2(
-    data: Data, model: ModelCompiledFn
+    data: FitData, model: ModelCompiledFn
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """S^2 statistic, Gaussian likelihood."""
     name = str(data.name)
@@ -221,7 +225,7 @@ def chi2(
 
 
 def cstat(
-    data: Data, model: ModelCompiledFn
+    data: FitData, model: ModelCompiledFn
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """C-statistic, Poisson likelihood."""
     name = str(data.name)
@@ -261,7 +265,7 @@ def cstat(
 
 
 def pstat(
-    data: Data, model: ModelCompiledFn
+    data: FitData, model: ModelCompiledFn
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """P-statistic, Poisson likelihood for data with a known background."""
     assert data.has_back, 'Data must have background'
@@ -305,7 +309,7 @@ def pstat(
 
 
 def pgstat(
-    data: Data, model: ModelCompiledFn
+    data: FitData, model: ModelCompiledFn
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """PG-statistic, Poisson likelihood for data and profile Gaussian
     likelihood for background.
@@ -366,7 +370,7 @@ def pgstat(
 
 
 def wstat(
-    data: Data, model: ModelCompiledFn
+    data: FitData, model: ModelCompiledFn
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """W-statistic, i.e. Poisson likelihood for data and profile Poisson
     likelihood for background.

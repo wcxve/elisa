@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import jax.numpy as jnp
 
 from elisa.models.model import (
@@ -9,7 +11,9 @@ from elisa.models.model import (
     NumIntMultiplicative,
     ParamConfig,
 )
-from elisa.util.typing import JAXArray, NameValMapping
+
+if TYPE_CHECKING:
+    from elisa.util.typing import JAXArray, NameValMapping
 
 __all__ = ['Constant', 'Edge', 'ExpAbs', 'ExpFac', 'GAbs', 'HighECut', 'PLAbs']
 
