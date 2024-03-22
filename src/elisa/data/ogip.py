@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import re
 import warnings
+from typing import TYPE_CHECKING, NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy.io import fits
 from scipy.sparse import coo_array, csc_array
-from scipy.sparse._base import _spbase
 
 from elisa.data.grouping import (
     group_const,
@@ -20,7 +20,11 @@ from elisa.data.grouping import (
     group_pos,
     group_sig,
 )
-from elisa.util.typing import NumPyArray as NDArray
+
+if TYPE_CHECKING:
+    from scipy.sparse._base import _spbase
+
+    from elisa.util.typing import NumPyArray as NDArray
 
 # TODO: support multiple response in a single data object
 # TODO: support creating Data object from array
@@ -511,12 +515,12 @@ class Data:
         return self._name
 
     @property
-    def spec_counts(self) -> NDArray:
+    def spec_counts(self) -> NDArray[float]:
         """Spectrum counts in each measuring channel."""
         return self._spec_counts
 
     @property
-    def spec_error(self) -> NDArray:
+    def spec_error(self) -> NDArray[float]:
         """Uncertainty of spectrum counts."""
         return self._spec_error
 
@@ -566,67 +570,67 @@ class Data:
         return self._back_ratio
 
     @property
-    def net_counts(self) -> NDArray:
+    def net_counts(self) -> NDArray[float]:
         """Net counts in each measuring channel."""
         return self._net_counts
 
     @property
-    def net_error(self) -> NDArray:
+    def net_error(self) -> NDArray[float]:
         """Uncertainty of net counts in each measuring channel."""
         return self._net_error
 
     @property
-    def ce(self) -> NDArray:
+    def ce(self) -> NDArray[float]:
         """Net counts per second per keV."""
         return self._ce
 
     @property
-    def ce_error(self) -> NDArray:
+    def ce_error(self) -> NDArray[float]:
         """Uncertainty of net counts per second per keV."""
         return self._ce_error
 
     @property
-    def ph_egrid(self) -> NDArray:
+    def ph_egrid(self) -> NDArray[float]:
         """Photon energy grid of response matrix."""
         return self._ph_egrid
 
     @property
-    def channel(self) -> NDArray:
+    def channel(self) -> NDArray[str]:
         """Measurement channel information."""
         return self._channel
 
     @property
-    def ch_emin(self) -> NDArray:
+    def ch_emin(self) -> NDArray[float]:
         """Left edge of measurement energy grid."""
         return self._ch_emin
 
     @property
-    def ch_emax(self) -> NDArray:
+    def ch_emax(self) -> NDArray[float]:
         """Right edge of measurement energy grid."""
         return self._ch_emax
 
     @property
-    def ch_emid(self) -> NDArray:
+    def ch_emid(self) -> NDArray[float]:
         """Middle of measurement energy grid."""
         return self._ch_emid
 
     @property
-    def ch_width(self) -> NDArray:
+    def ch_width(self) -> NDArray[float]:
         """Width of measurement energy grid."""
         return self._ch_width
 
     @property
-    def ch_mean(self) -> NDArray:
+    def ch_mean(self) -> NDArray[float]:
         """Geometric mean of measurement energy grid."""
         return self._ch_mean
 
     @property
-    def ch_error(self) -> NDArray:
+    def ch_error(self) -> NDArray[float]:
         """Width between left/right and geometric mean of channel grid."""
         return self._ch_error
 
     @property
-    def resp_matrix(self) -> NDArray:
+    def resp_matrix(self) -> NDArray[float]:
         """Response matrix."""
         return self._resp_matrix.todense()
 
@@ -639,6 +643,124 @@ class Data:
     def resp_sparse(self) -> bool:
         """Whether the response matrix is sparse."""
         return self._resp_sparse
+
+
+class FitData(NamedTuple):
+    """Data to fit."""
+
+    name: str
+    """Name of the observation data."""
+
+    spec_counts: NDArray[float]
+    """Spectrum counts in each measuring channel."""
+
+    spec_error: NDArray[float]
+    """Uncertainty of spectrum counts."""
+
+    spec_poisson: bool
+    """Whether spectrum data follows counting statistics."""
+
+    spec_exposure: float
+    """Spectrum exposure."""
+
+    area_factor: float
+    """Area scaling factor."""
+
+    has_back: bool
+    """Whether spectrum data includes background."""
+
+    back_counts: NDArray[float] | None
+    """Background counts in each measuring channel."""
+
+    back_error: NDArray[float] | None
+    """Uncertainty of background counts."""
+
+    back_poisson: bool | None
+    """Whether background data follows counting statistics."""
+
+    back_exposure: float | None
+    """Background exposure."""
+
+    back_ratio: float | NDArray[float] | None
+    """Ratio of spectrum to background effective exposure."""
+
+    net_counts: NDArray[float]
+    """Net counts in each measuring channel."""
+
+    net_error: NDArray[float]
+    """Uncertainty of net counts in each measuring channel."""
+
+    ce: NDArray[float]
+    """Net counts per second per keV."""
+
+    ce_error: NDArray[float]
+    """Uncertainty of net counts per second per keV."""
+
+    ph_egrid: NDArray[float]
+    """Photon energy grid of response matrix."""
+
+    channel: NDArray[str]
+    """Measurement channel information."""
+
+    ch_emin: NDArray[float]
+    """Left edge of measurement energy grid."""
+
+    ch_emax: NDArray[float]
+    """Right edge of measurement energy grid."""
+
+    ch_emid: NDArray[float]
+    """Middle of measurement energy grid."""
+
+    ch_width: NDArray[float]
+    """Width of measurement energy grid."""
+
+    ch_mean: NDArray[float]
+    """Geometric mean of measurement energy grid."""
+
+    ch_error: NDArray[float]
+    """Width between left/right and geometric mean of channel grid."""
+
+    resp_matrix: NDArray[float]
+    """Response matrix."""
+
+    sparse_resp_matrix: _spbase
+    """Sparse response matrix."""
+
+    resp_sparse: bool
+    """Whether the response matrix is sparse."""
+
+    @classmethod
+    def from_data(cls, data: Data):
+        """Convert Data to FitData."""
+        return cls(
+            name=data.name,
+            spec_counts=data.spec_counts,
+            spec_error=data.spec_error,
+            spec_poisson=data.spec_poisson,
+            spec_exposure=data.spec_exposure,
+            area_factor=data.area_factor,
+            has_back=data.has_back,
+            back_counts=data.back_counts,
+            back_error=data.back_error,
+            back_poisson=data.back_poisson,
+            back_exposure=data.back_exposure,
+            back_ratio=data.back_ratio,
+            net_counts=data.net_counts,
+            net_error=data.net_error,
+            ce=data.ce,
+            ce_error=data.ce_error,
+            ph_egrid=data.ph_egrid,
+            channel=data.channel,
+            ch_emin=data.ch_emin,
+            ch_emax=data.ch_emax,
+            ch_emid=data.ch_emid,
+            ch_width=data.ch_width,
+            ch_mean=data.ch_mean,
+            ch_error=data.ch_error,
+            resp_matrix=data.resp_matrix,
+            sparse_resp_matrix=data.sparse_resp_matrix,
+            resp_sparse=data.resp_sparse,
+        )
 
 
 class Spectrum:
@@ -823,7 +945,7 @@ class Spectrum:
 
         # get the background scaling factor
         back_scale = np.float64(get_field('BACKSCAL', 1.0))
-        if isinstance(back_scale, NDArray):
+        if isinstance(back_scale, np.ndarray):
             back_scale = np.array(back_scale, dtype=np.float64, order='C')
         else:
             back_scale = np.float64(back_scale)
@@ -831,7 +953,7 @@ class Spectrum:
 
         # get the area scaling factor
         area_scale = get_field('AREASCAL', 1.0)
-        if isinstance(area_scale, NDArray):
+        if isinstance(area_scale, np.ndarray):
             area_scale = np.array(area_scale, dtype=np.float64, order='C')
         else:
             area_scale = np.float64(area_scale)
@@ -1295,7 +1417,7 @@ class Response:
         plt.show()
 
     @property
-    def ph_egrid(self) -> NDArray:
+    def ph_egrid(self) -> NDArray[float]:
         """Monte Carlo photon energy grid."""
         return self._ph_egrid
 

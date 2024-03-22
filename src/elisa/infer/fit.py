@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Any, Callable, Literal
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
@@ -13,16 +13,23 @@ import jaxopt
 import numpy as np
 from iminuit import Minuit
 from numpyro.infer import MCMC, NUTS, init_to_value
-from prettytable import PrettyTable
 
-from elisa.data.ogip import Data
+from elisa.data.ogip import Data, FitData
 from elisa.infer.helper import Helper, get_helper
-from elisa.infer.likelihood import _STATISTIC_OPTIONS, Statistic
+from elisa.infer.likelihood import _STATISTIC_OPTIONS
 from elisa.infer.nested_sampling import NestedSampler
 from elisa.infer.results import MLEResult, PosteriorResult
-from elisa.models.model import Model, ModelInfo, get_model_info
+from elisa.models.model import Model, get_model_info
 from elisa.util.misc import add_suffix, build_namespace, make_pretty_table
-from elisa.util.typing import ArrayLike, JAXArray, JAXFloat
+
+if TYPE_CHECKING:
+    from typing import Any, Callable, Literal
+
+    from prettytable import PrettyTable
+
+    from elisa.data.ogip import ModelInfo
+    from elisa.infer.likelihood import Statistic
+    from elisa.util.typing import ArrayLike, JAXArray, JAXFloat
 
 
 class Fit(ABC):
@@ -66,13 +73,13 @@ class Fit(ABC):
         seed: int = 42,
     ):
         inputs = self._parse_input(data, model, stat)
-        datas: list[Data] = inputs[0]
+        data: list[FitData] = inputs[0]
         models: list[Model] = inputs[1]
         stats: list[Statistic] = inputs[2]
 
         # if a component is not fit with all datasets,
         # add names of data sets to be fit with it as its name/latex suffix
-        data_names = [d.name for d in datas]
+        data_names = [d.name for d in data]
         data_to_cid = {n: m._comps_id for n, m in zip(data_names, models)}
         cid_to_comp = {c._id: c for m in models for c in m._comps}
         cid = list(cid_to_comp.keys())
@@ -108,7 +115,7 @@ class Fit(ABC):
         }
 
         # store data, stat, seed
-        self._data: dict[str, Data] = dict(zip(data_names, datas))
+        self._data: dict[str, FitData] = dict(zip(data_names, data))
         self._stat: dict[str, Statistic] = dict(zip(data_names, stats))
         self._seed: int = int(seed)
 
@@ -225,7 +232,7 @@ class Fit(ABC):
         data: Data | Sequence[Data],
         model: Model | Sequence[Model],
         stat: Statistic | Sequence[Statistic] | None,
-    ) -> tuple[list[Data], list[Model], list[Statistic]]:
+    ) -> tuple[list[FitData], list[Model], list[Statistic]]:
         """Check if data, model, and stat are correct and return lists."""
 
         # ====================== some helper functions ========================
@@ -245,7 +252,7 @@ class Fit(ABC):
                 raise ValueError(f'got wrong type {type(inputs)} for {name}')
             return input_list
 
-        def get_stat(d: Data) -> Statistic:
+        def get_stat(d: FitData) -> Statistic:
             """Get the default stat for the data."""
             # 'pstat' is used only when specified explicitly by user
             if d.spec_poisson:
@@ -258,7 +265,7 @@ class Fit(ABC):
             else:
                 return 'chi2'
 
-        def check_stat(d: Data, s: Statistic):
+        def check_stat(d: FitData, s: Statistic):
             """Check if data type and likelihood are matched."""
             name = d.name
             if not d.spec_poisson and s != 'chi2':
@@ -309,10 +316,12 @@ class Fit(ABC):
         # ====================== some helper functions ========================
 
         # get data
-        data_list: list[Data] = get_list(data, 'data', Data, 'Data')
+        data_list: list[FitData] = [
+            FitData.from_data(d) for d in get_list(data, 'data', Data, 'Data')
+        ]
 
         # check if data are used multiple times
-        if len(set(data_list)) != len(data_list):
+        if len(list(map(id, data_list))) != len(data_list):
             count = {d: data_list.count(d) for d in set(data_list)}
             raise ValueError(
                 'data cannot be used multiple times: '
@@ -464,7 +473,7 @@ class MaxLikeFit(Fit):
             The MLE result.
 
         """
-        if isinstance(init, (np.ndarray, JAXArray, Sequence)):
+        if isinstance(init, (np.ndarray, jax.Array, Sequence)):
             init_unconstr = self._helper.constr_arr_to_unconstr_arr(init)
         elif isinstance(init, dict):
             init_unconstr = self._helper.constr_dic_to_unconstr_arr(init)
