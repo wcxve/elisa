@@ -1204,7 +1204,9 @@ class Response:
                 slice_i = slice(edge_indices[i], edge_indices[i + 1])
                 quality_slice = noticed[slice_i]
                 channel_slice = channel[slice_i]
-                group_channel.append(np.asarray(channel_slice)[quality_slice].astype(str))
+                group_channel.append(
+                    np.asarray(channel_slice)[quality_slice].astype(str)
+                )
                 group_emin.append(min(emin[slice_i]))
                 group_emax.append(max(emax[slice_i]))
 
