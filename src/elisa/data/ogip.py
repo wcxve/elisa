@@ -530,12 +530,12 @@ class Data:
         return self._spec_poisson
 
     @property
-    def spec_exposure(self) -> float:
+    def spec_exposure(self) -> np.float64:
         """Spectrum exposure."""
         return self._spec_exposure
 
     @property
-    def area_factor(self) -> float | NDArray:
+    def area_factor(self) -> np.float64 | NDArray:
         """Area scaling factor."""
         return self._spec.area_scale
 
@@ -560,12 +560,12 @@ class Data:
         return self._back_poisson
 
     @property
-    def back_exposure(self) -> float | None:
+    def back_exposure(self) -> np.float64 | None:
         """Background exposure."""
         return self._back_exposure
 
     @property
-    def back_ratio(self) -> float | NDArray | None:
+    def back_ratio(self) -> np.float64 | NDArray | None:
         """Ratio of spectrum to background effective exposure."""
         return self._back_ratio
 
@@ -660,10 +660,10 @@ class FitData(NamedTuple):
     spec_poisson: bool
     """Whether spectrum data follows counting statistics."""
 
-    spec_exposure: float
+    spec_exposure: np.float64
     """Spectrum exposure."""
 
-    area_factor: float
+    area_factor: np.float64 | NDArray[float]
     """Area scaling factor."""
 
     has_back: bool
@@ -678,10 +678,10 @@ class FitData(NamedTuple):
     back_poisson: bool | None
     """Whether background data follows counting statistics."""
 
-    back_exposure: float | None
+    back_exposure: np.float64 | None
     """Background exposure."""
 
-    back_ratio: float | NDArray[float] | None
+    back_ratio: np.float64 | NDArray[float] | None
     """Ratio of spectrum to background effective exposure."""
 
     net_counts: NDArray[float]
@@ -734,31 +734,31 @@ class FitData(NamedTuple):
         """Convert Data to FitData."""
         return cls(
             name=data.name,
-            spec_counts=data.spec_counts,
-            spec_error=data.spec_error,
+            spec_counts=data.spec_counts.copy(),
+            spec_error=data.spec_error.copy(),
             spec_poisson=data.spec_poisson,
             spec_exposure=data.spec_exposure,
-            area_factor=data.area_factor,
+            area_factor=data.area_factor.copy(),
             has_back=data.has_back,
-            back_counts=data.back_counts,
-            back_error=data.back_error,
+            back_counts=data.back_counts.copy(),
+            back_error=data.back_error.copy(),
             back_poisson=data.back_poisson,
             back_exposure=data.back_exposure,
-            back_ratio=data.back_ratio,
-            net_counts=data.net_counts,
-            net_error=data.net_error,
-            ce=data.ce,
-            ce_error=data.ce_error,
-            ph_egrid=data.ph_egrid,
-            channel=data.channel,
-            ch_emin=data.ch_emin,
-            ch_emax=data.ch_emax,
-            ch_emid=data.ch_emid,
-            ch_width=data.ch_width,
-            ch_mean=data.ch_mean,
-            ch_error=data.ch_error,
-            resp_matrix=data.resp_matrix,
-            sparse_resp_matrix=data.sparse_resp_matrix,
+            back_ratio=data.back_ratio.copy(),
+            net_counts=data.net_counts.copy(),
+            net_error=data.net_error.copy(),
+            ce=data.ce.copy(),
+            ce_error=data.ce_error.copy(),
+            ph_egrid=data.ph_egrid.copy(),
+            channel=data.channel.copy(),
+            ch_emin=data.ch_emin.copy(),
+            ch_emax=data.ch_emax.copy(),
+            ch_emid=data.ch_emid.copy(),
+            ch_width=data.ch_width.copy(),
+            ch_mean=data.ch_mean.copy(),
+            ch_error=data.ch_error.copy(),
+            resp_matrix=None if data.resp_sparse else data.resp_matrix.copy(),
+            sparse_resp_matrix=data.sparse_resp_matrix.copy(),
             resp_sparse=data.resp_sparse,
         )
 
@@ -1057,7 +1057,7 @@ class Spectrum:
         return self._quality
 
     @property
-    def exposure(self) -> float:
+    def exposure(self) -> np.float64:
         """Exposure time of the spectrum, in unit of second."""
         return self._exposure
 
@@ -1092,17 +1092,17 @@ class Spectrum:
         return self._corrfile
 
     @property
-    def back_scale(self) -> float | NDArray:
+    def back_scale(self) -> np.float64 | NDArray:
         """Background scaling factor."""
         return self._back_scale
 
     @property
-    def area_scale(self) -> float | NDArray:
+    def area_scale(self) -> np.float64 | NDArray:
         """Area scaling factor."""
         return self._area_scale
 
     @property
-    def corr_scale(self) -> float:
+    def corr_scale(self) -> np.float64:
         """Correction scaling factor."""
         return self._corr_scale
 
