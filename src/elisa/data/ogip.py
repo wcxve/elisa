@@ -1184,7 +1184,7 @@ class Response:
 
         if len(grp_idx) == l0:  # case of no group, apply good mask
             if np.count_nonzero(noticed) != noticed.size:
-                self._channel = self._raw_channel[noticed]
+                self._channel = np.asarray(self._raw_channel)[noticed]
                 self._channel_egrid = self._raw_channel_egrid[noticed]
                 self._matrix = self._raw_matrix[:, noticed]
 
@@ -1204,7 +1204,7 @@ class Response:
                 slice_i = slice(edge_indices[i], edge_indices[i + 1])
                 quality_slice = noticed[slice_i]
                 channel_slice = channel[slice_i]
-                group_channel.append(channel_slice[quality_slice].astype(str))
+                group_channel.append(np.asarray(channel_slice)[quality_slice].astype(str))
                 group_emin.append(min(emin[slice_i]))
                 group_emax.append(max(emax[slice_i]))
 
