@@ -592,7 +592,7 @@ class Data:
 
     @property
     def channel(self) -> NDArray:
-        """Measured channel information."""
+        """Measurement channel information."""
         return self._channel
 
     @property
@@ -1162,7 +1162,7 @@ class Response:
             diff = np.diff(idx)
             if len(diff) == 0:  # only one zero entry
                 idx = idx[0]
-                if idx in (0, last_idx):  # leading or trailing
+                if idx in (0, last_idx):  # check if idx is leading or trailing
                     if idx == 0:
                         ph_egrid = ph_egrid[1:]
                     else:
@@ -1172,7 +1172,7 @@ class Response:
                 zeros_mask2 = np.full(n_entries, False)
                 for s in splits:
                     if np.isin(s, (0, last_idx)).any():
-                        # drop only if at beginning or ending part of grids
+                        # only drop leading or trailing part of grids
                         zeros_mask2[s] = True
 
                 elo = ph_egrid[:-1][~zeros_mask2]
