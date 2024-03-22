@@ -27,8 +27,8 @@ if TYPE_CHECKING:
 
     from prettytable import PrettyTable
 
-    from elisa.data.ogip import ModelInfo
     from elisa.infer.likelihood import Statistic
+    from elisa.models.model import ModelInfo
     from elisa.util.typing import ArrayLike, JAXArray, JAXFloat
 
 
