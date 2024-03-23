@@ -141,12 +141,11 @@ class Model(ABC):
     @property
     def latex(self) -> str:
         r""":math:`\LaTeX` format of the model."""
+        latex = [c.latex for c in self._comps]
         cid_to_latex = dict(
             zip(
                 self._comps_id,
-                build_namespace([c.latex for c in self._comps], latex=True)[
-                    'namespace'
-                ],
+                build_namespace(latex, latex=True)['namespace'],
             )
         )
 
@@ -368,7 +367,9 @@ class CompiledModel:
         return fn, additive_fn, params
 
     def eval(
-        self, egrid: ArrayLike, params: Sequence | Mapping | None = None
+        self,
+        egrid: ArrayLike,
+        params: Sequence | Mapping | None = None,
     ) -> JAXArray:
         """Evaluate the model.
 
