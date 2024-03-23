@@ -71,7 +71,6 @@ class NormConvolution(ConvolutionComponent):
         -------
         value : ndarray
             The re-normalized model over `egrid`, in units of cm⁻² s⁻¹ keV⁻¹.
-
         """
         pass
 
@@ -165,7 +164,6 @@ class PhFlux(NormConvolution):
     elog : bool, optional
         Whether to use logarithmically regular energy grids.
         The default is True.
-
     """
 
     _config = (
@@ -209,7 +207,6 @@ class EnFlux(NormConvolution):
     elog : bool, optional
         Whether to use logarithmically regular energy grids.
         The default is True.
-
     """
 
     _config = (
@@ -251,7 +248,6 @@ class RedShift(ConvolutionComponent):
         Redshift :math:`z`, dimensionless.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
-
     """
 
     _config = (ParamConfig('z', 'z', '', 0.0, -0.999, 15.0, fixed=True),)
@@ -277,7 +273,6 @@ class VelocityShift(ConvolutionComponent):
         Velocity :math:`v`, in units of km s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
-
     """
 
     _config = (ParamConfig('v', 'v', 'km s^-1', 0.0, -1e4, 1e4, fixed=True),)

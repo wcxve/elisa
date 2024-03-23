@@ -61,7 +61,6 @@ def add_suffix(
     -------
     str or list of str
         The strings with suffix added.
-
     """
     return_list = False
 
@@ -131,7 +130,6 @@ def build_namespace(
     -------
     namespace: dict
         A dict of non-duplicate names and suffixes in original name order.
-
     """
     namespace = []
     names_ = []
@@ -180,7 +178,6 @@ def make_pretty_table(fields: Sequence[str], rows: Sequence) -> PrettyTable:
     -------
     table : PrettyTable
         The pretty table.
-
     """
     table = PrettyTable(
         fields,
@@ -219,7 +216,6 @@ def replace_string(value: T, mapping: dict[str, str]) -> T:
     -------
     replaced : iterable or mapping
         Value of `value` replaced with `mapping`.
-
     """
     mapping = mapping.items()
 
@@ -277,7 +273,6 @@ def progress_bar_factory(
     ----------
     .. [1] `How to add a progress bar to JAX scans and loops
             <https://www.jeremiecoullon.com/2021/01/29/jax_progress_bar/>`_
-
     """
     neval = int(neval)
     ncores = int(ncores)

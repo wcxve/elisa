@@ -15,7 +15,6 @@ def jax_enable_x64(use_x64: bool) -> None:
     ----------
     use_x64 : bool
         When `True`, JAX arrays will use 64 bits else 32 bits.
-
     """
     enable_x64(bool(use_x64))
 
@@ -27,7 +26,6 @@ def set_cpu_cores(n: int) -> None:
     ----------
     n : int
         CPU number to use.
-
     """
     n = int(n)
     total_cores = cpu_count()

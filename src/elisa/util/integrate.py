@@ -66,7 +66,6 @@ def make_integral_factory(
     References
     ----------
     .. [1] `quadax docs <https://quadax.readthedocs.io/en/latest/api.html#adaptive-integration-of-a-callable-function-or-method>`__
-
     """
     if method not in _QUAD_FN:
         raise ValueError(f'unsupported method: {method}')

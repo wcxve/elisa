@@ -650,7 +650,6 @@ def get_helper(fit: Fit) -> Helper:
         -------
         result : dict
             The simulation and fitting result.
-
         """
         seed = int(seed)
         free_params = jax.tree_map(jnp.array, free_params)

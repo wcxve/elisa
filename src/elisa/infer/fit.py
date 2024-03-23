@@ -55,7 +55,6 @@ class Fit(ABC):
         likelihood options for the datasets and models.
     seed : int, optional
         Seed of random number generator used for fit. The default is 42.
-
     """
 
     # TODO:
@@ -181,10 +180,9 @@ class Fit(ABC):
 
         Parameters
         ----------
-        file: file-like
+        file : file-like
             An object with a ``write(string)`` method. This is passed to
             :py:func:`print`.
-
         """
         print(repr(self), file=file)
 
@@ -471,7 +469,6 @@ class MaxLikeFit(Fit):
         -------
         MLEResult
             The MLE result.
-
         """
         if isinstance(init, (np.ndarray, jax.Array, Sequence)):
             init_unconstr = self._helper.constr_arr_to_unconstr_arr(init)
@@ -532,14 +529,13 @@ class BayesFit(Fit):
 
         Returns
         -------
-        result : PosteriorResult
+        PosteriorResult
             The posterior sampling result.
 
         References
         ----------
         .. [1] NumPyro tutorial: `Bad posterior geometry and how to deal with
                it <https://num.pyro.ai/en/stable/tutorials/bad_posterior_geometry.html>`__
-
         """
         device_count = jax.local_device_count()
 
@@ -620,14 +616,13 @@ class BayesFit(Fit):
 
         Returns
         -------
-        result : PosteriorResult
+        PosteriorResult
             The posterior sampling result.
 
         References
         ----------
         .. [1] `Phantom-Powered Nested Sampling <https://arxiv.org/abs/2312.11330>`__
         .. [2] `JAXNS API doc <https://jaxns.readthedocs.io/en/latest/api/jaxns/index.html#jaxns.DefaultNestedSampler>`__
-
         """
         if num_parallel_workers is None:
             num_parallel_workers = jax.local_device_count()

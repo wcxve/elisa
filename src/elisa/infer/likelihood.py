@@ -66,13 +66,12 @@ def pgstat_background(
 
     Returns
     -------
-    b : JAXArray
+    JAXArray
         The profile background.
 
     References
     ----------
     .. [1] `XSPEC Manual Appendix B: Statistics in XSPEC <https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSappendixStatistics.html>`__.
-
     """
     variance = b_err * b_err
     e = jnp.array(b_est - a * variance)
@@ -108,14 +107,13 @@ def wstat_background(
 
     Returns
     -------
-    b : JAXArray
+    JAXArray
         The profile background.
 
     References
     ----------
     .. [1] Wachter, K., Leach, R., & Kellogg, E. (1979). Parameter estimation
        in X-ray astronomy using maximum likelihood. ApJ, 230, 274–287.
-
     """
     c = a * (n_on + n_off) - (a + 1) * s
     d = jnp.sqrt(c * c + 4 * a * (a + 1) * n_off * s)
@@ -184,7 +182,8 @@ def _get_resp_matrix(data: FitData) -> JAXArray | BCSR:
 
 
 def chi2(
-    data: FitData, model: ModelCompiledFn
+    data: FitData,
+    model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """S^2 statistic, Gaussian likelihood."""
     name = str(data.name)
@@ -225,7 +224,8 @@ def chi2(
 
 
 def cstat(
-    data: FitData, model: ModelCompiledFn
+    data: FitData,
+    model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """C-statistic, Poisson likelihood."""
     name = str(data.name)
@@ -265,7 +265,8 @@ def cstat(
 
 
 def pstat(
-    data: FitData, model: ModelCompiledFn
+    data: FitData,
+    model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """P-statistic, Poisson likelihood for data with a known background."""
     assert data.has_back, 'Data must have background'
@@ -309,7 +310,8 @@ def pstat(
 
 
 def pgstat(
-    data: FitData, model: ModelCompiledFn
+    data: FitData,
+    model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """PG-statistic, Poisson likelihood for data and profile Gaussian
     likelihood for background.
@@ -370,7 +372,8 @@ def pgstat(
 
 
 def wstat(
-    data: FitData, model: ModelCompiledFn
+    data: FitData,
+    model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """W-statistic, i.e. Poisson likelihood for data and profile Poisson
     likelihood for background.

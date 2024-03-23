@@ -89,9 +89,8 @@ class Model(ABC):
 
         Returns
         -------
-        model : CompiledModel
+        CompiledModel
             The compiled model.
-
         """
         if self.type == 'conv':
             raise RuntimeError('cannot compile convolution model')
@@ -382,9 +381,8 @@ class CompiledModel:
 
         Returns
         -------
-        value : jax.Array
+        jax.Array
             The model value.
-
         """
         f, _, params = self._prepare_eval(params)
 
@@ -409,9 +407,8 @@ class CompiledModel:
 
         Returns
         -------
-        ne : jax.Array, or dict[str, jax.Array]
+        jax.Array, or dict[str, jax.Array]
             The differential photon flux in units of cm⁻² s⁻¹ keV⁻¹.
-
         """
         if self.type != 'add':
             msg = f'N(E) is undefined for {self.type} type model "{self}"'
@@ -451,9 +448,8 @@ class CompiledModel:
 
         Returns
         -------
-        ene : jax.Array, or dict[str, jax.Array]
+        jax.Array, or dict[str, jax.Array]
             The differential energy flux in units of erg cm⁻² s⁻¹ keV⁻¹.
-
         """
         if self.type != 'add':
             msg = f'EN(E) is undefined for {self.type} type model "{self}"'
@@ -496,9 +492,8 @@ class CompiledModel:
 
         Returns
         -------
-        eene : jax.Array, or dict[str, jax.Array]
+        jax.Array, or dict[str, jax.Array]
             The energy flux in units of erg cm⁻² s⁻¹.
-
         """
         if self.type != 'add':
             msg = f'EEN(E) is undefined for {self.type} type model "{self}"'
@@ -547,9 +542,8 @@ class CompiledModel:
 
         Returns
         -------
-        ce : jax.Array, or dict[str, jax.Array]
+        jax.Array, or dict[str, jax.Array]
             The folded model in units of s⁻¹ keV⁻¹.
-
         """
         if self.type != 'add':
             msg = f'C(E) is undefined for {self.type} type model "{self}"'
@@ -611,9 +605,8 @@ class CompiledModel:
 
         Returns
         -------
-        flux : jax.Array, or dict[str, jax.Array]
+        jax.Array, or dict[str, jax.Array]
             The model flux.
-
         """
         if self.type != 'add':
             msg = f'flux is undefined for {self.type} type model "{self}"'
@@ -1225,9 +1218,8 @@ class AnaIntAdditive(AnalyticalIntegral, AdditiveComponent):
 
         Returns
         -------
-        flux : ndarray
+        jax.Array
             The photon flux integrated over `egrid`, in units of cm⁻² s⁻¹.
-
         """
         pass
 
@@ -1249,9 +1241,8 @@ class NumIntAdditive(NumericalIntegral, AdditiveComponent):
 
         Returns
         -------
-        flux : ndarray
+        jax.Array
             The photon flux at `egrid`, in units of cm⁻² s⁻¹ keV⁻¹.
-
         """
         pass
 
@@ -1273,9 +1264,8 @@ class AnaIntMultiplicative(AnalyticalIntegral, MultiplicativeComponent):
 
         Returns
         -------
-        value : ndarray
+        jax.Array
             The model value, dimensionless.
-
         """
         pass
 
@@ -1297,9 +1287,8 @@ class NumIntMultiplicative(NumericalIntegral, MultiplicativeComponent):
 
         Returns
         -------
-        value : ndarray
+        jax.Array
             The model value at `egrid`, dimensionless.
-
         """
         pass
 
@@ -1424,9 +1413,8 @@ class ConvolutionComponent(Component):
 
         Returns
         -------
-        value : ndarray
+        jax.Array
             The convolved model value over `egrid`.
-
         """
         pass
 
@@ -1446,9 +1434,8 @@ def get_model_info(
 
     Returns
     -------
-    info : ModelInfo
+    ModelInfo
         The model parameter information dict.
-
     """
     # get all parameter information
     params_info: dict[ParamID, ParamInfo] = reduce(

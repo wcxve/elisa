@@ -122,7 +122,6 @@ class Data:
             RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`__
             and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`__
     .. [3] `Kaastra & Bleeker 2016, A&A, 587, A151 <https://doi.org/10.1051/0004-6361/201527395>`__
-
     """
 
     def __init__(
@@ -320,16 +319,16 @@ class Data:
         scale : float
             Grouping scale.
 
-        Warns
-        -----
-        GroupWarning
-            Warn if grouping scale is not met for any channel.
-
         Raises
         ------
         NotImplementedError
             Grouping is not yet implemented for spectrum with ``AREASCAL``
             and/or ``BACKSCAL`` array.
+
+        Warns
+        -----
+        GroupWarning
+            Warn if grouping scale is not met for any channel.
 
         Notes
         -----
@@ -341,7 +340,6 @@ class Data:
         References
         ----------
         .. [1] `Kaastra & Bleeker 2016, A&A, 587, A151 <https://doi.org/10.1051/0004-6361/201527395>`__
-
         """
         ch_emin, ch_emax = self._resp._raw_channel_egrid.T
         ch_mask = self._channel_mask(ch_emin, ch_emax)  # shape = (nchan, 2)
@@ -504,8 +502,7 @@ class Data:
         Parameters
         ----------
         hatch : bool, optional
-            Whether to hatch the ignored region. The default is True.
-
+            Whether to add hatches in the ignored region. The default is True.
         """
         self._resp.plot(self._erange if hatch else None)
 
@@ -780,7 +777,6 @@ class Spectrum:
     ----------
     .. [1] `The OGIP Spectral File Format <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007/ogip_92_007.html>`__
             and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/ofwg/docs/spectra/ogip_92_007a/ogip_92_007a.html>`__
-
     """
 
     def __init__(self, specfile: str, poisson: bool | None = None):
@@ -994,7 +990,6 @@ class Spectrum:
         inconsistency in a spectral plot. That is to say, the error bar of a
         channel group will cover these bad channels, whilst these bad channels
         are never used in fitting.
-
         """
         # TODO:
         #   * area_scale array grouping info can be hardcode into grouped
@@ -1122,7 +1117,6 @@ class Response:
     .. [1] `The Calibration Requirements for Spectral Analysis (Definition of
             RMF and ARF file formats) <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html>`__
             and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`__
-
     """
 
     def __init__(self, respfile: str, ancrfile: str | None = None):
@@ -1314,7 +1308,6 @@ class Response:
             with grouping flags of -1 are combined.
         noticed : ndarray or None, optional
             Flag indicating which channel to be used in grouping.
-
         """
         l0 = len(self._raw_channel)
 
@@ -1369,8 +1362,14 @@ class Response:
             matrix = self._sparse_matrix.dot(grouping_matrix)
             self._matrix = matrix.tocsc()[:, non_empty]
 
-    def plot(self, erange: NDArray | None = None):
-        """Plot the response matrix."""
+    def plot(self, hatch_range: NDArray | None = None):
+        """Plot the response matrix.
+
+        Parameters
+        ----------
+        hatch_range : ndarray, optional
+            Energy range to add hatches.
+        """
         ch_emin, ch_emax = self._raw_channel_egrid.T
         matrix = self._sparse_matrix.todense()
 
@@ -1392,10 +1391,10 @@ class Response:
         plt.xscale('log')
         plt.yscale('log')
 
-        if erange is not None:
-            erange = np.atleast_2d(erange)
-            emin = np.expand_dims(erange[:, 0], axis=1)
-            emax = np.expand_dims(erange[:, 1], axis=1)
+        if hatch_range is not None:
+            hatch_range = np.atleast_2d(hatch_range)
+            emin = np.expand_dims(hatch_range[:, 0], axis=1)
+            emax = np.expand_dims(hatch_range[:, 1], axis=1)
             mask1 = np.less_equal(emin, ch_emin)
             mask2 = np.less_equal(ch_emax, emax)
             idx = [np.flatnonzero(i) for i in np.bitwise_and(mask1, mask2)]

@@ -66,7 +66,6 @@ class Band(NumIntAdditive):
     ----------
     .. [1] `Band, D., et al. 1993, ApJ, 413, 281
            <https://adsabs.harvard.edu/full/1993ApJ...413..281B>`__
-
     """
 
     _config = (
@@ -139,7 +138,6 @@ class BandEp(NumIntAdditive):
     ----------
     .. [1] `Band, D., et al. 1993, ApJ, 413, 281
            <https://adsabs.harvard.edu/full/1993ApJ...413..281B>`__
-
     """
 
     _config = (
@@ -195,7 +193,6 @@ class Blackbody(NumIntAdditive):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -247,7 +244,6 @@ class BlackbodyRad(NumIntAdditive):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -318,7 +314,6 @@ class CutoffPL(NumIntAdditive):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -358,7 +353,6 @@ class Compt(NumIntAdditive):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -397,7 +391,6 @@ class Gauss(NumIntAdditive):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -441,7 +434,6 @@ class OTTB(NumIntAdditive):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -477,7 +469,6 @@ class OTTS(NumIntAdditive):
     ----------
     .. [1] `Liang, E. P., et al., 1983, ApJ, 271, 776
            <https://adsabs.harvard.edu/full/1983ApJ...271..766L>`__
-
     """
 
     _config = (
@@ -508,7 +499,6 @@ class PowerLaw(AnaIntAdditive):
         The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
-
     """
 
     _config = (

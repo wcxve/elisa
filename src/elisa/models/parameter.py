@@ -326,7 +326,6 @@ class DistParameter(ParameterHelper):
         Whether the parameter is fixed. The default is False.
     latex : str, optional
         :math:`\LaTeX` format of the parameter. The default is as `name`.
-
     """
 
     def __init__(
@@ -449,7 +448,6 @@ class UniformParameter(DistParameter):
         Whether the parameter is fixed. The default is False.
     latex : str, optional
         :math:`\LaTeX` format of the parameter. The default is as `name`.
-
     """
 
     def __init__(
@@ -626,7 +624,6 @@ class ConstantParameter(ParameterHelper):
         The constant value of parameter.
     latex : str, optional
         :math:`\LaTeX` format of the parameter. The default is as `name`.
-
     """
 
     def __init__(self, name: str, value: Any, latex: str | None = None):
@@ -654,7 +651,6 @@ class ConstantValue(ConstantParameter):
         Parameter value.
     latex : str, optional
         :math:`\LaTeX` format of the parameter. The default is as `name`.
-
     """
 
     def __init__(self, name: str, value: float, latex: str | None = None):
@@ -720,7 +716,6 @@ class ConstantInterval(ConstantParameter):
     References
     ----------
     .. [1] `quadax docs <https://quadax.readthedocs.io/en/latest/api.html#adaptive-integration-of-a-callable-function-or-method>`__
-
     """
 
     def __init__(
@@ -805,7 +800,6 @@ class CompositeParameter(Parameter):
     op_latex : str, optional
         :math:`\LaTeX` format of the composition operator `op`. The default is
         as `op_name`.
-
     """
 
     _params: tuple[Parameter, ...]

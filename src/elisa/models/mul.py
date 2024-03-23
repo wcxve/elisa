@@ -30,7 +30,6 @@ class Constant(AnaIntMultiplicative):
         The multiplicative factor :math:`f`, dimensionless.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
-
     """
 
     _config = (ParamConfig('f', 'f', '', 1.0, 1e-5, 1e5),)
@@ -62,7 +61,6 @@ class Edge(NumIntMultiplicative):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -94,7 +92,6 @@ class ExpAbs(NumIntMultiplicative):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 2.0, 0.0, 200.0),)
@@ -129,7 +126,6 @@ class ExpFac(NumIntMultiplicative):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -171,7 +167,6 @@ class GAbs(NumIntMultiplicative):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -214,7 +209,6 @@ class HighECut(NumIntMultiplicative):
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
         Numerical integration method. Defaults to 'trapz'.
-
     """
 
     _config = (
@@ -245,7 +239,6 @@ class PLAbs(AnaIntMultiplicative):
         The coefficient :math:`K`, dimensionless.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
-
     """
 
     _config = (

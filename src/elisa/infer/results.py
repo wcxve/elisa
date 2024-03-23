@@ -125,7 +125,6 @@ class FitResult(ABC):
         file: file-like
             An object with a ``write(string)`` method. This is passed to
             :py:func:`print`.
-
         """
         print(repr(self), file=file)
 
@@ -241,7 +240,6 @@ class MLEResult(FitResult):
         -------
         ConfidenceInterval
             The confidence intervals.
-
         """
         if not self._minuit.valid:
             msg = 'the fit must be valid to calculate confidence interval'
@@ -315,7 +313,6 @@ class MLEResult(FitResult):
             Whether to run simulation fit in parallel. The default is True.
         progress : bool, optional
             Whether to display progress bar. The default is True.
-
         """
         # reuse the previous result if all setup is the same
         if self._boot and self._boot.n == n and self._boot.seed == seed:
@@ -389,7 +386,6 @@ class MLEResult(FitResult):
         ----------
         .. [1] Eq.24 of https://doi.org/10.1007/s11222-021-10012-y
         .. [2] https://github.com/vemomoto/vemomoto/blob/master/ci_rvm/ci_rvm/ci_rvm.py#L1455
-
         """
 
         def loss_factory(name, mle):
@@ -586,7 +582,6 @@ class PosteriorResult(FitResult):
         -------
         CredibleInterval
             The credible interval.
-
         """
         if prob <= 0.0:
             raise ValueError('prob must be non-negative')
@@ -648,7 +643,6 @@ class PosteriorResult(FitResult):
             Whether to run simulation fit in parallel. The default is True.
         progress : bool, optional
             Whether to display progress bar. The default is True.
-
         """
         # reuse the previous result if all setup is the same
         if self._ppc and self._ppc.n == n and self._ppc.seed == seed:
@@ -858,7 +852,6 @@ class PosteriorResult(FitResult):
         References
         ----------
         .. [1] https://arxiv.org/abs/1903.08008
-
         """
         if self._rhat is None:
             params_names = self._helper.params_names['free']
@@ -901,7 +894,6 @@ class PosteriorResult(FitResult):
         ----------
         .. [1] https://arxiv.org/abs/1507.04544
         .. [2] https://arxiv.org/abs/1004.2316
-
         """
         if self._waic is None:
             self._waic = az.waic(
@@ -924,7 +916,6 @@ class PosteriorResult(FitResult):
         .. [1] https://avehtari.github.io/modelselection/CV-FAQ.html
         .. [2] https://arxiv.org/abs/1507.04544
         .. [3] https://arxiv.org/abs/1507.02646
-
         """
         if self._loo is None:
             self._loo = az.loo(

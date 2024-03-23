@@ -29,7 +29,6 @@ def group_min(data: NDArray, n: int) -> GroupResultType:
         Grouping flag.
     success: bool
         Whether the scale is met for all grouped channels.
-
     """
     nd = len(data)
     nc_minus_1 = nd - 1
@@ -88,7 +87,6 @@ def group_pos(data: NDArray, error: NDArray, p: float) -> GroupResultType:
         Grouping flag.
     success: bool
         Whether the scale is met for all grouped channels.
-
     """
     n_sigma = norm.isf(p)
 
