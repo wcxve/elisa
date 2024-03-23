@@ -116,7 +116,6 @@ numpydoc_xref_ignore = {'optional', 'type_without_description', 'BadException'}
 # Run docstring validation as part of build process
 # numpydoc_validation_checks = {"all", "GL01", "SA04", "RT03"}
 # The name of the Pygments (syntax highlighting) style to use.
-
 pygments_style = 'sphinx'
 
 typehints_document_rtype = False
