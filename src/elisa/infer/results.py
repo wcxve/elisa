@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
     from typing import Literal
 
+    from arviz.stats.stats_utils import ELPDData
     from iminuit.util import FMin
 
     from elisa.infer.fit import Fit
@@ -883,7 +884,7 @@ class PosteriorResult(FitResult):
         return self._divergence
 
     @property
-    def waic(self) -> float:
+    def waic(self) -> ELPDData:
         """The widely applicable information criterion (WAIC).
 
         Estimates the expected log point-wise predictive density (elpd) using
@@ -903,7 +904,7 @@ class PosteriorResult(FitResult):
         return self._waic
 
     @property
-    def loo(self) -> float:
+    def loo(self) -> ELPDData:
         """Pareto-smoothed importance sampling leave-one-out cross-validation
         (PSIS-LOO-CV).
 
