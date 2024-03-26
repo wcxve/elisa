@@ -56,10 +56,6 @@ def set_cpu_cores(n: int) -> None:
     n = int(n)
     total_cores = cpu_count()
 
-    if jax.default_backend() != 'cpu':
-        # raise RuntimeError("Please set default backend to 'cpu' before runing!")
-        set_platform()
-
     if n > total_cores:
         msg = f'only {total_cores} CPUs available, '
         msg += f'will use {total_cores - 1} CPUs'
