@@ -153,7 +153,13 @@ class Data:
         if np.any(np.diff(np.hstack(erange)) <= 0.0):
             raise ValueError('erange must not be overlapped')
 
-        spec = Spectrum(specfile, spec_poisson)
+        try:
+            spec = Spectrum(specfile, spec_poisson)
+        except PoissonFlagNotFoundError as err:
+            raise PoissonFlagNotFoundError(
+                '"POISSERR" is undefined in spectrum header, `spec_poisson` '
+                'must be set in Data(..., spec_poisson=True/False)'
+            ) from err
 
         # check data name
         if name:
@@ -182,12 +188,18 @@ class Data:
             )
 
         # check background file
-        if backfile:
-            back = Spectrum(backfile, back_poisson)
-        elif spec.backfile:
-            back = Spectrum(spec.backfile, back_poisson)
-        else:
-            back = None
+        try:
+            if backfile:
+                back = Spectrum(backfile, back_poisson)
+            elif spec.backfile:
+                back = Spectrum(spec.backfile, back_poisson)
+            else:
+                back = None
+        except PoissonFlagNotFoundError as err:
+            raise PoissonFlagNotFoundError(
+                '"POISSERR" is undefined in background header, `back_poisson` '
+                'must be set in Data(..., back_poisson=True/False)'
+            ) from err
 
         if back and len(spec._raw_counts) != len(back._raw_counts):
             raise ValueError(
@@ -348,7 +360,7 @@ class Data:
         grouping = np.full(len(spec_counts), 1, dtype=np.int64)
 
         def apply_grouping(group_func, mask, *args):
-            """function operating the grouping array defined above."""
+            """function apply the grouping array defined above."""
             data = (i[mask] * self._good_quality[mask] for i in args)
             grouping_flag, grouping_success = group_func(*data, float(scale))
             grouping[mask] = grouping_flag
@@ -430,7 +442,7 @@ class Data:
                 [f'{self.name}_{ch}_{"+".join(c)}' for c in self._resp.channel]
             )
         else:
-            grp_idx = np.flatnonzero(grouping == 1)  # transform to index
+            grp_idx = np.flatnonzero(grouping != -1)  # transform to index
             non_empty = np.add.reduceat(self._good_quality, grp_idx) != 0
             groups_channel = np.array(
                 [f'{self.name}_{ch}_{c}' for c in np.flatnonzero(non_empty)]
@@ -460,9 +472,8 @@ class Data:
         # background attribute
         if self._has_back:
             self._back.group(grouping, self._good_quality)
-            back = self._back
-            self._back_counts = back.counts[ch_mask]
-            self._back_error = back.error[ch_mask]
+            self._back_counts = self._back.counts[ch_mask]
+            self._back_error = self._back.error[ch_mask]
 
         # net spectrum attribute
         unit = 1.0 / (self._ch_width * self._spec_exposure)
@@ -512,12 +523,12 @@ class Data:
         return self._name
 
     @property
-    def spec_counts(self) -> NDArray[float]:
+    def spec_counts(self) -> NDArray:
         """Spectrum counts in each measuring channel."""
         return self._spec_counts
 
     @property
-    def spec_error(self) -> NDArray[float]:
+    def spec_error(self) -> NDArray:
         """Uncertainty of spectrum counts."""
         return self._spec_error
 
@@ -567,67 +578,67 @@ class Data:
         return self._back_ratio
 
     @property
-    def net_counts(self) -> NDArray[float]:
+    def net_counts(self) -> NDArray:
         """Net counts in each measuring channel."""
         return self._net_counts
 
     @property
-    def net_error(self) -> NDArray[float]:
+    def net_error(self) -> NDArray:
         """Uncertainty of net counts in each measuring channel."""
         return self._net_error
 
     @property
-    def ce(self) -> NDArray[float]:
+    def ce(self) -> NDArray:
         """Net counts per second per keV."""
         return self._ce
 
     @property
-    def ce_error(self) -> NDArray[float]:
+    def ce_error(self) -> NDArray:
         """Uncertainty of net counts per second per keV."""
         return self._ce_error
 
     @property
-    def ph_egrid(self) -> NDArray[float]:
+    def ph_egrid(self) -> NDArray:
         """Photon energy grid of response matrix."""
         return self._ph_egrid
 
     @property
-    def channel(self) -> NDArray[str]:
+    def channel(self) -> NDArray:
         """Measurement channel information."""
         return self._channel
 
     @property
-    def ch_emin(self) -> NDArray[float]:
+    def ch_emin(self) -> NDArray:
         """Left edge of measurement energy grid."""
         return self._ch_emin
 
     @property
-    def ch_emax(self) -> NDArray[float]:
+    def ch_emax(self) -> NDArray:
         """Right edge of measurement energy grid."""
         return self._ch_emax
 
     @property
-    def ch_emid(self) -> NDArray[float]:
+    def ch_emid(self) -> NDArray:
         """Middle of measurement energy grid."""
         return self._ch_emid
 
     @property
-    def ch_width(self) -> NDArray[float]:
+    def ch_width(self) -> NDArray:
         """Width of measurement energy grid."""
         return self._ch_width
 
     @property
-    def ch_mean(self) -> NDArray[float]:
+    def ch_mean(self) -> NDArray:
         """Geometric mean of measurement energy grid."""
         return self._ch_mean
 
     @property
-    def ch_error(self) -> NDArray[float]:
+    def ch_error(self) -> NDArray:
         """Width between left/right and geometric mean of channel grid."""
         return self._ch_error
 
     @property
-    def resp_matrix(self) -> NDArray[float]:
+    def resp_matrix(self) -> NDArray:
         """Response matrix."""
         return self._resp_matrix.todense()
 
@@ -640,124 +651,6 @@ class Data:
     def resp_sparse(self) -> bool:
         """Whether the response matrix is sparse."""
         return self._resp_sparse
-
-
-class FitData(NamedTuple):
-    """Data to fit."""
-
-    name: str
-    """Name of the observation data."""
-
-    spec_counts: NDArray[float]
-    """Spectrum counts in each measuring channel."""
-
-    spec_error: NDArray[float]
-    """Uncertainty of spectrum counts."""
-
-    spec_poisson: bool
-    """Whether spectrum data follows counting statistics."""
-
-    spec_exposure: np.float64
-    """Spectrum exposure."""
-
-    area_factor: np.float64 | NDArray[float]
-    """Area scaling factor."""
-
-    has_back: bool
-    """Whether spectrum data includes background."""
-
-    back_counts: NDArray[float] | None
-    """Background counts in each measuring channel."""
-
-    back_error: NDArray[float] | None
-    """Uncertainty of background counts."""
-
-    back_poisson: bool | None
-    """Whether background data follows counting statistics."""
-
-    back_exposure: np.float64 | None
-    """Background exposure."""
-
-    back_ratio: np.float64 | NDArray[float] | None
-    """Ratio of spectrum to background effective exposure."""
-
-    net_counts: NDArray[float]
-    """Net counts in each measuring channel."""
-
-    net_error: NDArray[float]
-    """Uncertainty of net counts in each measuring channel."""
-
-    ce: NDArray[float]
-    """Net counts per second per keV."""
-
-    ce_error: NDArray[float]
-    """Uncertainty of net counts per second per keV."""
-
-    ph_egrid: NDArray[float]
-    """Photon energy grid of response matrix."""
-
-    channel: NDArray[str]
-    """Measurement channel information."""
-
-    ch_emin: NDArray[float]
-    """Left edge of measurement energy grid."""
-
-    ch_emax: NDArray[float]
-    """Right edge of measurement energy grid."""
-
-    ch_emid: NDArray[float]
-    """Middle of measurement energy grid."""
-
-    ch_width: NDArray[float]
-    """Width of measurement energy grid."""
-
-    ch_mean: NDArray[float]
-    """Geometric mean of measurement energy grid."""
-
-    ch_error: NDArray[float]
-    """Width between left/right and geometric mean of channel grid."""
-
-    resp_matrix: NDArray[float]
-    """Response matrix."""
-
-    sparse_resp_matrix: _spbase
-    """Sparse response matrix."""
-
-    resp_sparse: bool
-    """Whether the response matrix is sparse."""
-
-    @classmethod
-    def from_data(cls, data: Data):
-        """Convert Data to FitData."""
-        return cls(
-            name=data.name,
-            spec_counts=data.spec_counts.copy(),
-            spec_error=data.spec_error.copy(),
-            spec_poisson=data.spec_poisson,
-            spec_exposure=data.spec_exposure,
-            area_factor=data.area_factor.copy(),
-            has_back=data.has_back,
-            back_counts=data.back_counts.copy(),
-            back_error=data.back_error.copy(),
-            back_poisson=data.back_poisson,
-            back_exposure=data.back_exposure,
-            back_ratio=data.back_ratio.copy(),
-            net_counts=data.net_counts.copy(),
-            net_error=data.net_error.copy(),
-            ce=data.ce.copy(),
-            ce_error=data.ce_error.copy(),
-            ph_egrid=data.ph_egrid.copy(),
-            channel=data.channel.copy(),
-            ch_emin=data.ch_emin.copy(),
-            ch_emax=data.ch_emax.copy(),
-            ch_emid=data.ch_emid.copy(),
-            ch_width=data.ch_width.copy(),
-            ch_mean=data.ch_mean.copy(),
-            ch_error=data.ch_error.copy(),
-            resp_matrix=None if data.resp_sparse else data.resp_matrix.copy(),
-            sparse_resp_matrix=data.sparse_resp_matrix.copy(),
-            resp_sparse=data.resp_sparse,
-        )
 
 
 class Spectrum:
@@ -817,8 +710,9 @@ class Spectrum:
         # get poisson flag
         poisson = header.get('POISSERR', poisson)
         if poisson is None:
-            raise ValueError(
-                '`poisson` must be set if "POISSERR" is undefined in header'
+            raise PoissonFlagNotFoundError(
+                '"POISSERR" is undefined in header, `poisson` must be set in '
+                'Spectrum(..., poisson=True/False)'
             )
 
         # check if STAT_ERR exists for non-Poisson spectrum
@@ -888,32 +782,46 @@ class Spectrum:
         else:
             grouping = np.array(grouping, dtype=np.int64, order='C')
 
-        if poisson:  # check if counts are integers
+        # check data
+        if poisson:
+            # check if counts are integers
             diff = np.abs(counts - np.round(counts))
             if np.any(diff > 1e-8 * counts):
                 warnings.warn(
-                    f'spectrum ({specfile}) has non-integer counts, '
+                    f'poisson spectrum ({specfile}) has non-integer counts, '
                     'which may lead to wrong result',
                     Warning,
                     stacklevel=3,
                 )
+        else:
+            # check if statistical errors are positive
+            if np.any(stat_err < 0.0):
+                raise ValueError(
+                    f'spectrum ({specfile}) has negative statistical errors'
+                )
 
-        # check if statistical errors are positive
-        if not poisson and np.any(stat_err <= 0.0):
-            raise ValueError(
-                f'spectrum ({specfile}) has statistical errors <= 0'
-            )
+            if np.any(stat_err == 0.0):
+                warnings.warn(
+                    f'spectrum ({specfile}) has zero statistical errors, '
+                    'which may lead to wrong result under Gaussian statistics,'
+                    ' consider to group the spectrum',
+                    Warning,
+                    stacklevel=3,
+                )
 
-        # check if systematic errors are non-negative
-        if np.any(sys_err < 0.0):
-            raise ValueError(
-                f'spectrum ({specfile}) has systematic errors < 0'
-            )
+            # check if systematic errors are non-negative
+            if np.any(sys_err < 0.0):
+                raise ValueError(
+                    f'spectrum ({specfile}) has systematic errors < 0'
+                )
 
         # total error of counts
-        stat_var = np.square(stat_err)
-        sys_var = np.square(sys_err * counts)
-        error = np.sqrt(stat_var + sys_var)
+        if not poisson:
+            stat_var = np.square(stat_err)
+            sys_var = np.square(sys_err * counts)
+            error = np.sqrt(stat_var + sys_var)
+        else:
+            error = stat_err
 
         # search name in header
         excluded_name = ('', 'none', 'unknown')
@@ -1018,7 +926,7 @@ class Spectrum:
             noticed = np.array(noticed, dtype=bool)
 
         factor = noticed.astype(np.float64)
-        grp_idx = np.flatnonzero(grouping == 1)  # transform to index
+        grp_idx = np.flatnonzero(grouping != -1)  # transform to index
         non_empty = np.add.reduceat(factor, grp_idx) != 0
 
         counts = np.add.reduceat(factor * self._raw_counts, grp_idx)
@@ -1322,7 +1230,7 @@ class Response:
                 f'original channel ({l0})'
             )
 
-        grp_idx = np.flatnonzero(grouping == 1)  # transform to index
+        grp_idx = np.flatnonzero(grouping != -1)  # transform to index
 
         if len(grp_idx) == l0:  # case of no group, apply good mask
             if np.count_nonzero(noticed) != noticed.size:
@@ -1416,7 +1324,7 @@ class Response:
         plt.show()
 
     @property
-    def ph_egrid(self) -> NDArray[float]:
+    def ph_egrid(self) -> NDArray:
         """Monte Carlo photon energy grid."""
         return self._ph_egrid
 
@@ -1467,5 +1375,127 @@ class Response:
         return self._matrix
 
 
+class FitData(NamedTuple):
+    """Data to fit."""
+
+    name: str
+    """Name of the observation data."""
+
+    spec_counts: NDArray
+    """Spectrum counts in each measuring channel."""
+
+    spec_error: NDArray
+    """Uncertainty of spectrum counts."""
+
+    spec_poisson: bool
+    """Whether spectrum data follows counting statistics."""
+
+    spec_exposure: np.float64
+    """Spectrum exposure."""
+
+    area_factor: np.float64 | NDArray
+    """Area scaling factor."""
+
+    has_back: bool
+    """Whether spectrum data includes background."""
+
+    back_counts: NDArray | None
+    """Background counts in each measuring channel."""
+
+    back_error: NDArray | None
+    """Uncertainty of background counts."""
+
+    back_poisson: bool | None
+    """Whether background data follows counting statistics."""
+
+    back_exposure: np.float64 | None
+    """Background exposure."""
+
+    back_ratio: np.float64 | NDArray | None
+    """Ratio of spectrum to background effective exposure."""
+
+    net_counts: NDArray
+    """Net counts in each measuring channel."""
+
+    net_error: NDArray
+    """Uncertainty of net counts in each measuring channel."""
+
+    ce: NDArray
+    """Net counts per second per keV."""
+
+    ce_error: NDArray
+    """Uncertainty of net counts per second per keV."""
+
+    ph_egrid: NDArray
+    """Photon energy grid of response matrix."""
+
+    channel: NDArray
+    """Measurement channel information."""
+
+    ch_emin: NDArray
+    """Left edge of measurement energy grid."""
+
+    ch_emax: NDArray
+    """Right edge of measurement energy grid."""
+
+    ch_emid: NDArray
+    """Middle of measurement energy grid."""
+
+    ch_width: NDArray
+    """Width of measurement energy grid."""
+
+    ch_mean: NDArray
+    """Geometric mean of measurement energy grid."""
+
+    ch_error: NDArray
+    """Width between left/right and geometric mean of channel grid."""
+
+    resp_matrix: NDArray
+    """Response matrix."""
+
+    sparse_resp_matrix: _spbase
+    """Sparse response matrix."""
+
+    resp_sparse: bool
+    """Whether the response matrix is sparse."""
+
+    @classmethod
+    def from_data(cls, data: Data):
+        """Convert Data to FitData."""
+        return cls(
+            name=data.name,
+            spec_counts=data.spec_counts.copy(),
+            spec_error=data.spec_error.copy(),
+            spec_poisson=data.spec_poisson,
+            spec_exposure=data.spec_exposure,
+            area_factor=data.area_factor.copy(),
+            has_back=data.has_back,
+            back_counts=data.back_counts.copy(),
+            back_error=data.back_error.copy(),
+            back_poisson=data.back_poisson,
+            back_exposure=data.back_exposure,
+            back_ratio=data.back_ratio.copy(),
+            net_counts=data.net_counts.copy(),
+            net_error=data.net_error.copy(),
+            ce=data.ce.copy(),
+            ce_error=data.ce_error.copy(),
+            ph_egrid=data.ph_egrid.copy(),
+            channel=data.channel.copy(),
+            ch_emin=data.ch_emin.copy(),
+            ch_emax=data.ch_emax.copy(),
+            ch_emid=data.ch_emid.copy(),
+            ch_width=data.ch_width.copy(),
+            ch_mean=data.ch_mean.copy(),
+            ch_error=data.ch_error.copy(),
+            resp_matrix=None if data.resp_sparse else data.resp_matrix.copy(),
+            sparse_resp_matrix=data.sparse_resp_matrix.copy(),
+            resp_sparse=data.resp_sparse,
+        )
+
+
 class GroupingWaring(Warning):
     """Issued by grouping scale not being met for all channel groups."""
+
+
+class PoissonFlagNotFoundError(RuntimeError):
+    """Issued by ``POISSERR`` not found in spectrum header."""
