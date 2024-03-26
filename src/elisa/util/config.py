@@ -7,7 +7,7 @@ from multiprocessing import cpu_count
 
 import os
 import jax
-from numpyro import enable_x64, set_host_device_count
+
 
 def jax_enable_x64(use_x64: bool) -> None:
     """Changes the default float precision of arrays in JAX.
@@ -43,7 +43,8 @@ def set_platform(platform: str="cpu"):
 
 def set_cpu_cores(n: int) -> None:
     """Set CPU number to use, should be called before running JAX codes.
-    This utility only takes effect at CPU platform.
+    This utility only takes effect at CPU platform and the beginning 
+    of your program.
 
     Parameters
     ----------
