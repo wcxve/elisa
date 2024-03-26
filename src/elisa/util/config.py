@@ -20,7 +20,7 @@ def jax_enable_x64(use_x64: bool) -> None:
     Parameters
     ----------
     use_x64 : bool
-        When `True`, JAX arrays will use 64 bits else 32 bits.
+        When ``True``, JAX arrays will use 64 bits else 32 bits.
     """
     if not use_x64:
         use_x64 = os.getenv('JAX_ENABLE_X64', 0)
@@ -36,7 +36,7 @@ def set_jax_platform(platform: Literal['cpu', 'gpu', 'tpu'] | None = None):
     Parameters
     ----------
     platform : {'cpu', 'gpu', 'tpu'}, optional
-        Either 'cpu', 'gpu', or 'tpu'.
+        Either ``'cpu'``, ``'gpu'``, or ``'tpu'``.
     """
     if platform is None:
         platform = os.getenv('JAX_PLATFORM_NAME', 'cpu')
@@ -98,6 +98,6 @@ def jax_debug_nans(flag: bool):
     Parameters
     ----------
     flag : bool
-        When `True`, raises an error when NaNs is detected.
+        When ``True``, raise an error when NaNs are detected in JAX.
     """
     jax.config.update('jax_debug_nans', bool(flag))
