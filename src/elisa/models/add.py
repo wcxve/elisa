@@ -356,7 +356,7 @@ class Compt(NumIntAdditive):
     """
 
     _config = (
-        ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 3.0),
+        ParamConfig('alpha', r'\alpha', '', 1.0, -3.0, 10.0),
         ParamConfig('Ep', r'E_\mathrm{p}', 'keV', 15.0, 0.01, 1e4),
         ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
