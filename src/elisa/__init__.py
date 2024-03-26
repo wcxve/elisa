@@ -18,5 +18,5 @@ from .models.parameter import (
 from .util import jax_enable_x64, set_cpu_cores, set_debug_nan, set_platform
 
 jax_enable_x64(True)
-# set_platform('cpu')
-# set_cpu_cores(4)
+set_platform()
+set_cpu_cores(4)
