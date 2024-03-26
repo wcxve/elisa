@@ -1004,7 +1004,7 @@ class Component(ABC, metaclass=ComponentMeta):
             latex = r'\mathrm{%s}' % self.__class__.__name__
         self.latex = latex
 
-        self._name = self.__class__.__name__.lower()
+        self._name = self.__class__.__name__
 
         # parse parameters from params, which is a dict of parameters
         for cfg in self._config:
