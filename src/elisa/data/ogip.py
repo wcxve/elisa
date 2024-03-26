@@ -691,7 +691,8 @@ class Spectrum:
         # TODO: more robust way to detect a type II data
         # check if data is type II
         if not type_ii:
-            msg = f'row id must be provided for type II spectrum {specfile}'
+            msg = 'row id must be provided for type II spectrum, e.g., '
+            msg += f"'{specfile}{{1}}'"
 
             nchan = len(data)
             if int(header.get('DETCHANS', nchan)) != nchan:
