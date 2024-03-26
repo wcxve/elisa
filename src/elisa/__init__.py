@@ -15,7 +15,8 @@ from .models.parameter import (
     DistParameter as DistParameter,
     UniformParameter as UniformParameter,
 )
-from .util import jax_enable_x64, set_cpu_cores
+from .util import jax_enable_x64, set_platform, set_cpu_cores, set_debug_nan
 
 jax_enable_x64(True)
-set_cpu_cores(4)
+# set_platform('cpu')
+# set_cpu_cores(4)
