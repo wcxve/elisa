@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
-import jaxopt
 import numpy as np
+import optimistix as optx
 from iminuit import Minuit
 from numpyro.infer import MCMC, NUTS, init_to_value
 
@@ -126,19 +126,16 @@ class Fit(ABC):
     def _optimize_lm(
         self, unconstr_init: JAXArray
     ) -> tuple[JAXArray, JAXFloat]:
-        """Search MLE using Levenberg-Marquardt algorithm of :mod:`jaxopt`."""
+        """Search MLE by Levenberg-Marquardt algorithm of :mod:`optimistix`."""
         if self._lm is None:
-            lm = jaxopt.LevenbergMarquardt(
-                jax.jit(self._helper.residual),
-                stop_criterion='grad-l2-norm',
-            )
+            lm_solver = optx.LevenbergMarquardt(rtol=0.0, atol=1e-6)
+            residual = jax.jit(lambda x, aux: self._helper.residual(x))
 
-            def run(init: JAXArray) -> tuple[JAXArray, JAXFloat]:
-                """Get the fitted parameter values and L2 norm of gradient."""
-                result = lm.run(init)
-                return result.params, result.state.error
+            def lm(init):
+                res = optx.least_squares(residual, lm_solver, init)
+                return res.value, jnp.linalg.norm(res.state.f_info.grad)
 
-            self._lm = jax.jit(run)
+            self._lm = jax.jit(lm)
 
         return self._lm(jnp.asarray(unconstr_init, float))
 
@@ -453,7 +450,7 @@ class MaxLikeFit(Fit):
             Available options are:
 
                 * ``'minuit'``: Migrad algorithm of :mod:`iminuit`.
-                * ``'lm'``: Levenberg-Marquardt algorithm of :mod:`jaxopt`.
+                * ``'lm'``: Levenberg-Marquardt algorithm of :mod:`optimistix`.
                 * ``'ns'``: Nested sampling of :mod:`jaxns`. This option first
                   search MLE globally, then polish it with local minimization.
 

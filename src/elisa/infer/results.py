@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from arviz.stats.stats_utils import ELPDData
     from iminuit.util import FMin
 
-    from elisa.infer.fit import Fit
+    from elisa.infer.fit import BayesFit
     from elisa.infer.helper import Helper
 
 
@@ -537,13 +537,12 @@ class PosteriorResult(FitResult):
     _divergence: int | None = None
 
     def __init__(
-        self, sampler: MCMC | NestedSampler, helper: Helper, fit: Fit
+        self, sampler: MCMC | NestedSampler, helper: Helper, fit: BayesFit
     ):
         if not isinstance(sampler, (MCMC, NestedSampler)):
             raise ValueError(f'unknown sampler type {type(sampler)}')
 
         super().__init__(helper)
-        self._sampler = sampler
         self._fit = fit
         if isinstance(sampler, MCMC):
             self._init_from_numpyro(sampler)
@@ -662,13 +661,22 @@ class PosteriorResult(FitResult):
             mle_unconstr = self._fit._optimize_lm(init)[0]
 
             # MLE of model params in constrained space
-            mle, cov = helper.get_mle(mle_unconstr)
-            err = jnp.sqrt(jnp.diagonal(cov))
+            mle, cov = jax.device_get(helper.get_mle(mle_unconstr))
+            err = np.sqrt(np.diagonal(cov))
             params_names = helper.params_names['all']
-            self._mle['mle'] = dict(zip(params_names, zip(mle, err)))
+            self._mle['params'] = dict(zip(params_names, zip(mle, err)))
+
+            sites = jax.device_get(jax.jit(helper.get_sites)(mle_unconstr))
 
             # model deviance at MLE
-            self._mle['deviance'] = jax.jit(helper.deviance)(mle_unconstr)
+            loglike = sites['loglike']
+            # drop unnecessary terms
+            loglike.pop('data')
+            loglike.pop('channels')
+            self._mle['deviance'] = jax.tree_map(lambda x: -2.0 * x, loglike)
+
+            # model values at MLE
+            self._mle['models'] = sites['models']
 
         helper = self._helper
         free_params = helper.params_names['free']
@@ -794,10 +802,11 @@ class PosteriorResult(FitResult):
         posterior = params | models
         posterior_predictive = helper.simulate(helper.seed['pred'], models, 1)
         loglike = helper.get_loglike(samples)
+        group = {f'{k}_total': v for k, v in loglike['group'].items()}
         loglike = (
             loglike['data']
             | loglike['point']
-            | loglike['group']
+            | group
             | {'channels': loglike['channels']}
             | {'total': loglike['total']}
         )

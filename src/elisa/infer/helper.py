@@ -7,9 +7,9 @@ from typing import TYPE_CHECKING, NamedTuple
 
 import jax
 import jax.numpy as jnp
-import jaxopt
 import numpy as np
 import numpyro
+import optimistix as optx
 from jax import lax
 from numpyro import handlers
 from numpyro.infer.util import constrain_fn, unconstrain_fn
@@ -131,7 +131,7 @@ def get_helper(fit: Fit) -> Helper:
         }
 
         # net spectrum [s^-1 keV^-1]
-        counts_data |= {i: net_counts[i] / spec_unit[i] for i in data.keys()}
+        counts_data |= {i: net_counts[i] * spec_unit[i] for i in data.keys()}
 
         # stack net spectrum of all channels of all datasets
         counts_data['channels'] = jnp.concatenate(
@@ -172,6 +172,7 @@ def get_helper(fit: Fit) -> Helper:
                 shape = model_values.shape
 
             if data_dist == 'norm':
+                # TODO: fix the negative counts by setting them to zeros
                 return rng.normal(model_values, *dist_args, shape)
             elif data_dist == 'poisson':
                 return rng.poisson(model_values, shape)
@@ -210,7 +211,6 @@ def get_helper(fit: Fit) -> Helper:
         """Simulate data given model values.
         Use numpy.random instead of numpyro.infer.Predictive for performance.
         """
-        # TODO: fix the negative counts by setting them to zeros
         models = {i: model_values[f'{i}_model'] for i in simulators.keys()}
         rng = np.random.default_rng(int(rng_seed))
         sim = {k: v(rng, models[k], n) for k, v in simulators.items()}
@@ -440,7 +440,7 @@ def get_helper(fit: Fit) -> Helper:
         """Get parameters dict in constrained space,
         given a free parameters dict in unconstrained space.
         """
-        return get_sites(dic_to_arr(dic))['params']
+        return jax.jit(get_sites)(dic_to_arr(dic))['params']
 
     @jax.jit
     def unconstr_arr_to_params_array(arr: JAXArray) -> JAXArray:
@@ -518,6 +518,8 @@ def get_helper(fit: Fit) -> Helper:
     # =================== functions used in optimization ======================
 
     # =============== functions used in simulation procedure ==================
+    lm_solver = optx.LevenbergMarquardt(rtol=0.0, atol=1e-6)
+
     @jax.jit
     def fit_once(i: int, args: tuple) -> tuple:
         """Loop core, fit simulation data once."""
@@ -529,16 +531,20 @@ def get_helper(fit: Fit) -> Helper:
         }
         new_residual = jax.jit(handlers.substitute(fn=residual, data=new_data))
         new_deviance = jax.jit(handlers.substitute(fn=deviance, data=new_data))
+        new_sites = jax.jit(handlers.substitute(fn=get_sites, data=new_data))
 
         # fit simulation data
-        lm = jaxopt.LevenbergMarquardt(
-            residual_fun=new_residual,
-            stop_criterion='grad-l2-norm',
+        res = optx.least_squares(
+            fn=lambda p, _: new_residual(p),
+            solver=lm_solver,
+            y0=init[i],
+            max_steps=1024,
+            throw=False,
         )
-        res = jax.jit(lm.run)(init[i])
-        state = res.state
+        fitted_params = res.value
+        grad_norm = jnp.linalg.norm(res.state.f_info.grad)
 
-        sites = jax.jit(get_sites)(res.params)
+        sites = new_sites(fitted_params)
 
         # update best fit params to result
         params = sites['params']
@@ -557,7 +563,7 @@ def get_helper(fit: Fit) -> Helper:
         )
 
         # update the deviance information to result
-        dev = new_deviance(res.params)
+        dev = new_deviance(fitted_params)
         res_dev = result['deviance']
         res_dev['group'] = jax.tree_map(
             lambda x, y: x.at[i].set(y),
@@ -569,12 +575,12 @@ def get_helper(fit: Fit) -> Helper:
             res_dev['point'],
             dev['point'],
         )
-        res_dev['total'] = res_dev['total'].at[i].set(2.0 * state.value)
+        res_dev['total'] = res_dev['total'].at[i].set(dev['total'])
 
         valid = jnp.bitwise_not(
-            jnp.isnan(state.value)
-            | jnp.isnan(state.error)
-            | jnp.greater(state.error, 1e-3)
+            jnp.isnan(dev['total'])
+            | jnp.isnan(grad_norm)
+            | jnp.greater(grad_norm, 1e-3)
         )
         result['valid'] = result['valid'].at[i].set(valid)
 
@@ -689,9 +695,9 @@ def get_helper(fit: Fit) -> Helper:
         result = {
             'params': {k: jnp.empty(nsim) for k in params_names},
             'models': {
-                f'{i}_model': jnp.empty((nsim, ndata[k]))
+                i: jnp.empty((nsim, ndata[k]))
                 for k, v in data_group.items()
-                for i in v
+                for i in [k, *map('{}_model'.format, v)]
             },
             'deviance': {
                 'total': jnp.empty(nsim),
@@ -713,7 +719,7 @@ def get_helper(fit: Fit) -> Helper:
         ndata=ndata,
         nparam=nparam,
         dof=dof,
-        data_names=tuple(data.keys()),
+        data_names=list(data.keys()),
         statistic=stat,
         channels=channels,
         obs_data=obs_data,
@@ -760,7 +766,7 @@ class Helper(NamedTuple):
     dof: int
     """The degree of freedom."""
 
-    data_names: tuple[str, ...]
+    data_names: list[str]
     """Name of each data."""
 
     statistic: dict[str, Statistic]
