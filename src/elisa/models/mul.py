@@ -594,6 +594,11 @@ class WAbs(PhotonAbsorption):
     where :math:`\sigma(E)` is the photo-electric cross-section, **NOT**
     including Thomson scattering.
 
+    .. warning ::
+        The :class:`WAbs` model is obsolete and is only included for comparison
+        with historical results. The :class:`TBAbs` model should be used for
+        the ISM or :class:`PhAbs` for general photoelectric absorption.
+
     Parameters
     ----------
     nH : Parameter, optional
