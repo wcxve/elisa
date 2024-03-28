@@ -299,7 +299,7 @@ def progress_bar_factory(
         print_rate = 1
 
     remainder = neval_single % print_rate
-    finished = [False] * 4
+    finished = [False] * ncores
     bar = tqdm(range(neval))
     bar.set_description(init_str, refresh=True)
 
