@@ -24,6 +24,7 @@ dependencies = [
     "arviz",
     "astropy",
     "corner>=2.2.2",
+    "h5py",
     "iminuit",
     "jax",
     "jaxns>=2.4.8",
