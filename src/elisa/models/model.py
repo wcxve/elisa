@@ -340,31 +340,31 @@ class CompiledModel:
         else:
             raise TypeError('params must be a array, sequence or mapping')
 
+        fn = self._fn
+        add_fn = self._additive_fn
         shapes = jax.tree_util.tree_flatten(
             tree=jax.tree_map(jnp.shape, params),
             is_leaf=lambda i: isinstance(i, tuple),
         )[0]
 
-        if not shapes:
-            raise ValueError('params are empty')
+        if self.params_name:
+            if not shapes:
+                raise ValueError('params are empty')
 
-        shape = shapes[0]
-        if any(s != shape for s in shapes[1:]):
-            raise ValueError('all params must have the same shape')
+            shape = shapes[0]
+            if any(s != shape for s in shapes[1:]):
+                raise ValueError('all params must have the same shape')
 
-        # iteratively vmap and jit over params dimensions
-        # nested-jit trick is used to reduce the compilation time
-
-        fn = self._fn
-        for _ in range(len(shape)):
-            fn = jax.jit(jax.vmap(fn, in_axes=(None, 0)))
-
-        additive_fn = self._additive_fn
-        if additive_fn is not None:
+            # iteratively vmap and jit over params dimensions
+            # use the nested-jit trick to reduce the compilation time
             for _ in range(len(shape)):
-                additive_fn = jax.jit(jax.vmap(additive_fn, in_axes=(None, 0)))
+                fn = jax.jit(jax.vmap(fn, in_axes=(None, 0)))
 
-        return fn, additive_fn, params
+            if add_fn is not None:
+                for _ in range(len(shape)):
+                    add_fn = jax.jit(jax.vmap(add_fn, in_axes=(None, 0)))
+
+        return fn, add_fn, params
 
     def eval(
         self,
@@ -1148,7 +1148,9 @@ class NumericalIntegral(Component):
             f_vmap = jax.vmap(f_jit, in_axes=(0, None))
             self._continnum_jit = jax.jit(f_vmap)
 
-        continnum = self._continnum_jit
+        return self._make_integral(self._continnum_jit)
+
+    def _make_integral(self, continnum: CompEval):
         mtype = self.type
 
         if self.method == 'trapz':
@@ -1171,8 +1173,8 @@ class NumericalIntegral(Component):
                 else:
                     factor = 1.0 / 6.0
                 e_mid = 0.5 * (egrid[:-1] + egrid[1:])
-                f_grid = self._continnum_jit(egrid, params)
-                f_mid = self._continnum_jit(e_mid, params)
+                f_grid = continnum(egrid, params)
+                f_mid = continnum(e_mid, params)
                 return factor * (f_grid[:-1] + 4.0 * f_mid + f_grid[1:])
 
         else:
