@@ -327,7 +327,7 @@ class PhotonAbsorption(NumIntMultiplicative):
                 'should be used for the ISM or PhAbs for general '
                 'photoelectric absorption.',
                 DeprecationWarning,
-                stacklevel=0,
+                stacklevel=4,
             )
 
         if abund is None:
