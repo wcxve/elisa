@@ -360,14 +360,14 @@ class Data:
         grouping = np.full(len(spec_counts), 1, dtype=np.int64)
 
         def apply_grouping(group_func, mask, *args):
-            """function apply the grouping array defined above."""
+            """Apply the grouping array defined above."""
             data = (i[mask] * self._good_quality[mask] for i in args)
             grouping_flag, grouping_success = group_func(*data, float(scale))
             grouping[mask] = grouping_flag
             return grouping_success
 
         def apply_map(func, *args):
-            """map the apply function and return a success flag."""
+            """Map the apply function and return a success flag."""
             return all(apply_grouping(func, mask, *args) for mask in ch_mask)
 
         if method == 'const':
