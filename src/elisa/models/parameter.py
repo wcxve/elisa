@@ -13,7 +13,7 @@ from elisa.util.integrate import AdaptQuadMethod, make_integral_factory
 from elisa.util.misc import build_namespace
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Iterable
     from typing import Any, Callable, Literal
 
     # from tinygp import kernels, means, noise
