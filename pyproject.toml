@@ -28,11 +28,13 @@ dependencies = [
     "iminuit",
     "jax",
     "jaxns>=2.4.8",
+    "matplotlib",
     "numpy",
     "numpyro",
     "optimistix",
     "prettytable",
     "quadax @ git+https://github.com/f0uriest/quadax.git@640afd5bacc1a42f1e3c55c266fc5a02f668b2d1",
+    "scipy",
     "seaborn",
     "tinygp",
     "tqdm",
@@ -98,21 +100,22 @@ lint.select = [
     "B",  # flake8-bugbear
     "UP",  # pyupgrade
 ]
-lint.pydocstyle.convention = "numpy"
+#lint.pydocstyle.convention = "numpy"
 
 [tool.coverage.run]
-parallel = true
 branch = true
-source = ["elisa"]
+parallel = true
+source = ["src/"]
 omit = [
     "docs/*",
+    "src/elisa/infer/nested_sampling.py",
+    "src/elisa/models/tables/*",
     "tests/*",
     "*__init__*"
 ]
 
 [tool.coverage.paths]
-source = ["src", "*/site-packages"]
+source = ["src/", "*/site-packages"]
 
 [tool.coverage.report]
-omit = ["src/elisa/infer/nested_sampling.py"]
 show_missing = true
