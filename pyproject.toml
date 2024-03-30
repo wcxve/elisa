@@ -34,7 +34,7 @@ dependencies = [
     "optimistix",
     "prettytable",
     "quadax @ git+https://github.com/f0uriest/quadax.git@640afd5bacc1a42f1e3c55c266fc5a02f668b2d1",
-    "scipy",
+    "scipy>=1.8",
     "seaborn",
     "tinygp",
     "tqdm",
