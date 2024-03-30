@@ -187,8 +187,8 @@ def chi2(
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """S^2 statistic, Gaussian likelihood."""
     name = str(data.name)
-    spec = jnp.array(data.spec_counts, float)
-    error = jnp.array(data.spec_error, float)
+    spec = jnp.array(data.net_counts, float)
+    error = jnp.array(data.net_error, float)
     photon_egrid = jnp.array(data.ph_egrid, float)
     channel_width = jnp.array(data.ch_width, float)
     resp_matrix = _get_resp_matrix(data)
