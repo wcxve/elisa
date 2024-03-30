@@ -108,13 +108,13 @@ class Model(ABC):
         name = self._id_to_label(model_info.cid_to_name, 'name')
 
         # model parameter id
-        params_id = {
+        params_id = [
             pid
             for c in self._comps
             for p in c.param_names
             for pid in c[p]._nodes_id
-        }
-        params_id = tuple(params_id.intersection(model_info.sample))
+            if pid in model_info.sample
+        ]
 
         # compiled model evaluation function
         fn = self._compile_model_fn(model_info)
@@ -278,7 +278,7 @@ class CompiledModel:
     def __init__(
         self,
         name: str,
-        params_id: tuple[ParamID, ...],
+        params_id: Sequence[ParamID],
         fn: ModelCompiledFn,
         additive_fn: AdditiveFn | None,
         mtype: Literal['add', 'mul'],
