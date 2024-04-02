@@ -578,7 +578,7 @@ class BayesFit(Fit):
         self,
         max_samples: int = 100000,
         num_live_points: int | None = None,
-        num_parallel_workers: int | None = None,
+        num_parallel_workers: int = 1,
         difficult_model: bool = False,
         parameter_estimation: bool = False,
         verbose: bool = False,
@@ -597,7 +597,7 @@ class BayesFit(Fit):
         num_live_points : int, optional
             Approximate number of live points.
         num_parallel_workers : int, optional
-            Parallel workers number. Defaults to ``jax.local_device_count()``.
+            Parallel workers number. The default is 1.
         difficult_model : bool, optional
             Use more robust default settings when True. The default is False.
         parameter_estimation : bool, optional
@@ -621,10 +621,7 @@ class BayesFit(Fit):
         .. [1] `Phantom-Powered Nested Sampling <https://arxiv.org/abs/2312.11330>`__
         .. [2] `JAXNS API doc <https://jaxns.readthedocs.io/en/latest/api/jaxns/index.html#jaxns.DefaultNestedSampler>`__
         """
-        if num_parallel_workers is None:
-            num_parallel_workers = jax.local_device_count()
-        else:
-            num_parallel_workers = int(num_parallel_workers)
+        num_parallel_workers = int(num_parallel_workers)
 
         constructor_kwargs = {
             'max_samples': max_samples,
