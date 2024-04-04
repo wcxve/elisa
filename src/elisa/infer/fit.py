@@ -390,7 +390,6 @@ class MaxLikeFit(Fit):
     def _optimize_minuit(
         self,
         unconstr_init: JAXArray,
-        strategy: Literal[0, 1, 2],
     ) -> Minuit:
         """Search MLE using Minuit algorithm of :mod:`iminuit`."""
         deviance = jax.jit(self._helper.deviance_total)
@@ -403,32 +402,14 @@ class MaxLikeFit(Fit):
         )
 
         # TODO: test if simplex can be used to "polish" the initial guess
-        # if strategy == 0:
-        #     max_it = 10
-        #     nit = 0
-        #     minuit.strategy = 0
-        #     minuit.migrad()
-        #     while (not minuit.fmin.is_valid) and nit < max_it:
-        #         minuit.hesse()
-        #         minuit.migrad()
-        #         nit += 1
-        #     minuit.hesse()
-        #
-        # elif strategy in {1, 2}:
-        #     minuit.strategy = strategy
-        #     minuit.migrad(iterate=10)
-        #
-        # else:
-        #     raise ValueError(f'invalid strategy {strategy}')
-
-        minuit.strategy = strategy
+        minuit.strategy = 0
         minuit.migrad(iterate=10)
-        if strategy == 0:
-            # refine hessian matrix
-            minuit.hesse()
 
-        # set strategy to 2 for accuracy of confidence interval calculation
-        minuit.strategy = 2
+        # refine hessian matrix?
+        # minuit.hesse()
+
+        # for accuracy of confidence interval calculation, set strategy to 2?
+        # minuit.strategy = 2
 
         return minuit
 
@@ -436,7 +417,6 @@ class MaxLikeFit(Fit):
         self,
         init: ArrayLike | dict | None = None,
         method: Literal['minuit', 'lm', 'ns'] = 'minuit',
-        strategy: Literal[0, 1, 2] = 1,
     ) -> MLEResult:
         """Search Maximum Likelihood Estimation (MLE) for the model.
 
@@ -455,12 +435,6 @@ class MaxLikeFit(Fit):
                   search MLE globally, then polish it with local minimization.
 
             The default is 'minuit'.
-        strategy : {0, 1, 2}, optional
-            Minuit optimization strategy, available options are:
-
-                * ``0``: Fast.
-                * ``1``: Default.
-                * ``2``: Careful, which improves accuracy at the cost of time.
 
         Returns
         -------
@@ -484,7 +458,7 @@ class MaxLikeFit(Fit):
             if method != 'minuit':
                 raise ValueError(f'unsupported optimization method {method}')
 
-        minuit = self._optimize_minuit(init_unconstr, strategy)
+        minuit = self._optimize_minuit(init_unconstr)
 
         return MLEResult(minuit, self._helper)
 
