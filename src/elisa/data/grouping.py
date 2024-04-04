@@ -10,10 +10,8 @@ from scipy.stats import norm
 if TYPE_CHECKING:
     from elisa.util.typing import NumPyArray as NDArray
 
-    GroupResultType = tuple[NDArray, bool]
 
-
-def group_min(data: NDArray, n: int) -> GroupResultType:
+def group_min(data: NDArray, n: int) -> tuple[NDArray, bool]:
     """Group data by containing at least `n` counts in each channel.
 
     Parameters
@@ -42,7 +40,7 @@ def group_min(data: NDArray, n: int) -> GroupResultType:
         group_counts += di
 
         if i == nc_minus_1:
-            if group_counts < n:
+            if group_counts < n and ng > 1:
                 # if the last group does not have enough counts,
                 # then combine the last two groups to ensure all
                 # groups meet the count requirement
@@ -68,7 +66,7 @@ def group_min(data: NDArray, n: int) -> GroupResultType:
     return flag, success
 
 
-def group_pos(data: NDArray, error: NDArray, p: float) -> GroupResultType:
+def group_pos(data: NDArray, error: NDArray, p: float) -> tuple[NDArray, bool]:
     """Group data by limiting the negative part of counts CDF is less than `p`.
 
     Parameters
@@ -105,7 +103,7 @@ def group_pos(data: NDArray, error: NDArray, p: float) -> GroupResultType:
         x = grp_data - n_sigma * np.sqrt(grp_var)
 
         if i == nc_minus_1:
-            if x < 0.0:
+            if x < 0.0 and ng > 1:
                 # if the error of the last group is not small enough,
                 # then combine the last two groups to ensure all
                 # groups meet the scale requirement
@@ -134,21 +132,21 @@ def group_pos(data: NDArray, error: NDArray, p: float) -> GroupResultType:
     return flag, success
 
 
-def group_sig() -> GroupResultType:
+def group_sig() -> tuple[NDArray, bool]:
     raise NotImplementedError
 
 
-def group_const() -> GroupResultType:
+def group_const() -> tuple[NDArray, bool]:
     raise NotImplementedError
 
 
-def group_opt() -> GroupResultType:
+def group_opt() -> tuple[NDArray, bool]:
     raise NotImplementedError
 
 
-def group_optmin() -> GroupResultType:
+def group_optmin() -> tuple[NDArray, bool]:
     raise NotImplementedError
 
 
-def group_optsig() -> GroupResultType:
+def group_optsig() -> tuple[NDArray, bool]:
     raise NotImplementedError
