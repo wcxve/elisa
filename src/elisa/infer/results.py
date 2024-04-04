@@ -533,6 +533,7 @@ class PosteriorResult(FitResult):
     _waic: az.stats.stats_utils.ELPDData | None = None
     _rhat: dict[str, float] | None = None
     _divergence: int | None = None
+    _pit: dict[str, tuple] | None = None
 
     def __init__(
         self, sampler: MCMC | NestedSampler, helper: Helper, fit: BayesFit
@@ -939,6 +940,75 @@ class PosteriorResult(FitResult):
     def lnZ(self) -> tuple[float, float] | tuple[None, None]:
         """Log model evidence and uncertainty."""
         return self._lnZ
+
+    @property
+    def _loo_pit(self) -> dict[str, tuple]:
+        """Leave-one-out probability integral transform."""
+        if self._pit is not None:
+            return self._pit
+
+        idata = self._idata
+        reff = self.reff
+        helper = self._helper
+        stack_kwargs = {'__sample__': ('chain', 'draw')}
+        log_weights, kss = az.psislw(
+            -idata['log_likelihood']['channels'].stack(**stack_kwargs), reff
+        )
+        y_hat = idata['posterior_predictive']['channels'].stack(**stack_kwargs)
+        loo_pit = az.loo_pit(
+            y=idata['observed_data']['channels'],
+            y_hat=y_hat,
+            log_weights=log_weights,
+        )
+
+        loo_pit = {
+            name: loo_pit.sel(channel=data.channel).values
+            for name, data in helper.data.items()
+        }
+
+        discrete_stats = {'cstat', 'pstat', 'wstat'}
+        data_stats = helper.statistic
+        has_discrete = discrete_stats.intersection(data_stats.values())
+        if has_discrete:
+            data_minus = {}
+            for k, d in helper.data.items():
+                unit = 1.0 / (d.ch_width * d.spec_exposure)
+                if data_stats[k] in {'cstat', 'pstat'}:
+                    data_minus[k] = (d.spec_counts - 1.0) * unit
+                elif data_stats[k] == 'wstat':
+                    # Get the next small net spectrum values
+                    data_minus[k] = (
+                        np.maximum(
+                            (d.spec_counts - 1.0)
+                            - d.back_ratio * d.back_counts,
+                            d.spec_counts
+                            - d.back_ratio * (d.back_counts + 1.0),
+                        )
+                        * unit
+                    )
+                else:  # chi2, pgstat
+                    data_minus[k] = d.ce
+
+            y_miuns = idata['observed_data']['channels'].copy()
+            y_miuns.data = np.hstack(list(data_minus.values()))
+
+            loo_pit_minus = az.loo_pit(
+                y=y_miuns,
+                y_hat=y_hat,
+                log_weights=log_weights,
+            )
+            loo_pit_minus = {
+                name: loo_pit_minus.sel(channel=data.channel).values
+                for name, data in helper.data.items()
+            }
+        else:
+            loo_pit_minus = loo_pit
+
+        self._pit = {
+            name: (loo_pit_minus[name], loo_pit[name])
+            for name in loo_pit.keys()
+        }
+        return self._pit
 
 
 class CredibleInterval(NamedTuple):
