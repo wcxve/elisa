@@ -409,7 +409,6 @@ class MLEResult(FitResult):
         free_params = helper.params_names['free']
 
         interval = {}
-        error = {}
         status = {}
         for i in names:
             mle_i = self._mle[i][0]
@@ -422,7 +421,6 @@ class MLEResult(FitResult):
             minuit.minos(0, cl=cl)
             ci = minuit.merrors[0]
             interval[i] = (mle_i + ci.lower, mle_i + ci.upper)
-            error[i] = (ci.lower, ci.upper)
             status[i] = {
                 'valid': (ci.lower_valid, ci.upper_valid),
                 'at_limit': (ci.at_lower_limit, ci.at_upper_limit),
@@ -430,7 +428,7 @@ class MLEResult(FitResult):
                 'new_min': (ci.lower_new_min, ci.upper_new_min),
             }
 
-        return interval, error, status
+        return interval, status
 
     def _ci_boot(self, names: Iterable[str], cl: float | int):
         """Bootstrap confidence interval."""
