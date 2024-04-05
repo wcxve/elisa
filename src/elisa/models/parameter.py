@@ -991,7 +991,7 @@ class CompositeParameter(Parameter):
     @property
     def log(self) -> bool:
         """If any of the sub-parameters is logarithmically parameterized."""
-        return any(i.log for i in self._params)
+        return all(i.log for i in self._params)
 
     @property
     def fixed(self) -> bool:
