@@ -1144,9 +1144,7 @@ class NumericalIntegral(Component):
     def eval(self) -> CompEval:
         if self._continnum_jit is None:
             # _continnum is assumed to be a pure function, independent of self
-            f_jit = jax.jit(self.continnum)
-            f_vmap = jax.vmap(f_jit, in_axes=(0, None))
-            self._continnum_jit = jax.jit(f_vmap)
+            self._continnum_jit = jax.jit(self.continnum)
 
         return self._make_integral(self._continnum_jit)
 

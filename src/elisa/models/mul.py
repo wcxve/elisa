@@ -342,9 +342,9 @@ class PhotonAbsorption(NumIntMultiplicative):
     def eval(self) -> CompEval:
         """Get photon absorption model function."""
         if self._continnum_jit is None:
-            f_jit = jax.jit(self.continnum, static_argnums=(2, 3, 4))
-            f_vmap = jax.vmap(f_jit, in_axes=(0, None, None, None, None))
-            self._continnum_jit = jax.jit(f_vmap, static_argnums=(2, 3, 4))
+            self._continnum_jit = jax.jit(
+                self.continnum, static_argnums=(2, 3, 4)
+            )
 
         abs_model = self.__class__.__name__.lower()
         abund = self.abund
