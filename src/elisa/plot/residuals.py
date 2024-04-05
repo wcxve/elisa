@@ -242,6 +242,7 @@ def quantile_residuals_poisson_poisson(
         The calculation is based on Monte Carlo simulation. It is also possible
         to calculate the quantile residuals by inverting the Cornish-Fisher
         expansion. See the following link for more details:
+
             * https://stats.stackexchange.com/a/73070
             * https://www.value-at-risk.net/the-cornish-fisher-expansion/
             * https://faculty.washington.edu/ezivot/econ589/ssrn-id1997178.pdf
@@ -351,6 +352,7 @@ def quantile_residuals_poisson_normal(
         The calculation is based on Monte Carlo simulation. It is also possible
         to calculate the quantile residuals by inverting the Cornish-Fisher
         expansion. See the following link for more details:
+
             * https://stats.stackexchange.com/a/73070
             * https://www.value-at-risk.net/the-cornish-fisher-expansion/
             * https://faculty.washington.edu/ezivot/econ589/ssrn-id1997178.pdf
