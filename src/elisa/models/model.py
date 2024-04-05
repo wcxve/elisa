@@ -1470,6 +1470,13 @@ def get_model_info(
         for pid, (cid, pname) in comp_param.items()
     }
 
+    # record the component LaTeX format of parameters
+    comp_latex = {comp._id: comp.latex for comp in comps}
+    comp_latex_mapping = {
+        pid: comp_latex[cid] for pid, (cid, _) in comp_param.items()
+    }
+    comp_latex_mapping |= {pid: '' for pid in aux_params}
+
     # record the LaTeX format of aux parameters
     aux_latex = [params_info[pid].latex for pid in aux_params]
     aux_latex = build_namespace(aux_latex, latex=True, prime=True)['namespace']
@@ -1489,6 +1496,7 @@ def get_model_info(
         for comp in comps
         for (i, name) in enumerate(comp.param_names)
     }
+    unit_mapping |= {pid: '' for pid, info in aux_params.items()}
 
     # record whether the parameter is logarithmic
     log = {pid: params_info[pid].log for pid in name_mapping}
@@ -1644,6 +1652,7 @@ def get_model_info(
         deterministic=deterministic,
         fixed=fixed,
         log=log,
+        pid_to_comp_latex=comp_latex_mapping,
         cid_to_params=cid_to_params,
         cid_to_name=cid_to_name,
         integrate=integrate,
@@ -1663,10 +1672,10 @@ class ModelInfo(NamedTuple):
     name: ParamIDStrMapping
     """The mapping of parameter id to parameter name."""
 
-    latex: dict[CompParamName, str]
+    latex: ParamIDStrMapping
     r"""The mapping of component parameters name to :math:`\LaTeX` format."""
 
-    unit: dict[CompParamName, str]
+    unit: ParamIDStrMapping
     """The mapping of component parameters name to physical unit."""
 
     sample: dict[ParamID, Distribution]
@@ -1683,6 +1692,9 @@ class ModelInfo(NamedTuple):
 
     log: dict[ParamID, bool]
     """The mapping of parameter id to logarithmic flag."""
+
+    pid_to_comp_latex: dict[ParamID, str]
+    """The mapping of parameter id to component LaTeX format."""
 
     cid_to_name: dict[CompID, CompName]
     """The mapping of component id to component name."""

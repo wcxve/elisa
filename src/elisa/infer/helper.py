@@ -10,6 +10,7 @@ import jax.numpy as jnp
 import numpy as np
 import numpyro
 import optimistix as optx
+from astropy.units import Unit
 from jax import lax
 from numpyro import handlers
 from numpyro.infer.util import constrain_fn, unconstrain_fn
@@ -219,6 +220,27 @@ def get_helper(fit: Fit) -> Helper:
     # ======================== count data simulator ===========================
 
     # ======================== create numpyro model ===========================
+    pname_to_latex: dict[ParamName, str] = {
+        pname: model_info.latex[pid] for pid, pname in model_info.name.items()
+    }
+    pname_to_log: dict[ParamName, bool] = {
+        pname: model_info.log[pid] for pid, pname in model_info.name.items()
+    }
+    pname_to_unit: dict[ParamName, str] = {
+        pname: (
+            Unit(ustr)
+            .to_string('latex', fraction=False)
+            .replace(r'1 \times ', '')
+            if (ustr := model_info.unit[pid])
+            else ''
+        )
+        for pid, pname in model_info.name.items()
+    }
+    pname_to_comp_latex: dict[ParamName, str] = {
+        pname: model_info.pid_to_comp_latex[pid]
+        for pid, pname in model_info.name.items()
+    }
+
     # get model parameters priors
     pid_to_pname: dict[ParamID, ParamName] = model_info.name
     pname_to_pid: dict[ParamName, ParamID] = {
@@ -735,6 +757,10 @@ def get_helper(fit: Fit) -> Helper:
             'all': params_names,
         },
         params_setup=model_info.setup,
+        params_latex=pname_to_latex,
+        params_unit=pname_to_unit,
+        params_log=pname_to_log,
+        params_comp_latex=pname_to_comp_latex,
         free_default=free_default,
         get_sites=get_sites,
         get_params=get_params,
@@ -805,6 +831,18 @@ class Helper(NamedTuple):
 
     params_setup: dict[ParamName, tuple[ParamName, ParamSetup]]
     """The mapping from forwarded parameters names to parameters names."""
+
+    params_latex: dict[ParamName, str]
+    """The LaTeX representation of parameters."""
+
+    params_unit: dict[ParamName, str]
+    """The unit of parameters."""
+
+    params_log: dict[ParamName, bool]
+    """Whether the parameters are in log space."""
+
+    params_comp_latex: dict[ParamName, str]
+    """The LaTeX representation of parameter's component."""
 
     get_sites: Callable[
         [JAXArray],
