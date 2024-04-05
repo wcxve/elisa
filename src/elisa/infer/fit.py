@@ -146,7 +146,7 @@ class Fit(ABC):
                 self._helper.numpyro_model,
                 constructor_kwargs={
                     'max_samples': 100000,
-                    'num_live_points': max(800, 100 * self._helper.nparam),
+                    'parameter_estimation': True,
                 },
             )
             t0 = time.time()
@@ -390,7 +390,6 @@ class MaxLikeFit(Fit):
     def _optimize_minuit(
         self,
         unconstr_init: JAXArray,
-        strategy: Literal[0, 1, 2],
     ) -> Minuit:
         """Search MLE using Minuit algorithm of :mod:`iminuit`."""
         deviance = jax.jit(self._helper.deviance_total)
@@ -403,32 +402,14 @@ class MaxLikeFit(Fit):
         )
 
         # TODO: test if simplex can be used to "polish" the initial guess
-        # if strategy == 0:
-        #     max_it = 10
-        #     nit = 0
-        #     minuit.strategy = 0
-        #     minuit.migrad()
-        #     while (not minuit.fmin.is_valid) and nit < max_it:
-        #         minuit.hesse()
-        #         minuit.migrad()
-        #         nit += 1
-        #     minuit.hesse()
-        #
-        # elif strategy in {1, 2}:
-        #     minuit.strategy = strategy
-        #     minuit.migrad(iterate=10)
-        #
-        # else:
-        #     raise ValueError(f'invalid strategy {strategy}')
-
-        minuit.strategy = strategy
+        minuit.strategy = 0
         minuit.migrad(iterate=10)
-        if strategy == 0:
-            # refine hessian matrix
-            minuit.hesse()
 
-        # set strategy to 2 for accuracy of confidence interval calculation
-        minuit.strategy = 2
+        # refine hessian matrix?
+        # minuit.hesse()
+
+        # for accuracy of confidence interval calculation, set strategy to 2?
+        # minuit.strategy = 2
 
         return minuit
 
@@ -436,7 +417,6 @@ class MaxLikeFit(Fit):
         self,
         init: ArrayLike | dict | None = None,
         method: Literal['minuit', 'lm', 'ns'] = 'minuit',
-        strategy: Literal[0, 1, 2] = 1,
     ) -> MLEResult:
         """Search Maximum Likelihood Estimation (MLE) for the model.
 
@@ -455,12 +435,6 @@ class MaxLikeFit(Fit):
                   search MLE globally, then polish it with local minimization.
 
             The default is 'minuit'.
-        strategy : {0, 1, 2}, optional
-            Minuit optimization strategy, available options are:
-
-                * ``0``: Fast.
-                * ``1``: Default.
-                * ``2``: Careful, which improves accuracy at the cost of time.
 
         Returns
         -------
@@ -484,7 +458,7 @@ class MaxLikeFit(Fit):
             if method != 'minuit':
                 raise ValueError(f'unsupported optimization method {method}')
 
-        minuit = self._optimize_minuit(init_unconstr, strategy)
+        minuit = self._optimize_minuit(init_unconstr)
 
         return MLEResult(minuit, self._helper)
 
@@ -578,7 +552,7 @@ class BayesFit(Fit):
         self,
         max_samples: int = 100000,
         num_live_points: int | None = None,
-        num_parallel_workers: int | None = None,
+        num_parallel_workers: int = 1,
         difficult_model: bool = False,
         parameter_estimation: bool = False,
         verbose: bool = False,
@@ -597,7 +571,7 @@ class BayesFit(Fit):
         num_live_points : int, optional
             Approximate number of live points.
         num_parallel_workers : int, optional
-            Parallel workers number. Defaults to ``jax.local_device_count()``.
+            Parallel workers number. The default is 1.
         difficult_model : bool, optional
             Use more robust default settings when True. The default is False.
         parameter_estimation : bool, optional
@@ -621,10 +595,7 @@ class BayesFit(Fit):
         .. [1] `Phantom-Powered Nested Sampling <https://arxiv.org/abs/2312.11330>`__
         .. [2] `JAXNS API doc <https://jaxns.readthedocs.io/en/latest/api/jaxns/index.html#jaxns.DefaultNestedSampler>`__
         """
-        if num_parallel_workers is None:
-            num_parallel_workers = jax.local_device_count()
-        else:
-            num_parallel_workers = int(num_parallel_workers)
+        num_parallel_workers = int(num_parallel_workers)
 
         constructor_kwargs = {
             'max_samples': max_samples,

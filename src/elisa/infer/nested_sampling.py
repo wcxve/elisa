@@ -221,27 +221,24 @@ class NestedSampler:
 
         # Jaxns requires loglikelihood function to have explicit signatures.
         local_dict = {}
-        loglik_fn_def = """def loglik_fn({}):\n
-        \tparams = {{{}}}\n
+        loglik_fn_def = """def loglik_fn(params):\n
+        \tparams = {k + '_base': v for k, v in params.items()}\n
         \treturn log_density_(reparam_model, args, kwargs, params)[0]
-        """.format(
-            ", ".join([f"{name.replace('.', '_')}_base" for name in param_names]),
-            ", ".join([f"'{name}_base': {name.replace('.', '_')}_base" for name in param_names]),
-        )
+        """
         exec(loglik_fn_def, locals(), local_dict)
         loglik_fn = local_dict["loglik_fn"]
 
         # use NestedSampler with identity prior chain
         def prior_model():
-            params = []
+            params = {}
             for name in param_names:
                 shape = prototype_trace[name]["fn"].shape()
                 param = yield Prior(
                     tfpd.Uniform(low=jnp.zeros(shape), high=jnp.ones(shape)),
                     name=name + "_base",
                 )
-                params.append(param)
-            return tuple(params)
+                params[name] = param
+            return params
 
         model = Model(prior_model=prior_model, log_likelihood=loglik_fn)
 
