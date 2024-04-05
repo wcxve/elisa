@@ -146,7 +146,7 @@ class Fit(ABC):
                 self._helper.numpyro_model,
                 constructor_kwargs={
                     'max_samples': 100000,
-                    'num_live_points': max(800, 100 * self._helper.nparam),
+                    'parameter_estimation': True,
                 },
             )
             t0 = time.time()
