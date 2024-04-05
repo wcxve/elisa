@@ -43,12 +43,12 @@ if TYPE_CHECKING:
     from elisa.util.typing import Array, NumPyArray
 
 
-def cache_method(bound_method: Callable) -> Callable:
+def _cache_method(bound_method: Callable) -> Callable:
     """Cache instance method."""
     return cache(bound_method)
 
 
-def cache_method_with_check(
+def _cache_method_with_check(
     instance: Any, bound_method: Callable, check_fields: Sequence[str]
 ) -> Callable:
     """Cache instance method with computation dependency check."""
@@ -69,7 +69,7 @@ def cache_method_with_check(
     return _
 
 
-def get_cached_method_decorator(storage: list):
+def _get_cached_method_decorator(storage: list):
     def decorator(method: Callable):
         storage.append(method.__name__)
         return method
@@ -77,7 +77,7 @@ def get_cached_method_decorator(storage: list):
     return decorator
 
 
-def get_cached_method_with_check_decorator(
+def _get_cached_method_with_check_decorator(
     storage: list, check_fields: str | Sequence[str]
 ):
     if isinstance(check_fields, str):
@@ -106,11 +106,11 @@ class PlotData(ABC):
 
         for f in self._cached_method:
             method = getattr(self, f)
-            setattr(self, f, cache_method(method))
+            setattr(self, f, _cache_method(method))
 
         for f, fields in self._cached_method_with_check:
             method = getattr(self, f)
-            setattr(self, f, cache_method_with_check(self, method, fields))
+            setattr(self, f, _cache_method_with_check(self, method, fields))
 
     @property
     def channel(self) -> NumPyArray:
@@ -232,8 +232,8 @@ class PlotData(ABC):
 
 _cached_method = []
 _cached_method_with_check = []
-_to_cached_method = get_cached_method_decorator(_cached_method)
-_to_cached_method_with_check = get_cached_method_with_check_decorator(
+_to_cached_method = _get_cached_method_decorator(_cached_method)
+_to_cached_method_with_check = _get_cached_method_with_check_decorator(
     _cached_method_with_check, 'boot'
 )
 
@@ -547,8 +547,8 @@ del (
 
 _cached_method = []
 _cached_method_with_check = []
-_to_cached_method = get_cached_method_decorator(_cached_method)
-_to_cached_method_with_check = get_cached_method_with_check_decorator(
+_to_cached_method = _get_cached_method_decorator(_cached_method)
+_to_cached_method_with_check = _get_cached_method_with_check_decorator(
     _cached_method_with_check, 'ppc'
 )
 
@@ -857,6 +857,8 @@ del (
 
 
 class PlotConfig(NamedTuple):
+    """Plotting configuration."""
+
     alpha: float = 0.8
     palette: Any = 'colorblind'
     xscale: Literal['linear', 'log'] = 'log'
@@ -1374,11 +1376,19 @@ def get_ecdf(
     detrend: bool,
 ) -> tuple[NumPyArray, ...]:
     """Return the empirical CDF and its confidence/credible interval."""
-    n = len(pit_intervals)
+    assert len(pit_intervals.shape) == 2 and pit_intervals.shape[1] == 2
+
     grid = np.unique(pit_intervals)
+    if grid[0] > 0.0:
+        grid = np.insert(grid, 0, 0)
+    if grid[-1] < 1.0:
+        grid = np.append(grid, 1.0)
+
+    n = len(pit_intervals)
     mask = pit_intervals[:, 0] != pit_intervals[:, 1]
-    cover_mask = (pit_intervals[:, :1] <= grid[:-1]) & (
-        grid[1:] <= pit_intervals[:, 1:]
+    cover_mask = np.bitwise_and(
+        pit_intervals[:, :1] <= grid[:-1],
+        grid[1:] <= pit_intervals[:, 1:],
     )
     pdf = np.zeros((n, len(grid) - 1))
     pdf[cover_mask] = np.repeat(
@@ -1389,13 +1399,6 @@ def get_ecdf(
     pdf[~mask, idx] = 1.0 / (grid[idx + 1] - grid[idx])
     cdf = np.cumsum(pdf.mean(0) * np.diff(grid))
     cdf = np.clip(cdf, 0.0, 1.0)
-
-    if grid[0] > 0.0:
-        grid = np.insert(grid, 0, 0)
-        cdf = np.insert(cdf, 0, 0)
-    if grid[-1] < 1.0:
-        grid = np.append(grid, 1.0)
-        cdf = np.append(cdf, 1.0)
 
     x = np.arange(n + 1)
     upper = stats.beta.ppf(0.5 + 0.5 * cl, x + 1, n - x + 1)
