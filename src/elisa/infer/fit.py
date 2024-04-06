@@ -328,8 +328,10 @@ class Fit(ABC):
         # check if data name is unique
         name_list = [d.name for d in data_list]
         if len(set(name_list)) != len(data_list):
-            msg = f'data names are not unique: {", ".join(name_list)}'
-            raise ValueError(msg)
+            raise ValueError(
+                f'data names are not unique: {", ".join(name_list)}'+
+                'please re-name in Data(..., name=...)'
+            )
 
         # get model
         model_list: list[Model] = get_list(model, 'model', Model, 'Model')
@@ -552,9 +554,10 @@ class BayesFit(Fit):
         self,
         max_samples: int = 100000,
         num_live_points: int | None = None,
+        s: int = 10,
+        k: int = 0,
+        c: int = 50,
         num_parallel_workers: int = 1,
-        difficult_model: bool = False,
-        parameter_estimation: bool = False,
         verbose: bool = False,
         term_cond: dict | None = None,
         **ns_kwargs: dict,
@@ -562,6 +565,7 @@ class BayesFit(Fit):
         """Run the Nested Sampler of :mod:`jaxns`.
 
         .. note::
+            s,k,c are defined in the paper: ref [1]_
             For more information of the sampler parameters, see ref [1]_ [2]_.
 
         Parameters
@@ -570,13 +574,11 @@ class BayesFit(Fit):
             Maximum number of posterior samples. The default is 100000.
         num_live_points : int, optional
             Approximate number of live points.
+        s : number of slices to use per dimension. Defaults to 10.
+        k : number of phantom samples to use. Defaults to 0.
+        c : number of parallel Markov-chains to use. Defaults to 50 * D.
         num_parallel_workers : int, optional
             Parallel workers number. The default is 1.
-        difficult_model : bool, optional
-            Use more robust default settings when True. The default is False.
-        parameter_estimation : bool, optional
-            Use more robust default settings for parameter estimation. The
-            default is False.
         verbose : bool, optional
             Print progress information. The default is False.
         term_cond : dict, optional
@@ -600,9 +602,10 @@ class BayesFit(Fit):
         constructor_kwargs = {
             'max_samples': max_samples,
             'num_live_points': num_live_points,
+            's': s,
+            'k': k,
+            'c': c,
             'num_parallel_workers': num_parallel_workers,
-            'difficult_model': difficult_model,
-            'parameter_estimation': parameter_estimation,
             'verbose': verbose,
         }
         constructor_kwargs |= ns_kwargs
