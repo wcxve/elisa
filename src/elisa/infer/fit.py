@@ -565,7 +565,7 @@ class BayesFit(Fit):
         """Run the Nested Sampler of :mod:`jaxns`.
 
         .. note::
-            s,k,c are defined in the paper: ref [1]_.
+            Parameters `s`, `k`, and `c` are defined in the paper [1]_.
             For more information of the sampler parameters, see ref [1]_ [2]_.
 
         Parameters
@@ -579,7 +579,7 @@ class BayesFit(Fit):
         k : int, optional
             Number of phantom samples. The default is 0.
         c : int, optional
-            Number of parallel Markov-chains. The default is 20 * `D`, where
+            Number of parallel Markov chains. The default is 20 * `D`, where
             `D` is the dimension of model parameters.
         num_parallel_workers : int, optional
             Parallel workers number. The default is 1.
