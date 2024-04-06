@@ -554,9 +554,9 @@ class BayesFit(Fit):
         self,
         max_samples: int = 100000,
         num_live_points: int | None = None,
-        s: int = 10,
-        k: int = 0,
-        c: int = 50,
+        s: int | None = None,
+        k: int | None = None,
+        c: int | None = None,
         num_parallel_workers: int = 1,
         verbose: bool = False,
         term_cond: dict | None = None,
@@ -574,9 +574,9 @@ class BayesFit(Fit):
             Maximum number of posterior samples. The default is 100000.
         num_live_points : int, optional
             Approximate number of live points.
-        s : number of slices to use per dimension. Defaults to 10.
+        s : number of slices to use per dimension. Defaults to 5.
         k : number of phantom samples to use. Defaults to 0.
-        c : number of parallel Markov-chains to use. Defaults to 50 * D.
+        c : number of parallel Markov-chains to use. Defaults to 30 * D.
         num_parallel_workers : int, optional
             Parallel workers number. The default is 1.
         verbose : bool, optional
