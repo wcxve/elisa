@@ -329,8 +329,8 @@ class Fit(ABC):
         name_list = [d.name for d in data_list]
         if len(set(name_list)) != len(data_list):
             raise ValueError(
-                f'data names are not unique: {", ".join(name_list)}'+
-                'please re-name in Data(..., name=...)'
+                f'data names are not unique: {", ".join(name_list)}'
+                + 'please re-name in Data(..., name=...)'
             )
 
         # get model
