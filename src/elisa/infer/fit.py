@@ -329,8 +329,8 @@ class Fit(ABC):
         name_list = [d.name for d in data_list]
         if len(set(name_list)) != len(data_list):
             raise ValueError(
-                f'data names are not unique: {", ".join(name_list)}'
-                + 'please re-name in Data(..., name=...)'
+                f'data names are not unique: {", ".join(name_list)}, '
+                'please re-name in Data(..., name=...)'
             )
 
         # get model
@@ -565,7 +565,7 @@ class BayesFit(Fit):
         """Run the Nested Sampler of :mod:`jaxns`.
 
         .. note::
-            s,k,c are defined in the paper: ref [1]_
+            s,k,c are defined in the paper: ref [1]_.
             For more information of the sampler parameters, see ref [1]_ [2]_.
 
         Parameters
@@ -573,10 +573,14 @@ class BayesFit(Fit):
         max_samples : int, optional
             Maximum number of posterior samples. The default is 100000.
         num_live_points : int, optional
-            Approximate number of live points.
-        s : number of slices to use per dimension. Defaults to 5.
-        k : number of phantom samples to use. Defaults to 0.
-        c : number of parallel Markov-chains to use. Defaults to 30 * D.
+            Approximate number of live points. The default is `c` * (`k` + 1).
+        s : int, optional
+            Number of slices per dimension. The default is 5.
+        k : int, optional
+            Number of phantom samples. The default is 0.
+        c : int, optional
+            Number of parallel Markov-chains. The default is 20 * `D`, where
+            `D` is the dimension of model parameters.
         num_parallel_workers : int, optional
             Parallel workers number. The default is 1.
         verbose : bool, optional
