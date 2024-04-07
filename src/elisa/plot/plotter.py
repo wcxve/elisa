@@ -1543,15 +1543,22 @@ def get_pit_ecdf(
     # See ref [1] for the following
     rank = np.arange(0.0, n + 1.0)
     scaled_rank = rank / n
-    binomial_cdf = stats.binom.cdf(rank, n, scaled_rank[:, None])
     # Since binomial is discrete, we need to have lower and upper bounds with
     # a confidence/credible level >= cl to ensure the nominal coverage,
     # that is, we require that (cdf <= 0.5 - 0.5 * cl) for lower bound
     # and (0.5 + 0.5 * cl <= cdf) for upper bound
-    low_idx = np.count_nonzero(binomial_cdf <= 0.5 - 0.5 * cl, axis=1)
-    lower = scaled_rank[low_idx]
-    up_idx = n + 1 - np.count_nonzero(0.5 + 0.5 * cl <= binomial_cdf, axis=1)
-    upper = scaled_rank[up_idx]
+    lower_q = 0.5 - cl * 0.5
+    lower = stats.binom.ppf(lower_q, n, scaled_rank)
+    mask = stats.binom.cdf(lower, n, scaled_rank) > lower_q
+    lower[mask] -= 1.0
+    lower = np.clip(lower / n, 0.0, 1.0)
+
+    upper_q = 0.5 + cl * 0.5
+    upper = stats.binom.ppf(upper_q, n, scaled_rank)
+    mask = stats.binom.cdf(upper, n, scaled_rank) < upper_q
+    upper[mask] += 1.0
+    upper = np.clip(upper / n, 0.0, 1.0)
+
     line = scaled_rank
     pit_ecdf = np.interp(scaled_rank, grid, cdf)
 
