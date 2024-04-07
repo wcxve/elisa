@@ -947,7 +947,7 @@ def _param_setter(name: str, idx: int) -> Callable[[Component, Any], None]:
             if {'default', 'min', 'max'} - set(param.keys()):
                 raise ValueError(
                     f'{type(self).__name__}.{cfg.name} expected dict with keys'
-                    f' "default", "min", "max", and optioanl "log", but got '
+                    f' "default", "min", "max", and optional "log", but got '
                     f'{param}'
                 )
 
