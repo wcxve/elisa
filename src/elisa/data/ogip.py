@@ -22,8 +22,6 @@ from elisa.data.grouping import (
 )
 
 if TYPE_CHECKING:
-    from scipy.sparse._base import _spbase
-
     from elisa.util.typing import NumPyArray as NDArray
 
 # TODO: support multiple response in a single data object
@@ -643,7 +641,7 @@ class Data:
         return self._resp_matrix.todense()
 
     @property
-    def sparse_resp_matrix(self) -> _spbase:
+    def sparse_resp_matrix(self) -> coo_array:
         """Sparse response matrix."""
         return self._resp_matrix
 
@@ -1028,6 +1026,9 @@ class Response:
             and `Addendum: Changes log <https://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002a/cal_gen_92_002a.html>`__
     """
 
+    _fwhm: NDArray | None = None
+    _ch_fwhm: NDArray | None = None
+
     def __init__(self, respfile: str, ancrfile: str | None = None):
         if ancrfile is None:
             ancrfile = ''
@@ -1371,9 +1372,73 @@ class Response:
         return self._matrix.todense()
 
     @property
-    def sparse_matrix(self) -> _spbase:
-        """Sparse response matrix."""
+    def sparse_matrix(self):
+        """Sparse representation of the response matrix."""
         return self._matrix
+
+    @property
+    def fwhm(self) -> NDArray:
+        """Estimated Full Width at Half Maximum (FWHM) in photon energy space.
+
+        .. note::
+            The calculation code is translated from ``heasp``. This does assume
+            that the response has a well-defined main peak and operates by the
+            simple method of stepping out from the peak in both directions till
+            the response falls below half the maximum. A better solution would
+            obviously be to fit a gaussian.
+        """
+        if self._fwhm is not None:
+            return self._fwhm
+
+        matrix = self._sparse_matrix
+        csr_matrix = matrix.tocsr()
+        nE, nC = matrix.shape
+        row_idx = np.arange(nE)
+        imax = np.squeeze(matrix.argmax(axis=1))
+        max_value = csr_matrix[row_idx, imax]
+        half_max = 0.5 * max_value
+        mask = matrix > half_max[:, None]
+        i, j = np.nonzero(mask)
+        sel_idx = np.array([0, -1])
+        idx = [
+            tmp[sel_idx] if (tmp := j[i == iE]).size else None
+            for iE in range(nE)
+        ]
+        default_idx = [0, nC - 1]
+        idx_low_high = [
+            [tmp[0] - 1, tmp[-1] + 1] if tmp is not None else default_idx
+            for tmp in idx
+        ]
+        ilow, ihigh = np.clip(np.row_stack(idx_low_high), 0, nC - 1).T
+        good_low = csr_matrix[row_idx, ilow] <= half_max
+        good_high = csr_matrix[row_idx, ihigh] <= half_max
+        fwhm = np.full(nE, -1)
+        fwhm += good_high * (ihigh - imax)
+        fwhm += good_low * (imax - ilow)
+        fwhm[(good_high & (~good_low)) | ((~good_high) & good_low)] *= 2
+        self._fwhm = fwhm
+
+        return self._fwhm
+
+    @property
+    def ch_fwhm(self) -> NDArray:
+        """Estimated Full Width at Half Maximum (FWHM) in channel energy space.
+
+        .. note::
+            The calculation code is translated from ``heasp``. The calculation
+            interpolates the `estimated_fwhm` using the nominal channel energy
+            to give the FWHM for each channel. Assuming that FWHM does not
+            change significantly over the channel, so just find the FWHM at the
+            center energy of the channel.
+        """
+        if self._ch_fwhm is not None:
+            return self._ch_fwhm
+
+        ch_emid = self._raw_channel_egrid.mean(1)
+        idx = np.searchsorted(self.ph_egrid, ch_emid)
+        idx = np.clip(idx, 0, len(self.ph_egrid) - 2)
+        self._ch_fwhm = self.fwhm[idx]
+        return self._ch_fwhm
 
 
 class FitData(NamedTuple):
@@ -1454,7 +1519,7 @@ class FitData(NamedTuple):
     resp_matrix: NDArray
     """Response matrix."""
 
-    sparse_resp_matrix: _spbase
+    sparse_resp_matrix: coo_array
     """Sparse response matrix."""
 
     resp_sparse: bool
