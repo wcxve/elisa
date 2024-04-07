@@ -132,7 +132,9 @@ class Fit(ABC):
             residual = jax.jit(lambda x, aux: self._helper.residual(x))
 
             def lm(init):
-                res = optx.least_squares(residual, lm_solver, init)
+                res = optx.least_squares(
+                    fn=residual, solver=lm_solver, y0=init, max_steps=1024
+                )
                 return res.value, jnp.linalg.norm(res.state.f_info.grad)
 
             self._lm = jax.jit(lm)
