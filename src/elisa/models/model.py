@@ -941,6 +941,53 @@ def _param_setter(name: str, idx: int) -> Callable[[Component, Any], None]:
             # given parameter instance
             param = param
 
+        elif isinstance(param, Mapping):
+            # given mapping
+
+            if {'default', 'min', 'max'} - set(param.keys()):
+                raise ValueError(
+                    f'{type(self).__name__}.{cfg.name} expected dict with keys'
+                    f' "default", "min", "max", and optioanl "log", but got '
+                    f'{param}'
+                )
+
+            param = UniformParameter(
+                name=cfg.name,
+                default=param['default'],
+                min=param['min'],
+                max=param['max'],
+                log=param.get('log', False),
+                fixed=param.get('fixed', False),
+                latex=param.get('latex', cfg.latex),
+            )
+
+        elif isinstance(param, Sequence):
+            # given sequence
+            if len(param) not in {3, 4}:
+                raise ValueError(
+                    f'{type(self).__name__}.{cfg.name} expected sequence with '
+                    '3 or 4 elements: '
+                    '[default (float), min (float), max (float)], or '
+                    '[default (float), min (float), max (float), log (bool)], '
+                    f'but got {param}'
+                )
+
+            if len(param) == 3:
+                default, min_, max_ = param
+                log = False
+            else:
+                default, min_, max_, log = param
+
+            param = UniformParameter(
+                name=cfg.name,
+                default=default,
+                min=min_,
+                max=max_,
+                log=log,
+                fixed=cfg.fixed,
+                latex=cfg.latex,
+            )
+
         else:
             # other input types are not supported yet
             raise TypeError(
