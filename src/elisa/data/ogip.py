@@ -1394,30 +1394,33 @@ class Response:
         csr_matrix = matrix.tocsr()
         nE, nC = matrix.shape
         row_idx = np.arange(nE)
-        imax = np.squeeze(matrix.argmax(axis=1))
-        max_value = csr_matrix[row_idx, imax]
+        argmax = np.squeeze(matrix.argmax(axis=1))
+        max_value = csr_matrix[row_idx, argmax]
         half_max = 0.5 * max_value
-        mask = matrix > half_max[:, None]
-        i, j = np.nonzero(mask)
-        sel_idx = np.array([0, -1])
-        idx = [
-            tmp[sel_idx] if (tmp := j[i == iE]).size else None
-            for iE in range(nE)
-        ]
-        default_idx = [0, nC - 1]
-        idx_low_high = [
-            [tmp[0] - 1, tmp[-1] + 1] if tmp is not None else default_idx
-            for tmp in idx
-        ]
-        ilow, ihigh = np.clip(np.row_stack(idx_low_high), 0, nC - 1).T
-        good_low = csr_matrix[row_idx, ilow] <= half_max
-        good_high = csr_matrix[row_idx, ihigh] <= half_max
-        fwhm = np.full(nE, -1)
-        fwhm += good_high * (ihigh - imax)
-        fwhm += good_low * (imax - ilow)
+        i, j = np.nonzero(matrix <= half_max[:, None])
+        idx_low_high = np.column_stack([argmax - 1, argmax + 1])
+        for iE in range(nE):
+            imax = argmax[iE]
+            idx = j[i == iE]  # rsp elements of iE row at idx are <= half_max
+            if idx.size:
+                mask = idx < imax
+                # find the right-most lower index
+                k = np.flatnonzero(mask)
+                lower = idx[k[-1]] if k.size else imax - 1
+                # find the left-most upper index
+                k = np.flatnonzero(~mask)
+                upper = idx[k[0]] if k.size else imax + 1
+                idx_low_high[iE] = [lower, upper]
+        ilow, ihigh = np.clip(idx_low_high, 0, nC - 1).T
+        good_low = csr_matrix[row_idx, [0] * nE] <= half_max
+        good_high = csr_matrix[row_idx, [-1] * nE] <= half_max
+        fwhm = np.full(nE, 0)
+        fwhm[good_high] += ihigh[good_high] - argmax[good_high]
+        fwhm[good_low] += argmax[good_low] - ilow[good_low]
         fwhm[(good_high & (~good_low)) | ((~good_high) & good_low)] *= 2
+        fwhm = np.clip(fwhm, 1, None)  # set minimum FWHM to 1
+        fwhm[~(good_high | good_low)] = -1
         self._fwhm = fwhm
-
         return self._fwhm
 
     @property
@@ -1434,10 +1437,11 @@ class Response:
         if self._ch_fwhm is not None:
             return self._ch_fwhm
 
+        fwhm = self.fwhm
         ch_emid = self._raw_channel_egrid.mean(1)
-        idx = np.searchsorted(self.ph_egrid, ch_emid)
-        idx = np.clip(idx, 0, len(self.ph_egrid) - 2)
-        self._ch_fwhm = self.fwhm[idx]
+        idx = np.searchsorted(self.ph_egrid, ch_emid) - 1
+        idx = np.clip(idx, 0, len(fwhm) - 1)
+        self._ch_fwhm = fwhm[idx]
         return self._ch_fwhm
 
 
