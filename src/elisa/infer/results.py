@@ -197,7 +197,7 @@ class MLEResult(FitResult):
         return s
 
     def _repr_html_(self):
-        return self.__repr__()
+        return self.__repr__().replace('\n', '<br>')
 
     def ci(
         self,
