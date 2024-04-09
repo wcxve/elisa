@@ -15,10 +15,12 @@ from elisa.data.grouping import (
     group_const,
     group_min,
     group_opt,
-    group_optmin,
-    group_optsig,
-    group_pos,
-    group_sig,
+    group_optsig_gv,
+    group_optsig_lima,
+    group_optsig_normal,
+    group_sig_gv,
+    group_sig_lima,
+    group_sig_normal,
 )
 
 if TYPE_CHECKING:
@@ -64,15 +66,18 @@ class Data:
             * ``'const'``: `scale` number channels
             * ``'min'``: total (source + background) counts >= `scale`
             * ``'sig'``: source significance >= `scale` sigma
+            * ``'bmin'``: background counts >= `scale`, used to avoid bias when
+              using ``wstat`` to simultaneously fit the source and background
+            * ``'bsig'``: background significance >= `scale` sigma, used to
+              avoid bias when using ``pgstat`` to simultaneously fit the source
+              and background
             * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [3]_
             * ``'optmin'``: optimal binning with total counts >= `scale`
             * ``'optsig'``: optimal binning with source significance >= `scale`
               sigma
-            * ``'bmin'``: background counts >= `scale`, used to avoid bias when
-              using ``wstat`` to simultaneously fit the source and background
-            * ``'bpos'``: background counts < 0 with probability < `scale`,
-              used to avoid bias when using ``pgstat`` to simultaneously fit
-              the source and background
+            * ``'optbmin'``: optimal binning with background counts >= `scale`
+            * ``'optbsig'``: optimal binning with background significance
+              >= `scale` sigma
 
         The default is None.
     scale : float or None, optional
@@ -304,7 +309,7 @@ class Data:
             # set the other attributes
             self._set_data(spec.grouping)
 
-    def group(self, method: str, scale: float | int):
+    def group(self, method: str, scale: float | int | None):
         """Group the spectrum.
 
         Parameters
@@ -316,17 +321,20 @@ class Data:
             * ``'const'``: `scale` number channels
             * ``'min'``: total (source + background) counts >= `scale`
             * ``'sig'``: source significance >= `scale` sigma
-            * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [1]_
+            * ``'bmin'``: background counts >= `scale`, used to avoid bias when
+              using ``wstat`` to simultaneously fit the source and background
+            * ``'bsig'``: background significance >= `scale` sigma, used to
+              avoid bias when using ``pgstat`` to simultaneously fit the source
+              and background
+            * ``'opt'``: optimal binning, see Kaastra & Bleeker (2016) [3]_
             * ``'optmin'``: optimal binning with total counts >= `scale`
             * ``'optsig'``: optimal binning with source significance >= `scale`
               sigma
-            * ``'bmin'``: background counts >= `scale`, used to avoid bias when
-              using ``wstat`` to simultaneously fit the source and background
-            * ``'bpos'``: background counts < 0 with probability < `scale`,
-              used to avoid bias when using ``pgstat`` to simultaneously fit
-              the source and background
+            * ``'optbmin'``: optimal binning with background counts >= `scale`
+            * ``'optbsig'``: optimal binning with background significance
+              >= `scale` sigma
 
-        scale : float
+        scale : float, int or None
             Grouping scale.
 
         Raises
@@ -351,16 +359,46 @@ class Data:
         ----------
         .. [1] `Kaastra & Bleeker 2016, A&A, 587, A151 <https://doi.org/10.1051/0004-6361/201527395>`__
         """
+        method = str(method)
+        scale = float(scale) if scale is not None else None
+
+        if method != 'opt' and scale is None:
+            raise ValueError(f'scale must be given for {method} grouping')
+
+        if method.startswith('opt'):
+            fwhm = self._resp.ch_fwhm
+        else:
+            fwhm = None
+
         ch_emin, ch_emax = self._resp._raw_channel_egrid.T
         ch_mask = self._channel_mask(ch_emin, ch_emax)  # shape = (nchan, 2)
         spec_counts = self._spec._raw_counts
-        # spec_error = self._spec._raw_error
+        spec_errors = self._spec._raw_error
+        if self.has_back:
+            back_ratio = self.back_ratio
+            back_counts = self._back._raw_counts
+            back_errors = self._back._raw_error
+            berr = back_ratio * back_errors
+            net_counts = spec_counts - back_ratio * back_counts
+            net_errors = np.sqrt(spec_errors * spec_errors + berr * berr)
+        else:
+            back_ratio = None
+            back_counts = None
+            back_errors = None
+            net_counts = spec_counts
+            net_errors = spec_errors
+
         grouping = np.full(len(spec_counts), 1, dtype=np.int64)
 
         def apply_grouping(group_func, mask, *args):
             """Apply the grouping array defined above."""
-            data = (i[mask] * self._good_quality[mask] for i in args)
-            grouping_flag, grouping_success = group_func(*data, float(scale))
+            data = (
+                i[mask] * self._good_quality[mask]
+                if isinstance(i, np.ndarray)
+                else i
+                for i in args
+            )
+            grouping_flag, grouping_success = group_func(*data, scale)
             grouping[mask] = grouping_flag
             return grouping_success
 
@@ -369,52 +407,98 @@ class Data:
             return all(apply_grouping(func, mask, *args) for mask in ch_mask)
 
         if method == 'const':
-            success = group_const()
+            success = apply_map(group_const, len(spec_counts))
 
         elif method == 'min':
             success = apply_map(group_min, spec_counts)
 
         elif method == 'sig':
-            success = group_sig()
-
-        elif method == 'opt':
-            success = group_opt()
-
-        elif method == 'optmin':
-            success = group_optmin()
-
-        elif method == 'optsig':
-            success = group_optsig()
+            if self.spec_poisson:
+                if self.back_poisson:
+                    fn = group_sig_lima
+                    args = (spec_counts, back_counts, back_ratio)
+                else:
+                    fn = group_sig_gv
+                    args = (spec_counts, back_counts, back_errors, back_ratio)
+            else:
+                fn = group_sig_normal
+                args = (net_counts, net_errors)
+            success = apply_map(fn, *args)
 
         elif method == 'bmin':
-            if self.has_back and self.back_poisson:
-                back_counts = self._back._raw_counts
-            else:
+            if not (self.has_back and self.back_poisson):
                 raise ValueError(
                     'Poisson background is required for "bmin" method'
                 )
             success = apply_map(group_min, back_counts)
 
-        elif method == 'bpos':
-            if self.has_back:
-                back_counts = self._back._raw_counts
-                back_error = self._back._raw_error
-            else:
+        elif method == 'bsig':
+            if not self.has_back:
                 raise ValueError(
-                    'background data is required for "bpos" method'
+                    'background data is required for "bsig" method'
                 )
-            success = apply_map(group_pos, back_counts, back_error)
+            success = apply_map(group_sig_normal, back_counts, back_errors)
+
+        elif method == 'opt':
+            success = apply_map(group_opt, fwhm, net_counts)
+
+        elif method == 'optmin':
+            success = apply_map(group_opt, fwhm, net_counts, spec_counts)
+
+        elif method == 'optsig':
+            if self.spec_poisson:
+                if self.back_poisson:
+                    fn = group_optsig_lima
+                    args = (
+                        fwhm,
+                        net_counts,
+                        spec_counts,
+                        back_counts,
+                        back_ratio,
+                    )
+                else:
+                    fn = group_optsig_gv
+                    args = (
+                        fwhm,
+                        net_counts,
+                        spec_counts,
+                        back_counts,
+                        back_errors,
+                        back_ratio,
+                    )
+            else:
+                fn = group_optsig_normal
+                args = (fwhm, net_counts, net_counts, net_errors)
+            success = apply_map(fn, *args)
+
+        elif method == 'optbmin':
+            if not (self.has_back and self.back_poisson):
+                raise ValueError(
+                    'Poisson background is required for "optbmin" method'
+                )
+            success = apply_map(group_opt, fwhm, net_counts, back_counts)
+
+        elif method == 'optbsig':
+            if not self.has_back:
+                raise ValueError(
+                    'background data is required for "optbsig" method'
+                )
+            success = apply_map(
+                group_optsig_normal, fwhm, net_counts, back_counts, back_errors
+            )
 
         else:
             supported = (
                 'const',
                 'min',
+                'bmin',
+                'bsig',
                 'sig',
                 'opt',
                 'optmin',
                 'optsig',
-                'bmin',
-                'bpos',
+                'optbmin',
+                'optbsig',
             )
             raise ValueError(
                 f'supported grouping method are: {", ".join(supported)}'
