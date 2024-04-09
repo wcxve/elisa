@@ -428,7 +428,7 @@ class MaxLikeFit(Fit):
         self,
         init: ArrayLike | dict | None = None,
         method: Literal['minuit', 'lm', 'ns'] = 'minuit',
-        lm_max_steps: int = 8192,
+        lm_max_steps: int = 131072,
         lm_throw: bool = True,
     ) -> MLEResult:
         """Search Maximum Likelihood Estimation (MLE) for the model.
