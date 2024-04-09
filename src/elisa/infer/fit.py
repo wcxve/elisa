@@ -124,7 +124,10 @@ class Fit(ABC):
         self.__helper: Helper | None = None
 
     def _optimize_lm(
-        self, unconstr_init: JAXArray
+        self,
+        unconstr_init: JAXArray,
+        max_steps: int,
+        throw: bool,
     ) -> tuple[JAXArray, JAXFloat]:
         """Search MLE by Levenberg-Marquardt algorithm of :mod:`optimistix`."""
         if self._lm is None:
@@ -133,7 +136,11 @@ class Fit(ABC):
 
             def lm(init):
                 res = optx.least_squares(
-                    fn=residual, solver=lm_solver, y0=init, max_steps=1024
+                    fn=residual,
+                    solver=lm_solver,
+                    y0=init,
+                    max_steps=max_steps,
+                    throw=throw,
                 )
                 return res.value, jnp.linalg.norm(res.state.f_info.grad)
 
@@ -421,6 +428,8 @@ class MaxLikeFit(Fit):
         self,
         init: ArrayLike | dict | None = None,
         method: Literal['minuit', 'lm', 'ns'] = 'minuit',
+        lm_max_steps: int = 8192,
+        lm_throw: bool = True,
     ) -> MLEResult:
         """Search Maximum Likelihood Estimation (MLE) for the model.
 
@@ -440,6 +449,15 @@ class MaxLikeFit(Fit):
 
             The default is 'minuit'.
 
+        Other Parameters
+        ----------------
+        lm_max_steps : int, optional
+            The maximum number of steps the ``'lm'`` solver can take. Defaults
+            to 131072.
+        lm_throw : bool, optional
+            Whether to report any failures of the ``'lm'`` solver. Defaults to
+            True.
+
         Returns
         -------
         MLEResult
@@ -455,7 +473,9 @@ class MaxLikeFit(Fit):
             raise TypeError('params must be a array, sequence, or mapping')
 
         if method == 'lm':  # use Levenberg-Marquardt algorithm to find MLE
-            init_unconstr, grad_l2_norm = self._optimize_lm(init_unconstr)
+            init_unconstr, _ = self._optimize_lm(
+                init_unconstr, lm_max_steps, lm_throw
+            )
         elif method == 'ns':  # use nested sampling to find MLE
             init_unconstr = self._optimize_ns()
         else:
