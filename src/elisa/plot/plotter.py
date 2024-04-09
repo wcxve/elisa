@@ -421,7 +421,7 @@ class MLEPlotData(PlotData):
         random_quantile: bool = True,
         with_sign: bool = False,
     ) -> Array | None:
-        if self.boot is None:
+        if self.boot is None or rtype == 'quantile':
             return None
 
         assert 0 < cl < 1
@@ -507,21 +507,13 @@ class MLEPlotData(PlotData):
     ) -> tuple[Array, Array | bool, Array | bool]:
         pit_minus, pit = self.pit()
 
-        stat = self.statistic
-
-        if stat in _STATISTIC_SPEC_NORMAL | _STATISTIC_BACK_NORMAL:
-            # chi2, or pgstat
-            r = stats.norm.ppf(pit)
-        else:
-            # cstat, pstat, or wstat
-            if random:
-                r = np.random.default_rng(seed).uniform(pit_minus, pit)
-            else:
-                r = stats.norm.ppf(pit)
+        if random:
+            pit = np.random.default_rng(seed).uniform(pit_minus, pit)
+        r = stats.norm.ppf(pit)
 
         lower = upper = False
 
-        if stat in {'pgstat', 'wstat'}:
+        if self.statistic in {'pgstat', 'wstat'}:
             upper_mask = pit == 0.0
             if np.any(upper_mask):
                 r[upper_mask] = stats.norm.ppf(1.0 / self._nsim)
@@ -1215,11 +1207,8 @@ class Plotter(ABC):
         """Probability integral transformation empirical CDF plot."""
         config = self.config
 
-        pit = {name: data.pit() for name, data in self.data.items()}
-        pit['total'] = (
-            np.hstack([i[0] for i in pit.values()]),
-            np.hstack([i[1] for i in pit.values()]),
-        )
+        pit = {name: data.pit()[1] for name, data in self.data.items()}
+        pit['total'] = np.hstack(list(pit.values()))
 
         n_subplots = len(self.data)
         if n_subplots == 1:
@@ -1246,13 +1235,12 @@ class Plotter(ABC):
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
         for ax, name, color in zip(ax_list, names, colors):
-            pit_data = np.column_stack(pit[name])
-            x, y, line, lower, upper = get_pit_ecdf(pit_data, 0.95, detrend)
-            ax.scatter(x, y, s=5, color=color, alpha=alpha)
+            x, y, line, lower, upper = get_pit_ecdf(pit[name], 0.95, detrend)
             ax.plot(x, line, ls='--', color=color, alpha=alpha)
             ax.fill_between(
                 x, lower, upper, alpha=0.2 * alpha, color=color, step='mid'
             )
+            ax.step(x, y, alpha=alpha, color=color, where='mid')
             ax.annotate(
                 text=name,
                 xy=(text_x, 0.97),
@@ -1505,7 +1493,7 @@ def get_qq(
 
 
 def get_pit_ecdf(
-    pit_intervals: NumPyArray,
+    pit: NumPyArray,
     cl: float,
     detrend: bool,
 ) -> tuple[NumPyArray, ...]:
@@ -1515,34 +1503,10 @@ def get_pit_ecdf(
     ----------
     .. [1] doi:10.1007/s11222-022-10090-6
     """
-    assert len(pit_intervals.shape) == 2 and pit_intervals.shape[1] == 2
-
-    grid = np.unique(pit_intervals)
-    if grid[0] > 0.0:
-        grid = np.insert(grid, 0, 0)
-    if grid[-1] < 1.0:
-        grid = np.append(grid, 1.0)
-
-    n = len(pit_intervals)
-    mask = pit_intervals[:, 0] != pit_intervals[:, 1]
-    cover_mask = np.bitwise_and(
-        pit_intervals[:, :1] <= grid[:-1],
-        grid[1:] <= pit_intervals[:, 1:],
-    )
-    pdf = np.zeros((n, len(grid) - 1))
-    pdf[cover_mask] = np.repeat(
-        1.0 / (pit_intervals[mask, 1] - pit_intervals[mask, 0]),
-        np.count_nonzero(cover_mask[mask], axis=1),
-    )
-    idx = np.clip(grid.searchsorted(pit_intervals[~mask, 0]) - 1, 0, None)
-    pdf[~mask, idx] = 1.0 / (grid[idx + 1] - grid[idx])
-    cdf = np.cumsum(pdf.mean(0) * np.diff(grid))
-    cdf = np.clip(cdf, 0.0, 1.0)
-    cdf = np.insert(cdf, 0, 0.0)
+    n = len(pit)
 
     # See ref [1] for the following
-    rank = np.arange(0.0, n + 1.0)
-    scaled_rank = rank / n
+    scaled_rank = np.linspace(0.0, 1.0, n + 1)
     # Since binomial is discrete, we need to have lower and upper bounds with
     # a confidence/credible level >= cl to ensure the nominal coverage,
     # that is, we require that (cdf <= 0.5 - 0.5 * cl) for lower bound
@@ -1560,12 +1524,55 @@ def get_pit_ecdf(
     upper = np.clip(upper / n, 0.0, 1.0)
 
     line = scaled_rank
-    pit_ecdf = np.interp(scaled_rank, grid, cdf)
+    pit_ecdf = np.count_nonzero(pit <= scaled_rank[:, None], axis=1) / n
 
     if detrend:
-        pit_ecdf -= scaled_rank
-        lower -= scaled_rank
-        upper -= scaled_rank
-        line = np.zeros_like(scaled_rank)
+        lower -= line
+        upper -= line
+        pit_ecdf -= line
+        line = np.zeros_like(line)
 
     return scaled_rank, pit_ecdf, line, lower, upper
+
+    # x = np.hstack([0.0, np.sort(pit), 1.0])
+    # pit_ecdf = np.hstack([0.0, np.arange(n) / n, 1.0])
+    # line = scaled_rank
+    #
+    # if detrend:
+    #     pit_ecdf -= x
+    #     lower -= scaled_rank
+    #     upper -= scaled_rank
+    #     line = np.zeros_like(scaled_rank)
+    #
+    # return x, pit_ecdf, scaled_rank, line, lower, upper
+
+
+# def get_pit_pdf(pit_intervals: NumPyArray) -> NumPyArray:
+#     """Get the pdf of PIT.
+#
+#     References
+#     ----------
+#     .. [1] doi:10.1111/j.1541-0420.2009.01191.x
+#     """
+#     assert len(pit_intervals.shape) == 2 and pit_intervals.shape[1] == 2
+#
+#     grid = np.unique(pit_intervals)
+#     if grid[0] > 0.0:
+#         grid = np.insert(grid, 0, 0)
+#     if grid[-1] < 1.0:
+#         grid = np.append(grid, 1.0)
+#
+#     n = len(pit_intervals)
+#     mask = pit_intervals[:, 0] != pit_intervals[:, 1]
+#     cover_mask = np.bitwise_and(
+#         pit_intervals[:, :1] <= grid[:-1],
+#         grid[1:] <= pit_intervals[:, 1:],
+#     )
+#     pdf = np.zeros((n, len(grid) - 1))
+#     pdf[cover_mask] = np.repeat(
+#         1.0 / (pit_intervals[mask, 1] - pit_intervals[mask, 0]),
+#         np.count_nonzero(cover_mask[mask], axis=1),
+#     )
+#     idx = np.clip(grid.searchsorted(pit_intervals[~mask, 0]) - 1, 0, None)
+#     pdf[~mask, idx] = 1.0 / (grid[idx + 1] - grid[idx])
+#     return pdf.mean(0)
