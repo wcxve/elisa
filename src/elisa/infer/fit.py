@@ -14,7 +14,8 @@ import optimistix as optx
 from iminuit import Minuit
 from numpyro.infer import MCMC, NUTS, init_to_value
 
-from elisa.data.ogip import Data, FitData
+from elisa.data.ogip import Data
+from elisa.infer.data import FitData
 from elisa.infer.helper import Helper, get_helper
 from elisa.infer.likelihood import _STATISTIC_OPTIONS
 from elisa.infer.nested_sampling import NestedSampler
@@ -126,8 +127,8 @@ class Fit(ABC):
     def _optimize_lm(
         self,
         unconstr_init: JAXArray,
-        max_steps: int,
-        throw: bool,
+        max_steps: int = 131072,
+        throw: bool = True,
     ) -> tuple[JAXArray, JAXFloat]:
         """Search MLE by Levenberg-Marquardt algorithm of :mod:`optimistix`."""
         if self._lm is None:
@@ -321,7 +322,7 @@ class Fit(ABC):
 
         # get data
         data_list: list[FitData] = [
-            FitData.from_data(d) for d in get_list(data, 'data', Data, 'Data')
+            FitData.from_ogip(d) for d in get_list(data, 'data', Data, 'Data')
         ]
 
         # check if data are used multiple times

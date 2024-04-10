@@ -610,7 +610,7 @@ class PosteriorResult(FitResult):
             init = self._idata['posterior'][free_params].sel(**mle_idx)
             init = {k: v.values for k, v in init.data_vars.items()}
             init = helper.constr_dic_to_unconstr_arr(init)
-            mle_unconstr = self._fit._optimize_lm(init)[0]
+            mle_unconstr = self._fit._optimize_lm(init, throw=False)[0]
 
             # MLE of model params in constrained space
             mle, cov = jax.device_get(helper.get_mle(mle_unconstr))
