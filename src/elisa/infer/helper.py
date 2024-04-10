@@ -32,7 +32,7 @@ if TYPE_CHECKING:
 
     from numpyro.distributions import Distribution
 
-    from elisa.data.ogip import FitData
+    from elisa.infer.data import FitData
     from elisa.infer.fit import Fit
     from elisa.infer.likelihood import Statistic
     from elisa.models.model import CompiledModel, ModelInfo, ParamSetup
