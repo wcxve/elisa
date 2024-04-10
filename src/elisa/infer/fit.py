@@ -604,16 +604,17 @@ class BayesFit(Fit):
             Number of phantom samples. The default is 0.
         c : int, optional
             Number of parallel Markov chains. The default is 30 * `D`, where
-            `D` is the dimension of model parameters.
-            It takes effect only for num_live_points=None.
+            `D` is the dimension of model parameters. It takes effect only
+            for num_live_points=None.
         num_parallel_workers : int, optional
             Parallel workers number. The default is 1.
-        difficult_model: if True, uses more robust default settings (`s` = 10, `c` = 50 * `D`).
-                            It takes effect only for num_live_points=None, s=None or c=None.
-                            Defaults to False.
-        parameter_estimation: if True, uses more robust default settings for
-                                parameter estimation (`k` = `D`).
-                                It takes effect only for `k` = None. Defaults to False.
+        difficult_model: bool, optional
+            If True, uses more robust default settings (`s`=10, `c`=50 * `D`).
+            It takes effect only for `num_live_points`=None, `s`=None or
+            `c`=None. Defaults to False.
+        parameter_estimation: bool, optional
+            If True, uses more robust default settings for parameter estimation
+            (`k`=`D`). It takes effect only for `k`=None. Defaults to False.
         verbose : bool, optional
             Print progress information. The default is False.
         term_cond : dict, optional
