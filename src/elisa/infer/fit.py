@@ -615,7 +615,8 @@ class BayesFit(Fit):
             `s` = None or `c` = None. Defaults to False.
         parameter_estimation : bool, optional
             If True, uses more robust default settings for parameter estimation
-            (`k` = `D`). It takes effect only for `k`=None. Defaults to False.
+            (`k` = `D`). It takes effect only for `k` = None.
+            Defaults to False.
         verbose : bool, optional
             Print progress information. The default is False.
         term_cond : dict, optional
