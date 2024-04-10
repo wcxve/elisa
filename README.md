@@ -6,7 +6,7 @@
 [![Coverage Status](https://img.shields.io/coverallsCoverage/github/wcxve/elisa?logo=Coveralls&logoColor=white)](https://coveralls.io/github/wcxve/elisa)
 [![Documentation Status](https://img.shields.io/readthedocs/elisa-lib?logo=Read-the-Docs&logoColor=white)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
 
-**An efficient and fast library for spectral analysis in high-energy astrophysics.**
+**An efficient library for spectral analysis in high-energy astrophysics.**
 
 -----
 
