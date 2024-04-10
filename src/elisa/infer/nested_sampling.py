@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from functools import singledispatch
 
+import jax
 import jax.numpy as jnp
 import numpyro
 import numpyro.distributions as dist
@@ -268,7 +269,7 @@ class NestedSampler:
             **self.constructor_kwargs,
         )
 
-        termination_reason, state = default_ns(
+        termination_reason, state = jax.jit(default_ns)(
             rng_sampling, term_cond=TerminationCondition(**self.termination_kwargs)
         )
         results = default_ns.to_results(
