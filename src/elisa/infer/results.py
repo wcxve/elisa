@@ -16,7 +16,9 @@ from iminuit import Minuit
 from numpyro.infer import MCMC
 
 from elisa.__about__ import __version__
+from elisa.infer.helper import check_params
 from elisa.infer.nested_sampling import NestedSampler
+from elisa.plot.plotter import MLEResultPlotter, PosteriorResultPlotter
 from elisa.util.misc import make_pretty_table
 
 if TYPE_CHECKING:
@@ -28,12 +30,14 @@ if TYPE_CHECKING:
 
     from elisa.infer.fit import BayesFit
     from elisa.infer.helper import Helper
+    from elisa.plot.plotter import Plotter
 
 
 class FitResult(ABC):
     """Fit result."""
 
     _helper: Helper
+    _plotter: Plotter | None
 
     def __init__(self, helper: Helper):
         self._helper = helper
@@ -46,14 +50,11 @@ class FitResult(ABC):
     def _repr_html_(self):
         pass
 
-    # def plot_data(
-    #     self, plots='data ldata chi pchi deviance pit ne ene eene fv vfv'
-    # ):
-    #     ...
-    #
-    # def plot_corner(self):
-    #     # correlation map, bootstrap distribution, posterior distribution
-    #     ...
+    @property
+    @abstractmethod
+    def plotter(self) -> Plotter:
+        """Result plotter."""
+        pass
 
     def summary(self, file=None) -> None:
         """Print the summary of fitting setup.
@@ -77,63 +78,10 @@ class FitResult(ABC):
         return self._helper.dof
 
 
-def check_params(
-    params: str | Sequence[str] | None, helper: Helper
-) -> list[str]:
-    params_names = helper.params_names
-
-    all_params = set(params_names['all']) | set(helper.params_setup)
-    forwarded = {
-        k: v[0]
-        for k, v in helper.params_setup.items()
-        if v[1].name == 'Forwarded'
-    }
-    fixed = [k for k, v in helper.params_setup.items() if v[1].name == 'Fixed']
-    integrated = [
-        k for k, v in helper.params_setup.items() if v[1].name == 'Integrated'
-    ]
-
-    if params is None:
-        params = set(params_names['interest'])
-
-    elif isinstance(params, str):
-        # check if params exist
-        if params not in all_params:
-            raise ValueError(f'parameter {params} is not exist')
-
-        params = {params}
-
-    elif isinstance(params, Iterable):
-        # check if params exist
-        params = {str(i) for i in params}
-        if not params.issubset(all_params):
-            params_err = params - set(params_names['all'])
-            raise ValueError(f'parameters: {params_err} are not exist')
-
-    else:
-        raise ValueError('params must be str, or sequence of str')
-
-    if params_err := params.intersection(forwarded):
-        forwarded = {i: forwarded[i] for i in params_err}
-        info = ', '.join(f'{k} to {v}' for k, v in forwarded.items())
-        raise RuntimeError(
-            f"parameters are linked: {info}; corresponding parameters' "
-            'name should be used'
-        )
-
-    if params_err := params.intersection(fixed):
-        info = ', '.join(params_err)
-        raise RuntimeError(f'parameters are fixed: {info}')
-
-    if params_err := params.intersection(integrated):
-        info = ', '.join(params_err)
-        raise RuntimeError(f'parameters are integrated-out: {info}')
-
-    return sorted(params, key=params_names['all'].index)
-
-
 class MLEResult(FitResult):
     """Result of maximum likelihood fit."""
+
+    _plotter: MLEResultPlotter | None = None
 
     def __init__(self, minuit: Minuit, helper: Helper):
         super().__init__(helper)
@@ -198,6 +146,12 @@ class MLEResult(FitResult):
 
     def _repr_html_(self):
         return self.__repr__().replace('\n', '<br>')
+
+    @property
+    def plotter(self) -> MLEResultPlotter:
+        if self._plotter is None:
+            self._plotter = MLEResultPlotter(self)
+        return self._plotter
 
     def ci(
         self,
@@ -518,6 +472,7 @@ class BootstrapResult(NamedTuple):
 class PosteriorResult(FitResult):
     """Result obtained from Bayesian fit."""
 
+    _plotter: PosteriorResultPlotter | None = None
     _idata: az.InferenceData
     _mle: dict | None = None
     _ppc: PPCResult | None = None
@@ -545,6 +500,12 @@ class PosteriorResult(FitResult):
 
     def _repr_html_(self):
         return self.__repr__()
+
+    @property
+    def plotter(self) -> PosteriorResultPlotter:
+        if self._plotter is None:
+            self._plotter = PosteriorResultPlotter(self)
+        return self._plotter
 
     def ci(
         self,

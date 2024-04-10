@@ -28,6 +28,7 @@ from elisa.infer.likelihood import (
 from elisa.util.misc import progress_bar_factory
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
     from typing import Callable, Literal
 
     from numpyro.distributions import Distribution
@@ -43,6 +44,62 @@ if TYPE_CHECKING:
         ParamName,
         ParamNameValMapping,
     )
+
+
+def check_params(
+    params: str | Sequence[str] | None, helper: Helper
+) -> list[str]:
+    params_names = helper.params_names
+
+    all_params = set(params_names['all']) | set(helper.params_setup)
+    forwarded = {
+        k: v[0]
+        for k, v in helper.params_setup.items()
+        if v[1].name == 'Forwarded'
+    }
+    fixed = [k for k, v in helper.params_setup.items() if v[1].name == 'Fixed']
+    integrated = [
+        k for k, v in helper.params_setup.items() if v[1].name == 'Integrated'
+    ]
+
+    if params is None:
+        params = set(params_names['interest'])
+
+    elif isinstance(params, str):
+        # check if params exist
+        if params not in all_params:
+            raise ValueError(f'parameter {params} is not exist')
+
+        params = {params}
+
+    elif isinstance(params, Iterable):
+        # check if params exist
+        params = {str(i) for i in params}
+        if not params.issubset(all_params):
+            params_err = params - set(params_names['all'])
+            raise ValueError(f'parameters: {params_err} are not exist')
+
+    else:
+        raise ValueError('params must be str, or sequence of str')
+
+    if params_err := params.intersection(forwarded):
+        forwarded = {i: forwarded[i] for i in params_err}
+        info = ', '.join(f'{k} to {v}' for k, v in forwarded.items())
+        raise RuntimeError(
+            f"parameters are linked: {info}; corresponding parameters' "
+            'name should be used'
+        )
+
+    if params_err := params.intersection(fixed):
+        info = ', '.join(params_err)
+        raise RuntimeError(f'parameters are fixed: {info}')
+
+    if params_err := params.intersection(integrated):
+        info = ', '.join(params_err)
+        raise RuntimeError(f'parameters are integrated-out: {info}')
+
+    return sorted(params, key=params_names['all'].index)
+
 
 # def get_reparam(dist: Distribution) -> tuple[Reparam, Callable] | None:
 #     """Get reparam for a distribution."""
