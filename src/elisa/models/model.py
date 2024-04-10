@@ -63,13 +63,8 @@ class Model(ABC):
         self._comps = tuple(comps)
         self._comps_id = tuple(comp._id for comp in comps)
 
-        cid_to_cname = dict(
-            zip(
-                self._comps_id,
-                build_namespace([c.name for c in comps])['namespace'],
-            )
-        )
-
+        cname = build_namespace([c.name for c in comps])['namespace']
+        cid_to_cname = dict(zip(self._comps_id, cname))
         self._cid_to_cname = cid_to_cname
 
         self.__name = self._id_to_label(cid_to_cname, 'name')
@@ -78,6 +73,12 @@ class Model(ABC):
             setattr(self, name, comp)
 
         self.__initialized = True
+
+    @property
+    def _cid_to_clatex(self) -> CompIDStrMapping:
+        clatex = [c.latex for c in self._comps]
+        clatex = build_namespace(clatex, latex=True)['namespace']
+        return dict(zip(self._comps_id, clatex)['namespace'])
 
     def compile(self, *, model_info: ModelInfo | None = None) -> CompiledModel:
         """Compile the model for fast evaluation.
@@ -96,7 +97,9 @@ class Model(ABC):
             raise RuntimeError('cannot compile convolution model')
 
         if model_info is None:
-            model_info = get_model_info(self._comps, self._cid_to_cname)
+            model_info = get_model_info(
+                self._comps, self._cid_to_cname, self._cid_to_clatex
+            )
         else:
             if not isinstance(model_info, ModelInfo):
                 raise TypeError('`model_info` must be a ModelInfo instance')
@@ -1470,6 +1473,7 @@ class ConvolutionComponent(Component):
 def get_model_info(
     comps: Sequence[Component],
     cid_to_name: CompIDStrMapping,
+    cid_to_latex: CompIDStrMapping,
 ) -> ModelInfo:
     """Get the model information.
 
@@ -1479,6 +1483,8 @@ def get_model_info(
         The sequence of components.
     cid_to_name : mapping
         The mapping of component id to component name.
+    cid_to_latex : mapping
+        The mapping of component id to component LaTeX format.
 
     Returns
     -------
@@ -1518,9 +1524,8 @@ def get_model_info(
     }
 
     # record the component LaTeX format of parameters
-    comp_latex = {comp._id: comp.latex for comp in comps}
     comp_latex_mapping = {
-        pid: comp_latex[cid] for pid, (cid, _) in comp_param.items()
+        pid: cid_to_latex[cid] for pid, (cid, _) in comp_param.items()
     }
     comp_latex_mapping |= {pid: '' for pid in aux_params}
 

@@ -94,12 +94,18 @@ class Fit(ABC):
         cname = [comp.name for comp in comps]
         name_with_data_suffix = list(map(''.join, zip(cname, data_suffix)))
         num_suffix = build_namespace(name_with_data_suffix)['suffix_num']
-        cname_num = add_suffix(cname, num_suffix, True, True)
-        cname_num_data = add_suffix(cname_num, data_suffix, False, True)
-        cid_to_name = dict(zip(cid, cname_num_data))
+        cname = add_suffix(cname, num_suffix, True, True)
+        cname = add_suffix(cname, data_suffix, False, True)
+        cid_to_name = dict(zip(cid, cname))
+        latex = [comp.latex for comp in comps]
+        latex = add_suffix(latex, num_suffix, True, latex=True)
+        latex = add_suffix(latex, data_suffix, False, latex=True, mathrm=True)
+        cid_to_latex = dict(zip(cid, latex))
 
         # get model info
-        self._model_info: ModelInfo = get_model_info(comps, cid_to_name)
+        self._model_info: ModelInfo = get_model_info(
+            comps, cid_to_name, cid_to_latex
+        )
 
         # first filter out duplicated models then compile the remaining models,
         # this is intended to avoid re-compilation of the same model
