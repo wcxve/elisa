@@ -611,8 +611,8 @@ class BayesFit(Fit):
         difficult_model: if True, uses more robust default settings (`s` = 10, `c` = 50 * `D`).
                             It takes effect only for num_live_points=None, s=None or c=None.
                             Defaults to False.
-        parameter_estimation: if True, uses more robust default settings for 
-                                parameter estimation (`k` = `D`). 
+        parameter_estimation: if True, uses more robust default settings for
+                                parameter estimation (`k` = `D`).
                                 It takes effect only for `k` = None. Defaults to False.
         verbose : bool, optional
             Print progress information. The default is False.
