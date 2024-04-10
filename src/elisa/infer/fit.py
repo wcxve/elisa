@@ -580,6 +580,8 @@ class BayesFit(Fit):
         k: int | None = None,
         c: int | None = None,
         num_parallel_workers: int = 1,
+        difficult_model: bool = False,
+        parameter_estimation: bool = False,
         verbose: bool = False,
         term_cond: dict | None = None,
         **ns_kwargs: dict,
@@ -601,10 +603,17 @@ class BayesFit(Fit):
         k : int, optional
             Number of phantom samples. The default is 0.
         c : int, optional
-            Number of parallel Markov chains. The default is 20 * `D`, where
+            Number of parallel Markov chains. The default is 30 * `D`, where
             `D` is the dimension of model parameters.
+            It takes effect only for num_live_points=None.
         num_parallel_workers : int, optional
             Parallel workers number. The default is 1.
+        difficult_model: if True, uses more robust default settings (`s` = 10, `c` = 50 * `D`).
+                            It takes effect only for num_live_points=None, s=None or c=None.
+                            Defaults to False.
+        parameter_estimation: if True, uses more robust default settings for 
+                                parameter estimation (`k` = `D`). 
+                                It takes effect only for `k` = None. Defaults to False.
         verbose : bool, optional
             Print progress information. The default is False.
         term_cond : dict, optional
@@ -632,6 +641,8 @@ class BayesFit(Fit):
             'k': k,
             'c': c,
             'num_parallel_workers': num_parallel_workers,
+            'difficult_model': difficult_model,
+            'parameter_estimation': parameter_estimation,
             'verbose': verbose,
         }
         constructor_kwargs |= ns_kwargs
