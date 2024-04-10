@@ -16,7 +16,7 @@ from numpyro.distributions.util import validate_sample
 if TYPE_CHECKING:
     from typing import Callable
 
-    from elisa.data.ogip import FitData
+    from elisa.infer.data import FitData
     from elisa.util.typing import (
         ArrayLike,
         JAXArray,
