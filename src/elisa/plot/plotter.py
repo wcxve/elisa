@@ -167,6 +167,8 @@ class Plotter(ABC):
     """Plotter to visualize analysis results."""
 
     _palette: Any | None = None
+    _comps_latex: dict[str, str] | None = None
+    _params_latex: dict[str, str] | None = None
     data: dict[str, PlotData] | None = None
 
     def __init__(self, result: FitResult, config: PlotConfig = None):
@@ -221,6 +223,48 @@ class Plotter(ABC):
         ndata = {name: data.ndata for name, data in self.data.items()}
         ndata['total'] = sum(ndata.values())
         return ndata
+
+    @property
+    def comps_latex(self) -> dict[str, str]:
+        if self._comps_latex is None:
+            self._comps_latex = {
+                k: f'${v}$  ' if v else ''
+                for k, v in self._result._helper.params_comp_latex.items()
+            }
+        return self._comps_latex
+
+    @property
+    def params_latex(self) -> dict[str, str]:
+        if self._params_latex is None:
+            self._params_latex = {
+                k: f'${v}$'
+                for k, v in self._result._helper.params_latex.items()
+            }
+        return self._params_latex
+
+    @property
+    def params_unit(self) -> dict[str, str]:
+        return self._result._helper.params_unit
+
+    @property
+    def params_titles(self) -> dict[str, str]:
+        comps_latex = self.comps_latex
+        params_latex = self.params_latex
+        params = self._result._helper.params_names['all']
+        return {p: comps_latex[p] + params_latex[p] for p in params}
+
+    @property
+    def params_labels(self) -> dict[str, str]:
+        comps_latex = self.comps_latex
+        params_latex = self.params_latex
+        params_unit = {
+            k: f'\n[{v}]' if v else v for k, v in self.params_unit.items()
+        }
+        params = self._result._helper.params_names['all']
+        return {
+            p: comps_latex[p] + params_latex[p] + params_unit[p]
+            for p in params
+        }
 
     def plot(self, *args, r=None, **kwargs) -> tuple[Figure, np.ndarray[Axes]]:
         config = self.config
@@ -637,11 +681,8 @@ class PosteriorResultPlotter(Plotter):
         axes_scale = [
             'log' if helper.params_log[p] else 'linear' for p in params
         ]
-        labels = [
-            f'${helper.params_comp_latex[p]}$  ${helper.params_latex[p]}$'
-            + (f'\n[{u}]' if (u := helper.params_unit[p]) else '')
-            for p in params
-        ]
+        params_labels = self.params_labels
+        labels = [params_labels[p] for p in params]
         fig = plot_trace(self._result._idata, params, axes_scale, labels)
         if fig_path:
             fig.savefig(fig_path, bbox_inches='tight')
@@ -658,22 +699,15 @@ class PosteriorResultPlotter(Plotter):
         axes_scale = [
             'log' if helper.params_log[p] else 'linear' for p in params
         ]
-        titles = [
-            f'${helper.params_comp_latex[p]}$  ${helper.params_latex[p]}$'
-            for p in params
-        ]
-        labels = [
-            f'${helper.params_comp_latex[p]}$  ${helper.params_latex[p]}$'
-            + (f'\n[{u}]' if (u := helper.params_unit[p]) else '')
-            for p in params
-        ]
+        params_titles = self.params_titles
+        params_labels = self.params_labels
         fig = plot_corner(
             idata=self._result._idata,
             params=params,
             axes_scale=axes_scale,
             levels=self.config.cl,
-            titles=titles,
-            labels=labels,
+            titles=[params_titles[p] for p in params],
+            labels=[params_labels[p] for p in params],
             color=color,
             divergences=divergences,
         )
