@@ -784,7 +784,7 @@ class Spectrum:
                 raise ValueError(msg)
 
         else:
-            data = data[spec_id].array  # set data to the specified row
+            data = data[spec_id : spec_id + 1]  # set data to the specified row
 
         # check if COUNTS or RATE exists
         if 'COUNTS' not in data.names and 'RATE' not in data.names:
