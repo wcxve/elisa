@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, NamedTuple
 
 import jax
@@ -28,7 +28,7 @@ from elisa.infer.likelihood import (
 from elisa.util.misc import progress_bar_factory
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Sequence
     from typing import Callable, Literal
 
     from numpyro.distributions import Distribution
