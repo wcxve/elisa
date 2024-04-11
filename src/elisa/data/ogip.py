@@ -225,6 +225,8 @@ class Data:
                     Warning,
                     stacklevel=2,
                 )
+        if not np.any(good_quality):
+            raise RuntimeError(f'no good channel is found for {name} data')
 
         # corrfile and corrnorm are not supported yet
         if corrfile or corrnorm:
