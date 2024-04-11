@@ -392,21 +392,23 @@ class Data:
 
         grouping = np.full(len(spec_counts), 1, dtype=np.int64)
 
-        def apply_grouping(group_func, mask, *args):
+        def apply_grouping(group_func, mask, args, all_good=()):
             """Apply the grouping array defined above."""
             data = (
-                i[mask] * self._good_quality[mask]
-                if isinstance(i, np.ndarray)
-                else i
-                for i in args
+                j[mask] * self._good_quality[mask]
+                if i not in all_good
+                else j[mask]
+                for i, j in enumerate(args)
             )
             grouping_flag, grouping_success = group_func(*data, scale)
             grouping[mask] = grouping_flag
             return grouping_success
 
-        def apply_map(func, *args):
+        def apply_map(func, *args, all_good=()):
             """Map the apply function and return a success flag."""
-            return all(apply_grouping(func, mask, *args) for mask in ch_mask)
+            return all(
+                apply_grouping(func, mask, args, all_good) for mask in ch_mask
+            )
 
         if method == 'const':
             success = apply_map(group_const, len(spec_counts))
@@ -419,13 +421,16 @@ class Data:
                 if self.back_poisson:
                     fn = group_sig_lima
                     args = (spec_counts, back_counts, back_ratio)
+                    all_good = (2,)
                 else:
                     fn = group_sig_gv
                     args = (spec_counts, back_counts, back_errors, back_ratio)
+                    all_good = (3,)
             else:
                 fn = group_sig_normal
                 args = (net_counts, net_errors)
-            success = apply_map(fn, *args)
+                all_good = ()
+            success = apply_map(fn, *args, all_good=all_good)
 
         elif method == 'bmin':
             if not (self.has_back and self.back_poisson):
@@ -442,10 +447,12 @@ class Data:
             success = apply_map(group_sig_normal, back_counts, back_errors)
 
         elif method == 'opt':
-            success = apply_map(group_opt, fwhm, net_counts)
+            success = apply_map(group_opt, fwhm, net_counts, all_good=(0, 1))
 
         elif method == 'optmin':
-            success = apply_map(group_opt, fwhm, net_counts, spec_counts)
+            success = apply_map(
+                group_opt, fwhm, net_counts, spec_counts, all_good=(0, 1)
+            )
 
         elif method == 'optsig':
             if self.spec_poisson:
@@ -471,14 +478,16 @@ class Data:
             else:
                 fn = group_optsig_normal
                 args = (fwhm, net_counts, net_counts, net_errors)
-            success = apply_map(fn, *args)
+            success = apply_map(fn, *args, all_good=(0, 1))
 
         elif method == 'optbmin':
             if not (self.has_back and self.back_poisson):
                 raise ValueError(
                     'Poisson background is required for "optbmin" method'
                 )
-            success = apply_map(group_opt, fwhm, net_counts, back_counts)
+            success = apply_map(
+                group_opt, fwhm, net_counts, back_counts, all_good=(0, 1)
+            )
 
         elif method == 'optbsig':
             if not self.has_back:
@@ -486,7 +495,12 @@ class Data:
                     'background data is required for "optbsig" method'
                 )
             success = apply_map(
-                group_optsig_normal, fwhm, net_counts, back_counts, back_errors
+                group_optsig_normal,
+                fwhm,
+                net_counts,
+                back_counts,
+                back_errors,
+                all_good=(0, 1),
             )
 
         else:
