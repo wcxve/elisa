@@ -159,6 +159,7 @@ def plot_trace(
     """
     colors = get_colors(len(idata['posterior']['chain']), palette='bright')
     posterior = idata['posterior']
+    deviance = -2.0 * idata['log_likelihood']['total'].values
 
     if params is None:
         params = list(posterior.data_vars.keys())
@@ -206,16 +207,18 @@ def plot_trace(
     plt.rcParams['axes.formatter.min_exponent'] = 3
     fig, axes = plt.subplots(
         nrows=len(params),
-        ncols=2,
+        ncols=3,
         sharey='row',
-        gridspec_kw={'width_ratios': [3, 1]},
+        gridspec_kw={'width_ratios': [3, 1, 1]},
         figsize=(9, nparam * 2),
+        tight_layout=True,
     )
     fig.subplots_adjust(wspace=0.05, hspace=0)
     fig.align_ylabels(axes)
 
     axes[0, 0].set_title('trace')
     axes[0, 1].set_title('posterior')
+    axes[0, 2].set_title('deviance')
 
     chain = posterior.chain.values
     draw = posterior.draw.values
@@ -234,6 +237,7 @@ def plot_trace(
         axes[i, 0].set_yscale(scale)
         for c in chain:
             sample = posterior_i[c].values
+            loglike = deviance[c]
             draw_slice = draw[:: bw // 2]
             y = np.log(sample) if log_scale else sample
             smoothed = gaussian_kernel_smooth(draw, y, bw, draw_slice)
@@ -255,6 +259,9 @@ def plot_trace(
                 draw_slice, smoothed, c=color, alpha=0.6, lw=1.5, zorder=zorder
             )
             axes[i, 1].plot(kde, x, c=color, alpha=0.6, lw=1.5, zorder=zorder)
+            axes[i, 2].scatter(
+                loglike, sample, color=color, s=0.05, alpha=0.05, zorder=zorder
+            )
 
         axes[i, 0].set_xlim(-0.5, ndraw + 0.5)
         axes[i, 0].set_xticks([])
