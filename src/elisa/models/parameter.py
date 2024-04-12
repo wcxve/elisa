@@ -485,7 +485,9 @@ class UniformParameter(DistParameter):
             if self.min < 0:
                 return f'{self.name} ~ BSLogUniform({self.min:.4g}, {self.max:.4g})'
             else:
-                return f'{self.name} ~ LogUniform({self.min:.4g}, {self.max:.4g})'
+                return (
+                    f'{self.name} ~ LogUniform({self.min:.4g}, {self.max:.4g})'
+                )
         else:
             return f'{self.name} ~ Uniform({self.min:.4g}, {self.max:.4g})'
 
@@ -595,7 +597,10 @@ class UniformParameter(DistParameter):
         if _min <= 0.0 and self._log:
             # raise ValueError(f'min ({_min}) must be positive for log uniform')
             import warnings
-            warnings.warn(f'min ({_min}) is negative, the Bi-Symmetric log uniform instead of log uniform')
+
+            warnings.warn(
+                f'min ({_min}) is negative, the Bi-Symmetric log uniform instead of log uniform'
+            )
 
         if _min >= _max:
             raise ValueError(f'min ({_min}) must less than max ({_max})')
