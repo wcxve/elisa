@@ -52,7 +52,7 @@ class FitResult(ABC):
 
     @property
     @abstractmethod
-    def plotter(self) -> Plotter:
+    def plot(self) -> Plotter:
         """Result plotter."""
         pass
 
@@ -148,7 +148,7 @@ class MLEResult(FitResult):
         return self.__repr__().replace('\n', '<br>')
 
     @property
-    def plotter(self) -> MLEResultPlotter:
+    def plot(self) -> MLEResultPlotter:
         if self._plotter is None:
             self._plotter = MLEResultPlotter(self)
         return self._plotter
@@ -225,7 +225,7 @@ class MLEResult(FitResult):
             raise ValueError("method must be either 'profile' or 'boot'")
 
         mle = {k: v[0] for k, v in self.mle.items()}
-        intervals = format_result(intervals, params)
+        intervals = _format_result(intervals, params)
         errors = {
             k: (intervals[k][0] - mle[k], intervals[k][1] - mle[k])
             for k in params
@@ -391,7 +391,7 @@ class MLEResult(FitResult):
     @property
     def mle(self) -> dict[str, tuple[float, float]]:
         """MLE and error of parameters."""
-        return format_result(self._mle, self._helper.params_names['all'])
+        return _format_result(self._mle, self._helper.params_names['all'])
 
     @property
     def deviance(self) -> dict[str, float]:
@@ -502,7 +502,7 @@ class PosteriorResult(FitResult):
         return self.__repr__()
 
     @property
-    def plotter(self) -> PosteriorResultPlotter:
+    def plot(self) -> PosteriorResultPlotter:
         if self._plotter is None:
             self._plotter = PosteriorResultPlotter(self)
         return self._plotter
@@ -569,9 +569,9 @@ class PosteriorResult(FitResult):
         }
 
         return CredibleInterval(
-            median=format_result(median, params),
-            interval=format_result(interval, params),
-            error=format_result(error, params),
+            median=_format_result(median, params),
+            interval=_format_result(interval, params),
+            error=_format_result(error, params),
             prob=prob_,
             method='HDI' if hdi else 'ETI',
         )
@@ -1017,7 +1017,7 @@ class PPCResult(NamedTuple):
     """Seed of random number generator used in simulation."""
 
 
-def format_result(result: dict, order: Sequence[str]) -> dict:
+def _format_result(result: dict, order: Sequence[str]) -> dict:
     """Sort the result and use float type."""
     formatted = jax.tree_map(float, result)
     return {k: formatted[k] for k in order}
