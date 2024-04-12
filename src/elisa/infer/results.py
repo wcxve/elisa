@@ -77,6 +77,12 @@ class FitResult(ABC):
         """Degree of freedom."""
         return self._helper.dof
 
+    @property
+    @abstractmethod
+    def gof(self) -> dict[str, float]:
+        """Goodness of fit p-value."""
+        pass
+
 
 class MLEResult(FitResult):
     """Result of maximum likelihood fit."""
@@ -293,6 +299,14 @@ class MLEResult(FitResult):
             n_valid=np.sum(valid),
             seed=seed,
         )
+
+    @property
+    def gof(self) -> dict[str, float]:
+        if self._boot is None:
+            raise RuntimeError('MLEResult.boot() must be called to assess gof')
+        p_value = self._boot.p_value
+        p_value = p_value['group'] | {'total': p_value['total']}
+        return {k: float(p_value[k]) for k in self.ndata.keys()}
 
     def _ci_free(self, names: Iterable[str], cl: float | int):
         """Confidence interval of free parameters."""
@@ -672,6 +686,16 @@ class PosteriorResult(FitResult):
             n_valid=np.sum(valid),
             seed=seed,
         )
+
+    @property
+    def gof(self) -> dict[str, float]:
+        if self._ppc is None:
+            raise RuntimeError(
+                'PosteriorResult.ppc() must be called to assess gof'
+            )
+        p_value = self._ppc.p_value
+        p_value = p_value['group'] | {'total': p_value['total']}
+        return {k: float(p_value[k]) for k in self.ndata.keys()}
 
     def _init_from_numpyro(self, sampler: MCMC):
         helper = self._helper
