@@ -12,6 +12,8 @@ from numpyro.distributions import Distribution, LogUniform, Uniform
 from elisa.util.integrate import AdaptQuadMethod, make_integral_factory
 from elisa.util.misc import build_namespace
 
+from .bslog import BiSymmetricLogUniform as BSLogUniform
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
     from typing import Any, Callable, Literal
@@ -480,7 +482,10 @@ class UniformParameter(DistParameter):
         if self._fixed:
             return f'{self.name} = {self.default:.4g}'
         elif self._log:
-            return f'{self.name} ~ LogUniform({self.min:.4g}, {self.max:.4g})'
+            if self.min < 0:
+                return f'{self.name} ~ BSLogUniform({self.min:.4g}, {self.max:.4g})'
+            else:
+                return f'{self.name} ~ LogUniform({self.min:.4g}, {self.max:.4g})'
         else:
             return f'{self.name} ~ Uniform({self.min:.4g}, {self.max:.4g})'
 
@@ -534,7 +539,10 @@ class UniformParameter(DistParameter):
             self._log = log
 
             if log:
-                self._dist = LogUniform(self._min, self._max)
+                if self._min < 0:
+                    self._dist = BSLogUniform(self._min, self._max)
+                else:
+                    self._dist = LogUniform(self._min, self._max)
             else:
                 self._dist = Uniform(self._min, self._max)
 
@@ -549,7 +557,10 @@ class UniformParameter(DistParameter):
     @property
     def _dist_expr(self) -> str:
         if self._log:
-            return f'LogUniform({self.min:.4g}, {self.max:.4g})'
+            if self.min < 0:
+                return f'BSLogUniform({self.min:.4g}, {self.max:.4g})'
+            else:
+                return f'LogUniform({self.min:.4g}, {self.max:.4g})'
         else:
             return f'Uniform({self.min:.4g}, {self.max:.4g})'
 
@@ -582,7 +593,9 @@ class UniformParameter(DistParameter):
             _max = jnp.asarray(max, float)
 
         if _min <= 0.0 and self._log:
-            raise ValueError(f'min ({_min}) must be positive for log uniform')
+            # raise ValueError(f'min ({_min}) must be positive for log uniform')
+            import warnings
+            warnings.warn(f'min ({_min}) is negative, the Bi-Symmetric log uniform instead of log uniform')
 
         if _min >= _max:
             raise ValueError(f'min ({_min}) must less than max ({_max})')
@@ -608,7 +621,10 @@ class UniformParameter(DistParameter):
 
         if min is not None or max is not None:
             if self.log:
-                self._dist = LogUniform(self._min, self._max)
+                if self._min < 0:
+                    self._dist = BSLogUniform(self._min, self._max)
+                else:
+                    self._dist = LogUniform(self._min, self._max)
             else:
                 self._dist = Uniform(self._min, self._max)
 
