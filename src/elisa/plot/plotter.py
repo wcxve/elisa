@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
@@ -348,6 +349,7 @@ class Plotter(ABC):
     _palette: Any | None = None
     _comps_latex: dict[str, str] | None = None
     _params_latex: dict[str, str] | None = None
+    _supported: tuple[str, ...]
     data: dict[str, PlotData] | None = None
 
     def __init__(self, result: FitResult, config: PlotConfig = None):
@@ -357,14 +359,91 @@ class Plotter(ABC):
         markers = get_markers(len(self.data))
         self._markers = dict(zip(self.data.keys(), markers))
 
-    # def __call__(
-    #     self,
-    #     plots=
-    #     '(data ne ene eene fv vfv) (pit) (qq) (pvalue) (trace) (corner)',
-    #     residuals=True/False/deviance pearson quantile,
-    # ):
-    #     ...
-    #
+    def __call__(
+        self,
+        plots: str = 'data',
+        residuals: bool | Literal['deviance', 'pearson', 'quantile'] = True,
+    ):
+        plots = re.split(r'\s+', str(plots).lower())
+        if any(p not in self._supported for p in plots):
+            supported = ', '.join(self._supported)
+            err = ', '.join(p for p in plots if p not in self._supported)
+            raise ValueError(f'supported plots are: {supported}; got {err}')
+
+    def plot(self, *args, r=None, **kwargs) -> tuple[Figure, np.ndarray[Axes]]:
+        config = self.config
+        fig, axs = plt.subplots(
+            nrows=2,
+            ncols=1,
+            sharex='all',
+            height_ratios=[1.618, 1.0],
+            gridspec_kw={'hspace': 0.03},
+            figsize=(8, 6),
+        )
+
+        fig.align_ylabels(axs)
+
+        for ax in axs:
+            ax.tick_params(
+                axis='both',
+                which='both',
+                direction='in',
+                bottom=True,
+                top=True,
+                left=True,
+                right=True,
+            )
+
+        plt.rcParams['axes.formatter.min_exponent'] = 3
+
+        axs[-1].set_xlabel(r'$\mathrm{Energy\ [keV]}$')
+
+        ylabels = {
+            'ce': r'$C_E\ \mathrm{[s^{-1}\ keV^{-1}]}$',
+            'residuals': r'$r_D\ [\mathrm{\sigma}]$',
+            'ne': r'$N_E\ \mathrm{[s^{-1}\ cm^{-2}\ keV^{-1}]}$',
+            'ene': r'$E N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
+            'eene': r'$E^2 N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
+            'Fv': r'$F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
+            'vFv': r'$\nu F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
+        }
+        axs[0].set_ylabel(ylabels['ce'])
+        axs[1].set_ylabel(ylabels['residuals'])
+
+        self.plot_folded(axs[0])
+        self.plot_ce(axs[0])
+        self.plot_residuals(axs[1], r)
+
+        axs[0].set_xscale(config.xscale)
+        ax = axs[0]
+        xmin, xmax = ax.dataLim.intervalx
+        ax.set_xlim(xmin * 0.97, xmax * 1.06)
+
+        yscale = config.yscale
+        assert yscale in {'linear', 'log', 'linlog'}
+        if yscale in {'linear', 'log'}:
+            ax.set_yscale(yscale)
+        else:
+            ax.set_yscale('log')
+            lin_thresh = ax.get_ylim()[0]
+            lin_frac = config.lin_frac
+            dmin, dmax = ax.get_yaxis().get_data_interval()
+            scale = LinLogScale(
+                axis=None,
+                base=10.0,
+                lin_thresh=lin_thresh,
+                lin_scale=get_scale(10.0, lin_thresh, dmin, dmax, lin_frac),
+            )
+            ax.set_yscale(scale)
+            ax.axhline(lin_thresh, c='k', lw=0.15, ls=':', zorder=-1)
+
+        axs[0].legend()
+
+        for ax in axs:
+            ax.relim()
+            ax.autoscale_view()
+
+        return fig, axs
 
     @abstractmethod
     def plot_corner(
@@ -450,81 +529,6 @@ class Plotter(ABC):
             p: comps_latex[p] + params_latex[p] + params_unit[p]
             for p in params
         }
-
-    def plot(self, *args, r=None, **kwargs) -> tuple[Figure, np.ndarray[Axes]]:
-        config = self.config
-        fig, axs = plt.subplots(
-            nrows=2,
-            ncols=1,
-            sharex='all',
-            height_ratios=[1.618, 1.0],
-            gridspec_kw={'hspace': 0.03},
-            figsize=(8, 6),
-        )
-
-        fig.align_ylabels(axs)
-
-        for ax in axs:
-            ax.tick_params(
-                axis='both',
-                which='both',
-                direction='in',
-                bottom=True,
-                top=True,
-                left=True,
-                right=True,
-            )
-
-        plt.rcParams['axes.formatter.min_exponent'] = 3
-
-        axs[-1].set_xlabel(r'$\mathrm{Energy\ [keV]}$')
-
-        ylabels = {
-            'ce': r'$C_E\ \mathrm{[s^{-1}\ keV^{-1}]}$',
-            'residuals': r'$r_D\ [\mathrm{\sigma}]$',
-            'ne': r'$N_E\ \mathrm{[s^{-1}\ cm^{-2}\ keV^{-1}]}$',
-            'ene': r'$E N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
-            'eene': r'$E^2 N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
-            'Fv': r'$F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
-            'vFv': r'$\nu F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
-        }
-        axs[0].set_ylabel(ylabels['ce'])
-        axs[1].set_ylabel(ylabels['residuals'])
-
-        self.plot_folded(axs[0])
-        self.plot_ce(axs[0])
-        self.plot_residuals(axs[1], r)
-
-        axs[0].set_xscale(config.xscale)
-        ax = axs[0]
-        xmin, xmax = ax.dataLim.intervalx
-        ax.set_xlim(xmin * 0.97, xmax * 1.06)
-
-        yscale = config.yscale
-        assert yscale in {'linear', 'log', 'linlog'}
-        if yscale in {'linear', 'log'}:
-            ax.set_yscale(yscale)
-        else:
-            ax.set_yscale('log')
-            lin_thresh = ax.get_ylim()[0]
-            lin_frac = config.lin_frac
-            dmin, dmax = ax.get_yaxis().get_data_interval()
-            scale = LinLogScale(
-                axis=None,
-                base=10.0,
-                lin_thresh=lin_thresh,
-                lin_scale=get_scale(10.0, lin_thresh, dmin, dmax, lin_frac),
-            )
-            ax.set_yscale(scale)
-            ax.axhline(lin_thresh, c='k', lw=0.15, ls=':', zorder=-1)
-
-        axs[0].legend()
-
-        for ax in axs:
-            ax.relim()
-            ax.autoscale_view()
-
-        return fig, axs
 
     def plot_unfolded(
         self,
@@ -857,10 +861,93 @@ class Plotter(ABC):
         if n_subplots % 2:
             ax_list[-1].set_visible(False)
 
+    def plot_gof(self):
+        """Plot distribution of GOF statistics and p-value."""
+        if isinstance(self, MLEResultPlotter):
+            if self._result._boot is None:
+                raise RuntimeError(
+                    'MLEResult.boot() must be called to assess gof'
+                )
+            n = int(self._result._boot.n_valid)
+            dev_obs = self._result.deviance
+            dev_sim = self._result._boot.deviance
+            dev_sim = dev_sim['group'] | {'total': dev_sim['total']}
+            p_value = self._result._boot.p_value
+        elif isinstance(self, PosteriorResultPlotter):
+            if self._result._ppc is None:
+                raise RuntimeError(
+                    'PosteriorResult.ppc() must be called to assess gof'
+                )
+            n = int(self._result._ppc.n_valid)
+            dev_obs = self._result._mle['deviance']
+            dev_sim = self._result._ppc.deviance
+            dev_obs = dev_obs['group'] | {'total': dev_obs['total']}
+            dev_sim = dev_sim['group'] | {'total': dev_sim['total']}
+            p_value = self._result._ppc.p_value
+        else:
+            raise NotImplementedError
+        p_value = p_value['group'] | {'total': p_value['total']}
+
+        config = self.config
+        n_subplots = len(self.data)
+        if n_subplots == 1:
+            ncols = 1
+        else:
+            ncols = n_subplots // 2
+            if n_subplots % 2:
+                ncols += 1
+
+        fig = plt.figure(figsize=(4 + ncols * 2.25, 4), tight_layout=True)
+        gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
+        gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
+        ax1 = fig.add_subplot(gs1[0, 0])
+        axs = gs2.subplots(squeeze=False)
+        ax1.set_xlabel('$D$')
+        ax1.set_ylabel(r'$P(\mathcal{D} \geq D)$')
+
+        ax_list = [ax1] + axs.ravel().tolist()
+        names = ['total'] + list(self.ndata.keys())
+        colors = ['k'] + get_colors(n_subplots, config.palette)
+
+        for ax, name, color in zip(ax_list, names, colors):
+            d_obs = dev_obs[name]
+            d_sim = np.sort(dev_sim[name])
+            sf = 1.0 - np.arange(1.0, n + 1.0) / n
+            ax.plot(d_sim, sf, color=color)
+            ax.axvline(d_obs, color=color, ls=':')
+            p = p_value[name]
+            if p > 0.0:
+                pstr = f'{name} $p = {p:.2f}$'
+            else:
+                pstr = f'{name} $p < {1.0/n}$'
+            ax.annotate(
+                text=pstr,
+                xy=(0.97, 0.97),
+                xycoords='axes fraction',
+                ha='right',
+                va='top',
+                color=color,
+            )
+            ax.set_yscale('log')
+        if n_subplots % 2:
+            ax_list[-1].set_visible(False)
+
 
 class MLEResultPlotter(Plotter):
     data: dict[str, MLEPlotData]
     _result: MLEResult
+    _supported = (
+        'data',
+        'ne',
+        'ene',
+        'eene',
+        'Fv',
+        'vFv',
+        'corner',
+        'gof',
+        'qq',
+        'pit',
+    )
 
     @staticmethod
     def get_plot_data(result: MLEResult) -> dict[str, MLEPlotData]:
@@ -908,6 +995,20 @@ class MLEResultPlotter(Plotter):
 class PosteriorResultPlotter(Plotter):
     data: dict[str, PosteriorPlotData]
     _result: PosteriorResult
+    _supported = (
+        'data',
+        'ne',
+        'ene',
+        'eene',
+        'Fv',
+        'vFv',
+        'corner',
+        'gof',
+        'khat',
+        'qq',
+        'pit',
+        'trace',
+    )
 
     @staticmethod
     def get_plot_data(result: PosteriorResult) -> dict[str, PosteriorPlotData]:
