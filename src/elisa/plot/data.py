@@ -6,8 +6,12 @@ from abc import ABC, abstractmethod
 from functools import cache, wraps
 from typing import TYPE_CHECKING
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 import scipy.stats as stats
+from jax.experimental import mesh_utils
+from jax.sharding import PositionalSharding
 
 from elisa.infer.likelihood import (
     _STATISTIC_BACK_NORMAL,
@@ -86,8 +90,17 @@ def _get_cached_method_with_check_decorator(
 
 
 class PlotData(ABC):
+    """Base class for data used in plotting."""
+
     _cached_method: list[str]
     _cached_method_with_check: list[tuple[str, list[str]]]
+    _ne: Callable[[dict, bool, Array], dict | Array]
+    _ene: Callable[[dict, bool, Array], dict | Array]
+    _eene: Callable[[dict, bool, Array], dict | Array]
+    _ne_vmap: Callable[[dict, bool, Array], dict | Array]
+    _ene_vmap: Callable[[dict, bool, Array], dict | Array]
+    _eene_vmap: Callable[[dict, bool, Array], dict | Array]
+    _ph_egrid: NumPyArray | None = None
 
     def __init__(self, name: str, result: FitResult, seed: int):
         self.name = str(name)
@@ -95,6 +108,8 @@ class PlotData(ABC):
         self.seed = seed
         self.data = result._helper.data[self.name]
         self.statistic = result._helper.statistic[self.name]
+        devices = mesh_utils.create_device_mesh((jax.local_device_count(),))
+        self.sharding = PositionalSharding(devices)
 
         for f in self._cached_method:
             method = getattr(self, f)
@@ -103,6 +118,23 @@ class PlotData(ABC):
         for f, fields in self._cached_method_with_check:
             method = getattr(self, f)
             setattr(self, f, _cache_method_with_check(self, method, fields))
+
+        model = self.result._helper.model[self.name]
+        self._ne = jax.jit(model.ne, static_argnums=2)
+        self._ne_vmap = jax.jit(
+            jax.vmap(self._ne, in_axes=(None, 0, None)),
+            static_argnums=2,
+        )
+        self._ene = jax.jit(model.ene, static_argnums=2)
+        self._ene_vmap = jax.jit(
+            jax.vmap(self._ene, in_axes=(None, 0, None)),
+            static_argnums=2,
+        )
+        self._eene = jax.jit(model.eene, static_argnums=2)
+        self._eene_vmap = jax.jit(
+            jax.vmap(self._eene, in_axes=(None, 0, None)),
+            static_argnums=2,
+        )
 
     @property
     def channel(self) -> NumPyArray:
@@ -133,12 +165,14 @@ class PlotData(ABC):
         return self.data.ch_error
 
     @property
-    def ce_data(self) -> Array:
-        return self.data.ce
+    def ph_egrid(self) -> NumPyArray:
+        if self._ph_egrid is not None:
+            return self._ph_egrid
 
-    @property
-    def ce_error(self) -> Array:
-        return self.data.ce_error
+        ph_egrid = self.data.ph_egrid
+        mask = (self.ch_emin[0] <= ph_egrid) & (ph_egrid <= self.ch_emax[-1])
+        self._ph_egrid = ph_egrid[mask]
+        return self._ph_egrid
 
     @property
     def spec_counts(self) -> Array:
@@ -173,6 +207,14 @@ class PlotData(ABC):
         return len(self.data.channel)
 
     @property
+    def ce_data(self) -> Array:
+        return self.data.ce
+
+    @property
+    def ce_error(self) -> Array:
+        return self.data.ce_error
+
+    @property
     @abstractmethod
     def ce_model(self) -> Array:
         """Point estimate of the folded source model."""
@@ -181,6 +223,34 @@ class PlotData(ABC):
     @abstractmethod
     def ce_model_ci(self, cl: float = 0.683) -> Array | None:
         """Confidence/Credible intervals of the folded source model."""
+        pass
+
+    @property
+    def has_comps(self) -> bool:
+        return self.result._helper.model[self.name].has_comps
+
+    def _unfolded_model(
+        self,
+        mtype: Literal['ne', 'ene', 'eene'],
+        egrid: Array,
+        params: dict,
+        comps: bool,
+    ) -> Array | dict:
+        assert mtype in {'ne', 'ene', 'eene'}
+        v = '_vmap' if len(np.shape(list(params.values())[0])) != 0 else ''
+        return jax.device_get(
+            getattr(self, f'_{mtype}{v}')(egrid, params, comps)
+        )
+
+    @abstractmethod
+    def unfolded_model(
+        self,
+        mtype: Literal['ne', 'ene', 'eene'],
+        egrid: Array,
+        params: dict,
+        comps: bool,
+        cl: float | Array | None = None,
+    ) -> Array | dict:
         pass
 
     @abstractmethod
@@ -239,6 +309,18 @@ class MLEPlotData(PlotData):
     def boot(self) -> BootstrapResult:
         return self.result._boot
 
+    @property
+    def params_mle(self) -> dict[str, Array]:
+        return {k: v[0] for k, v in self.result._mle.items()}
+
+    @property
+    def params_boot(self) -> dict[str, Array] | None:
+        boot = self.boot
+        if boot is None:
+            return None
+        else:
+            return boot.params
+
     def get_model_mle(self, name: str) -> Array:
         return self.result._model_values[name]
 
@@ -272,6 +354,46 @@ class MLEPlotData(PlotData):
             axis=0,
         )
         return ci
+
+    def unfolded_model(
+        self,
+        mtype: Literal['ne', 'ene', 'eene'],
+        egrid: Array | None,
+        params: dict | None,
+        comps: bool,
+        cl: float | Array | None = None,
+    ) -> tuple[Array | dict, Array | dict | None]:
+        assert mtype in {'ne', 'ene', 'eene'}
+        if cl is not None:
+            cl = np.atleast_1d(cl).astype(float)
+            assert np.all(0.0 < cl) and np.all(cl < 1.0)
+        params = {} if params is None else dict(params)
+        comps = comps and self.has_comps
+
+        egrid = jnp.asarray(egrid, float)
+
+        params_mle = self.params_mle | params
+        model_mle = self._unfolded_model(mtype, egrid, params_mle, comps)
+
+        params_boot = self.params_boot
+        if cl is None or params_boot is None:
+            return model_mle, None
+        else:
+            n = int(self.boot.n_valid)
+            n -= n % self.sharding.shape[0]
+            params_boot = {k: v[:n] for k, v in params_boot.items()}
+            if params:
+                params = {k: jnp.full(n, v) for k, v in params.items()}
+                params_boot |= params
+            model_boot = self._unfolded_model(mtype, egrid, params_boot, comps)
+            q = 0.5 + cl[:, None] * np.array([-0.5, 0.5])
+            if comps:
+                ci = {
+                    k: np.quantile(v, q, axis=0) for k, v in model_boot.items()
+                }
+            else:
+                ci = np.quantile(model_boot, q, axis=0)
+            return model_mle, ci
 
     @property
     def sign(self) -> dict[str, Array | None]:
@@ -543,6 +665,12 @@ class PosteriorPlotData(PlotData):
     _cached_method_with_check = _cached_method_with_check
 
     @property
+    def params(self) -> dict[str, Array]:
+        posterior = self.result._idata['posterior']
+        params_name = self.result._helper.params_names['free']
+        return {k: np.hstack(posterior[k].values) for k in params_name}
+
+    @property
     def ppc(self) -> PPCResult | None:
         return self.result._ppc
 
@@ -581,6 +709,44 @@ class PosteriorPlotData(PlotData):
             q=0.5 + cl * np.array([-0.5, 0.5]),
             axis=0,
         )
+
+    def unfolded_model(
+        self,
+        mtype: Literal['ne', 'ene', 'eene'],
+        egrid: Array | None,
+        params: dict | None,
+        comps: bool,
+        cl: float | Array | None = None,
+    ) -> tuple[Array | dict, Array | dict | None]:
+        assert mtype in {'ne', 'ene', 'eene'}
+        if cl is not None:
+            cl = np.atleast_1d(cl).astype(float)
+            assert np.all(0.0 < cl) and np.all(cl < 1.0)
+        params = {} if params is None else dict(params)
+        comps = comps and self.has_comps
+        egrid = jnp.asarray(egrid, float)
+        post = self.result._idata['posterior']
+        n = post.chain.size * post.draw.size
+        post_params = self.params
+        if n > 5000:
+            n = 5000
+            idx = np.random.randint(0, n, 5000)
+            post_params = {k: v[idx] for k, v in post_params.items()}
+        params = {k: jnp.full(n, v) for k, v in params.items()}
+        post_params |= params
+        models = self._unfolded_model(mtype, egrid, post_params, comps)
+        if comps:
+            model = {k: np.median(v, axis=0) for k, v in models.items()}
+            if cl is None:
+                return model, None
+            q = 0.5 + cl[:, None] * np.array([-0.5, 0.5])
+            ci = {k: np.quantile(v, q, axis=0) for k, v in models.items()}
+            return model, ci
+        else:
+            model = np.median(models, axis=0)
+            q = 0.5 + cl[:, None] * np.array([-0.5, 0.5])
+            ci = np.quantile(models, q, axis=0)
+        return model, ci
 
     @property
     def sign(self) -> dict[str, Array | None]:

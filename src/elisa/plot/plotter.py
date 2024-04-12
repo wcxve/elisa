@@ -5,6 +5,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
+import arviz as az
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
@@ -17,7 +18,7 @@ from elisa.plot.scale import LinLogScale, get_scale
 from elisa.plot.util import get_colors, get_markers
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
     from typing import Any, Literal
 
     from matplotlib.pyplot import Axes, Figure
@@ -25,6 +26,184 @@ if TYPE_CHECKING:
     from elisa.infer.results import FitResult, MLEResult, PosteriorResult
     from elisa.plot.data import PlotData
     from elisa.util.typing import Array, NumPyArray
+
+
+def _plot_step(
+    ax: Axes, x_left: Array, x_right: Array, y: Array, **step_kwargs
+) -> None:
+    assert len(y) == len(x_left) == len(x_right)
+
+    step_kwargs['where'] = 'post'
+
+    mask = x_left[1:] != x_right[:-1]
+    idx = np.insert(np.flatnonzero(mask) + 1, 0, 0)
+    idx = np.append(idx, len(y))
+    for i in range(len(idx) - 1):
+        i_slice = slice(idx[i], idx[i + 1])
+        x_slice = np.append(x_left[i_slice], x_right[i_slice][-1])
+        y_slice = y[i_slice]
+        y_slice = np.append(y_slice, y_slice[-1])
+        ax.step(x_slice, y_slice, **step_kwargs)
+
+
+def _plot_ribbon(
+    ax,
+    x_left: Array,
+    x_right: Array,
+    y_ribbons: Sequence[Array],
+    **ribbon_kwargs,
+) -> None:
+    y_ribbons = list(map(np.asarray, y_ribbons))
+    shape = y_ribbons[0].shape
+    assert len(shape) == 2 and shape[0] == 2
+    assert shape[1] == len(x_left) == len(x_right)
+    assert all(ribbon.shape == shape for ribbon in y_ribbons)
+
+    ribbon_kwargs['step'] = 'post'
+
+    mask = x_left[1:] != x_right[:-1]
+    idx = np.insert(np.flatnonzero(mask) + 1, 0, 0)
+    idx = np.append(idx, shape[1])
+    for i in range(len(idx) - 1):
+        i_slice = slice(idx[i], idx[i + 1])
+        x_slice = np.append(x_left[i_slice], x_right[i_slice][-1])
+
+        for ribbon in y_ribbons:
+            lower = ribbon[0]
+            lower_slice = lower[i_slice]
+            lower_slice = np.append(lower_slice, lower_slice[-1])
+            upper = ribbon[1]
+            upper_slice = upper[i_slice]
+            upper_slice = np.append(upper_slice, upper_slice[-1])
+            ax.fill_between(x_slice, lower_slice, upper_slice, **ribbon_kwargs)
+
+
+def _get_qq(
+    q: NumPyArray,
+    detrend: bool,
+    cl: float,
+    qsim: NumPyArray | None = None,
+) -> tuple[NumPyArray, ...]:
+    """Get the Q-Q and pointwise confidence/credible interval.
+
+    References
+    ----------
+    .. [1] doi:10.1080/00031305.2013.847865
+    """
+    # https://stats.stackexchange.com/a/9007
+    # https://stats.stackexchange.com/a/152834
+    alpha = np.pi / 8  # 3/8 is also ok
+    n = len(q)
+    theor = stats.norm.ppf((np.arange(1, n + 1) - alpha) / (n - 2 * alpha + 1))
+
+    q = np.sort(q)
+    if qsim is not None:
+        line, lower, upper = np.quantile(
+            np.sort(qsim, axis=1),
+            q=[0.5, 0.5 - 0.5 * cl, 0.5 + 0.5 * cl],
+            axis=0,
+        )
+    else:
+        line = np.array(theor)
+        grid = np.arange(1, n + 1)
+        lower = stats.beta.ppf(0.5 - cl * 0.5, grid, n + 1 - grid)
+        upper = stats.beta.ppf(0.5 + cl * 0.5, grid, n + 1 - grid)
+        lower = stats.norm.ppf(lower)
+        upper = stats.norm.ppf(upper)
+
+    if detrend:
+        q -= theor
+        line -= theor
+        lower -= theor
+        upper -= theor
+
+    return theor, q, line, lower, upper
+
+
+def _get_pit_ecdf(
+    pit: NumPyArray,
+    cl: float,
+    detrend: bool,
+) -> tuple[NumPyArray, ...]:
+    """Get the empirical CDF of PIT and pointwise confidence/credible interval.
+
+    References
+    ----------
+    .. [1] doi:10.1007/s11222-022-10090-6
+    """
+    n = len(pit)
+
+    # See ref [1] for the following
+    scaled_rank = np.linspace(0.0, 1.0, n + 1)
+    # Since binomial is discrete, we need to have lower and upper bounds with
+    # a confidence/credible level >= cl to ensure the nominal coverage,
+    # that is, we require that (cdf <= 0.5 - 0.5 * cl) for lower bound
+    # and (0.5 + 0.5 * cl <= cdf) for upper bound
+    lower_q = 0.5 - cl * 0.5
+    lower = stats.binom.ppf(lower_q, n, scaled_rank)
+    mask = stats.binom.cdf(lower, n, scaled_rank) > lower_q
+    lower[mask] -= 1.0
+    lower = np.clip(lower / n, 0.0, 1.0)
+
+    upper_q = 0.5 + cl * 0.5
+    upper = stats.binom.ppf(upper_q, n, scaled_rank)
+    mask = stats.binom.cdf(upper, n, scaled_rank) < upper_q
+    upper[mask] += 1.0
+    upper = np.clip(upper / n, 0.0, 1.0)
+
+    line = scaled_rank
+    pit_ecdf = np.count_nonzero(pit <= scaled_rank[:, None], axis=1) / n
+
+    if detrend:
+        lower -= line
+        upper -= line
+        pit_ecdf -= line
+        line = np.zeros_like(line)
+
+    return scaled_rank, pit_ecdf, line, lower, upper
+
+    # x = np.hstack([0.0, np.sort(pit), 1.0])
+    # pit_ecdf = np.hstack([0.0, np.arange(n) / n, 1.0])
+    # line = scaled_rank
+    #
+    # if detrend:
+    #     pit_ecdf -= x
+    #     lower -= scaled_rank
+    #     upper -= scaled_rank
+    #     line = np.zeros_like(scaled_rank)
+    #
+    # return x, pit_ecdf, scaled_rank, line, lower, upper
+
+
+# def _get_pit_pdf(pit_intervals: NumPyArray) -> NumPyArray:
+#     """Get the pdf of PIT.
+#
+#     References
+#     ----------
+#     .. [1] doi:10.1111/j.1541-0420.2009.01191.x
+#     """
+#     assert len(pit_intervals.shape) == 2 and pit_intervals.shape[1] == 2
+#
+#     grid = np.unique(pit_intervals)
+#     if grid[0] > 0.0:
+#         grid = np.insert(grid, 0, 0)
+#     if grid[-1] < 1.0:
+#         grid = np.append(grid, 1.0)
+#
+#     n = len(pit_intervals)
+#     mask = pit_intervals[:, 0] != pit_intervals[:, 1]
+#     cover_mask = np.bitwise_and(
+#         pit_intervals[:, :1] <= grid[:-1],
+#         grid[1:] <= pit_intervals[:, 1:],
+#     )
+#     pdf = np.zeros((n, len(grid) - 1))
+#     pdf[cover_mask] = np.repeat(
+#         1.0 / (pit_intervals[mask, 1] - pit_intervals[mask, 0]),
+#         np.count_nonzero(cover_mask[mask], axis=1),
+#     )
+#     idx = np.clip(grid.searchsorted(pit_intervals[~mask, 0]) - 1, 0, None)
+#     pdf[~mask, idx] = 1.0 / (grid[idx + 1] - grid[idx])
+#     return pdf.mean(0)
 
 
 class PlotConfig:
@@ -183,13 +362,19 @@ class Plotter(ABC):
     #     plots=
     #     '(data ne ene eene fv vfv) (pit) (qq) (pvalue) (trace) (corner)',
     #     residuals=True/False/deviance pearson quantile,
-
     # ):
     #     ...
     #
-    # def plot_corner(self):
-    #     # correlation map, bootstrap distribution, posterior distribution
-    #     ...
+
+    @abstractmethod
+    def plot_corner(
+        self,
+        params: str | Sequence[str] | None = None,
+        color: str | None = None,
+        divergences: bool = True,
+        fig_path: str | None = None,
+    ):
+        pass
 
     @staticmethod
     @abstractmethod
@@ -306,8 +491,8 @@ class Plotter(ABC):
         axs[0].set_ylabel(ylabels['ce'])
         axs[1].set_ylabel(ylabels['residuals'])
 
-        self.plot_ce_model(axs[0])
-        self.plot_ce_data(axs[0])
+        self.plot_folded(axs[0])
+        self.plot_ce(axs[0])
         self.plot_residuals(axs[1], r)
 
         axs[0].set_xscale(config.xscale)
@@ -341,7 +526,62 @@ class Plotter(ABC):
 
         return fig, axs
 
-    def plot_ce_model(self, ax: Axes):
+    def plot_unfolded(
+        self,
+        ax: Axes,
+        mtype: Literal['ne', 'ene', 'eene'],
+        params: Mapping | None = None,
+        egrid: Mapping[str, NumPyArray] | None = None,
+    ):
+        params = dict(params) if params is not None else {}
+        egrid = dict(egrid) if egrid is not None else {}
+        config = self.config
+        colors = self.colors
+        cl = config.cl
+        comps = config.plot_comps
+        step_kwargs = {'lw': 1.618, 'alpha': config.alpha}
+        ribbon_kwargs = {'lw': 0.618, 'alpha': 0.2 * config.alpha}
+
+        for name, data in self.data.items():
+            color = colors[name]
+            egrid_ = egrid.get(name, data.ph_egrid)
+            ne, ci = data.unfolded_model(mtype, egrid_, params, False, cl)
+            _plot_step(
+                ax, egrid_[:-1], egrid_[1:], ne, color=color, **step_kwargs
+            )
+            if ci is not None:
+                _plot_ribbon(
+                    ax,
+                    egrid_[:-1],
+                    egrid_[1:],
+                    ci,
+                    color=color,
+                    **ribbon_kwargs,
+                )
+
+            if comps:
+                ne, ci = data.unfolded_model(mtype, egrid_, params, True)
+                for ne_ in ne.values():
+                    _plot_step(
+                        ax,
+                        egrid_[:-1],
+                        egrid_[1:],
+                        ne_,
+                        color=color,
+                        **(step_kwargs | {'ls': ':'}),
+                    )
+                if ci is not None:
+                    for ci_ in ci.values():
+                        _plot_ribbon(
+                            ax,
+                            egrid_[:-1],
+                            egrid_[1:],
+                            ci_,
+                            color=color,
+                            **ribbon_kwargs,
+                        )
+
+    def plot_folded(self, ax: Axes):
         config = self.config
         colors = self.colors
         cl = config.cl
@@ -375,7 +615,7 @@ class Plotter(ABC):
                     **ribbon_kwargs,
                 )
 
-    def plot_ce_data(self, ax: Axes):
+    def plot_ce(self, ax: Axes):
         config = self.config
         colors = self.colors
         alpha = config.alpha
@@ -547,7 +787,9 @@ class Plotter(ABC):
         names = ['total'] + list(self.ndata.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
         for ax, name, color in zip(axs, names, colors):
-            theor, q, line, lo, up = get_qq(r[name], detrend, 0.95, rsim[name])
+            theor, q, line, lo, up = _get_qq(
+                r[name], detrend, 0.95, rsim[name]
+            )
             ax.scatter(theor, q, s=5, color=color, alpha=alpha)
             ax.plot(theor, line, ls='--', color=color, alpha=alpha)
             ax.plot(theor, lo, ls=':', color=color, alpha=alpha)
@@ -598,7 +840,7 @@ class Plotter(ABC):
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
         for ax, name, color in zip(ax_list, names, colors):
-            x, y, line, lower, upper = get_pit_ecdf(pit[name], 0.95, detrend)
+            x, y, line, lower, upper = _get_pit_ecdf(pit[name], 0.95, detrend)
             ax.plot(x, line, ls='--', color=color, alpha=alpha)
             ax.fill_between(
                 x, lower, upper, alpha=0.2 * alpha, color=color, step='mid'
@@ -614,24 +856,6 @@ class Plotter(ABC):
             )
         if n_subplots % 2:
             ax_list[-1].set_visible(False)
-
-    # def plot_ne(self, ax: Axes):
-    #     pass
-    #
-    # def plot_ene(self, ax: Axes):
-    #     pass
-    #
-    # def plot_eene(self, ax: Axes):
-    #     pass
-    #
-    # def plot_ufspec(self):
-    #     pass
-    #
-    # def plot_eufspec(self):
-    #     pass
-    #
-    # def plot_eeufspec(self):
-    #     pass
 
 
 class MLEResultPlotter(Plotter):
@@ -650,9 +874,35 @@ class MLEResultPlotter(Plotter):
         }
         return data
 
-    # def plot_corner(self):
-    #     # profile and contour
-    #     ...
+    def plot_corner(
+        self,
+        params: str | Sequence[str] | None = None,
+        color: str | None = None,
+        divergences: bool = True,
+        fig_path: str | None = None,
+    ):
+        if self._result._boot is None:
+            raise ValueError('MLEResult.boot() must be called first')
+
+        helper = self._result._helper
+        params = check_params(params, helper)
+        axes_scale = [
+            'log' if helper.params_log[p] else 'linear' for p in params
+        ]
+        params_titles = self.params_titles
+        params_labels = self.params_labels
+        fig = plot_corner(
+            idata=az.from_dict(self._result._boot.params),
+            params=params,
+            axes_scale=axes_scale,
+            levels=self.config.cl,
+            titles=[params_titles[p] for p in params],
+            labels=[params_labels[p] for p in params],
+            color=color,
+            divergences=divergences,
+        )
+        if fig_path:
+            fig.savefig(fig_path, bbox_inches='tight')
 
 
 class PosteriorResultPlotter(Plotter):
@@ -720,7 +970,7 @@ class PosteriorResultPlotter(Plotter):
         alpha = config.alpha
         xlog = config.xscale == 'log'
 
-        fig, ax = plt.subplots(1, 1, squeeze=True)
+        fig, ax = plt.subplots(1, 1, squeeze=True, tight_layout=True)
 
         khat = self._result.loo.pareto_k
         if np.any(khat.values > 0.7):
@@ -749,184 +999,6 @@ class PosteriorResultPlotter(Plotter):
             if np.any(mask):
                 ax.scatter(x=x[mask], y=khat_data[mask], marker='x', c='r')
 
-        ax.set_xscale('log')
+        ax.set_xscale(config.xscale)
         ax.set_xlabel('Energy [keV]')
         ax.set_ylabel(r'Shape Parameter $\hat{k}$')
-
-
-def _plot_step(
-    ax: Axes, x_left: Array, x_right: Array, y: Array, **step_kwargs
-) -> None:
-    assert len(y) == len(x_left) == len(x_right)
-
-    step_kwargs['where'] = 'post'
-
-    mask = x_left[1:] != x_right[:-1]
-    idx = np.insert(np.flatnonzero(mask) + 1, 0, 0)
-    idx = np.append(idx, len(y))
-    for i in range(len(idx) - 1):
-        i_slice = slice(idx[i], idx[i + 1])
-        x_slice = np.append(x_left[i_slice], x_right[i_slice][-1])
-        y_slice = y[i_slice]
-        y_slice = np.append(y_slice, y_slice[-1])
-        ax.step(x_slice, y_slice, **step_kwargs)
-
-
-def _plot_ribbon(
-    ax,
-    x_left: Array,
-    x_right: Array,
-    y_ribbons: Sequence[Array],
-    **ribbon_kwargs,
-) -> None:
-    y_ribbons = list(map(np.asarray, y_ribbons))
-    shape = y_ribbons[0].shape
-    assert len(shape) == 2 and shape[0] == 2
-    assert shape[1] == len(x_left) == len(x_right)
-    assert all(ribbon.shape == shape for ribbon in y_ribbons)
-
-    ribbon_kwargs['step'] = 'post'
-
-    mask = x_left[1:] != x_right[:-1]
-    idx = np.insert(np.flatnonzero(mask) + 1, 0, 0)
-    idx = np.append(idx, shape[1])
-    for i in range(len(idx) - 1):
-        i_slice = slice(idx[i], idx[i + 1])
-        x_slice = np.append(x_left[i_slice], x_right[i_slice][-1])
-
-        for ribbon in y_ribbons:
-            lower = ribbon[0]
-            lower_slice = lower[i_slice]
-            lower_slice = np.append(lower_slice, lower_slice[-1])
-            upper = ribbon[1]
-            upper_slice = upper[i_slice]
-            upper_slice = np.append(upper_slice, upper_slice[-1])
-            ax.fill_between(x_slice, lower_slice, upper_slice, **ribbon_kwargs)
-
-
-def get_qq(
-    q: NumPyArray,
-    detrend: bool,
-    cl: float,
-    qsim: NumPyArray | None = None,
-) -> tuple[NumPyArray, ...]:
-    """Get the Q-Q and pointwise confidence/credible interval.
-
-    References
-    ----------
-    .. [1] doi:10.1080/00031305.2013.847865
-    """
-    # https://stats.stackexchange.com/a/9007
-    # https://stats.stackexchange.com/a/152834
-    alpha = np.pi / 8  # 3/8 is also ok
-    n = len(q)
-    theor = stats.norm.ppf((np.arange(1, n + 1) - alpha) / (n - 2 * alpha + 1))
-
-    q = np.sort(q)
-    if qsim is not None:
-        line, lower, upper = np.quantile(
-            np.sort(qsim, axis=1),
-            q=[0.5, 0.5 - 0.5 * cl, 0.5 + 0.5 * cl],
-            axis=0,
-        )
-    else:
-        line = np.array(theor)
-        grid = np.arange(1, n + 1)
-        lower = stats.beta.ppf(0.5 - cl * 0.5, grid, n + 1 - grid)
-        upper = stats.beta.ppf(0.5 + cl * 0.5, grid, n + 1 - grid)
-        lower = stats.norm.ppf(lower)
-        upper = stats.norm.ppf(upper)
-
-    if detrend:
-        q -= theor
-        line -= theor
-        lower -= theor
-        upper -= theor
-
-    return theor, q, line, lower, upper
-
-
-def get_pit_ecdf(
-    pit: NumPyArray,
-    cl: float,
-    detrend: bool,
-) -> tuple[NumPyArray, ...]:
-    """Get the empirical CDF of PIT and pointwise confidence/credible interval.
-
-    References
-    ----------
-    .. [1] doi:10.1007/s11222-022-10090-6
-    """
-    n = len(pit)
-
-    # See ref [1] for the following
-    scaled_rank = np.linspace(0.0, 1.0, n + 1)
-    # Since binomial is discrete, we need to have lower and upper bounds with
-    # a confidence/credible level >= cl to ensure the nominal coverage,
-    # that is, we require that (cdf <= 0.5 - 0.5 * cl) for lower bound
-    # and (0.5 + 0.5 * cl <= cdf) for upper bound
-    lower_q = 0.5 - cl * 0.5
-    lower = stats.binom.ppf(lower_q, n, scaled_rank)
-    mask = stats.binom.cdf(lower, n, scaled_rank) > lower_q
-    lower[mask] -= 1.0
-    lower = np.clip(lower / n, 0.0, 1.0)
-
-    upper_q = 0.5 + cl * 0.5
-    upper = stats.binom.ppf(upper_q, n, scaled_rank)
-    mask = stats.binom.cdf(upper, n, scaled_rank) < upper_q
-    upper[mask] += 1.0
-    upper = np.clip(upper / n, 0.0, 1.0)
-
-    line = scaled_rank
-    pit_ecdf = np.count_nonzero(pit <= scaled_rank[:, None], axis=1) / n
-
-    if detrend:
-        lower -= line
-        upper -= line
-        pit_ecdf -= line
-        line = np.zeros_like(line)
-
-    return scaled_rank, pit_ecdf, line, lower, upper
-
-    # x = np.hstack([0.0, np.sort(pit), 1.0])
-    # pit_ecdf = np.hstack([0.0, np.arange(n) / n, 1.0])
-    # line = scaled_rank
-    #
-    # if detrend:
-    #     pit_ecdf -= x
-    #     lower -= scaled_rank
-    #     upper -= scaled_rank
-    #     line = np.zeros_like(scaled_rank)
-    #
-    # return x, pit_ecdf, scaled_rank, line, lower, upper
-
-
-# def get_pit_pdf(pit_intervals: NumPyArray) -> NumPyArray:
-#     """Get the pdf of PIT.
-#
-#     References
-#     ----------
-#     .. [1] doi:10.1111/j.1541-0420.2009.01191.x
-#     """
-#     assert len(pit_intervals.shape) == 2 and pit_intervals.shape[1] == 2
-#
-#     grid = np.unique(pit_intervals)
-#     if grid[0] > 0.0:
-#         grid = np.insert(grid, 0, 0)
-#     if grid[-1] < 1.0:
-#         grid = np.append(grid, 1.0)
-#
-#     n = len(pit_intervals)
-#     mask = pit_intervals[:, 0] != pit_intervals[:, 1]
-#     cover_mask = np.bitwise_and(
-#         pit_intervals[:, :1] <= grid[:-1],
-#         grid[1:] <= pit_intervals[:, 1:],
-#     )
-#     pdf = np.zeros((n, len(grid) - 1))
-#     pdf[cover_mask] = np.repeat(
-#         1.0 / (pit_intervals[mask, 1] - pit_intervals[mask, 0]),
-#         np.count_nonzero(cover_mask[mask], axis=1),
-#     )
-#     idx = np.clip(grid.searchsorted(pit_intervals[~mask, 0]) - 1, 0, None)
-#     pdf[~mask, idx] = 1.0 / (grid[idx + 1] - grid[idx])
-#     return pdf.mean(0)
