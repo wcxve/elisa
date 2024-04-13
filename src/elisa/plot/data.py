@@ -261,7 +261,7 @@ class PlotData(ABC):
     @abstractmethod
     def residuals(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None,
         random_quantile: bool,
         mle: bool,
@@ -272,7 +272,7 @@ class PlotData(ABC):
     @abstractmethod
     def residuals_sim(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None,
         random_quantile: bool,
     ) -> Array | None:
@@ -282,7 +282,7 @@ class PlotData(ABC):
     @abstractmethod
     def residuals_ci(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         cl: float,
         seed: int | None,
         random_quantile: bool,
@@ -494,16 +494,16 @@ class MLEPlotData(PlotData):
 
     def residuals(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None = None,
         random_quantile: bool = True,
         mle: bool = True,
     ) -> Array | tuple[Array, bool | Array, bool | Array]:
-        if rtype == 'deviance':
+        if rtype == 'rq':
             return self.deviance_residuals_mle()
-        elif rtype == 'pearson':
+        elif rtype == 'rp':
             return self.pearson_residuals_mle()
-        elif rtype == 'quantile':
+        elif rtype == 'rq':
             seed = self.seed if seed is None else int(seed)
             return self.quantile_residuals_mle(seed, random_quantile)
         else:
@@ -511,16 +511,16 @@ class MLEPlotData(PlotData):
 
     def residuals_sim(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None = None,
         random_quantile: bool = True,
     ) -> Array | None:
-        if self.boot is None or rtype == 'quantile':
+        if self.boot is None or rtype == 'rq':
             return None
 
-        if rtype == 'deviance':
+        if rtype == 'rd':
             r = self.deviance_residuals_boot()
-        elif rtype == 'pearson':
+        elif rtype == 'rp':
             r = self.pearson_residuals_boot()
         else:
             raise NotImplementedError(f'{rtype} residual')
@@ -529,13 +529,13 @@ class MLEPlotData(PlotData):
 
     def residuals_ci(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         cl: float = 0.683,
         seed: int | None = None,
         random_quantile: bool = True,
         with_sign: bool = False,
     ) -> Array | None:
-        if self.boot is None or rtype == 'quantile':
+        if self.boot is None or rtype == 'rq':
             return None
 
         assert 0 < cl < 1
@@ -833,32 +833,33 @@ class PosteriorPlotData(PlotData):
 
     def residuals(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None = None,
         random_quantile: bool = True,
         mle: bool = False,
     ) -> Array | tuple[Array, bool | Array, bool | Array]:
-        assert rtype in {'deviance', 'pearson', 'quantile'}
+        assert rtype in {'rd', 'rp', 'rq'}
 
-        if rtype == 'quantile':
+        if rtype == 'rq':
             seed = self.seed if seed is None else int(seed)
             return self.quantile_residuals(seed, random_quantile)
         else:
             point_type = 'mle' if mle else 'median'
-            return getattr(self, f'{rtype}_residuals_{point_type}')()
+            rname = 'deviance' if rtype == 'rd' else 'pearson'
+            return getattr(self, f'{rname}_residuals_{point_type}')()
 
     def residuals_sim(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None = None,
         random_quantile: bool = True,
     ) -> Array | None:
-        if self.ppc is None or rtype == 'quantile':
+        if self.ppc is None or rtype == 'rq':
             return None
 
-        if rtype == 'deviance':
+        if rtype == 'rd':
             r = self.deviance_residuals_ppc()
-        elif rtype == 'pearson':
+        elif rtype == 'rp':
             r = self.pearson_residuals_ppc()
         else:
             raise NotImplementedError(f'{rtype} residual')
@@ -866,13 +867,13 @@ class PosteriorPlotData(PlotData):
 
     def residuals_ci(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         cl: float = 0.683,
         seed: int | None = None,
         random_quantile: bool = True,
         with_sign: bool = False,
     ) -> Array | None:
-        if self.ppc is None or rtype == 'quantile':
+        if self.ppc is None or rtype == 'rq':
             return None
 
         assert 0 < cl < 1

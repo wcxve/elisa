@@ -79,6 +79,28 @@ def _plot_ribbon(
             ax.fill_between(x_slice, lower_slice, upper_slice, **ribbon_kwargs)
 
 
+def _adjust_log_range(
+    ax: Axes,
+    axis: Literal['x', 'y'] = 'y',
+    octave: int = 4,
+) -> None:
+    octave = round(octave)
+    assert octave > 0
+    if axis == 'y':
+        vmin, vmax = ax.dataLim.intervaly
+        set_lim = ax.set_ylim
+    else:
+        vmin, vmax = ax.dataLim.intervalx
+        set_lim = ax.set_xlim
+
+    if np.log10(vmax / max(1e-30, vmin)) > int(octave):
+        vmin = vmax / 10**octave
+
+    set_lim(
+        np.power(10, np.log10(vmin) - 0.05), np.power(10, np.log10(vmax) + 0.1)
+    )
+
+
 def _get_qq(
     q: NumPyArray,
     detrend: bool,
@@ -210,6 +232,18 @@ def _get_pit_ecdf(
 class PlotConfig:
     """Plotting configuration."""
 
+    _YLABLES = {
+        'ce': r'$C_E\ \mathrm{[s^{-1}\ keV^{-1}]}$',
+        'ne': r'$N_E\ \mathrm{[s^{-1}\ cm^{-2}\ keV^{-1}]}$',
+        'ene': r'$E N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
+        'Fv': r'$F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
+        'eene': r'$E^2 N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
+        'vFv': r'$\nu F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
+        'rd': r'$r_D\ [\mathrm{\sigma}]$',
+        'rp': r'$r_\mathrm{P}\ [\mathrm{\sigma}]$',
+        'rq': r'$r_Q\ [\mathrm{\sigma}]$',
+    }
+
     def __init__(
         self,
         alpha: float = 0.8,
@@ -218,11 +252,12 @@ class PlotConfig:
         yscale: Literal['linear', 'log', 'linlog'] = 'linlog',
         lin_frac: float = 0.15,
         cl: tuple[float, ...] = (0.683, 0.95),
-        residuals: Literal['deviance', 'pearson', 'quantile'] = 'quantile',
+        residuals: Literal['rd', 'rp', 'rq'] = 'rq',
         random_quantile: bool = False,
         mark_outlier_residuals: bool = False,
         residuals_ci_with_sign: bool = True,
         plot_comps: bool = False,
+        seed: int | None = None,
     ):
         self.alpha = alpha
         self.palette = palette
@@ -235,6 +270,7 @@ class PlotConfig:
         self.mark_outlier_residuals = mark_outlier_residuals
         self.residuals_ci_with_sign = residuals_ci_with_sign
         self.plot_comps = plot_comps
+        self.seed = seed
 
     @property
     def alpha(self) -> float:
@@ -299,14 +335,15 @@ class PlotConfig:
         self._cl = cl
 
     @property
-    def residuals(self) -> Literal['deviance', 'pearson', 'quantile']:
+    def residuals(self) -> Literal['rd', 'rp', 'rq']:
         return self._residuals
 
     @residuals.setter
-    def residuals(self, residuals: Literal['deviance', 'pearson', 'quantile']):
-        if residuals not in {'deviance', 'pearson', 'quantile'}:
+    def residuals(self, residuals: Literal['rd', 'rp', 'rq']):
+        if residuals not in {'rd', 'rp', 'rq'}:
             raise ValueError(
-                'residuals must be "deviance", "pearson", or "quantile"'
+                'residuals type must be "rd" (deviance), "rp" (pearson), or '
+                '"rq" (quantile)'
             )
         self._residuals = residuals
 
@@ -342,9 +379,19 @@ class PlotConfig:
     def plot_comps(self, plot_comps: bool):
         self._plot_comps = bool(plot_comps)
 
+    @property
+    def seed(self) -> int | None:
+        return self._seed
+
+    @seed.setter
+    def seed(self, seed: int | None):
+        if seed is not None:
+            seed = int(seed)
+        self._seed = seed
+
 
 class Plotter(ABC):
-    """Plotter to visualize analysis results."""
+    """Plotter to visualize fit results."""
 
     _palette: Any | None = None
     _comps_latex: dict[str, str] | None = None
@@ -359,26 +406,36 @@ class Plotter(ABC):
         markers = get_markers(len(self.data))
         self._markers = dict(zip(self.data.keys(), markers))
 
-    def __call__(
-        self,
-        plots: str = 'data',
-        residuals: bool | Literal['deviance', 'pearson', 'quantile'] = True,
-    ):
-        plots = re.split(r'\s+', str(plots).lower())
-        if any(p not in self._supported for p in plots):
-            supported = ', '.join(self._supported)
-            err = ', '.join(p for p in plots if p not in self._supported)
-            raise ValueError(f'supported plots are: {supported}; got {err}')
+    @abstractmethod
+    def __call__(self, plots: str = 'data ne r') -> dict[str, Figure]:
+        pass
 
-    def plot(self, *args, r=None, **kwargs) -> tuple[Figure, np.ndarray[Axes]]:
+    def plot_spec(
+        self,
+        data: bool = True,
+        ne: bool = False,
+        ene: bool = False,
+        eene: bool = False,
+        residuals: bool | Literal['rd', 'rp', 'rq'] = True,
+        *,
+        egrid: Mapping[str, NumPyArray] | None = None,
+        params: Mapping[str, float | int | Array] | None = None,
+        label_Fv: bool = False,
+        label_vFv: bool = False,
+    ) -> Figure:
+        nrows = data + ne + ene + eene + bool(residuals)
+        height_ratios = [1.618] * nrows
+        if residuals:
+            height_ratios[-1] = 1.0
+
         config = self.config
         fig, axs = plt.subplots(
-            nrows=2,
+            nrows=nrows,
             ncols=1,
             sharex='all',
-            height_ratios=[1.618, 1.0],
-            gridspec_kw={'hspace': 0.03},
-            figsize=(8, 6),
+            height_ratios=height_ratios,
+            gridspec_kw={'bottom': 0.07, 'top': 0.97, 'hspace': 0.03},
+            figsize=(8, 4 + nrows),
         )
 
         fig.align_ylabels(axs)
@@ -398,52 +455,104 @@ class Plotter(ABC):
 
         axs[-1].set_xlabel(r'$\mathrm{Energy\ [keV]}$')
 
-        ylabels = {
-            'ce': r'$C_E\ \mathrm{[s^{-1}\ keV^{-1}]}$',
-            'residuals': r'$r_D\ [\mathrm{\sigma}]$',
-            'ne': r'$N_E\ \mathrm{[s^{-1}\ cm^{-2}\ keV^{-1}]}$',
-            'ene': r'$E N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
-            'eene': r'$E^2 N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
-            'Fv': r'$F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
-            'vFv': r'$\nu F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
-        }
-        axs[0].set_ylabel(ylabels['ce'])
-        axs[1].set_ylabel(ylabels['residuals'])
+        plot_ylabels = config._YLABLES
+        plots = []
+        ylabels = []
+        if data:
+            plots.append('ce')
+            ylabels.append(plot_ylabels['ce'])
+        if ne:
+            plots.append('ne')
+            ylabels.append(plot_ylabels['ne'])
+        if ene:
+            plots.append('ene')
+            if label_Fv:
+                ylabels.append(plot_ylabels['Fv'])
+            else:
+                ylabels.append(plot_ylabels['ene'])
+        if eene:
+            plots.append('eene')
+            if label_vFv:
+                ylabels.append(plot_ylabels['vFv'])
+            else:
+                ylabels.append(plot_ylabels['eene'])
 
-        self.plot_folded(axs[0])
-        self.plot_ce(axs[0])
-        self.plot_residuals(axs[1], r)
+        residuals: Literal['rd', 'rp', 'rq'] | None
+        if residuals:
+            plots.append('residuals')
+            if residuals is True:
+                residuals = config.residuals
+            else:
+                if residuals not in {'rd', 'rp', 'rq'}:
+                    raise ValueError(
+                        'residuals type must be "rd" (deviance), "rp" '
+                        '(pearson), or "rq" (quantile)'
+                    )
+            ylabels.append(plot_ylabels[residuals])
+        else:
+            residuals = None
 
-        axs[0].set_xscale(config.xscale)
-        ax = axs[0]
-        xmin, xmax = ax.dataLim.intervalx
-        ax.set_xlim(xmin * 0.97, xmax * 1.06)
+        for ax, ylabel in zip(axs, ylabels):
+            ax.set_ylabel(ylabel)
+
+        axs_dict = dict(zip(plots, axs))
 
         yscale = config.yscale
-        assert yscale in {'linear', 'log', 'linlog'}
-        if yscale in {'linear', 'log'}:
-            ax.set_yscale(yscale)
-        else:
-            ax.set_yscale('log')
-            lin_thresh = ax.get_ylim()[0]
-            lin_frac = config.lin_frac
-            dmin, dmax = ax.get_yaxis().get_data_interval()
-            scale = LinLogScale(
-                axis=None,
-                base=10.0,
-                lin_thresh=lin_thresh,
-                lin_scale=get_scale(10.0, lin_thresh, dmin, dmax, lin_frac),
-            )
-            ax.set_yscale(scale)
-            ax.axhline(lin_thresh, c='k', lw=0.15, ls=':', zorder=-1)
 
-        axs[0].legend()
+        if data:
+            ax = axs_dict['ce']
+            self.plot_ce(ax)
+            self.plot_folded(ax)
+            if yscale == 'linear':
+                ax.set_yscale('linear')
+            else:
+                ax.set_yscale('log')
+                dmin, dmax = ax.get_yaxis().get_data_interval()
+                vmin = ax.get_ylim()[0]
+                if np.log10(dmax / vmin) > 7:
+                    vmin = 1e-7 * dmax
+                if yscale == 'linlog':
+                    lin_frac = config.lin_frac
+                    scale = LinLogScale(
+                        axis=None,
+                        base=10.0,
+                        lin_thresh=vmin,
+                        lin_scale=get_scale(10.0, vmin, dmin, dmax, lin_frac),
+                    )
+                    ax.set_yscale(scale)
+                    ax.axhline(vmin, c='k', lw=0.15, ls=':', zorder=-1)
+        if ne:
+            self.plot_unfolded(axs_dict['ne'], 'ne', params, egrid)
+            if yscale != 'linear':
+                axs_dict['ne'].set_yscale('log')
+                _adjust_log_range(axs_dict['ne'], 'y')
+        if ene:
+            self.plot_unfolded(axs_dict['ene'], 'ene', params, egrid)
+            if yscale != 'linear':
+                axs_dict['ene'].set_yscale('log')
+                _adjust_log_range(axs_dict['ene'], 'y')
+        if eene:
+            self.plot_unfolded(axs_dict['eene'], 'eene', params, egrid)
+            if yscale != 'linear':
+                axs_dict['eene'].set_yscale('log')
+                _adjust_log_range(axs_dict['eene'], 'y')
+        if residuals:
+            self.plot_residuals(axs_dict['residuals'], residuals)
+
+        axs[0].set_xscale(config.xscale)
+        intervalx = np.array([ax.dataLim.intervalx for ax in axs])
+        xmin = intervalx[:, 0].min()
+        xmax = intervalx[:, 1].max()
+        axs[0].set_xlim(xmin * 0.97, xmax * 1.06)
 
         for ax in axs:
             ax.relim()
             ax.autoscale_view()
 
-        return fig, axs
+        if 'ce' in axs_dict:
+            axs_dict['ce'].legend()
+
+        return fig
 
     @abstractmethod
     def plot_corner(
@@ -452,7 +561,7 @@ class Plotter(ABC):
         color: str | None = None,
         divergences: bool = True,
         fig_path: str | None = None,
-    ):
+    ) -> Figure:
         pass
 
     @staticmethod
@@ -534,10 +643,13 @@ class Plotter(ABC):
         self,
         ax: Axes,
         mtype: Literal['ne', 'ene', 'eene'],
-        params: Mapping | None = None,
+        params: Mapping[str, float | int | Array] | None = None,
         egrid: Mapping[str, NumPyArray] | None = None,
     ):
         params = dict(params) if params is not None else {}
+        if params:
+            if any(np.shape(v) != () for v in params.values()):
+                raise ValueError('params must be scalars')
         egrid = dict(egrid) if egrid is not None else {}
         config = self.config
         colors = self.colors
@@ -564,6 +676,9 @@ class Plotter(ABC):
                 )
 
             if comps:
+                if not data.has_comps:
+                    continue
+
                 ne, ci = data.unfolded_model(mtype, egrid_, params, True)
                 for ne_ in ne.values():
                     _plot_step(
@@ -646,8 +761,7 @@ class Plotter(ABC):
     def plot_residuals(
         self,
         ax: Axes,
-        rtype: Literal['deviance', 'pearson', 'quantile'] | None = None,
-        seed: int | None = None,
+        rtype: Literal['rd', 'rp', 'rq'] | None = None,
     ):
         config = self.config
         colors = self.colors
@@ -655,6 +769,7 @@ class Plotter(ABC):
         random_quantile = config.random_quantile
         with_sign = config.residuals_ci_with_sign
         mark_outlier = config.mark_outlier_residuals
+        seed = config.seed
         ribbon_kwargs = {'lw': 0.618, 'alpha': 0.15 * config.alpha}
 
         if rtype is None:
@@ -739,10 +854,10 @@ class Plotter(ABC):
 
     def plot_qq(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'] | None = None,
+        rtype: Literal['rd', 'rp', 'rq'] | None = None,
         seed: int | None = None,
         detrend: bool = True,
-    ):
+    ) -> Figure:
         """Quantile-Quantile plot."""
         config = self.config
         random_quantile = config.random_quantile
@@ -812,7 +927,9 @@ class Plotter(ABC):
         if n_subplots % 2:
             axs[-1].set_visible(False)
 
-    def plot_pit(self, detrend=True):
+        return fig
+
+    def plot_pit(self, detrend=True) -> Figure:
         """Probability integral transformation empirical CDF plot."""
         config = self.config
 
@@ -839,11 +956,11 @@ class Plotter(ABC):
         ha = 'right' if detrend else 'left'
         text_x = 0.97 if detrend else 0.03
 
-        ax_list = [ax1] + axs.ravel().tolist()
+        axs = [ax1] + axs.ravel().tolist()
         names = ['total'] + list(self.ndata.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
-        for ax, name, color in zip(ax_list, names, colors):
+        for ax, name, color in zip(axs, names, colors):
             x, y, line, lower, upper = _get_pit_ecdf(pit[name], 0.95, detrend)
             ax.plot(x, line, ls='--', color=color, alpha=alpha)
             ax.fill_between(
@@ -859,9 +976,11 @@ class Plotter(ABC):
                 color=color,
             )
         if n_subplots % 2:
-            ax_list[-1].set_visible(False)
+            axs[-1].set_visible(False)
 
-    def plot_gof(self):
+        return fig
+
+    def plot_gof(self) -> Figure:
         """Plot distribution of GOF statistics and p-value."""
         if isinstance(self, MLEResultPlotter):
             if self._result._boot is None:
@@ -905,11 +1024,11 @@ class Plotter(ABC):
         ax1.set_xlabel('$D$')
         ax1.set_ylabel(r'$P(\mathcal{D} \geq D)$')
 
-        ax_list = [ax1] + axs.ravel().tolist()
+        axs = [ax1] + axs.ravel().tolist()
         names = ['total'] + list(self.ndata.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
-        for ax, name, color in zip(ax_list, names, colors):
+        for ax, name, color in zip(axs, names, colors):
             d_obs = dev_obs[name]
             d_sim = np.sort(dev_sim[name])
             sf = 1.0 - np.arange(1.0, n + 1.0) / n
@@ -930,7 +1049,9 @@ class Plotter(ABC):
             )
             ax.set_yscale('log')
         if n_subplots % 2:
-            ax_list[-1].set_visible(False)
+            axs[-1].set_visible(False)
+
+        return fig
 
 
 class MLEResultPlotter(Plotter):
@@ -938,6 +1059,10 @@ class MLEResultPlotter(Plotter):
     _result: MLEResult
     _supported = (
         'data',
+        'r',
+        'rd',
+        'rp',
+        'rq',
         'ne',
         'ene',
         'eene',
@@ -948,6 +1073,91 @@ class MLEResultPlotter(Plotter):
         'qq',
         'pit',
     )
+
+    def __call__(self, plots: str = 'data ne r') -> dict[str, Figure]:
+        r"""Plot MLE fit results.
+
+        Parameters
+        ----------
+        plots : str, optional
+            Plots to show, available plots are:
+
+                * ``'data'``: data and folded model plot
+                * ``'ne'``: :math:`N(E)` model plot
+                * ``'ene'``: :math:`E N(E)` model plot
+                * ``'eene'``: :math:`E^2 N(E)` model plot
+                * ``'Fv'``: :math:`F_{\nu}` model plot
+                * ``'vFv'``: :math:`\nu F_{\nu}` model plot
+                * ``'r'``: default residuals plot
+                * ``'rd'``: deviance residuals plot
+                * ``'rp'``: Pearson residuals plot
+                * ``'rq'``: quantile residuals plot
+                * ``'corner'``: corner plot
+                * ``'gof'``: goodness-of-fit statistics plot
+                * ``'qq'``: quantiles-quantiles plot of residuals
+                * ``'pit'``: probability integral transform plot of spectral
+                  data
+
+            Multiple plots can be combined by separating them with whitespace.
+            THe default is ``'data ne r'``.
+
+        Returns
+        -------
+        dict
+            Dictionary containing Figure object for each plot.
+        """
+        plots = re.split(r'\s+', str(plots))
+        if any(p not in self._supported for p in plots):
+            supported = ', '.join(self._supported)
+            err = ', '.join(p for p in plots if p not in self._supported)
+            raise ValueError(f'supported plots are: {supported}; got {err}')
+
+        plots_set = set(plots)
+        dic = {}
+
+        spec = {
+            'data',
+            'ne',
+            'ene',
+            'eene',
+            'Fv',
+            'vFv',
+            'r',
+            'rd',
+            'rp',
+            'rq',
+        }
+        if spec & plots_set:
+            residuals = [i for i in plots if i in ('r', 'rd', 'rp', 'rq')]
+            if residuals:
+                residuals = residuals[-1]
+                if residuals == 'r':
+                    residuals = True
+            else:
+                residuals = False
+            dic['spec'] = self.plot_spec(
+                data='data' in plots,
+                ne='ne' in plots,
+                ene=bool({'ene', 'Fv'} & plots_set),
+                eene=bool({'eene', 'vFv'} & plots_set),
+                residuals=residuals,
+                label_Fv='Fv' in plots,
+                label_vFv='vFv' in plots,
+            )
+
+        if 'corner' in plots_set:
+            dic['corner'] = self.plot_corner()
+
+        if 'gof' in plots_set:
+            dic['gof'] = self.plot_gof()
+
+        if 'qq' in plots_set:
+            dic['qq'] = self.plot_qq()
+
+        if 'pit' in plots_set:
+            dic['pit'] = self.plot_pit()
+
+        return dic
 
     @staticmethod
     def get_plot_data(result: MLEResult) -> dict[str, MLEPlotData]:
@@ -967,7 +1177,7 @@ class MLEResultPlotter(Plotter):
         color: str | None = None,
         divergences: bool = True,
         fig_path: str | None = None,
-    ):
+    ) -> Figure:
         if self._result._boot is None:
             raise ValueError('MLEResult.boot() must be called first')
 
@@ -990,6 +1200,7 @@ class MLEResultPlotter(Plotter):
         )
         if fig_path:
             fig.savefig(fig_path, bbox_inches='tight')
+        return fig
 
 
 class PosteriorResultPlotter(Plotter):
@@ -997,6 +1208,10 @@ class PosteriorResultPlotter(Plotter):
     _result: PosteriorResult
     _supported = (
         'data',
+        'r',
+        'rd',
+        'rp',
+        'rq',
         'ne',
         'ene',
         'eene',
@@ -1004,11 +1219,104 @@ class PosteriorResultPlotter(Plotter):
         'vFv',
         'corner',
         'gof',
-        'khat',
         'qq',
         'pit',
         'trace',
+        'khat',
     )
+
+    def __call__(self, plots: str = 'data ne r') -> dict[str, Figure]:
+        r"""Plot Bayesian fit results.
+
+        Parameters
+        ----------
+        plots : str, optional
+            Plots to show, available plots are:
+
+                * ``'data'``: data and folded model plot
+                * ``'ne'``: :math:`N(E)` model plot
+                * ``'ene'``: :math:`E N(E)` model plot
+                * ``'eene'``: :math:`E^2 N(E)` model plot
+                * ``'Fv'``: :math:`F_{\nu}` model plot
+                * ``'vFv'``: :math:`\nu F_{\nu}` model plot
+                * ``'r'``: default residuals plot
+                * ``'rd'``: deviance residuals plot
+                * ``'rp'``: Pearson residuals plot
+                * ``'rq'``: PSIS-LOO quantile residuals plot
+                * ``'corner'``: corner plot
+                * ``'gof'``: goodness-of-fit statistics plot
+                * ``'qq'``: quantiles-quantiles plot of residuals
+                * ``'pit'``: PSIS-LOO probability integral transform plot of
+                  spectral data
+                * ``'trace'``: trace plot of posterior samples
+                * ``'khat'``: k-hat plot for Bayesian PSIS-LOO diagnostics
+
+            Multiple plots can be combined by separating them with whitespace.
+            THe default is ``'data ne r'``.
+
+        Returns
+        -------
+        dict
+            Dictionary containing Figure object for each plot.
+        """
+        plots = re.split(r'\s+', str(plots))
+        if any(p not in self._supported for p in plots):
+            supported = ', '.join(self._supported)
+            err = ', '.join(p for p in plots if p not in self._supported)
+            raise ValueError(f'supported plots are: {supported}; got {err}')
+
+        plots_set = set(plots)
+        dic = {}
+
+        spec = {
+            'data',
+            'ne',
+            'ene',
+            'eene',
+            'Fv',
+            'vFv',
+            'r',
+            'rd',
+            'rp',
+            'rq',
+        }
+        if spec & plots_set:
+            residuals = [i for i in plots if i in ('r', 'rd', 'rp', 'rq')]
+            if residuals:
+                residuals = residuals[-1]
+                if residuals == 'r':
+                    residuals = True
+            else:
+                residuals = False
+            dic['spec'] = self.plot_spec(
+                data='data' in plots,
+                ne='ne' in plots,
+                ene=bool({'ene', 'Fv'} & plots_set),
+                eene=bool({'eene', 'vFv'} & plots_set),
+                residuals=residuals,
+                label_Fv='Fv' in plots,
+                label_vFv='vFv' in plots,
+            )
+
+        if 'corner' in plots_set:
+            dic['corner'] = self.plot_corner()
+
+        if 'gof' in plots_set:
+            dic['gof'] = self.plot_gof()
+
+        if 'qq' in plots_set:
+            dic['qq'] = self.plot_qq()
+
+        if 'pit' in plots_set:
+            dic['pit'] = self.plot_pit()
+
+        if 'trace' in plots_set:
+            dic['trace'] = self.plot_trace()
+
+        if 'khat' in plots_set:
+            dic['khat'] = self.plot_khat()
+
+        return dic
 
     @staticmethod
     def get_plot_data(result: PosteriorResult) -> dict[str, PosteriorPlotData]:
@@ -1026,7 +1334,7 @@ class PosteriorResultPlotter(Plotter):
         self,
         params: str | Sequence[str] | None = None,
         fig_path: str | None = None,
-    ):
+    ) -> Figure:
         helper = self._result._helper
         params = check_params(params, helper)
         axes_scale = [
@@ -1037,6 +1345,7 @@ class PosteriorResultPlotter(Plotter):
         fig = plot_trace(self._result._idata, params, axes_scale, labels)
         if fig_path:
             fig.savefig(fig_path, bbox_inches='tight')
+        return fig
 
     def plot_corner(
         self,
@@ -1044,7 +1353,7 @@ class PosteriorResultPlotter(Plotter):
         color: str | None = None,
         divergences: bool = True,
         fig_path: str | None = None,
-    ):
+    ) -> Figure:
         helper = self._result._helper
         params = check_params(params, helper)
         axes_scale = [
@@ -1064,8 +1373,9 @@ class PosteriorResultPlotter(Plotter):
         )
         if fig_path:
             fig.savefig(fig_path, bbox_inches='tight')
+        return fig
 
-    def plot_khat(self):
+    def plot_khat(self) -> Figure:
         config = self.config
         colors = self.colors
         alpha = config.alpha
@@ -1103,3 +1413,5 @@ class PosteriorResultPlotter(Plotter):
         ax.set_xscale(config.xscale)
         ax.set_xlabel('Energy [keV]')
         ax.set_ylabel(r'Shape Parameter $\hat{k}$')
+
+        return fig
