@@ -7,12 +7,16 @@ from importlib import metadata
 from typing import TYPE_CHECKING, NamedTuple
 
 import arviz as az
+import astropy.units as u
 import jax
 import jax.numpy as jnp
 import numpy as np
 import numpyro
 import scipy.stats as stats
+from astropy.cosmology import Planck18
 from iminuit import Minuit
+from jax.experimental.mesh_utils import create_device_mesh
+from jax.sharding import PositionalSharding
 from numpyro.infer import MCMC
 
 from elisa.__about__ import __version__
@@ -22,15 +26,18 @@ from elisa.plot.plotter import MLEResultPlotter, PosteriorResultPlotter
 from elisa.util.misc import make_pretty_table
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Callable, Iterable, Sequence
     from typing import Literal
 
     from arviz.stats.stats_utils import ELPDData
+    from astropy.cosmology.flrw.lambdacdm import LambdaCDM
+    from astropy.units import Quantity as Q
     from iminuit.util import FMin
 
     from elisa.infer.fit import BayesFit
     from elisa.infer.helper import Helper
     from elisa.plot.plotter import Plotter
+    from elisa.util.typing import JAXArray
 
 
 class FitResult(ABC):
@@ -38,9 +45,50 @@ class FitResult(ABC):
 
     _helper: Helper
     _plotter: Plotter | None
+    _flux_fn: Callable
+    _lumin_fn: Callable
+    _eiso_fn: Callable
 
     def __init__(self, helper: Helper):
         self._helper = helper
+
+        devices = create_device_mesh((jax.local_device_count(),))
+        self._sharding = PositionalSharding(devices)
+
+        models = helper.model
+        ne = {
+            name: jax.jit(model.ne, static_argnums=2)
+            for name, model in models.items()
+        }
+        ene = {
+            name: jax.jit(model.ene, static_argnums=2)
+            for name, model in models.items()
+        }
+
+        def _flux(
+            egrid: JAXArray,
+            params: dict[str, JAXArray],
+            energy: bool,
+            comps: bool,
+        ) -> dict[str, JAXArray] | dict[str, dict[str, JAXArray]]:
+            """Calculate flux."""
+            if energy:
+                fns = ene
+            else:
+                fns = ne
+            de = jnp.diff(egrid)
+            flux = {}
+            for name, fn in fns.items():
+                f = fn(egrid, params, comps)
+                if comps:
+                    flux[name] = jax.tree_map(
+                        lambda v: jnp.sum(v * de, axis=-1), f
+                    )
+                else:
+                    flux[name] = jnp.sum(f * de, axis=-1)
+            return flux
+
+        self._flux_fn = jax.jit(_flux, static_argnums=(2, 3))
 
     @abstractmethod
     def __repr__(self):
@@ -67,6 +115,24 @@ class FitResult(ABC):
         """
         print(repr(self), file=file)
 
+    @abstractmethod
+    def flux(
+        self, *args, **kwargs
+    ) -> dict[str, jax.Array] | dict[str, dict[str, jax.Array]]:
+        pass
+
+    @abstractmethod
+    def lumin(
+        self, *args, **kwargs
+    ) -> dict[str, jax.Array] | dict[str, dict[str, jax.Array]]:
+        pass
+
+    @abstractmethod
+    def eiso(
+        self, *args, **kwargs
+    ) -> dict[str, jax.Array] | dict[str, dict[str, jax.Array]]:
+        pass
+
     @property
     def ndata(self) -> dict[str, int]:
         """Data points number."""
@@ -81,6 +147,11 @@ class FitResult(ABC):
     @abstractmethod
     def gof(self) -> dict[str, float]:
         """Goodness of fit p-value."""
+        pass
+
+    @property
+    @abstractmethod
+    def _params_dist(self) -> dict[str, JAXArray]:
         pass
 
 
@@ -246,6 +317,268 @@ class MLEResult(FitResult):
             status=status,
         )
 
+    def _calc_flux(
+        self,
+        egrid: JAXArray,
+        cl: float | int,
+        energy: bool,
+        comps: bool,
+        params: dict[str, JAXArray] | None,
+    ):
+        """Calculate flux."""
+        if energy:
+            unit = u.erg / u.cm**2 / u.s
+        else:
+            unit = u.cm**-2 / u.s
+
+        mle_params = {k: v[0] for k, v in self._mle.items()}
+        mle_flux = self._flux_fn(egrid, mle_params, energy, comps)
+
+        boot_params = self._params_dist
+        n = [i.size for i in boot_params.values()][0]
+        if params is not None:
+            params = dict(params)
+            params = {k: jnp.full(n, v) for k, v in params.items()}
+            boot_params = boot_params | params
+        boot_params = jax.device_put(boot_params, self._sharding)
+        boot_flux = self._flux_fn(egrid, boot_params, energy, comps)
+        boot_flux = jax.device_get(boot_flux)
+        cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
+        q = 0.5 + np.array([-0.5, 0.5]) * cl_
+        ci_fn = lambda x: np.quantile(x, q)
+        ci = jax.tree_map(ci_fn, boot_flux)
+        error = jax.tree_map(lambda x, y: (x - y[0], x - y[1]), mle_flux, ci)
+        add_unit = lambda x: x * unit
+        return [
+            jax.tree_map(add_unit, mle_flux),
+            jax.tree_map(add_unit, ci),
+            jax.tree_map(add_unit, error),
+            cl_,
+            jax.tree_map(add_unit, boot_flux),
+            n,
+        ]
+
+    def flux(
+        self,
+        emin: float | int,
+        emax: float | int,
+        cl: float | int = 1,
+        energy: bool = True,
+        comps: bool = False,
+        ngrid: int = 1000,
+        log: bool = True,
+        params: dict[str, float | int] | None = None,
+    ) -> MLEFlux:
+        r"""Calculate the flux of model.
+
+        .. warning::
+            The flux is calculated by trapezoidal rule, which may not be
+            accurate if not enough energy bins are used when the difference
+            between `emin` and `emax` is large.
+
+        Parameters
+        ----------
+        emin : float or int
+            Minimum value of energy range, in units of keV.
+        emax : float or int
+            Maximum value of energy range, in units of keV.
+        cl : float or int, optional
+            Confidence level for the confidence interval. If 0 < `cl` < 1, the
+            value is interpreted as the confidence level. If `cl` >= 1, it is
+            interpreted as the number of standard deviations. For example,
+            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
+            The default is 1.
+        energy : bool, optional
+            When True, calculate energy flux in units of erg cm⁻² s⁻¹;
+            otherwise calculate photon flux in units of cm⁻² s⁻¹.
+            The default is True.
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+
+        Returns
+        -------
+        MLEFlux
+            The flux of the model.
+        """
+        if self._boot is None:
+            raise RuntimeError(
+                'MLEResult.boot(...) must be called before calculating flux'
+            )
+
+        if log:
+            egrid = jnp.geomspace(emin, emax, ngrid)
+        else:
+            egrid = jnp.linspace(emin, emax, ngrid)
+
+        mle_flux, ci, error, cl_, dist, n = self._calc_flux(
+            egrid, cl, energy, comps, params
+        )
+
+        return MLEFlux(
+            mle=mle_flux,
+            interval=ci,
+            error=error,
+            cl=cl_,
+            dist=dist,
+            energy=energy,
+            n=n,
+        )
+
+    def lumin(
+        self,
+        emin_rest: float | int,
+        emax_rest: float | int,
+        z: float | int,
+        cl: float | int = 1,
+        comps: bool = False,
+        ngrid: int = 1000,
+        log: bool = True,
+        params: dict[str, float | int] | None = None,
+        cosmo: LambdaCDM = Planck18,
+    ) -> MLELumin:
+        """Calculate the luminosity of model.
+
+        .. warning::
+            The luminosity is calculated by trapezoidal rule, which may not be
+            accurate if not enough energy bins are used when the difference
+            between `emin_rest` and `emax_rest` is large.
+
+        Parameters
+        ----------
+        emin_rest : float or int
+            Minimum value of rest-frame energy range, in units of keV.
+        emax_rest : float or int
+            Maximum value of rest-frame energy range, in units of keV.
+        z : float or int
+            Redshift of the source.
+        cl : float or int, optional
+            Confidence level for the confidence interval. If 0 < `cl` < 1, the
+            value is interpreted as the confidence level. If `cl` >= 1, it is
+            interpreted as the number of standard deviations. For example,
+            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
+            The default is 1.
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+        cosmo : LambdaCDM, optional
+            Cosmology model used to calculate luminosity. The default is
+            Planck18.
+
+        Returns
+        -------
+        MLELumin
+            The luminosity of the model.
+        """
+        if log:
+            egrid = jnp.geomspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
+        else:
+            egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
+
+        mle_flux, ci, error, cl_, dist, n = self._calc_flux(
+            egrid, cl, True, comps, params
+        )
+        unit = u.erg / u.s
+        factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
+        to_lumin = lambda x: (x * factor).to(unit)
+
+        return MLELumin(
+            mle=jax.tree_map(to_lumin, mle_flux),
+            interval=jax.tree_map(to_lumin, ci),
+            error=jax.tree_map(to_lumin, error),
+            cl=cl_,
+            dist=jax.tree_map(to_lumin, dist),
+            n=n,
+            z=float(z),
+            cosmo=cosmo,
+        )
+
+    def eiso(
+        self,
+        emin_rest: float | int,
+        emax_rest: float | int,
+        z: float | int,
+        duration: float | int,
+        cl: float | int = 1,
+        comps: bool = False,
+        ngrid: int = 1000,
+        log: bool = True,
+        params: dict[str, float | int] | None = None,
+        cosmo: LambdaCDM = Planck18,
+    ) -> MLEEIso:
+        r"""Calculate the isotropic emission energy of model.
+
+        .. warning::
+            The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule, which
+            may not be accurate if not enough energy bins are used when the
+            difference between `emin_rest` and `emax_rest` is large.
+
+        Parameters
+        ----------
+        emin_rest : float or int
+            Minimum value of rest-frame energy range, in units of keV.
+        emax_rest : float or int
+            Maximum value of rest-frame energy range, in units of keV.
+        z : float or int
+            Redshift of the source.
+        duration : float or int
+            Observed duration of the source, in units of seconds.
+        cl : float or int, optional
+            Confidence level for the confidence interval. If 0 < `cl` < 1, the
+            value is interpreted as the confidence level. If `cl` >= 1, it is
+            interpreted as the number of standard deviations. For example,
+            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
+            The default is 1.
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+        cosmo : LambdaCDM, optional
+            Cosmology model used to calculate luminosity. The default is
+            Planck18.
+
+        Returns
+        -------
+        MLEEIso
+            The isotropic emission energy of the model.
+        """
+        lumin = self.lumin(
+            emin_rest, emax_rest, z, cl, comps, ngrid, log, params, cosmo
+        )
+        factor = duration / (1 + z) * u.s
+        to_eiso = lambda x: (x * factor).to(u.erg)
+        return MLEEIso(
+            mle=jax.tree_map(to_eiso, lumin.mle),
+            interval=jax.tree_map(to_eiso, lumin.interval),
+            error=jax.tree_map(to_eiso, lumin.error),
+            cl=lumin.cl,
+            dist=jax.tree_map(to_eiso, lumin.dist),
+            n=lumin.n,
+            z=lumin.z,
+            duration=float(duration),
+            cosmo=lumin.cosmo,
+        )
+
     def boot(
         self,
         n: int = 10000,
@@ -307,6 +640,15 @@ class MLEResult(FitResult):
         p_value = self._boot.p_value
         p_value = p_value['group'] | {'total': p_value['total']}
         return {k: float(p_value[k]) for k in self.ndata.keys()}
+
+    @property
+    def _params_dist(self) -> dict[str, jax.Array] | None:
+        """Bootstrapped parameter distribution."""
+        boot = self._boot
+        if boot is None:
+            return None
+        n = boot.n_valid - boot.n_valid % jax.local_device_count()
+        return {k: v[:n] for k, v in boot.params.items()}
 
     def _ci_free(self, names: Iterable[str], cl: float | int):
         """Confidence interval of free parameters."""
@@ -452,6 +794,90 @@ class ConfidenceInterval(NamedTuple):
     """Status of the calculation progress."""
 
 
+class MLEFlux(NamedTuple):
+    """The flux of the MLE model."""
+
+    mle: dict[str, Q] | dict[str, dict[str, Q]]
+    """The model flux at MLE."""
+
+    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model flux."""
+
+    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model flux in error form."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Bootstrap flux distribution."""
+
+    cl: float
+    """The confidence level."""
+
+    energy: bool
+    """Whether the flux is in energy flux. False for photon flux."""
+
+    n: int
+    """Numbers of bootstrap samples."""
+
+
+class MLELumin(NamedTuple):
+    """The luminosity of the MLE model."""
+
+    mle: dict[str, Q] | dict[str, dict[str, Q]]
+    """The model luminosity at MLE."""
+
+    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model luminosity."""
+
+    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model luminosity in error form."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Bootstrap luminosity distribution."""
+
+    cl: float
+    """The confidence level."""
+
+    n: int
+    """Numbers of bootstrap samples."""
+
+    z: float
+    """Redshift of the source."""
+
+    cosmo: LambdaCDM
+    """Cosmology model used to calculate luminosity."""
+
+
+class MLEEIso(NamedTuple):
+    """The isotropic emission energy of the MLE model."""
+
+    mle: dict[str, Q] | dict[str, dict[str, Q]]
+    r"""The model Eiso at MLE."""
+
+    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model Eiso."""
+
+    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model Eiso in error form."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Bootstrap Eiso distribution."""
+
+    cl: float
+    """The confidence level."""
+
+    n: int
+    """Numbers of bootstrap samples."""
+
+    z: float
+    """Redshift of the source."""
+
+    duration: float
+    """Observed duration of the source."""
+
+    cosmo: LambdaCDM
+    """Cosmology model used to calculate Eiso."""
+
+
 class BootstrapResult(NamedTuple):
     """Parametric bootstrap result."""
 
@@ -495,6 +921,7 @@ class PosteriorResult(FitResult):
     _rhat: dict[str, float] | None = None
     _divergence: int | None = None
     _pit: dict[str, tuple] | None = None
+    _params: dict[str, JAXArray] | None = None
 
     def __init__(
         self, sampler: MCMC | NestedSampler, helper: Helper, fit: BayesFit
@@ -524,7 +951,7 @@ class PosteriorResult(FitResult):
     def ci(
         self,
         params: str | Iterable[str] | None = None,
-        prob: float | int = 1,
+        cl: float | int = 1,
         hdi: bool = False,
     ) -> CredibleInterval:
         """Calculate credible intervals.
@@ -534,11 +961,11 @@ class PosteriorResult(FitResult):
         params : str or sequence of str, optional
             Parameters to calculate confidence intervals. If not specified,
             calculate for parameters of interest.
-        prob : float or int, optional
-            The probability mass of samples within the credible interval. If
-            0 < `prob` < 1, the value is interpreted as the probability mass.
-            If `prob` >= 1, it is interpreted as the number of standard
-            deviations. For example, ``prob=1`` produces a 1-sigma or 68.3%
+        cl : float or int, optional
+            The credible level of samples within the credible interval. If
+            0 < `cl` < 1, the value is interpreted as the probability mass.
+            If `cl` >= 1, it is interpreted as the number of standard
+            deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
             credible interval. The default is 1.
         hdi : bool, optional
             Whether to return the highest density interval. The default is
@@ -549,25 +976,25 @@ class PosteriorResult(FitResult):
         CredibleInterval
             The credible interval.
         """
-        if prob <= 0.0:
-            raise ValueError('prob must be non-negative')
+        if cl <= 0.0:
+            raise ValueError('cl must be non-negative')
 
         params = check_params(params, self._helper)
 
-        prob_ = 1.0 - 2.0 * stats.norm.sf(prob) if prob >= 1.0 else prob
+        cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
 
         if hdi:
             median = self._idata['posterior'].median()
             median = {
                 k: float(v) for k, v in median.data_vars.items() if k in params
             }
-            interval = az.hdi(self._idata, prob_, var_names=params)
+            interval = az.hdi(self._idata, cl_, var_names=params)
             interval = {
                 k: (float(v[0]), float(v[1]))
                 for k, v in interval.data_vars.items()
             }
         else:
-            q = [0.5, 0.5 - prob_ / 2.0, 0.5 + prob_ / 2.0]
+            q = [0.5, 0.5 - cl_ / 2.0, 0.5 + cl_ / 2.0]
             quantile = self._idata['posterior'].quantile(q)
             quantile = {
                 k: v for k, v in quantile.data_vars.items() if k in params
@@ -586,8 +1013,273 @@ class PosteriorResult(FitResult):
             median=_format_result(median, params),
             interval=_format_result(interval, params),
             error=_format_result(error, params),
-            prob=prob_,
+            cl=cl_,
             method='HDI' if hdi else 'ETI',
+        )
+
+    def _calc_flux(
+        self,
+        egrid: JAXArray,
+        cl: float | int,
+        hdi: bool,
+        energy: bool,
+        comps: bool,
+        params: dict[str, JAXArray] | None,
+    ):
+        if energy:
+            unit = u.erg / u.cm**2 / u.s
+        else:
+            unit = u.cm**-2 / u.s
+
+        post = self._params_dist
+        n = [i.size for i in post.values()][0]
+        if params is not None:
+            params = dict(params)
+            params = {k: jnp.full(n, v) for k, v in params.items()}
+            post = post | params
+        post = jax.device_put(post, self._sharding)
+
+        flux = self._flux_fn(egrid, post, energy, comps)
+        flux = jax.device_get(flux)
+        cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
+        if hdi:
+            ci_fn = lambda x: az.hdi(x, cl_)
+        else:
+            q = 0.5 + np.array([-0.5, 0.5]) * cl_
+            ci_fn = lambda x: np.quantile(x, q)
+        median = jax.tree_map(lambda x: np.median(x), flux)
+        ci = jax.tree_map(ci_fn, flux)
+        error = jax.tree_map(lambda x, y: (x - y[0], x - y[1]), median, ci)
+        add_unit = lambda x: x * unit
+        return [
+            jax.tree_map(add_unit, median),
+            jax.tree_map(add_unit, ci),
+            jax.tree_map(add_unit, error),
+            cl_,
+            jax.tree_map(add_unit, flux),
+            n,
+        ]
+
+    def flux(
+        self,
+        emin: float | int,
+        emax: float | int,
+        cl: float | int = 1,
+        hdi: bool = False,
+        energy: bool = True,
+        comps: bool = False,
+        ngrid: int = 1000,
+        log: bool = True,
+        params: dict[str, float | int] | None = None,
+    ) -> PosteriorFlux:
+        r"""Calculate the flux of model.
+
+        .. warning::
+            The flux is calculated by trapezoidal rule, which may not be
+            accurate if not enough energy bins are used when the difference
+            between `emin` and `emax` is large.
+
+        Parameters
+        ----------
+        emin : float or int
+            Minimum value of energy range, in units of keV.
+        emax : float or int
+            Maximum value of energy range, in units of keV.
+        cl : float or int, optional
+            The credible level of samples within the credible interval. If
+            0 < `cl` < 1, the value is interpreted as the probability mass.
+            If `cl` >= 1, it is interpreted as the number of standard
+            deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
+            credible interval. The default is 1.
+        hdi : bool, optional
+            Whether to return the highest density interval. The default is
+            False, which means an equal tailed interval is returned.
+        energy : bool, optional
+            When True, calculate energy flux in units of erg cm⁻² s⁻¹;
+            otherwise calculate photon flux in units of cm⁻² s⁻¹.
+            The default is True.
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+
+        Returns
+        -------
+        PosteriorFlux
+            The flux of the model.
+        """
+        if log:
+            egrid = jnp.geomspace(emin, emax, ngrid)
+        else:
+            egrid = jnp.linspace(emin, emax, ngrid)
+
+        median, ci, error, cl_, dist, n = self._calc_flux(
+            egrid, cl, hdi, energy, comps, params
+        )
+
+        return PosteriorFlux(
+            median=median,
+            interval=ci,
+            error=error,
+            cl=cl_,
+            dist=dist,
+            energy=energy,
+            n=n,
+        )
+
+    def lumin(
+        self,
+        emin_rest: float | int,
+        emax_rest: float | int,
+        z: float | int,
+        cl: float | int = 1,
+        hdi: bool = False,
+        comps: bool = False,
+        ngrid: int = 1000,
+        log: bool = True,
+        params: dict[str, float | int] | None = None,
+        cosmo: LambdaCDM = Planck18,
+    ) -> PosteriorLumin:
+        """Calculate the luminosity of model.
+
+        .. warning::
+            The luminosity is calculated by trapezoidal rule, which may not be
+            accurate if not enough energy bins are used when the difference
+            between `emin_rest` and `emax_rest` is large.
+
+        Parameters
+        ----------
+        emin_rest : float or int
+            Minimum value of rest-frame energy range, in units of keV.
+        emax_rest : float or int
+            Maximum value of rest-frame energy range, in units of keV.
+        z : float or int
+            Redshift of the source.
+        cl : float or int, optional
+            The credible level of samples within the credible interval. If
+            0 < `cl` < 1, the value is interpreted as the probability mass.
+            If `cl` >= 1, it is interpreted as the number of standard
+            deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
+            credible interval. The default is 1.
+        hdi : bool, optional
+            Whether to return the highest density interval. The default is
+            False, which means an equal tailed interval is returned.
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+        cosmo : LambdaCDM, optional
+            Cosmology model used to calculate luminosity. The default is
+            Planck18.
+
+        Returns
+        -------
+        PosteriorLumin
+            The luminosity of the model.
+        """
+        if log:
+            egrid = jnp.geomspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
+        else:
+            egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
+
+        median, ci, error, cl_, dist, n = self._calc_flux(
+            egrid, cl, hdi, True, comps, params
+        )
+        unit = u.erg / u.s
+        factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
+        to_lumin = lambda x: (x * factor).to(unit)
+        return PosteriorLumin(
+            median=jax.tree_map(to_lumin, median),
+            interval=jax.tree_map(to_lumin, ci),
+            error=jax.tree_map(to_lumin, error),
+            cl=cl_,
+            dist=jax.tree_map(to_lumin, dist),
+            n=n,
+            z=float(z),
+            cosmo=cosmo,
+        )
+
+    def eiso(
+        self,
+        emin_rest: float | int,
+        emax_rest: float | int,
+        z: float | int,
+        duration: float | int,
+        cl: float | int = 1,
+        hdi: bool = False,
+        comps: bool = False,
+        ngrid: int = 1000,
+        log: bool = True,
+        params: dict[str, float | int] | None = None,
+        cosmo: LambdaCDM = Planck18,
+    ) -> PosteriorEIso:
+        """Calculate the isotropic emission energy of model.
+
+        Parameters
+        ----------
+        emin_rest : float or int
+            Minimum value of rest-frame energy range, in units of keV.
+        emax_rest : float or int
+            Maximum value of rest-frame energy range, in units of keV.
+        z : float or int
+            Redshift of the source.
+        duration : float or int
+            Observed duration of the source, in units of seconds.
+        cl : float or int, optional
+            The credible level of samples within the credible interval. If
+            0 < `cl` < 1, the value is interpreted as the probability mass.
+            If `cl` >= 1, it is interpreted as the number of standard
+            deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
+            credible interval. The default is 1.
+        hdi : bool, optional
+            Whether to return the highest density interval. The default is
+            False, which means an equal tailed interval is returned.
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+        cosmo : LambdaCDM, optional
+            Cosmology model used to calculate luminosity. The default is
+            Planck18.
+
+        Returns
+        -------
+        PosteriorEIso
+            The isotropic emission energy of the model.
+        """
+        lumin = self.lumin(
+            emin_rest, emax_rest, z, cl, hdi, comps, ngrid, log, params, cosmo
+        )
+        factor = duration / (1 + z) * u.s
+        to_eiso = lambda x: (x * factor).to(u.erg)
+        return PosteriorEIso(
+            median=jax.tree_map(to_eiso, lumin.median),
+            interval=jax.tree_map(to_eiso, lumin.interval),
+            error=jax.tree_map(to_eiso, lumin.error),
+            cl=lumin.cl,
+            dist=jax.tree_map(to_eiso, lumin.dist),
+            n=lumin.n,
+            z=lumin.z,
+            duration=float(duration),
+            cosmo=lumin.cosmo,
         )
 
     def ppc(
@@ -696,6 +1388,26 @@ class PosteriorResult(FitResult):
         p_value = self._ppc.p_value
         p_value = p_value['group'] | {'total': p_value['total']}
         return {k: float(p_value[k]) for k in self.ndata.keys()}
+
+    @property
+    def _params_dist(self) -> dict[str, JAXArray]:
+        """Posterior parameters, the size is truncated to <= nmax."""
+        if self._params is not None:
+            return self._params
+
+        nmax = 10000
+        post = self._idata['posterior'][self._helper.params_names['free']]
+        n = post.chain.size * post.draw.size
+        if n > nmax:
+            n = nmax - nmax % jax.local_device_count()
+            rng = np.random.default_rng(self._helper.seed['mcmc'])
+            i = rng.integers(0, post.chain.size, n)
+            j = rng.integers(0, post.draw.size, n)
+            post = {k: v.values[i, j] for k, v in post.items()}
+        else:
+            post = {k: np.hstack(v.values) for k, v in post.data_vars.items()}
+        self._params = post
+        return self._params
 
     def _init_from_numpyro(self, sampler: MCMC):
         helper = self._helper
@@ -1000,11 +1712,95 @@ class CredibleInterval(NamedTuple):
     error: dict[str, tuple[float, float]]
     """The credible intervals in error form."""
 
-    prob: float
-    """The probability mass."""
+    cl: float
+    """The credible level."""
 
     method: str
     """Highest Density Interval (HDI), or equal tailed interval (ETI)."""
+
+
+class PosteriorFlux(NamedTuple):
+    """Posterior flux."""
+
+    median: dict[str, Q] | dict[str, dict[str, Q]]
+    """The median flux."""
+
+    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The credible intervals of the model flux."""
+
+    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The credible intervals of the model flux in error form."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Posterior flux distribution."""
+
+    cl: float
+    """The credible level."""
+
+    energy: bool
+    """Whether the flux is in energy flux. False for photon flux."""
+
+    n: int
+    """Numbers of posterior samples."""
+
+
+class PosteriorLumin(NamedTuple):
+    """Posterior luminosity."""
+
+    median: dict[str, Q] | dict[str, dict[str, Q]]
+    """The median luminosity."""
+
+    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The credible intervals of the model luminosity."""
+
+    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The credible intervals of the model luminosity in error form."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Posterior distribution of luminosity."""
+
+    cl: float
+    """The credible level."""
+
+    n: int
+    """Numbers of posterior samples."""
+
+    z: float
+    """Redshift of the source."""
+
+    cosmo: LambdaCDM
+    """Cosmology model used to calculate luminosity."""
+
+
+class PosteriorEIso(NamedTuple):
+    """Posterior isotropic emission energy."""
+
+    median: dict[str, Q] | dict[str, dict[str, Q]]
+    r"""The median Eiso."""
+
+    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The credible intervals of the model Eiso."""
+
+    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The credible intervals of the model Eiso in error form."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Posterior distribution of Eiso."""
+
+    cl: float
+    """The credible level."""
+
+    n: int
+    """Numbers of posterior samples."""
+
+    z: float
+    """Redshift of the source."""
+
+    duration: float
+    """Observed duration of the source."""
+
+    cosmo: LambdaCDM
+    """Cosmology model used to calculate Eiso."""
 
 
 class PPCResult(NamedTuple):
