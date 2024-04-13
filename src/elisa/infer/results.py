@@ -392,6 +392,9 @@ class MLEResult(FitResult):
             When True, calculate energy flux in units of erg cm⁻² s⁻¹;
             otherwise calculate photon flux in units of cm⁻² s⁻¹.
             The default is True.
+
+        Other Parameters
+        ----------------
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
@@ -465,6 +468,9 @@ class MLEResult(FitResult):
             interpreted as the number of standard deviations. For example,
             ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
             The default is 1.
+
+        Other Parameters
+        ----------------
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
@@ -543,6 +549,9 @@ class MLEResult(FitResult):
             interpreted as the number of standard deviations. For example,
             ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
             The default is 1.
+
+        Other Parameters
+        ----------------
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
@@ -928,8 +937,8 @@ class PosteriorResult(FitResult):
         emin: float | int,
         emax: float | int,
         cl: float | int = 1,
-        hdi: bool = False,
         energy: bool = True,
+        hdi: bool = False,
         comps: bool = False,
         ngrid: int = 1000,
         log: bool = True,
@@ -954,13 +963,16 @@ class PosteriorResult(FitResult):
             If `cl` >= 1, it is interpreted as the number of standard
             deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
             credible interval. The default is 1.
-        hdi : bool, optional
-            Whether to return the highest density interval. The default is
-            False, which means an equal tailed interval is returned.
         energy : bool, optional
             When True, calculate energy flux in units of erg cm⁻² s⁻¹;
             otherwise calculate photon flux in units of cm⁻² s⁻¹.
             The default is True.
+
+        Other Parameters
+        ----------------
+        hdi : bool, optional
+            Whether to return the highest density interval. The default is
+            False, which means an equal tailed interval is returned.
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
@@ -1030,6 +1042,9 @@ class PosteriorResult(FitResult):
             If `cl` >= 1, it is interpreted as the number of standard
             deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
             credible interval. The default is 1.
+
+        Other Parameters
+        ----------------
         hdi : bool, optional
             Whether to return the highest density interval. The default is
             False, which means an equal tailed interval is returned.
@@ -1106,6 +1121,9 @@ class PosteriorResult(FitResult):
             If `cl` >= 1, it is interpreted as the number of standard
             deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
             credible interval. The default is 1.
+
+        Other Parameters
+        ----------------
         hdi : bool, optional
             Whether to return the highest density interval. The default is
             False, which means an equal tailed interval is returned.
