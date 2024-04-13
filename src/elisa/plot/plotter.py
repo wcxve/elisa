@@ -286,7 +286,7 @@ class PlotConfig:
 
     @property
     def palette(self) -> Any:
-        """Color palettes, see [1] for details.
+        """Color palettes, see [1]_ for details.
 
         References
         ----------
