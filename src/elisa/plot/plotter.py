@@ -434,6 +434,93 @@ class Plotter(ABC):
     def __call__(self, plots: str = 'data ne r') -> dict[str, Figure]:
         pass
 
+    @abstractmethod
+    def plot_corner(self, *args, **kwargs) -> Figure:
+        """Corner plot of bootstrap/posterior parameters."""
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_plot_data(result: FitResult) -> dict[str, PlotData]:
+        """Get PlotData from FitResult."""
+        pass
+
+    @property
+    def config(self) -> PlotConfig:
+        """Plotting configuration."""
+        return self._config
+
+    @config.setter
+    def config(self, config: PlotConfig):
+        if config is None:
+            config = PlotConfig()
+        elif not isinstance(config, PlotConfig):
+            raise TypeError('config must be a PlotConfig instance')
+
+        self._config = config
+
+    @property
+    def colors(self):
+        """Plotting color for each data."""
+        if self._palette != self.config.palette:
+            colors = get_colors(len(self.data), palette=self.config.palette)
+            self._colors = dict(zip(self.data.keys(), colors))
+        return self._colors
+
+    @property
+    def ndata(self):
+        """Data points number."""
+        ndata = {name: data.ndata for name, data in self.data.items()}
+        ndata['total'] = sum(ndata.values())
+        return ndata
+
+    @property
+    def comps_latex(self) -> dict[str, str]:
+        """LaTeX representation of components."""
+        if self._comps_latex is None:
+            self._comps_latex = {
+                k: f'${v}$  ' if v else ''
+                for k, v in self._result._helper.params_comp_latex.items()
+            }
+        return self._comps_latex
+
+    @property
+    def params_latex(self) -> dict[str, str]:
+        """LaTeX representation of parameters."""
+        if self._params_latex is None:
+            self._params_latex = {
+                k: f'${v}$'
+                for k, v in self._result._helper.params_latex.items()
+            }
+        return self._params_latex
+
+    @property
+    def params_unit(self) -> dict[str, str]:
+        """Unit of parameters."""
+        return self._result._helper.params_unit
+
+    @property
+    def params_titles(self) -> dict[str, str]:
+        """Title of parameters."""
+        comps_latex = self.comps_latex
+        params_latex = self.params_latex
+        params = self._result._helper.params_names['all']
+        return {p: comps_latex[p] + params_latex[p] for p in params}
+
+    @property
+    def params_labels(self) -> dict[str, str]:
+        """Label of parameters."""
+        comps_latex = self.comps_latex
+        params_latex = self.params_latex
+        params_unit = {
+            k: f'\n[{v}]' if v else v for k, v in self.params_unit.items()
+        }
+        params = self._result._helper.params_names['all']
+        return {
+            p: comps_latex[p] + params_latex[p] + params_unit[p]
+            for p in params
+        }
+
     def plot_spec(
         self,
         data: bool = True,
@@ -615,93 +702,6 @@ class Plotter(ABC):
             axs_dict['ce'].legend()
 
         return fig
-
-    @abstractmethod
-    def plot_corner(self, *args, **kwargs) -> Figure:
-        """Corner plot of bootstrap/posterior parameters."""
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def get_plot_data(result: FitResult) -> dict[str, PlotData]:
-        """Get PlotData from FitResult."""
-        pass
-
-    @property
-    def config(self) -> PlotConfig:
-        """Plotting configuration."""
-        return self._config
-
-    @config.setter
-    def config(self, config: PlotConfig):
-        if config is None:
-            config = PlotConfig()
-        elif not isinstance(config, PlotConfig):
-            raise TypeError('config must be a PlotConfig instance')
-
-        self._config = config
-
-    @property
-    def colors(self):
-        """Plotting color for each data."""
-        if self._palette != self.config.palette:
-            colors = get_colors(len(self.data), palette=self.config.palette)
-            self._colors = dict(zip(self.data.keys(), colors))
-        return self._colors
-
-    @property
-    def ndata(self):
-        """Data points number."""
-        ndata = {name: data.ndata for name, data in self.data.items()}
-        ndata['total'] = sum(ndata.values())
-        return ndata
-
-    @property
-    def comps_latex(self) -> dict[str, str]:
-        """LaTeX representation of components."""
-        if self._comps_latex is None:
-            self._comps_latex = {
-                k: f'${v}$  ' if v else ''
-                for k, v in self._result._helper.params_comp_latex.items()
-            }
-        return self._comps_latex
-
-    @property
-    def params_latex(self) -> dict[str, str]:
-        """LaTeX representation of parameters."""
-        if self._params_latex is None:
-            self._params_latex = {
-                k: f'${v}$'
-                for k, v in self._result._helper.params_latex.items()
-            }
-        return self._params_latex
-
-    @property
-    def params_unit(self) -> dict[str, str]:
-        """Unit of parameters."""
-        return self._result._helper.params_unit
-
-    @property
-    def params_titles(self) -> dict[str, str]:
-        """Title of parameters."""
-        comps_latex = self.comps_latex
-        params_latex = self.params_latex
-        params = self._result._helper.params_names['all']
-        return {p: comps_latex[p] + params_latex[p] for p in params}
-
-    @property
-    def params_labels(self) -> dict[str, str]:
-        """Label of parameters."""
-        comps_latex = self.comps_latex
-        params_latex = self.params_latex
-        params_unit = {
-            k: f'\n[{v}]' if v else v for k, v in self.params_unit.items()
-        }
-        params = self._result._helper.params_names['all']
-        return {
-            p: comps_latex[p] + params_latex[p] + params_unit[p]
-            for p in params
-        }
 
     def plot_unfolded(
         self,
@@ -925,7 +925,7 @@ class Plotter(ABC):
 
             use_mle = True if quantiles else False
             r = data.residuals(rtype, seed, config.random_quantile, use_mle)
-            if rtype == 'quantile':
+            if rtype == 'rq':
                 r, lower, upper = r
             else:
                 lower = upper = False
@@ -1010,7 +1010,7 @@ class Plotter(ABC):
             name: data.residuals(rtype, seed, random_quantile, use_mle)
             for name, data in self.data.items()
         }
-        if rtype == 'quantile':
+        if rtype == 'rq':
             r = {k: v[0] for k, v in r.items()}
         r['total'] = np.hstack(list(r.values()))
 
