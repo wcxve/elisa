@@ -274,6 +274,7 @@ class PlotConfig:
 
     @property
     def alpha(self) -> float:
+        """Transparency of colors."""
         return self._alpha
 
     @alpha.setter
@@ -285,6 +286,13 @@ class PlotConfig:
 
     @property
     def palette(self) -> Any:
+        """Color palettes, see [1] for details.
+
+        References
+        ----------
+        .. [1] `seaborn tutorial: Choosing color palettes
+                <https://seaborn.pydata.org/tutorial/color_palettes.html>`__
+        """
         return self._palette
 
     @palette.setter
@@ -293,6 +301,10 @@ class PlotConfig:
 
     @property
     def xscale(self) -> Literal['linear', 'log']:
+        """X-axis scale of spectral plot.
+
+        Should be ``'linear'``, or ``'log'``.
+        """
         return self._xscale
 
     @xscale.setter
@@ -303,6 +315,10 @@ class PlotConfig:
 
     @property
     def yscale(self) -> Literal['linear', 'log', 'linlog']:
+        """X-axis scale of spectral plot.
+
+        Should be ``'linear'``, ``'log'``, or ``'linlog'``.
+        """
         return self._yscale
 
     @yscale.setter
@@ -313,6 +329,7 @@ class PlotConfig:
 
     @property
     def lin_frac(self) -> float:
+        """Linear fraction of the ``linlog`` plot."""
         return self._lin_frac
 
     @lin_frac.setter
@@ -324,6 +341,7 @@ class PlotConfig:
 
     @property
     def cl(self) -> NumPyArray:
+        """Confidence/Credible level."""
         return self._cl
 
     @cl.setter
@@ -336,6 +354,7 @@ class PlotConfig:
 
     @property
     def residuals(self) -> Literal['rd', 'rp', 'rq']:
+        """Default type of residual plot."""
         return self._residuals
 
     @residuals.setter
@@ -349,6 +368,7 @@ class PlotConfig:
 
     @property
     def random_quantile(self) -> bool:
+        """Whether to randomize the quantile residual."""
         return self._random_quantile
 
     @random_quantile.setter
@@ -357,6 +377,7 @@ class PlotConfig:
 
     @property
     def mark_outlier_residuals(self) -> bool:
+        """Whether to mark outlier residuals with red crosses."""
         return self._mark_outlier_residuals
 
     @mark_outlier_residuals.setter
@@ -365,6 +386,7 @@ class PlotConfig:
 
     @property
     def residuals_ci_with_sign(self) -> bool:
+        """Whether to take account residuals' sign when calculate CI bands."""
         return self._residuals_ci_with_sign
 
     @residuals_ci_with_sign.setter
@@ -373,6 +395,7 @@ class PlotConfig:
 
     @property
     def plot_comps(self) -> bool:
+        """Whether to plot additive components in spectral plot."""
         return self._plot_comps
 
     @plot_comps.setter
@@ -381,6 +404,7 @@ class PlotConfig:
 
     @property
     def seed(self) -> int | None:
+        """Random seed used in calculation."""
         return self._seed
 
     @seed.setter
@@ -413,7 +437,7 @@ class Plotter(ABC):
     def plot_spec(
         self,
         data: bool = True,
-        ne: bool = False,
+        ne: bool = True,
         ene: bool = False,
         eene: bool = False,
         residuals: bool | Literal['rd', 'rp', 'rq'] = True,
@@ -423,6 +447,44 @@ class Plotter(ABC):
         label_Fv: bool = False,
         label_vFv: bool = False,
     ) -> Figure:
+        r"""Spectral plot.
+
+        Parameters
+        ----------
+        data : bool, optional
+            Whether to plot folded model and data. The default is ``True``.
+        ne : bool, optional
+            Whether to plot :math:`N(E)`. The default is ``True``.
+        ene : bool, optional
+            Whether to plot :math:`E N(E)`. The default is ``False``.
+        eene : bool, optional
+            Whether to plot :math:`E^2 N(E)`. The default is ``False``.
+        residuals : bool or {'rd', 'rp', 'rq'}, optional
+            Whether to plot residuals. Available options are:
+
+                * ``True``: plot default residuals
+                * ``False``: do not plot residuals
+                * ``'rd'``: plot deviance residuals
+                * ``'rp'``: plot Pearson residuals
+                * ``'rq'``: plot quantile residuals
+
+            The default is ``True``.
+        egrid : dict, optional
+            Overwrite the photon energy grid when plotting unfolded model.
+        params : dict, optional
+            Overwrite the photon energy grid when plotting unfolded model.
+        label_Fv : bool, optional
+            Whether to label the y-axis of :math:`E N(E)` plot as
+            :math:`F_{\nu}`. The default is ``False``.
+        label_vFv : bool, optional
+            Whether to label the y-axis of :math:`E^2 N(E)` plot as
+            :math:`\nu F_{\nu}`. The default is ``False``.
+
+        Returns
+        -------
+        Figure
+            The Figure object containing spectral plot.
+        """
         nrows = data + ne + ene + eene + bool(residuals)
         height_ratios = [1.618] * nrows
         if residuals:
@@ -555,13 +617,8 @@ class Plotter(ABC):
         return fig
 
     @abstractmethod
-    def plot_corner(
-        self,
-        params: str | Sequence[str] | None = None,
-        color: str | None = None,
-        divergences: bool = True,
-        fig_path: str | None = None,
-    ) -> Figure:
+    def plot_corner(self, *args, **kwargs) -> Figure:
+        """Corner plot of bootstrap/posterior parameters."""
         pass
 
     @staticmethod
@@ -586,6 +643,7 @@ class Plotter(ABC):
 
     @property
     def colors(self):
+        """Plotting color for each data."""
         if self._palette != self.config.palette:
             colors = get_colors(len(self.data), palette=self.config.palette)
             self._colors = dict(zip(self.data.keys(), colors))
@@ -593,12 +651,14 @@ class Plotter(ABC):
 
     @property
     def ndata(self):
+        """Data points number."""
         ndata = {name: data.ndata for name, data in self.data.items()}
         ndata['total'] = sum(ndata.values())
         return ndata
 
     @property
     def comps_latex(self) -> dict[str, str]:
+        """LaTeX representation of components."""
         if self._comps_latex is None:
             self._comps_latex = {
                 k: f'${v}$  ' if v else ''
@@ -608,6 +668,7 @@ class Plotter(ABC):
 
     @property
     def params_latex(self) -> dict[str, str]:
+        """LaTeX representation of parameters."""
         if self._params_latex is None:
             self._params_latex = {
                 k: f'${v}$'
@@ -617,10 +678,12 @@ class Plotter(ABC):
 
     @property
     def params_unit(self) -> dict[str, str]:
+        """Unit of parameters."""
         return self._result._helper.params_unit
 
     @property
     def params_titles(self) -> dict[str, str]:
+        """Title of parameters."""
         comps_latex = self.comps_latex
         params_latex = self.params_latex
         params = self._result._helper.params_names['all']
@@ -628,6 +691,7 @@ class Plotter(ABC):
 
     @property
     def params_labels(self) -> dict[str, str]:
+        """Label of parameters."""
         comps_latex = self.comps_latex
         params_latex = self.params_latex
         params_unit = {
@@ -646,6 +710,24 @@ class Plotter(ABC):
         params: Mapping[str, float | int | Array] | None = None,
         egrid: Mapping[str, NumPyArray] | None = None,
     ):
+        """Plot unfolded model.
+
+        Parameters
+        ----------
+        ax : Axes
+            The Axes object to plot.
+        mtype : {'ne', 'ene', 'eene'}
+            The type of unfolded model, available options are:
+
+                * ``'ne'``: plot :math:`N(E)`
+                * ``'ene'``: plot :math:`E N(E)`
+                * ``'eene'``: plot :math:`E^2 N(E)`
+
+        params : dict, optional
+            Overwrite the parameters when plotting unfolded model.
+        egrid : dict, optional
+            Overwrite the photon energy grid when plotting unfolded model.
+        """
         params = dict(params) if params is not None else {}
         if params:
             if any(np.shape(v) != () for v in params.values()):
@@ -701,6 +783,13 @@ class Plotter(ABC):
                         )
 
     def plot_folded(self, ax: Axes):
+        """Plot folded model.
+
+        Parameters
+        ----------
+        ax : Axes
+            The Axes object to plot.
+        """
         config = self.config
         colors = self.colors
         cl = config.cl
@@ -735,6 +824,13 @@ class Plotter(ABC):
                 )
 
     def plot_ce(self, ax: Axes):
+        """Plot data.
+
+        Parameters
+        ----------
+        ax : Axes
+            The Axes object to plot.
+        """
         config = self.config
         colors = self.colors
         alpha = config.alpha
@@ -763,6 +859,20 @@ class Plotter(ABC):
         ax: Axes,
         rtype: Literal['rd', 'rp', 'rq'] | None = None,
     ):
+        """Plot residuals.
+
+        Parameters
+        ----------
+        ax : Axes
+            The Axes object to plot.
+        rtype : {'rd', 'rp', 'rq'}, optional
+            The type of residuals, available options are:
+
+                * ``'rd'``: deviance residuals
+                * ``'rp'``: Pearson residuals
+                * ``'rq'``: quantile residuals
+
+        """
         config = self.config
         colors = self.colors
         cl = config.cl
@@ -858,7 +968,29 @@ class Plotter(ABC):
         seed: int | None = None,
         detrend: bool = True,
     ) -> Figure:
-        """Quantile-Quantile plot."""
+        """Quantile-Quantile plot.
+
+        Parameters
+        ----------
+        rtype : {'rd', 'rp', 'rq'}, optional
+            The type of residuals, available options are:
+
+                * ``'rd'``: deviance residuals
+                * ``'rp'``: Pearson residuals
+                * ``'rq'``: quantile residuals
+                * ``None``: use the default residuals type
+
+            The default is ``None``.
+        seed : int, optional
+            Random seed used in calculation. The default is ``None``.
+        detrend : bool, optional
+            Whether to detrend the Q-Q plot. The default is ``True``.
+
+        Returns
+        -------
+        Figure
+            The Figure object containing Q-Q plot.
+        """
         config = self.config
         random_quantile = config.random_quantile
         if rtype is None:
@@ -930,7 +1062,18 @@ class Plotter(ABC):
         return fig
 
     def plot_pit(self, detrend=True) -> Figure:
-        """Probability integral transformation empirical CDF plot."""
+        """Probability integral transformation empirical CDF plot.
+
+        Parameters
+        ----------
+        detrend : bool, optional
+            Whether to detrend the PIT ECDF plot. The default is ``True``.
+
+        Returns
+        -------
+        Figure
+            The Figure object containing PIT ECDF plot.
+        """
         config = self.config
 
         pit = {name: data.pit()[1] for name, data in self.data.items()}
@@ -981,7 +1124,13 @@ class Plotter(ABC):
         return fig
 
     def plot_gof(self) -> Figure:
-        """Plot distribution of GOF statistics and p-value."""
+        """Plot distribution of GOF statistics and p-value.
+
+        Returns
+        -------
+        Figure
+            The Figure object containing GOF statistics plot.
+        """
         if isinstance(self, MLEResultPlotter):
             if self._result._boot is None:
                 raise RuntimeError(
@@ -1175,9 +1324,24 @@ class MLEResultPlotter(Plotter):
         self,
         params: str | Sequence[str] | None = None,
         color: str | None = None,
-        divergences: bool = True,
         fig_path: str | None = None,
     ) -> Figure:
+        """Corner plot of bootstrap parameters.
+
+        Parameters
+        ----------
+        params : str or sequence of str, optional
+            Parameters to plot. The default is all spectral parameters.
+        color : str, optional
+            Color of the plot. The default is ``None``.
+        fig_path : str, optional
+            Path to save the figure. The default is ``None``.
+
+        Returns
+        -------
+        Figure
+            The Figure object containing corner plot.
+        """
         if self._result._boot is None:
             raise ValueError('MLEResult.boot() must be called first')
 
@@ -1196,7 +1360,6 @@ class MLEResultPlotter(Plotter):
             titles=[params_titles[p] for p in params],
             labels=[params_labels[p] for p in params],
             color=color,
-            divergences=divergences,
         )
         if fig_path:
             fig.savefig(fig_path, bbox_inches='tight')
@@ -1335,6 +1498,15 @@ class PosteriorResultPlotter(Plotter):
         params: str | Sequence[str] | None = None,
         fig_path: str | None = None,
     ) -> Figure:
+        """Plot trace plot of posterior samples.
+
+        Parameters
+        ----------
+        params : str or sequence of str, optional
+            Parameters to plot. The default is all spectral parameters.
+        fig_path : str, optional
+            Path to save the figure. The default is ``None``.
+        """
         helper = self._result._helper
         params = check_params(params, helper)
         axes_scale = [
@@ -1354,6 +1526,24 @@ class PosteriorResultPlotter(Plotter):
         divergences: bool = True,
         fig_path: str | None = None,
     ) -> Figure:
+        """Corner plot of posterior parameters.
+
+        Parameters
+        ----------
+        params : str or sequence of str, optional
+            Parameters to plot. The default is all spectral parameters.
+        color : str, optional
+            Color of the plot. The default is ``None``.
+        divergences : bool, optional
+            Whether to show divergent samples. The default is ``True``.
+        fig_path : str, optional
+            Path to save the figure. The default is ``None``.
+
+        Returns
+        -------
+        Figure
+            The Figure object containing corner plot.
+        """
         helper = self._result._helper
         params = check_params(params, helper)
         axes_scale = [
@@ -1376,6 +1566,7 @@ class PosteriorResultPlotter(Plotter):
         return fig
 
     def plot_khat(self) -> Figure:
+        """Plot k-hat diagnostic of PSIS-LOO."""
         config = self.config
         colors = self.colors
         alpha = config.alpha
