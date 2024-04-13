@@ -772,143 +772,6 @@ class MLEResult(FitResult):
         return self._minuit.fmin
 
 
-class ConfidenceInterval(NamedTuple):
-    """Confidence interval result."""
-
-    mle: dict[str, float]
-    """MLE of the model parameters."""
-
-    intervals: dict[str, tuple[float, float]]
-    """The confidence intervals."""
-
-    errors: dict[str, tuple[float, float]]
-    """The confidence intervals in error form."""
-
-    cl: float
-    """The confidence level."""
-
-    method: str
-    """Method used to calculate the confidence interval."""
-
-    status: dict
-    """Status of the calculation progress."""
-
-
-class MLEFlux(NamedTuple):
-    """The flux of the MLE model."""
-
-    mle: dict[str, Q] | dict[str, dict[str, Q]]
-    """The model flux at MLE."""
-
-    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The confidence intervals of the model flux."""
-
-    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The confidence intervals of the model flux in error form."""
-
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Bootstrap flux distribution."""
-
-    cl: float
-    """The confidence level."""
-
-    energy: bool
-    """Whether the flux is in energy flux. False for photon flux."""
-
-    n: int
-    """Numbers of bootstrap samples."""
-
-
-class MLELumin(NamedTuple):
-    """The luminosity of the MLE model."""
-
-    mle: dict[str, Q] | dict[str, dict[str, Q]]
-    """The model luminosity at MLE."""
-
-    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The confidence intervals of the model luminosity."""
-
-    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The confidence intervals of the model luminosity in error form."""
-
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Bootstrap luminosity distribution."""
-
-    cl: float
-    """The confidence level."""
-
-    n: int
-    """Numbers of bootstrap samples."""
-
-    z: float
-    """Redshift of the source."""
-
-    cosmo: LambdaCDM
-    """Cosmology model used to calculate luminosity."""
-
-
-class MLEEIso(NamedTuple):
-    """The isotropic emission energy of the MLE model."""
-
-    mle: dict[str, Q] | dict[str, dict[str, Q]]
-    r"""The model Eiso at MLE."""
-
-    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The confidence intervals of the model Eiso."""
-
-    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The confidence intervals of the model Eiso in error form."""
-
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Bootstrap Eiso distribution."""
-
-    cl: float
-    """The confidence level."""
-
-    n: int
-    """Numbers of bootstrap samples."""
-
-    z: float
-    """Redshift of the source."""
-
-    duration: float
-    """Observed duration of the source."""
-
-    cosmo: LambdaCDM
-    """Cosmology model used to calculate Eiso."""
-
-
-class BootstrapResult(NamedTuple):
-    """Parametric bootstrap result."""
-
-    mle: dict
-    """MLE of the model parameters."""
-
-    data: dict
-    """Simulation data based on MLE."""
-
-    models: dict
-    """Bootstrap models."""
-
-    params: dict
-    """Bootstrap parameters."""
-
-    deviance: dict
-    """Bootstrap deviance."""
-
-    p_value: dict
-    """Model fitness :math:`p`-value."""
-
-    n: int
-    """Numbers of bootstrap."""
-
-    n_valid: int
-    """Numbers of valid bootstrap."""
-
-    seed: int
-    """Seed of random number generator used in simulation."""
-
-
 class PosteriorResult(FitResult):
     """Result obtained from Bayesian fit."""
 
@@ -1698,6 +1561,143 @@ class PosteriorResult(FitResult):
             for name in loo_pit.keys()
         }
         return self._pit
+
+
+class ConfidenceInterval(NamedTuple):
+    """Confidence interval result."""
+
+    mle: dict[str, float]
+    """MLE of the model parameters."""
+
+    intervals: dict[str, tuple[float, float]]
+    """The confidence intervals."""
+
+    errors: dict[str, tuple[float, float]]
+    """The confidence intervals in error form."""
+
+    cl: float
+    """The confidence level."""
+
+    method: str
+    """Method used to calculate the confidence interval."""
+
+    status: dict
+    """Status of the calculation progress."""
+
+
+class MLEFlux(NamedTuple):
+    """The flux of the MLE model."""
+
+    mle: dict[str, Q] | dict[str, dict[str, Q]]
+    """The model flux at MLE."""
+
+    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model flux."""
+
+    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model flux in error form."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Bootstrap flux distribution."""
+
+    cl: float
+    """The confidence level."""
+
+    energy: bool
+    """Whether the flux is in energy flux. False for photon flux."""
+
+    n: int
+    """Numbers of bootstrap samples."""
+
+
+class MLELumin(NamedTuple):
+    """The luminosity of the MLE model."""
+
+    mle: dict[str, Q] | dict[str, dict[str, Q]]
+    """The model luminosity at MLE."""
+
+    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model luminosity."""
+
+    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model luminosity in error form."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Bootstrap luminosity distribution."""
+
+    cl: float
+    """The confidence level."""
+
+    n: int
+    """Numbers of bootstrap samples."""
+
+    z: float
+    """Redshift of the source."""
+
+    cosmo: LambdaCDM
+    """Cosmology model used to calculate luminosity."""
+
+
+class MLEEIso(NamedTuple):
+    """The isotropic emission energy of the MLE model."""
+
+    mle: dict[str, Q] | dict[str, dict[str, Q]]
+    r"""The model Eiso at MLE."""
+
+    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model Eiso."""
+
+    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    """The confidence intervals of the model Eiso in error form."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Bootstrap Eiso distribution."""
+
+    cl: float
+    """The confidence level."""
+
+    n: int
+    """Numbers of bootstrap samples."""
+
+    z: float
+    """Redshift of the source."""
+
+    duration: float
+    """Observed duration of the source."""
+
+    cosmo: LambdaCDM
+    """Cosmology model used to calculate Eiso."""
+
+
+class BootstrapResult(NamedTuple):
+    """Parametric bootstrap result."""
+
+    mle: dict
+    """MLE of the model parameters."""
+
+    data: dict
+    """Simulation data based on MLE."""
+
+    models: dict
+    """Bootstrap models."""
+
+    params: dict
+    """Bootstrap parameters."""
+
+    deviance: dict
+    """Bootstrap deviance."""
+
+    p_value: dict
+    """Model fitness :math:`p`-value."""
+
+    n: int
+    """Numbers of bootstrap."""
+
+    n_valid: int
+    """Numbers of valid bootstrap."""
+
+    seed: int
+    """Seed of random number generator used in simulation."""
 
 
 class CredibleInterval(NamedTuple):
