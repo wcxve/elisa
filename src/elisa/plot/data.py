@@ -10,7 +10,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import scipy.stats as stats
-from jax.experimental import mesh_utils
+from jax.experimental.mesh_utils import create_device_mesh
 from jax.sharding import PositionalSharding
 
 from elisa.infer.likelihood import (
@@ -108,7 +108,7 @@ class PlotData(ABC):
         self.seed = seed
         self.data = result._helper.data[self.name]
         self.statistic = result._helper.statistic[self.name]
-        devices = mesh_utils.create_device_mesh((jax.local_device_count(),))
+        devices = create_device_mesh((jax.local_device_count(),))
         self.sharding = PositionalSharding(devices)
 
         for f in self._cached_method:
@@ -229,6 +229,10 @@ class PlotData(ABC):
     def has_comps(self) -> bool:
         return self.result._helper.model[self.name].has_comps
 
+    @property
+    def params_dist(self) -> dict[str, Array] | None:
+        return self.result._params_dist
+
     def _unfolded_model(
         self,
         mtype: Literal['ne', 'ene', 'eene'],
@@ -238,9 +242,9 @@ class PlotData(ABC):
     ) -> Array | dict:
         assert mtype in {'ne', 'ene', 'eene'}
         v = '_vmap' if len(np.shape(list(params.values())[0])) != 0 else ''
-        return jax.device_get(
-            getattr(self, f'_{mtype}{v}')(egrid, params, comps)
-        )
+        params = jax.device_put(params, self.sharding)
+        fn = getattr(self, f'_{mtype}{v}')
+        return jax.device_get(fn(egrid, params, comps))
 
     @abstractmethod
     def unfolded_model(
@@ -313,14 +317,6 @@ class MLEPlotData(PlotData):
     def params_mle(self) -> dict[str, Array]:
         return {k: v[0] for k, v in self.result._mle.items()}
 
-    @property
-    def params_boot(self) -> dict[str, Array] | None:
-        boot = self.boot
-        if boot is None:
-            return None
-        else:
-            return boot.params
-
     def get_model_mle(self, name: str) -> Array:
         return self.result._model_values[name]
 
@@ -375,16 +371,14 @@ class MLEPlotData(PlotData):
         params_mle = self.params_mle | params
         model_mle = self._unfolded_model(mtype, egrid, params_mle, comps)
 
-        params_boot = self.params_boot
+        params_boot = self.params_dist
         if cl is None or params_boot is None:
             return model_mle, None
         else:
-            n = int(self.boot.n_valid)
-            n -= n % self.sharding.shape[0]
-            params_boot = {k: v[:n] for k, v in params_boot.items()}
+            n = [i.size for i in params_boot.values()][0]
             if params:
                 params = {k: jnp.full(n, v) for k, v in params.items()}
-                params_boot |= params
+                params_boot = params_boot | params
             model_boot = self._unfolded_model(mtype, egrid, params_boot, comps)
             q = 0.5 + cl[:, None] * np.array([-0.5, 0.5])
             if comps:
@@ -499,7 +493,7 @@ class MLEPlotData(PlotData):
         random_quantile: bool = True,
         mle: bool = True,
     ) -> Array | tuple[Array, bool | Array, bool | Array]:
-        if rtype == 'rq':
+        if rtype == 'rd':
             return self.deviance_residuals_mle()
         elif rtype == 'rp':
             return self.pearson_residuals_mle()
@@ -666,9 +660,7 @@ class PosteriorPlotData(PlotData):
 
     @property
     def params(self) -> dict[str, Array]:
-        posterior = self.result._idata['posterior']
-        params_name = self.result._helper.params_names['free']
-        return {k: np.hstack(posterior[k].values) for k in params_name}
+        return self.result._params_dist
 
     @property
     def ppc(self) -> PPCResult | None:
@@ -725,15 +717,10 @@ class PosteriorPlotData(PlotData):
         params = {} if params is None else dict(params)
         comps = comps and self.has_comps
         egrid = jnp.asarray(egrid, float)
-        post = self.result._idata['posterior']
-        n = post.chain.size * post.draw.size
         post_params = self.params
-        if n > 5000:
-            n = 5000
-            idx = np.random.randint(0, n, 5000)
-            post_params = {k: v[idx] for k, v in post_params.items()}
+        n = [i.size for i in post_params.values()][0]
         params = {k: jnp.full(n, v) for k, v in params.items()}
-        post_params |= params
+        post_params = post_params | params
         models = self._unfolded_model(mtype, egrid, post_params, comps)
         if comps:
             model = {k: np.median(v, axis=0) for k, v in models.items()}
