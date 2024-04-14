@@ -6,8 +6,12 @@ from abc import ABC, abstractmethod
 from functools import cache, wraps
 from typing import TYPE_CHECKING
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 import scipy.stats as stats
+from jax.experimental.mesh_utils import create_device_mesh
+from jax.sharding import PositionalSharding
 
 from elisa.infer.likelihood import (
     _STATISTIC_BACK_NORMAL,
@@ -86,8 +90,17 @@ def _get_cached_method_with_check_decorator(
 
 
 class PlotData(ABC):
+    """Base class for data used in plotting."""
+
     _cached_method: list[str]
     _cached_method_with_check: list[tuple[str, list[str]]]
+    _ne: Callable[[dict, bool, Array], dict | Array]
+    _ene: Callable[[dict, bool, Array], dict | Array]
+    _eene: Callable[[dict, bool, Array], dict | Array]
+    _ne_vmap: Callable[[dict, bool, Array], dict | Array]
+    _ene_vmap: Callable[[dict, bool, Array], dict | Array]
+    _eene_vmap: Callable[[dict, bool, Array], dict | Array]
+    _ph_egrid: NumPyArray | None = None
 
     def __init__(self, name: str, result: FitResult, seed: int):
         self.name = str(name)
@@ -95,6 +108,8 @@ class PlotData(ABC):
         self.seed = seed
         self.data = result._helper.data[self.name]
         self.statistic = result._helper.statistic[self.name]
+        devices = create_device_mesh((jax.local_device_count(),))
+        self.sharding = PositionalSharding(devices)
 
         for f in self._cached_method:
             method = getattr(self, f)
@@ -103,6 +118,23 @@ class PlotData(ABC):
         for f, fields in self._cached_method_with_check:
             method = getattr(self, f)
             setattr(self, f, _cache_method_with_check(self, method, fields))
+
+        model = self.result._helper.model[self.name]
+        self._ne = jax.jit(model.ne, static_argnums=2)
+        self._ne_vmap = jax.jit(
+            jax.vmap(self._ne, in_axes=(None, 0, None)),
+            static_argnums=2,
+        )
+        self._ene = jax.jit(model.ene, static_argnums=2)
+        self._ene_vmap = jax.jit(
+            jax.vmap(self._ene, in_axes=(None, 0, None)),
+            static_argnums=2,
+        )
+        self._eene = jax.jit(model.eene, static_argnums=2)
+        self._eene_vmap = jax.jit(
+            jax.vmap(self._eene, in_axes=(None, 0, None)),
+            static_argnums=2,
+        )
 
     @property
     def channel(self) -> NumPyArray:
@@ -133,12 +165,14 @@ class PlotData(ABC):
         return self.data.ch_error
 
     @property
-    def ce_data(self) -> Array:
-        return self.data.ce
+    def ph_egrid(self) -> NumPyArray:
+        if self._ph_egrid is not None:
+            return self._ph_egrid
 
-    @property
-    def ce_error(self) -> Array:
-        return self.data.ce_error
+        ph_egrid = self.data.ph_egrid
+        mask = (self.ch_emin[0] <= ph_egrid) & (ph_egrid <= self.ch_emax[-1])
+        self._ph_egrid = ph_egrid[mask]
+        return self._ph_egrid
 
     @property
     def spec_counts(self) -> Array:
@@ -173,6 +207,14 @@ class PlotData(ABC):
         return len(self.data.channel)
 
     @property
+    def ce_data(self) -> Array:
+        return self.data.ce
+
+    @property
+    def ce_error(self) -> Array:
+        return self.data.ce_error
+
+    @property
     @abstractmethod
     def ce_model(self) -> Array:
         """Point estimate of the folded source model."""
@@ -183,6 +225,38 @@ class PlotData(ABC):
         """Confidence/Credible intervals of the folded source model."""
         pass
 
+    @property
+    def has_comps(self) -> bool:
+        return self.result._helper.model[self.name].has_comps
+
+    @property
+    def params_dist(self) -> dict[str, Array] | None:
+        return self.result._params_dist
+
+    def _unfolded_model(
+        self,
+        mtype: Literal['ne', 'ene', 'eene'],
+        egrid: Array,
+        params: dict,
+        comps: bool,
+    ) -> Array | dict:
+        assert mtype in {'ne', 'ene', 'eene'}
+        v = '_vmap' if len(np.shape(list(params.values())[0])) != 0 else ''
+        params = jax.device_put(params, self.sharding)
+        fn = getattr(self, f'_{mtype}{v}')
+        return jax.device_get(fn(egrid, params, comps))
+
+    @abstractmethod
+    def unfolded_model(
+        self,
+        mtype: Literal['ne', 'ene', 'eene'],
+        egrid: Array,
+        params: dict,
+        comps: bool,
+        cl: float | Array | None = None,
+    ) -> Array | dict:
+        pass
+
     @abstractmethod
     def pit(self) -> tuple:
         """Probability integral transform."""
@@ -191,7 +265,7 @@ class PlotData(ABC):
     @abstractmethod
     def residuals(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None,
         random_quantile: bool,
         mle: bool,
@@ -202,7 +276,7 @@ class PlotData(ABC):
     @abstractmethod
     def residuals_sim(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None,
         random_quantile: bool,
     ) -> Array | None:
@@ -212,7 +286,7 @@ class PlotData(ABC):
     @abstractmethod
     def residuals_ci(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         cl: float,
         seed: int | None,
         random_quantile: bool,
@@ -238,6 +312,10 @@ class MLEPlotData(PlotData):
     @property
     def boot(self) -> BootstrapResult:
         return self.result._boot
+
+    @property
+    def params_mle(self) -> dict[str, Array]:
+        return {k: v[0] for k, v in self.result._mle.items()}
 
     def get_model_mle(self, name: str) -> Array:
         return self.result._model_values[name]
@@ -272,6 +350,44 @@ class MLEPlotData(PlotData):
             axis=0,
         )
         return ci
+
+    def unfolded_model(
+        self,
+        mtype: Literal['ne', 'ene', 'eene'],
+        egrid: Array | None,
+        params: dict | None,
+        comps: bool,
+        cl: float | Array | None = None,
+    ) -> tuple[Array | dict, Array | dict | None]:
+        assert mtype in {'ne', 'ene', 'eene'}
+        if cl is not None:
+            cl = np.atleast_1d(cl).astype(float)
+            assert np.all(0.0 < cl) and np.all(cl < 1.0)
+        params = {} if params is None else dict(params)
+        comps = comps and self.has_comps
+
+        egrid = jnp.asarray(egrid, float)
+
+        params_mle = self.params_mle | params
+        model_mle = self._unfolded_model(mtype, egrid, params_mle, comps)
+
+        params_boot = self.params_dist
+        if cl is None or params_boot is None:
+            return model_mle, None
+        else:
+            n = [i.size for i in params_boot.values()][0]
+            if params:
+                params = {k: jnp.full(n, v) for k, v in params.items()}
+                params_boot = params_boot | params
+            model_boot = self._unfolded_model(mtype, egrid, params_boot, comps)
+            q = 0.5 + cl[:, None] * np.array([-0.5, 0.5])
+            if comps:
+                ci = {
+                    k: np.quantile(v, q, axis=0) for k, v in model_boot.items()
+                }
+            else:
+                ci = np.quantile(model_boot, q, axis=0)
+            return model_mle, ci
 
     @property
     def sign(self) -> dict[str, Array | None]:
@@ -372,16 +488,16 @@ class MLEPlotData(PlotData):
 
     def residuals(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None = None,
         random_quantile: bool = True,
         mle: bool = True,
     ) -> Array | tuple[Array, bool | Array, bool | Array]:
-        if rtype == 'deviance':
+        if rtype == 'rd':
             return self.deviance_residuals_mle()
-        elif rtype == 'pearson':
+        elif rtype == 'rp':
             return self.pearson_residuals_mle()
-        elif rtype == 'quantile':
+        elif rtype == 'rq':
             seed = self.seed if seed is None else int(seed)
             return self.quantile_residuals_mle(seed, random_quantile)
         else:
@@ -389,16 +505,16 @@ class MLEPlotData(PlotData):
 
     def residuals_sim(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None = None,
         random_quantile: bool = True,
     ) -> Array | None:
-        if self.boot is None or rtype == 'quantile':
+        if self.boot is None or rtype == 'rq':
             return None
 
-        if rtype == 'deviance':
+        if rtype == 'rd':
             r = self.deviance_residuals_boot()
-        elif rtype == 'pearson':
+        elif rtype == 'rp':
             r = self.pearson_residuals_boot()
         else:
             raise NotImplementedError(f'{rtype} residual')
@@ -407,13 +523,13 @@ class MLEPlotData(PlotData):
 
     def residuals_ci(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         cl: float = 0.683,
         seed: int | None = None,
         random_quantile: bool = True,
         with_sign: bool = False,
     ) -> Array | None:
-        if self.boot is None or rtype == 'quantile':
+        if self.boot is None or rtype == 'rq':
             return None
 
         assert 0 < cl < 1
@@ -543,6 +659,10 @@ class PosteriorPlotData(PlotData):
     _cached_method_with_check = _cached_method_with_check
 
     @property
+    def params(self) -> dict[str, Array]:
+        return self.result._params_dist
+
+    @property
     def ppc(self) -> PPCResult | None:
         return self.result._ppc
 
@@ -581,6 +701,39 @@ class PosteriorPlotData(PlotData):
             q=0.5 + cl * np.array([-0.5, 0.5]),
             axis=0,
         )
+
+    def unfolded_model(
+        self,
+        mtype: Literal['ne', 'ene', 'eene'],
+        egrid: Array | None,
+        params: dict | None,
+        comps: bool,
+        cl: float | Array | None = None,
+    ) -> tuple[Array | dict, Array | dict | None]:
+        assert mtype in {'ne', 'ene', 'eene'}
+        if cl is not None:
+            cl = np.atleast_1d(cl).astype(float)
+            assert np.all(0.0 < cl) and np.all(cl < 1.0)
+        params = {} if params is None else dict(params)
+        comps = comps and self.has_comps
+        egrid = jnp.asarray(egrid, float)
+        post_params = self.params
+        n = [i.size for i in post_params.values()][0]
+        params = {k: jnp.full(n, v) for k, v in params.items()}
+        post_params = post_params | params
+        models = self._unfolded_model(mtype, egrid, post_params, comps)
+        if comps:
+            model = {k: np.median(v, axis=0) for k, v in models.items()}
+            if cl is None:
+                return model, None
+            q = 0.5 + cl[:, None] * np.array([-0.5, 0.5])
+            ci = {k: np.quantile(v, q, axis=0) for k, v in models.items()}
+            return model, ci
+        else:
+            model = np.median(models, axis=0)
+            q = 0.5 + cl[:, None] * np.array([-0.5, 0.5])
+            ci = np.quantile(models, q, axis=0)
+        return model, ci
 
     @property
     def sign(self) -> dict[str, Array | None]:
@@ -667,32 +820,33 @@ class PosteriorPlotData(PlotData):
 
     def residuals(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None = None,
         random_quantile: bool = True,
         mle: bool = False,
     ) -> Array | tuple[Array, bool | Array, bool | Array]:
-        assert rtype in {'deviance', 'pearson', 'quantile'}
+        assert rtype in {'rd', 'rp', 'rq'}
 
-        if rtype == 'quantile':
+        if rtype == 'rq':
             seed = self.seed if seed is None else int(seed)
             return self.quantile_residuals(seed, random_quantile)
         else:
             point_type = 'mle' if mle else 'median'
-            return getattr(self, f'{rtype}_residuals_{point_type}')()
+            rname = 'deviance' if rtype == 'rd' else 'pearson'
+            return getattr(self, f'{rname}_residuals_{point_type}')()
 
     def residuals_sim(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         seed: int | None = None,
         random_quantile: bool = True,
     ) -> Array | None:
-        if self.ppc is None or rtype == 'quantile':
+        if self.ppc is None or rtype == 'rq':
             return None
 
-        if rtype == 'deviance':
+        if rtype == 'rd':
             r = self.deviance_residuals_ppc()
-        elif rtype == 'pearson':
+        elif rtype == 'rp':
             r = self.pearson_residuals_ppc()
         else:
             raise NotImplementedError(f'{rtype} residual')
@@ -700,13 +854,13 @@ class PosteriorPlotData(PlotData):
 
     def residuals_ci(
         self,
-        rtype: Literal['deviance', 'pearson', 'quantile'],
+        rtype: Literal['rd', 'rp', 'rq'],
         cl: float = 0.683,
         seed: int | None = None,
         random_quantile: bool = True,
         with_sign: bool = False,
     ) -> Array | None:
-        if self.ppc is None or rtype == 'quantile':
+        if self.ppc is None or rtype == 'rq':
             return None
 
         assert 0 < cl < 1

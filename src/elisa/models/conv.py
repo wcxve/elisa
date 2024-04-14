@@ -240,7 +240,7 @@ class EnFlux(NormConvolution):
 class RedShift(ConvolutionComponent):
     r"""Redshifts a model.
 
-    It shifts energies by 1 / (1 + :math:`z`) and then calculates the model.
+    It shifts energies by factor of :math:`1+z` and then calculates the model.
 
     Parameters
     ----------

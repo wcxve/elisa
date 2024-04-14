@@ -111,13 +111,15 @@ class Model(ABC):
         name = self._id_to_label(model_info.cid_to_name, 'name')
 
         # model parameter id
-        params_id = [
-            pid
-            for c in self._comps
-            for p in c.param_names
-            for pid in c[p]._nodes_id
-            if pid in model_info.sample
-        ]
+        params_id = []
+        fixed_id = []
+        for c in self._comps:
+            for p in c.param_names:
+                for pid in c[p]._nodes_id:
+                    if pid in model_info.sample:
+                        params_id.append(pid)
+                    elif pid in model_info.fixed:
+                        fixed_id.append(pid)
 
         # compiled model evaluation function
         fn = self._compile_model_fn(model_info)
@@ -127,7 +129,7 @@ class Model(ABC):
         mtype = self.type
 
         return CompiledModel(
-            name, params_id, fn, additive_fn, mtype, model_info
+            name, params_id, fixed_id, fn, additive_fn, mtype, model_info
         )
 
     @property
@@ -215,7 +217,10 @@ class Model(ABC):
             return None
 
         fns = [comp._compile_model_fn(model_info) for comp in additive_comps]
-        comps_labels = [(comp._name, comp._latex) for comp in additive_comps]
+        comps_labels = [
+            comp._id_to_label(model_info.cid_to_latex, 'latex')
+            for comp in additive_comps
+        ]
 
         @jax.jit
         def _fn(egrid: JAXArray, params: ParamIDValMapping) -> JAXArray:
@@ -282,6 +287,7 @@ class CompiledModel:
         self,
         name: str,
         params_id: Sequence[ParamID],
+        fixed_id: Sequence[ParamID],
         fn: ModelCompiledFn,
         additive_fn: AdditiveFn | None,
         mtype: Literal['add', 'mul'],
@@ -296,10 +302,14 @@ class CompiledModel:
         self._value_sequence_to_params: Callable[
             [Sequence[JAXFloat]], ParamIDValMapping
         ] = jax.jit(lambda sequence: dict(zip(params_id, sequence)))
+        fixed_name_to_pid = {model_info.name[pid]: pid for pid in fixed_id}
+        pname_pid_all = pname_to_pid | fixed_name_to_pid
         self._value_mapping_to_params: Callable[
             [ParamNameValMapping], ParamIDValMapping
         ] = jax.jit(
-            lambda mapping: {v: mapping[k] for k, v in pname_to_pid.items()}
+            lambda mapping: {
+                v: mapping[k] for k, v in pname_pid_all.items() if k in mapping
+            }
         )
         self._fn = fn
         self._additive_fn = additive_fn
@@ -317,6 +327,11 @@ class CompiledModel:
     def type(self) -> Literal['add', 'mul']:
         """Model type."""
         return self._type
+
+    @property
+    def has_comps(self) -> bool:
+        """Whether the model has additive subcomponents."""
+        return self._additive_fn is not None
 
     def _prepare_eval(self, params: ArrayLike | Sequence | Mapping | None):
         """Check if `params` is valid for the model."""
@@ -465,8 +480,7 @@ class CompiledModel:
         keV_to_erg = 1.602176634e-9
         egrid = jnp.asarray(egrid, float)
         emid = jnp.sqrt(egrid[:-1] * egrid[1:])
-        de = egrid[1:] - egrid[:-1]
-        factor = keV_to_erg * emid / de
+        factor = keV_to_erg * emid
 
         ne = self.ne(egrid, params, comps)
 
@@ -509,8 +523,7 @@ class CompiledModel:
         keV_to_erg = 1.602176634e-9
         egrid = jnp.asarray(egrid, float)
         e2 = egrid[:-1] * egrid[1:]
-        de = egrid[1:] - egrid[:-1]
-        factor = keV_to_erg * e2 / de
+        factor = keV_to_erg * e2
 
         ne = self.ne(egrid, params, comps)
 
@@ -1707,6 +1720,7 @@ def get_model_info(
         pid_to_comp_latex=comp_latex_mapping,
         cid_to_params=cid_to_params,
         cid_to_name=cid_to_name,
+        cid_to_latex=cid_to_latex,
         integrate=integrate,
         setup=setup,
     )
@@ -1750,6 +1764,9 @@ class ModelInfo(NamedTuple):
 
     cid_to_name: dict[CompID, CompName]
     """The mapping of component id to component name."""
+
+    cid_to_latex: dict[CompID, str]
+    """The mapping of component id to component LaTeX format."""
 
     cid_to_params: dict[CompID, Callable[[ParamIDValMapping], NameValMapping]]
     """The mapping of component id to parameter value getter function."""
