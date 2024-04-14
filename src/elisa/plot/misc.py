@@ -14,6 +14,7 @@ from elisa.plot.util import (
     get_colors,
     get_contour_colors,
 )
+from elisa.util.misc import report_interval
 
 
 def plot_corner(
@@ -63,6 +64,8 @@ def plot_corner(
     else:
         params = list(params)
 
+    posterior = posterior[params]
+
     all_params = posterior.data_vars.keys()
     not_found = set(params) - set(all_params)
     if not_found:
@@ -75,6 +78,23 @@ def plot_corner(
     else:
         titles = list(titles)
     assert len(titles) == len(params)
+
+    if labels is None:
+        labels = params
+    elif isinstance(labels, str):
+        labels = [labels]
+    else:
+        labels = list(labels)
+    assert len(labels) == len(params)
+
+    median = posterior.median()
+    quantile = posterior.quantile([0.15865, 0.84135])
+    median = {p: float(median[p].values) for p in params}
+    quantile = {p: quantile[p].values.tolist() for p in params}
+    titles = [
+        f'{t} = {report_interval(median[p], *quantile[p])}'
+        for t, p in zip(titles, params)
+    ]
 
     if levels is None:
         levels = [
@@ -111,6 +131,7 @@ def plot_corner(
         titles=titles,
         labels=labels,
         show_titles=True,
+        title_fmt=None,
         quantiles=[0.15865, 0.5, 0.84135],
         use_math_text=True,
         labelpad=-0.08,

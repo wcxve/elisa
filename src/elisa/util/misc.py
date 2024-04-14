@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 from functools import reduce
 from typing import TYPE_CHECKING
@@ -29,6 +30,48 @@ _SUBSCRIPT = dict(
         'ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢₐᵦ𝒸𝒹ₑ𝒻𝓰ₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ𝓌ₓᵧ𝓏₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎',
     )
 )
+
+
+def report_interval(
+    mid: float,
+    vmin: float,
+    vmax: float,
+    precision: int = 2,
+    min_exponent: int = 1,
+    max_exponent: int = 2,
+) -> str:
+    """Report an interval."""
+    mid = float(mid)
+    vmin = float(vmin)
+    vmax = float(vmax)
+    p = int(precision)
+    min_exponent = int(min_exponent)
+    max_exponent = int(max_exponent)
+
+    assert vmin <= mid <= vmax
+    assert precision > 0
+    assert min_exponent > 0
+    assert max_exponent > 0
+
+    lower = vmin - mid
+    upper = vmax - mid
+    exp = math.log10(mid)
+    if exp <= -min_exponent or exp >= max_exponent:
+        exp = math.floor(exp)
+        str_mid = f'{mid:.{p}e}'.split('e')[0]
+        str_lower = f'{lower / 10 ** exp:+.{p}e}'.split('e')[0]
+        str_upper = f'{upper / 10 ** exp:+.{p}e}'.split('e')[0]
+        return (
+            f'${str_mid}'
+            f'_{{{str_lower}}}'
+            f'^{{{str_upper}}}'
+            rf' \times 10^{{{exp}}}$'
+        )
+    else:
+        str_mid = f'{mid:.{p}f}'
+        str_lower = f'{lower:+.{p}f}'
+        str_upper = f'{upper:+.{p}f}'
+        return f'${str_mid}' f'_{{{str_lower}}}' f'^{{{str_upper}}}$'
 
 
 def add_suffix(
