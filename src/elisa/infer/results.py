@@ -324,7 +324,7 @@ class MLEResult(FitResult):
         energy: bool,
         comps: bool,
         params: dict[str, JAXArray] | None,
-    ):
+    ) -> dict[str, Q | float]:
         """Calculate flux."""
         if energy:
             unit = u.erg / u.cm**2 / u.s
@@ -346,17 +346,19 @@ class MLEResult(FitResult):
         cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
         q = 0.5 + np.array([-0.5, 0.5]) * cl_
         ci_fn = lambda x: np.quantile(x, q)
-        ci = jax.tree_map(ci_fn, boot_flux)
-        error = jax.tree_map(lambda x, y: (x - y[0], x - y[1]), mle_flux, ci)
+        interval = jax.tree_map(ci_fn, boot_flux)
+        error = jax.tree_map(
+            lambda x, y: (x - y[0], x - y[1]), mle_flux, interval
+        )
         add_unit = lambda x: x * unit
-        return [
-            jax.tree_map(add_unit, mle_flux),
-            jax.tree_map(add_unit, ci),
-            jax.tree_map(add_unit, error),
-            cl_,
-            jax.tree_map(add_unit, boot_flux),
-            n,
-        ]
+        return {
+            'mle': jax.tree_map(add_unit, mle_flux),
+            'interval': jax.tree_map(add_unit, interval),
+            'error': jax.tree_map(add_unit, error),
+            'cl': cl_,
+            'dist': jax.tree_map(add_unit, boot_flux),
+            'n': n,
+        }
 
     def flux(
         self,
@@ -364,8 +366,8 @@ class MLEResult(FitResult):
         emax: float | int,
         cl: float | int = 1,
         energy: bool = True,
-        comps: bool = False,
         ngrid: int = 1000,
+        comps: bool = False,
         log: bool = True,
         params: dict[str, float | int] | None = None,
     ) -> MLEFlux:
@@ -392,14 +394,14 @@ class MLEResult(FitResult):
             When True, calculate energy flux in units of erg cm⁻² s⁻¹;
             otherwise calculate photon flux in units of cm⁻² s⁻¹.
             The default is True.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
 
         Other Parameters
         ----------------
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
         log : bool, optional
             Whether to use logarithmically regular energy grid. The default is
             True.
@@ -421,18 +423,16 @@ class MLEResult(FitResult):
         else:
             egrid = jnp.linspace(emin, emax, ngrid)
 
-        mle_flux, ci, error, cl_, dist, n = self._calc_flux(
-            egrid, cl, energy, comps, params
-        )
+        flux = self._calc_flux(egrid, cl, energy, comps, params)
 
         return MLEFlux(
-            mle=mle_flux,
-            interval=ci,
-            error=error,
-            cl=cl_,
-            dist=dist,
-            energy=energy,
-            n=n,
+            mle=flux['mle'],
+            interval=flux['interval'],
+            error=flux['error'],
+            cl=flux['cl'],
+            dist=flux['dist'],
+            energy=bool(energy),
+            n=flux['n'],
         )
 
     def lumin(
@@ -441,8 +441,8 @@ class MLEResult(FitResult):
         emax_rest: float | int,
         z: float | int,
         cl: float | int = 1,
-        comps: bool = False,
         ngrid: int = 1000,
+        comps: bool = False,
         log: bool = True,
         params: dict[str, float | int] | None = None,
         cosmo: LambdaCDM = Planck18,
@@ -468,14 +468,14 @@ class MLEResult(FitResult):
             interpreted as the number of standard deviations. For example,
             ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
             The default is 1.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
 
         Other Parameters
         ----------------
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
         log : bool, optional
             Whether to use logarithmically regular energy grid. The default is
             True.
@@ -495,20 +495,18 @@ class MLEResult(FitResult):
         else:
             egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
 
-        mle_flux, ci, error, cl_, dist, n = self._calc_flux(
-            egrid, cl, True, comps, params
-        )
+        flux = self._calc_flux(egrid, cl, True, comps, params)
         unit = u.erg / u.s
         factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
         to_lumin = lambda x: (x * factor).to(unit)
 
         return MLELumin(
-            mle=jax.tree_map(to_lumin, mle_flux),
-            interval=jax.tree_map(to_lumin, ci),
-            error=jax.tree_map(to_lumin, error),
-            cl=cl_,
-            dist=jax.tree_map(to_lumin, dist),
-            n=n,
+            mle=jax.tree_map(to_lumin, flux['mle']),
+            interval=jax.tree_map(to_lumin, flux['interval']),
+            error=jax.tree_map(to_lumin, flux['error']),
+            cl=flux['cl'],
+            dist=jax.tree_map(to_lumin, flux['dist']),
+            n=flux['n'],
             z=float(z),
             cosmo=cosmo,
         )
@@ -520,8 +518,8 @@ class MLEResult(FitResult):
         z: float | int,
         duration: float | int,
         cl: float | int = 1,
-        comps: bool = False,
         ngrid: int = 1000,
+        comps: bool = False,
         log: bool = True,
         params: dict[str, float | int] | None = None,
         cosmo: LambdaCDM = Planck18,
@@ -549,14 +547,14 @@ class MLEResult(FitResult):
             interpreted as the number of standard deviations. For example,
             ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
             The default is 1.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
 
         Other Parameters
         ----------------
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
         log : bool, optional
             Whether to use logarithmically regular energy grid. The default is
             True.
@@ -572,7 +570,7 @@ class MLEResult(FitResult):
             The isotropic emission energy of the model.
         """
         lumin = self.lumin(
-            emin_rest, emax_rest, z, cl, comps, ngrid, log, params, cosmo
+            emin_rest, emax_rest, z, cl, ngrid, comps, log, params, cosmo
         )
         factor = duration / (1 + z) * u.s
         to_eiso = lambda x: (x * factor).to(u.erg)
@@ -897,7 +895,7 @@ class PosteriorResult(FitResult):
         energy: bool,
         comps: bool,
         params: dict[str, JAXArray] | None,
-    ):
+    ) -> dict[str, Q | float]:
         if energy:
             unit = u.erg / u.cm**2 / u.s
         else:
@@ -920,17 +918,19 @@ class PosteriorResult(FitResult):
             q = 0.5 + np.array([-0.5, 0.5]) * cl_
             ci_fn = lambda x: np.quantile(x, q)
         median = jax.tree_map(lambda x: np.median(x), flux)
-        ci = jax.tree_map(ci_fn, flux)
-        error = jax.tree_map(lambda x, y: (x - y[0], x - y[1]), median, ci)
+        interval = jax.tree_map(ci_fn, flux)
+        error = jax.tree_map(
+            lambda x, y: (x - y[0], x - y[1]), median, interval
+        )
         add_unit = lambda x: x * unit
-        return [
-            jax.tree_map(add_unit, median),
-            jax.tree_map(add_unit, ci),
-            jax.tree_map(add_unit, error),
-            cl_,
-            jax.tree_map(add_unit, flux),
-            n,
-        ]
+        return {
+            'median': jax.tree_map(add_unit, median),
+            'interval': jax.tree_map(add_unit, interval),
+            'error': jax.tree_map(add_unit, error),
+            'cl': cl_,
+            'dist': jax.tree_map(add_unit, flux),
+            'n': n,
+        }
 
     def flux(
         self,
@@ -938,9 +938,9 @@ class PosteriorResult(FitResult):
         emax: float | int,
         cl: float | int = 1,
         energy: bool = True,
+        ngrid: int = 1000,
         hdi: bool = False,
         comps: bool = False,
-        ngrid: int = 1000,
         log: bool = True,
         params: dict[str, float | int] | None = None,
     ) -> PosteriorFlux:
@@ -967,6 +967,8 @@ class PosteriorResult(FitResult):
             When True, calculate energy flux in units of erg cm⁻² s⁻¹;
             otherwise calculate photon flux in units of cm⁻² s⁻¹.
             The default is True.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
 
         Other Parameters
         ----------------
@@ -976,8 +978,6 @@ class PosteriorResult(FitResult):
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
         log : bool, optional
             Whether to use logarithmically regular energy grid. The default is
             True.
@@ -994,18 +994,16 @@ class PosteriorResult(FitResult):
         else:
             egrid = jnp.linspace(emin, emax, ngrid)
 
-        median, ci, error, cl_, dist, n = self._calc_flux(
-            egrid, cl, hdi, energy, comps, params
-        )
+        flux = self._calc_flux(egrid, cl, hdi, energy, comps, params)
 
         return PosteriorFlux(
-            median=median,
-            interval=ci,
-            error=error,
-            cl=cl_,
-            dist=dist,
-            energy=energy,
-            n=n,
+            median=flux['median'],
+            interval=flux['interval'],
+            error=flux['error'],
+            cl=flux['cl'],
+            dist=flux['dist'],
+            energy=bool(energy),
+            n=flux['n'],
         )
 
     def lumin(
@@ -1014,9 +1012,9 @@ class PosteriorResult(FitResult):
         emax_rest: float | int,
         z: float | int,
         cl: float | int = 1,
+        ngrid: int = 1000,
         hdi: bool = False,
         comps: bool = False,
-        ngrid: int = 1000,
         log: bool = True,
         params: dict[str, float | int] | None = None,
         cosmo: LambdaCDM = Planck18,
@@ -1042,6 +1040,8 @@ class PosteriorResult(FitResult):
             If `cl` >= 1, it is interpreted as the number of standard
             deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
             credible interval. The default is 1.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
 
         Other Parameters
         ----------------
@@ -1051,8 +1051,6 @@ class PosteriorResult(FitResult):
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
         log : bool, optional
             Whether to use logarithmically regular energy grid. The default is
             True.
@@ -1072,20 +1070,19 @@ class PosteriorResult(FitResult):
         else:
             egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
 
-        median, ci, error, cl_, dist, n = self._calc_flux(
-            egrid, cl, hdi, True, comps, params
-        )
+        z = float(z)
+        flux = self._calc_flux(egrid, cl, hdi, True, comps, params)
         unit = u.erg / u.s
         factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
         to_lumin = lambda x: (x * factor).to(unit)
         return PosteriorLumin(
-            median=jax.tree_map(to_lumin, median),
-            interval=jax.tree_map(to_lumin, ci),
-            error=jax.tree_map(to_lumin, error),
-            cl=cl_,
-            dist=jax.tree_map(to_lumin, dist),
-            n=n,
-            z=float(z),
+            median=jax.tree_map(to_lumin, flux['median']),
+            interval=jax.tree_map(to_lumin, flux['interval']),
+            error=jax.tree_map(to_lumin, flux['error']),
+            cl=flux['cl'],
+            dist=jax.tree_map(to_lumin, flux['dist']),
+            n=flux['n'],
+            z=z,
             cosmo=cosmo,
         )
 
@@ -1096,9 +1093,9 @@ class PosteriorResult(FitResult):
         z: float | int,
         duration: float | int,
         cl: float | int = 1,
+        ngrid: int = 1000,
         hdi: bool = False,
         comps: bool = False,
-        ngrid: int = 1000,
         log: bool = True,
         params: dict[str, float | int] | None = None,
         cosmo: LambdaCDM = Planck18,
@@ -1121,6 +1118,8 @@ class PosteriorResult(FitResult):
             If `cl` >= 1, it is interpreted as the number of standard
             deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
             credible interval. The default is 1.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
 
         Other Parameters
         ----------------
@@ -1130,8 +1129,6 @@ class PosteriorResult(FitResult):
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
         log : bool, optional
             Whether to use logarithmically regular energy grid. The default is
             True.
@@ -1147,7 +1144,7 @@ class PosteriorResult(FitResult):
             The isotropic emission energy of the model.
         """
         lumin = self.lumin(
-            emin_rest, emax_rest, z, cl, hdi, comps, ngrid, log, params, cosmo
+            emin_rest, emax_rest, z, cl, ngrid, hdi, comps, log, params, cosmo
         )
         factor = duration / (1 + z) * u.s
         to_eiso = lambda x: (x * factor).to(u.erg)
