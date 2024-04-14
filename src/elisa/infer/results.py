@@ -105,7 +105,7 @@ class FitResult(ABC):
         pass
 
     def summary(self, file=None) -> None:
-        """Print the summary of fitting setup.
+        """Print the summary of fit result.
 
         Parameters
         ----------
@@ -195,34 +195,63 @@ class MLEResult(FitResult):
         self._boot: BootstrapResult | None = None
 
     def __repr__(self):
-        tab = make_pretty_table(
-            ['Parameter', 'Value', 'Error'],
-            [(k, f'{v[0]:.4g}', f'{v[1]:.4g}') for k, v in self.mle.items()],
+        tabs = self._tabs()
+        return (
+            f'Parameters\n{tabs["params"]}\n\n'
+            f'Fit Statistics\n{tabs["stat"]}\n\n'
+            f'Information Criterion\n{tabs["ic"]}\n\n'
+            f'Fit Status\n{self.status}\n'
         )
 
+    def _repr_html_(self):
+        """The repr in Jupyter notebook environment."""
+        tabs = self._tabs()
+        params_tab = tabs['params'].get_html_string(format=True)
+        stat_tab = tabs['stat'].get_html_string(format=True)
+        ic_tab = tabs['ic'].get_html_string(format=True)
+        status_tab = self.status._repr_html_()
+        return (
+            '<details open><summary><b>MLE Result</b></summary>'
+            '<details open style="padding-left: 1em">'
+            f'<summary><b>Parameters</b></summary>{params_tab}</details>'
+            '<details open style="padding-left: 1em">'
+            f'<summary><b>Fit Statistics</b></summary>{stat_tab}</details>'
+            f'<details open style="padding-left: 1em">'
+            '<summary><b>Information Criterion</b></summary>'
+            f'{ic_tab}</details>'
+            '<details style="padding-left: 1em">'
+            f'<summary><b>Fit Status</b></summary>{status_tab}</details>'
+            '</details>'
+        )
+
+    def _tabs(self):
+        params_tab = make_pretty_table(
+            ['Parameter', 'MLE', 'Error'],
+            [(k, f'{v[0]:.4g}', f'{v[1]:.4g}') for k, v in self.mle.items()],
+        )
         stat_type = self._helper.statistic
         deviance = self.deviance
         ndata = self.ndata
-        stat = [
-            f'{i}: {stat_type[i]}={deviance[i]:.2f}, ndata={ndata[i]}'
+        rows = [
+            [i, f'{stat_type[i]}', f'{deviance[i]:.2f}', ndata[i]]
             for i in self.ndata.keys()
             if i != 'total'
         ]
-        total_stat = deviance['total']
-        dof = self.dof
-        stat += [
-            f'Total: stat/dof={total_stat/dof:.2f} ({total_stat:.2f}/{dof})'
-        ]
-        s = 'MLE:\n' + tab.get_string() + '\n'
-        s += '\nStatistic:\n' + '\n'.join(stat) + '\n'
-        s += f'AIC: {self.aic:.2f}\n'
-        s += f'BIC: {self.bic:.2f}\n'
-        s += f'\nFit Status:\n{self.status}'
+        rows.append(
+            [
+                'Total',
+                'stat/dof',
+                f'{deviance["total"]:.2f}/{self.dof}',
+                ndata['total'],
+            ]
+        )
+        names = ['Data', 'Statistic', 'Value', 'Channels']
+        stat_tab = make_pretty_table(names, rows)
 
-        return s
-
-    def _repr_html_(self):
-        return self.__repr__().replace('\n', '<br>')
+        rows = [['AIC', f'{self.aic:.2f}'], ['BIC', f'{self.bic:.2f}']]
+        names = ['Method', 'Value']
+        ic_tab = make_pretty_table(names, rows)
+        return {'params': params_tab, 'stat': stat_tab, 'ic': ic_tab}
 
     @property
     def plot(self) -> MLEResultPlotter:
@@ -784,7 +813,7 @@ class PosteriorResult(FitResult):
 
     _plotter: PosteriorResultPlotter | None = None
     _idata: az.InferenceData
-    _mle: dict | None = None
+    _mle_result: dict | None = None
     _ppc: PPCResult | None = None
     _loo: az.stats.stats_utils.ELPDData | None = None
     _waic: az.stats.stats_utils.ELPDData | None = None
@@ -792,6 +821,7 @@ class PosteriorResult(FitResult):
     _divergence: int | None = None
     _pit: dict[str, tuple] | None = None
     _params: dict[str, JAXArray] | None = None
+    _info_tabs: dict | None = None
 
     def __init__(
         self, sampler: MCMC | NestedSampler, helper: Helper, fit: BayesFit
@@ -807,10 +837,139 @@ class PosteriorResult(FitResult):
             self._init_from_jaxns(sampler)
 
     def __repr__(self):
-        super().__repr__()
+        tabs = self._tabs()
+        return (
+            f'Parameters\n{tabs["params"]}\n\n'
+            f'Fit Statistics\n{tabs["stat"]}\n\n'
+            f'Information Criterion\n{tabs["ic"]}\n\n'
+            f'Pareto k diagnostic\n{tabs["k"]}\n'
+        )
 
     def _repr_html_(self):
-        return self.__repr__()
+        """The repr in Jupyter notebook environment."""
+        tabs = self._tabs()
+        params_tab = tabs['params'].get_html_string(format=True)
+        stat_tab = tabs['stat'].get_html_string(format=True)
+        ic_tab = tabs['ic'].get_html_string(format=True)
+        k_tab = tabs['k'].get_html_string(format=True)
+        return (
+            '<details open><summary><b>Posterior Result</b></summary>'
+            '<details open style="padding-left: 1em">'
+            f'<summary><b>Parameters</b></summary>{params_tab}</details>'
+            '<details open style="padding-left: 1em">'
+            f'<summary><b>Statistics</b></summary>{stat_tab}</details>'
+            '<details open style="padding-left: 1em">'
+            '<summary><b>Information Criterion</b></summary>'
+            f'{ic_tab}</details>'
+            '<details open style="padding-left: 1em">'
+            f'<summary><b>Pareto k diagnostic</b></summary>{k_tab}</details>'
+            '</details>'
+        )
+
+    def _tabs(self):
+        if self._info_tabs is not None:
+            return self._info_tabs
+        params_name = self._helper.params_names['free']
+        params = self._idata['posterior'][params_name]
+        mean = params.mean()
+        std = params.std(ddof=1)
+        median = params.median()
+        ci = params.quantile(0.5 + 0.683 * np.array([-0.5, 0.5])) - median
+        ess = self.ess
+        rhat = self.rhat
+        rows = [
+            [
+                k,
+                f'{mean[k]:.4g}',
+                f'{std[k]:.4g}',
+                f'{median[k]:.4g}',
+                f'[{ci[k][0]:.4g}, {ci[k][1]:.4g}]',
+                f'{ess[k]}',
+                f'{rhat[k]:.2f}',
+            ]
+            for k in params_name
+        ]
+        names = [
+            'Parameter',
+            'Mean',
+            'Std',
+            'Median',
+            '68.3% Quantile CI',
+            'ESS',
+            'Rhat',
+        ]
+        params_tab = make_pretty_table(names, rows)
+
+        stat_type = self._helper.statistic
+        stat_keys = [
+            f'{i}_total' if i != 'total' else i for i in self.ndata.keys()
+        ]
+        deviance = -2.0 * self._idata['log_likelihood'][stat_keys]
+        deviance_mean = deviance.mean()
+        deviance_median = deviance.median()
+        rows = [
+            [
+                i,
+                stat_type[i],
+                f'{deviance_mean[f"{i}_total"]:.2f}',
+                f'{deviance_median[f"{i}_total"]:.2f}',
+                j,
+            ]
+            for i, j in self.ndata.items()
+            if i != 'total'
+        ]
+        rows.append(
+            [
+                'Total',
+                'stat/dof',
+                f'{deviance_mean["total"]:.2f}/{self.dof}',
+                f'{deviance_median["total"]:.2f}/{self.dof}',
+                self.ndata['total'],
+            ]
+        )
+        names = [
+            'Data',
+            'Statistic',
+            'Mean',
+            'Median',
+            'Channels',
+        ]
+        stat_tab = make_pretty_table(names, rows)
+
+        loo = self.loo
+        waic = self.waic
+        rows = [
+            [
+                'LOOIC',
+                f'{loo.elpd_loo:.2f} ± {loo.se:.2f}',
+                f'{loo.p_loo:.2f}',
+            ],
+            [
+                'WAIC',
+                f'{waic.elpd_waic:.2f} ± {waic.se:.2f}',
+                f'{waic.p_waic:.2f}',
+            ],
+        ]
+        names = ['Method', 'ELPD', 'p']
+        ic_tab = make_pretty_table(names, rows)
+
+        ranges = ['(-Inf, 0.5]', '(0.5, 0.7]', '(0.7, 1]', '(1, Inf)']
+        flags = ['good', 'ok', 'bad', 'very bad']
+        bins = np.asarray([-np.inf, 0.5, 0.7, 1, np.inf])
+        counts, *_ = np.histogram(loo.pareto_k.values, bins)
+        pct = counts / np.sum(counts) * 100
+        pct = [f'{i:.1f}%' for i in pct]
+        rows = list(zip(ranges, flags, counts, pct))
+        names = ['Range', 'Flag', 'Count', 'Pct.']
+        k_tab = make_pretty_table(names, rows)
+
+        self._info_tabs = {
+            'params': params_tab,
+            'stat': stat_tab,
+            'ic': ic_tab,
+            'k': k_tab,
+        }
+        return self._info_tabs
 
     @property
     def plot(self) -> PosteriorResultPlotter:
@@ -1184,36 +1343,6 @@ class PosteriorResult(FitResult):
         if self._ppc and self._ppc.n == n and self._ppc.seed == seed:
             return
 
-        if self._mle is None:
-            self._mle = {}
-            helper = self._helper
-
-            # MLE information of the model
-            free_params = helper.params_names['free']
-            mle_idx = self._idata['log_likelihood']['total'].argmax(...)
-            init = self._idata['posterior'][free_params].sel(**mle_idx)
-            init = {k: v.values for k, v in init.data_vars.items()}
-            init = helper.constr_dic_to_unconstr_arr(init)
-            mle_unconstr = self._fit._optimize_lm(init, throw=False)[0]
-
-            # MLE of model params in constrained space
-            mle, cov = jax.device_get(helper.get_mle(mle_unconstr))
-            err = np.sqrt(np.diagonal(cov))
-            params_names = helper.params_names['all']
-            self._mle['params'] = dict(zip(params_names, zip(mle, err)))
-
-            sites = jax.device_get(jax.jit(helper.get_sites)(mle_unconstr))
-
-            # model deviance at MLE
-            loglike = sites['loglike']
-            # drop unnecessary terms
-            loglike.pop('data')
-            loglike.pop('channels')
-            self._mle['deviance'] = jax.tree_map(lambda x: -2.0 * x, loglike)
-
-            # model values at MLE
-            self._mle['models'] = sites['models']
-
         helper = self._helper
         free_params = helper.params_names['free']
         n = int(n)
@@ -1266,6 +1395,52 @@ class PosteriorResult(FitResult):
         p_value = self._ppc.p_value
         p_value = p_value['group'] | {'total': p_value['total']}
         return {k: float(p_value[k]) for k in self.ndata.keys()}
+
+    @property
+    def _mle(self):
+        """MLE result."""
+        if self._mle_result is None:
+            mle_result = {}
+            helper = self._helper
+
+            # MLE information of the model
+            free_params = helper.params_names['free']
+            mle_idx = self._idata['log_likelihood']['total'].argmax(...)
+            init = self._idata['posterior'][free_params].sel(**mle_idx)
+            init = {k: v.values for k, v in init.data_vars.items()}
+            init = helper.constr_dic_to_unconstr_arr(init)
+            mle_unconstr = self._fit._optimize_lm(init, throw=False)[0]
+
+            # MLE of model params in constrained space
+            mle, cov = jax.device_get(helper.get_mle(mle_unconstr))
+            err = np.sqrt(np.diagonal(cov))
+            params_names = helper.params_names['all']
+            mle_result['params'] = dict(zip(params_names, zip(mle, err)))
+
+            sites = jax.device_get(jax.jit(helper.get_sites)(mle_unconstr))
+
+            # model deviance at MLE
+            loglike = sites['loglike']
+            # drop unnecessary terms
+            loglike.pop('data')
+            loglike.pop('channels')
+            mle_result['deviance'] = jax.tree_map(lambda x: -2.0 * x, loglike)
+
+            # model values at MLE
+            mle_result['models'] = sites['models']
+
+            self._mle_result = mle_result
+        return self._mle_result
+
+    @property
+    def mle(self) -> dict[str, tuple[float, float]]:
+        """MLE parameters."""
+        return dict(self._mle['params'])
+
+    @property
+    def idata(self) -> az.InferenceData:
+        """ArviZ InferenceData."""
+        return self._idata
 
     @property
     def _params_dist(self) -> dict[str, JAXArray]:
