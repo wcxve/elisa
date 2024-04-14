@@ -957,8 +957,7 @@ class PosteriorResult(FitResult):
         flags = ['good', 'ok', 'bad', 'very bad']
         bins = np.asarray([-np.inf, 0.5, 0.7, 1, np.inf])
         counts, *_ = np.histogram(loo.pareto_k.values, bins)
-        pct = counts / np.sum(counts) * 100
-        pct = [f'{i:.1f}%' for i in pct]
+        pct = [f'{i:.1%}' for i in counts / np.sum(counts)]
         rows = list(zip(ranges, flags, counts, pct))
         names = ['Range', 'Flag', 'Count', 'Pct.']
         k_tab = make_pretty_table(names, rows)
