@@ -1,34 +1,24 @@
 import jax.numpy as jnp
-import jax.random as random
-import numpy as np
-from jax import lax
-from numpyro.distributions import (
-    Distribution,
-    constraints,
-    Uniform
-)
+from numpyro.distributions import Uniform, constraints
 from numpyro.distributions.distribution import (
-    Distribution,
+    Transform,
     TransformedDistribution,
-    Transform
 )
 from numpyro.distributions.util import (
     promote_shapes,
-    validate_sample,
 )
+
 
 # # Bi-Symmetric log transformation
 # # https://iopscience.iop.org/article/10.1088/0957-0233/24/2/027001
-def log(x: jnp.float64,
-        c: jnp.float64=1/jnp.log(10)) -> jnp.float64:
-    '''transformation  x -> y'''
-    return jnp.sign(x) * jnp.log10( 1 + jnp.abs(x/c) )
+def log(x: jnp.float64, c: jnp.float64 = 1 / jnp.log(10)) -> jnp.float64:
+    """transformation  x -> y"""
+    return jnp.sign(x) * jnp.log10(1 + jnp.abs(x / c))
 
 
-def pow(y: jnp.float64, 
-        c: jnp.float64=1/jnp.log(10)) -> jnp.float64:
-    '''inverse transformation  y -> x'''
-    return jnp.sign(y) * c * ( -1 + jnp.power(10,jnp.abs(y)) )
+def pow(y: jnp.float64, c: jnp.float64 = 1 / jnp.log(10)) -> jnp.float64:
+    """inverse transformation  y -> x"""
+    return jnp.sign(y) * c * (-1 + jnp.power(10, jnp.abs(y)))
 
 
 class BiSymTransform(Transform):
@@ -44,7 +34,9 @@ class BiSymTransform(Transform):
         elif self.domain is constraints.real:
             return constraints.positive
         elif isinstance(self.domain, constraints.greater_than):
-            return constraints.greater_than(self.__call__(self.domain.lower_bound))
+            return constraints.greater_than(
+                self.__call__(self.domain.lower_bound)
+            )
         elif isinstance(self.domain, constraints.interval):
             return constraints.interval(
                 self.__call__(self.domain.lower_bound),
@@ -64,7 +56,7 @@ class BiSymTransform(Transform):
         return x
 
     def tree_flatten(self):
-        return (self.domain,), (("domain",), dict())
+        return (self.domain,), (('domain',), dict())
 
     def __eq__(self, other):
         if not isinstance(other, BiSymTransform):
@@ -73,21 +65,25 @@ class BiSymTransform(Transform):
 
 
 class BiSymLogUniform(TransformedDistribution):
-    '''
+    """
     the input should be transfor before input
 
     for example:
     import numpy as np
     import bslogu as bs
     from numpyro.distributions import LogUniform, Uniform
-    
+
     Uniform( low , high )
     LogUniform( np.log(low) , np.log(high) )
     BiSymLogUniform( bs.log(low) , bs.log(high) )
-    '''
-    arg_constraints = {"low": constraints.dependent, "high": constraints.dependent}
-    reparametrized_params = ["low", "high"]
-    pytree_data_fields = ("low", "high", "_support")
+    """
+
+    arg_constraints = {
+        'low': constraints.dependent,
+        'high': constraints.dependent,
+    }
+    reparametrized_params = ['low', 'high']
+    pytree_data_fields = ('low', 'high', '_support')
 
     def __init__(self, low, high, *, validate_args=None):
         base_dist = Uniform(log(low), log(high))
@@ -114,4 +110,3 @@ class BiSymLogUniform(TransformedDistribution):
 
     def cdf(self, x):
         return self.base_dist.cdf(log(x))
-
