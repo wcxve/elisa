@@ -543,7 +543,9 @@ class UniformParameter(DistParameter):
 
             if log:
                 if self._min < 0:
-                    self._dist = BiSymLogUniform(bs.log(self._min), bs.log(self._max))
+                    self._dist = BiSymLogUniform(
+                        bs.log(self._min), bs.log(self._max)
+                    )
                 else:
                     self._dist = LogUniform(self._min, self._max)
             else:
@@ -628,7 +630,9 @@ class UniformParameter(DistParameter):
         if min is not None or max is not None:
             if self.log:
                 if self._min < 0:
-                    self._dist = BiSymLogUniform(bs.log(self._min), bs.log(self._max))
+                    self._dist = BiSymLogUniform(
+                        bs.log(self._min), bs.log(self._max)
+                    )
                 else:
                     self._dist = LogUniform(self._min, self._max)
             else:
