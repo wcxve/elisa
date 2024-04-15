@@ -11,23 +11,25 @@ from numpyro.distributions.util import promote_shapes
 # # https://iopscience.iop.org/article/10.1088/0957-0233/24/2/027001
 @jax.jit
 def log(x, c=0.43429448190325176):
-    '''
+    """
     transformation  x -> y
     c default to 1/log(10)
-    '''
+    """
     import jax.numpy as jnp
-    c=1/jnp.log(10) if c is None else c
-    return jnp.sign(x) * jnp.log10( 1 + jnp.abs(x/c) )
+
+    c = 1 / jnp.log(10) if c is None else c
+    return jnp.sign(x) * jnp.log10(1 + jnp.abs(x / c))
+
 
 @jax.jit
 def pow(y, c=0.43429448190325176):
-    '''
+    """
     inverse transformation  y -> x
     c default to 1/log(10)
-    '''
+    """
     import jax.numpy as jnp
-    return jnp.sign(y) * c * ( -1 + jnp.power(10,jnp.abs(y)) )
 
+    return jnp.sign(y) * c * (-1 + jnp.power(10, jnp.abs(y)))
 
 
 class BiSymTransform(Transform):
