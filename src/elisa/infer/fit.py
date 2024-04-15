@@ -218,7 +218,7 @@ class Fit(ABC):
             f'<details open><summary><b>{self._tab_config[0]}</b></summary>'
             f'<br/>{self._tab_likelihood.get_html_string(format=True)}'
             f'<br/>{self._tab_params.get_html_string(format=True)}'
-            '</details><br/>'
+            '</details>'
         )
 
     def _make_info_table(self):
@@ -423,11 +423,11 @@ class MaxLikeFit(Fit):
         minuit.strategy = 0
         minuit.migrad(iterate=10)
 
-        # refine hessian matrix?
-        # minuit.hesse()
+        # refine hessian matrix
+        minuit.hesse()
 
-        # for accuracy of confidence interval calculation, set strategy to 2?
-        # minuit.strategy = 2
+        # for accuracy of confidence interval calculation, set strategy to 2
+        minuit.strategy = 2
 
         return minuit
 

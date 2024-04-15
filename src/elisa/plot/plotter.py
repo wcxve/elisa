@@ -479,7 +479,7 @@ class Plotter(ABC):
         """LaTeX representation of components."""
         if self._comps_latex is None:
             self._comps_latex = {
-                k: f'${v}$  ' if v else ''
+                k: f'${v}$ ' if v else ''
                 for k, v in self._result._helper.params_comp_latex.items()
             }
         return self._comps_latex
