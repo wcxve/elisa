@@ -242,7 +242,8 @@ class PlotData(ABC):
     ) -> Array | dict:
         assert mtype in {'ne', 'ene', 'eene'}
         v = '_vmap' if len(np.shape(list(params.values())[0])) != 0 else ''
-        params = jax.device_put(params, self.sharding)
+        if v:
+            params = jax.device_put(params, self.sharding)
         fn = getattr(self, f'_{mtype}{v}')
         return jax.device_get(fn(egrid, params, comps))
 
