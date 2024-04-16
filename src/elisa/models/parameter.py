@@ -9,11 +9,10 @@ from typing import TYPE_CHECKING, NamedTuple, get_args
 import jax.numpy as jnp
 from numpyro.distributions import Distribution, LogUniform, Uniform
 
-from elisa.util.integrate import AdaptQuadMethod, make_integral_factory
-from elisa.util.misc import build_namespace
-
 from elisa.util import bslogu as bs
 from elisa.util.bslogu import BiSymLogUniform as BSLogUniform
+from elisa.util.integrate import AdaptQuadMethod, make_integral_factory
+from elisa.util.misc import build_namespace
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
