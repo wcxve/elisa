@@ -585,8 +585,9 @@ class Plotter(ABC):
             height_ratios=height_ratios,
             gridspec_kw={'bottom': 0.07, 'top': 0.97, 'hspace': 0.03},
             figsize=(8, 4 + nrows),
+            squeeze=False,
         )
-
+        axs = axs.ravel()
         fig.align_ylabels(axs)
 
         for ax in axs:
