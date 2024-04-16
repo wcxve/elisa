@@ -12,8 +12,8 @@ from numpyro.distributions import Distribution, LogUniform, Uniform
 from elisa.util.integrate import AdaptQuadMethod, make_integral_factory
 from elisa.util.misc import build_namespace
 
-from . import bslogu as bs
-from .bslogu import BiSymLogUniform
+from elisa.util import bslogu as bs
+from elisa.util.bslogu import BiSymLogUniform as BSLogUniform
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -484,7 +484,7 @@ class UniformParameter(DistParameter):
             return f'{self.name} = {self.default:.4g}'
         elif self._log:
             if self.min < 0:
-                return f'{self.name} ~ BiSymLogUniform({self.min:.4g}, {self.max:.4g})'
+                return f'{self.name} ~ BSLogUniform({self.min:.4g}, {self.max:.4g})'
             else:
                 return (
                     f'{self.name} ~ LogUniform({self.min:.4g}, {self.max:.4g})'
@@ -543,7 +543,7 @@ class UniformParameter(DistParameter):
 
             if log:
                 if self._min < 0:
-                    self._dist = BiSymLogUniform(
+                    self._dist = BSLogUniform(
                         bs.log(self._min), bs.log(self._max)
                     )
                 else:
@@ -563,7 +563,7 @@ class UniformParameter(DistParameter):
     def _dist_expr(self) -> str:
         if self._log:
             if self.min < 0:
-                return f'BiSymLogUniform({self.min:.4g}, {self.max:.4g})'
+                return f'BSLogUniform({self.min:.4g}, {self.max:.4g})'
             else:
                 return f'LogUniform({self.min:.4g}, {self.max:.4g})'
         else:
@@ -598,7 +598,6 @@ class UniformParameter(DistParameter):
             _max = jnp.asarray(max, float)
 
         if _min <= 0.0 and self._log:
-            # raise ValueError(f'min ({_min}) must be positive for log uniform')
             import warnings
 
             warnings.warn(
@@ -630,7 +629,7 @@ class UniformParameter(DistParameter):
         if min is not None or max is not None:
             if self.log:
                 if self._min < 0:
-                    self._dist = BiSymLogUniform(
+                    self._dist = BSLogUniform(
                         bs.log(self._min), bs.log(self._max)
                     )
                 else:
