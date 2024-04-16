@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "arviz",
-    "astropy",
+    "astropy>=5.3",
     "corner>=2.2.2",
     "h5py",
     "iminuit",
