@@ -78,7 +78,7 @@ class Model(ABC):
     def _cid_to_clatex(self) -> CompIDStrMapping:
         clatex = [c.latex for c in self._comps]
         clatex = build_namespace(clatex, latex=True)['namespace']
-        return dict(zip(self._comps_id, clatex)['namespace'])
+        return dict(zip(self._comps_id, clatex))
 
     def compile(self, *, model_info: ModelInfo | None = None) -> CompiledModel:
         """Compile the model for fast evaluation.
