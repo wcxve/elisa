@@ -950,7 +950,7 @@ class PosteriorResult(FitResult):
                 f'{waic.p_waic:.2f}',
             ],
         ]
-        names = ['Method', 'ELPD', 'p']
+        names = ['Method', 'Deviance', 'p']
         ic_tab = make_pretty_table(names, rows)
 
         ranges = ['(-Inf, 0.5]', '(0.5, 0.7]', '(0.7, 1]', '(1, Inf)']
