@@ -1057,7 +1057,7 @@ class Component(ABC, metaclass=ComponentMeta):
     _id: CompID
     _args: tuple[str, ...] = ()  # extra args passed to subclass __init__
     _kwargs: tuple[str, ...] = ()  # extra kwargs passed to subclass __init__
-    _staticmethod: tuple[str, ...] = ()  # method needs to be static
+    _staticmethod: tuple[str, ...] = ()  # methods need to be static
     __initialized: bool = False
 
     def __init__(self, params: dict, latex: str | None):
