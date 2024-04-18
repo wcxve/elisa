@@ -135,10 +135,17 @@ class Fit(ABC):
         unconstr_init: JAXArray,
         max_steps: int = 131072,
         throw: bool = True,
+        verbose: bool = False,
     ) -> tuple[JAXArray, JAXFloat]:
         """Search MLE by Levenberg-Marquardt algorithm of :mod:`optimistix`."""
+        
+        if verbose:
+            verbose = frozenset({"step", "loss"})
+        else:
+            verbose = frozenset()
+            
         if self._lm is None:
-            lm_solver = optx.LevenbergMarquardt(rtol=0.0, atol=1e-6)
+            lm_solver = optx.LevenbergMarquardt(rtol=0.0, atol=1e-6,verbose=verbose)
             residual = jax.jit(lambda x, aux: self._helper.residual(x))
 
             def lm(init):
@@ -155,14 +162,15 @@ class Fit(ABC):
 
         return self._lm(jnp.asarray(unconstr_init, float))
 
-    def _optimize_ns(self) -> JAXArray:
+    def _optimize_ns(self, max_steps=100000, verbose=False) -> JAXArray:
         """Search MLE using nested sampling of :mod:`jaxns`."""
         if self._ns is None:
             self._ns = NestedSampler(
                 self._helper.numpyro_model,
                 constructor_kwargs={
-                    'max_samples': 100000,
+                    'max_samples': max_steps,
                     'parameter_estimation': True,
+                    'verbose': verbose,
                 },
             )
             t0 = time.time()
@@ -408,6 +416,9 @@ class MaxLikeFit(Fit):
     def _optimize_minuit(
         self,
         unconstr_init: JAXArray,
+        ncall: 0,
+        throw_nan: True,
+        verbose: False,
     ) -> Minuit:
         """Search MLE using Minuit algorithm of :mod:`iminuit`."""
         deviance = jax.jit(self._helper.deviance_total)
@@ -419,9 +430,15 @@ class MaxLikeFit(Fit):
             name=self._helper.params_names['free'],
         )
 
+        if throw_nan:
+            minuit.throw_nan = True
+
+        if verbose:
+            minuit.print_level = 2
+
         # TODO: test if simplex can be used to "polish" the initial guess
         minuit.strategy = 0
-        minuit.migrad(iterate=10)
+        minuit.migrad(ncall=ncall,iterate=10)
 
         # refine hessian matrix
         minuit.hesse()
@@ -435,8 +452,9 @@ class MaxLikeFit(Fit):
         self,
         init: ArrayLike | dict | None = None,
         method: Literal['minuit', 'lm', 'ns'] = 'minuit',
-        lm_max_steps: int = 131072,
-        lm_throw: bool = True,
+        max_steps: int = None,
+        throw_nan: bool = True,
+        verbose: bool = False,
     ) -> MLEResult:
         """Search Maximum Likelihood Estimation (MLE) for the model.
 
@@ -480,16 +498,19 @@ class MaxLikeFit(Fit):
             raise TypeError('params must be a array, sequence, or mapping')
 
         if method == 'lm':  # use Levenberg-Marquardt algorithm to find MLE
+            max_steps = 131072 if max_steps is None else int(max_steps)
             init_unconstr, _ = self._optimize_lm(
-                init_unconstr, lm_max_steps, lm_throw
+                init_unconstr, max_steps, throw_nan, verbose
             )
         elif method == 'ns':  # use nested sampling to find MLE
-            init_unconstr = self._optimize_ns()
+            max_steps = 100000 if max_steps is None else int(max_steps)
+            init_unconstr = self._optimize_ns(max_steps,verbose)
         else:
             if method != 'minuit':
                 raise ValueError(f'unsupported optimization method {method}')
 
-        minuit = self._optimize_minuit(init_unconstr)
+        ncall = 0 if max_steps is None else int(max_steps)
+        minuit = self._optimize_minuit(init_unconstr, ncall, throw_nan, verbose)
 
         return MLEResult(minuit, self._helper)
 
