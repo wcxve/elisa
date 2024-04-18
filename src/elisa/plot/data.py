@@ -108,8 +108,6 @@ class PlotData(ABC):
         self.seed = seed
         self.data = result._helper.data[self.name]
         self.statistic = result._helper.statistic[self.name]
-        devices = create_device_mesh((jax.local_device_count(),))
-        self.sharding = PositionalSharding(devices)
 
         for f in self._cached_method:
             method = getattr(self, f)
@@ -243,7 +241,9 @@ class PlotData(ABC):
         assert mtype in {'ne', 'ene', 'eene'}
         v = '_vmap' if len(np.shape(list(params.values())[0])) != 0 else ''
         if v:
-            params = jax.device_put(params, self.sharding)
+            devices = create_device_mesh((jax.local_device_count(),))
+            sharding = PositionalSharding(devices)
+            params = jax.device_put(params, sharding)
         fn = getattr(self, f'_{mtype}{v}')
         return jax.device_get(fn(egrid, params, comps))
 
