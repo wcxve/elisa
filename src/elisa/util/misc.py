@@ -7,6 +7,8 @@ import re
 from functools import reduce
 from typing import TYPE_CHECKING
 
+import jax
+import jax.numpy as jnp
 from jax import lax
 from jax.experimental import host_callback
 from prettytable import PrettyTable
@@ -14,7 +16,9 @@ from tqdm.auto import tqdm
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
-    from typing import Callable, TypeVar
+    from typing import Callable, Literal, TypeVar
+
+    from elisa.util.typing import CompEval
 
     T = TypeVar('T')
 
@@ -30,48 +34,6 @@ _SUBSCRIPT = dict(
         'ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢₐᵦ𝒸𝒹ₑ𝒻𝓰ₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ𝓌ₓᵧ𝓏₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎',
     )
 )
-
-
-def report_interval(
-    mid: float,
-    vmin: float,
-    vmax: float,
-    precision: int = 2,
-    min_exponent: int = 1,
-    max_exponent: int = 2,
-) -> str:
-    """Report an interval."""
-    mid = float(mid)
-    vmin = float(vmin)
-    vmax = float(vmax)
-    p = int(precision)
-    min_exponent = int(min_exponent)
-    max_exponent = int(max_exponent)
-
-    assert vmin <= mid <= vmax
-    assert precision > 0
-    assert min_exponent > 0
-    assert max_exponent > 0
-
-    lower = vmin - mid
-    upper = vmax - mid
-    exp = math.log10(math.fabs(mid))
-    if exp <= -min_exponent or exp >= max_exponent:
-        exp = math.floor(exp)
-        str_mid = f'{mid:.{p}e}'.split('e')[0]
-        str_lower = f'{lower / 10 ** exp:+.{p}e}'.split('e')[0]
-        str_upper = f'{upper / 10 ** exp:+.{p}e}'.split('e')[0]
-        return (
-            f'${str_mid}'
-            f'_{{{str_lower}}}'
-            f'^{{{str_upper}}}'
-            rf' \times 10^{{{exp}}}$'
-        )
-    else:
-        str_mid = f'{mid:.{p}f}'
-        str_lower = f'{lower:+.{p}f}'
-        str_upper = f'{upper:+.{p}f}'
-        return f'${str_mid}' f'_{{{str_lower}}}' f'^{{{str_upper}}}$'
 
 
 def add_suffix(
@@ -207,6 +169,63 @@ def build_namespace(
     }
 
 
+def define_fdjvp(
+    fn: CompEval,
+    method: Literal['central', 'forward'] = 'central',
+) -> CompEval:
+    """Define JVP using finite differences."""
+    if method not in {'central', 'forward'}:
+        raise ValueError(
+            f"supported methods are 'central' and 'forward', but got "
+            f"'{method}'"
+        )
+
+    use_central_diff = method == 'central'
+    fn = jax.custom_jvp(fn)
+
+    @fn.defjvp
+    def _(primals, tangents):
+        # we ignore the tangent for the energy grid
+        egrid, params = primals
+        primals_out = fn(egrid, params)
+        f_vmap = jax.vmap(fn, in_axes=(None, 0), out_axes=0)
+        eps = jnp.finfo(egrid.dtype).eps
+        identity = jnp.eye(len(params))
+        params_keys = list(params.keys())
+        params_values = jnp.array(list(params.values()))
+        params_abs = jnp.where(
+            jnp.equal(params_values, 0.0),
+            jnp.ones_like(params_values),
+            jnp.abs(params_values),
+        )
+        params_abs = jnp.expand_dims(params_abs, axis=-1)
+
+        # See Numerical Recipes Chapter 5.7
+        if use_central_diff:
+            delta = params_abs * eps ** (1.0 / 3.0)
+            params_pos_perturb = jax.tree_map(
+                jnp.add, params, dict(zip(params_keys, delta * identity))
+            )
+            out_pos_perturb = f_vmap(egrid, params_pos_perturb)
+            params_neg_perturb = jax.tree_map(
+                jnp.subtract, params, dict(zip(params_keys, delta * identity))
+            )
+            out_neg_perturb = f_vmap(egrid, params_neg_perturb)
+            d_out = (out_pos_perturb - out_neg_perturb) / (2.0 * delta)
+        else:
+            delta = params_abs * jnp.sqrt(eps)
+            params_perturb = jax.tree_map(
+                jnp.add, params, dict(zip(params_keys, delta * identity))
+            )
+            out_perturb = f_vmap(egrid, params_perturb)
+            d_out = (out_perturb - primals_out) / delta
+
+        tangents_out = jnp.array(list(tangents[1].values())) @ d_out
+        return primals_out, tangents_out
+
+    return fn
+
+
 def make_pretty_table(fields: Sequence[str], rows: Sequence) -> PrettyTable:
     """Make a :class:`prettytable.PrettyTable`.
 
@@ -286,6 +305,48 @@ def replace_string(value: T, mapping: dict[str, str]) -> T:
             return v
 
     return replace(value)
+
+
+def report_interval(
+    mid: float,
+    vmin: float,
+    vmax: float,
+    precision: int = 2,
+    min_exponent: int = 1,
+    max_exponent: int = 2,
+) -> str:
+    """Report an interval."""
+    mid = float(mid)
+    vmin = float(vmin)
+    vmax = float(vmax)
+    p = int(precision)
+    min_exponent = int(min_exponent)
+    max_exponent = int(max_exponent)
+
+    assert vmin <= mid <= vmax
+    assert precision > 0
+    assert min_exponent > 0
+    assert max_exponent > 0
+
+    lower = vmin - mid
+    upper = vmax - mid
+    exp = math.log10(math.fabs(mid))
+    if exp <= -min_exponent or exp >= max_exponent:
+        exp = math.floor(exp)
+        str_mid = f'{mid:.{p}e}'.split('e')[0]
+        str_lower = f'{lower / 10 ** exp:+.{p}e}'.split('e')[0]
+        str_upper = f'{upper / 10 ** exp:+.{p}e}'.split('e')[0]
+        return (
+            f'${str_mid}'
+            f'_{{{str_lower}}}'
+            f'^{{{str_upper}}}'
+            rf' \times 10^{{{exp}}}$'
+        )
+    else:
+        str_mid = f'{mid:.{p}f}'
+        str_lower = f'{lower:+.{p}f}'
+        str_upper = f'{upper:+.{p}f}'
+        return f'${str_mid}' f'_{{{str_lower}}}' f'^{{{str_upper}}}$'
 
 
 def progress_bar_factory(
