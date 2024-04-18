@@ -55,7 +55,7 @@ def report_interval(
 
     lower = vmin - mid
     upper = vmax - mid
-    exp = math.log10(mid)
+    exp = math.log10(math.fabs(mid))
     if exp <= -min_exponent or exp >= max_exponent:
         exp = math.floor(exp)
         str_mid = f'{mid:.{p}e}'.split('e')[0]
