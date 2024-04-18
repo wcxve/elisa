@@ -52,9 +52,6 @@ class FitResult(ABC):
     def __init__(self, helper: Helper):
         self._helper = helper
 
-        devices = create_device_mesh((jax.local_device_count(),))
-        self._sharding = PositionalSharding(devices)
-
         models = helper.model
         ne = {
             name: jax.jit(model.ne, static_argnums=2)
@@ -369,7 +366,9 @@ class MLEResult(FitResult):
             params = dict(params)
             params = {k: jnp.full(n, v) for k, v in params.items()}
             boot_params = boot_params | params
-        boot_params = jax.device_put(boot_params, self._sharding)
+        devices = create_device_mesh((jax.local_device_count(),))
+        sharding = PositionalSharding(devices)
+        boot_params = jax.device_put(boot_params, sharding)
         boot_flux = self._flux_fn(egrid, boot_params, energy, comps)
         boot_flux = jax.device_get(boot_flux)
         cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
@@ -1065,7 +1064,9 @@ class PosteriorResult(FitResult):
             params = dict(params)
             params = {k: jnp.full(n, v) for k, v in params.items()}
             post = post | params
-        post = jax.device_put(post, self._sharding)
+        devices = create_device_mesh((jax.local_device_count(),))
+        sharding = PositionalSharding(devices)
+        post = jax.device_put(post, sharding)
 
         flux = self._flux_fn(egrid, post, energy, comps)
         flux = jax.device_get(flux)
