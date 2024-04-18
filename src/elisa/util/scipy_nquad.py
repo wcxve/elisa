@@ -73,7 +73,7 @@ class NQuadTransform:
             ) = tangents
             primal_out = _fn(ranges, args)
             #
-            args_h = jnp.tile(args, (len(args), 1)) + jnp.eye(len(args)) * h
+            args_h = args + jnp.eye(len(args)) * h
             primal_dx = jax.vmap(_fn, in_axes=(None, 0))(ranges, args_h)
             primal_grad_dx = (primal_dx - primal_out) / h
             #
