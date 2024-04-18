@@ -138,14 +138,16 @@ class Fit(ABC):
         verbose: bool = False,
     ) -> tuple[JAXArray, JAXFloat]:
         """Search MLE by Levenberg-Marquardt algorithm of :mod:`optimistix`."""
-        
+
         if verbose:
-            verbose = frozenset({"step", "loss"})
+            verbose = frozenset({'step', 'loss'})
         else:
             verbose = frozenset()
-            
+
         if self._lm is None:
-            lm_solver = optx.LevenbergMarquardt(rtol=0.0, atol=1e-6,verbose=verbose)
+            lm_solver = optx.LevenbergMarquardt(
+                rtol=0.0, atol=1e-6, verbose=verbose
+            )
             residual = jax.jit(lambda x, aux: self._helper.residual(x))
 
             def lm(init):
@@ -438,7 +440,7 @@ class MaxLikeFit(Fit):
 
         # TODO: test if simplex can be used to "polish" the initial guess
         minuit.strategy = 0
-        minuit.migrad(ncall=ncall,iterate=10)
+        minuit.migrad(ncall=ncall, iterate=10)
 
         # refine hessian matrix
         minuit.hesse()
@@ -504,13 +506,15 @@ class MaxLikeFit(Fit):
             )
         elif method == 'ns':  # use nested sampling to find MLE
             max_steps = 100000 if max_steps is None else int(max_steps)
-            init_unconstr = self._optimize_ns(max_steps,verbose)
+            init_unconstr = self._optimize_ns(max_steps, verbose)
         else:
             if method != 'minuit':
                 raise ValueError(f'unsupported optimization method {method}')
 
         ncall = 0 if max_steps is None else int(max_steps)
-        minuit = self._optimize_minuit(init_unconstr, ncall, throw_nan, verbose)
+        minuit = self._optimize_minuit(
+            init_unconstr, ncall, throw_nan, verbose
+        )
 
         return MLEResult(minuit, self._helper)
 
