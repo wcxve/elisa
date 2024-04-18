@@ -346,7 +346,7 @@ class CompiledModel:
 
         elif isinstance(params, Mapping):
             if not set(self.params_name).issubset(params):
-                missing = set(params) - set(self.params_name)
+                missing = set(self.params_name) - set(params)
                 raise ValueError(f'missing parameters: {", ".join(missing)}')
 
             params = jax.tree_map(jnp.asarray, params)
