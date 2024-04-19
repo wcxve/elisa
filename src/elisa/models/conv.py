@@ -32,11 +32,8 @@ class NormConvolution(ConvolutionComponent):
         ngrid: int | None,
         elog: bool | None,
     ):
-        if emin >= emax:
-            raise ValueError('emin must be less than emax')
-
         self._emin = float(emin)
-        self._emax = float(emax)
+        self.emax = emax
 
         self.ngrid = 1000 if ngrid is None else ngrid
         self.elog = True if elog is None else bool(elog)
@@ -95,9 +92,10 @@ class NormConvolution(ConvolutionComponent):
                 # TODO: egrid can be reused to reduce computation
                 return fn(egrid, params, model_fn, flux_egrid)
 
+            self._prev_config = (self.emin, self.emax, self.ngrid, self.elog)
             self._convolve_jit = jax.jit(convolve, static_argnums=2)
 
-        return convolve
+            return convolve
 
     @property
     def emin(self) -> float:
@@ -145,6 +143,12 @@ class NormConvolution(ConvolutionComponent):
 class PhFlux(NormConvolution):
     r"""Normalize an additive model by photon flux between `emin` and `emax`.
 
+    .. math::
+        N'(E) =
+            \mathcal{F}_\mathrm{ph}
+            \left[\int_{E_\mathrm{min}}^{E_\mathrm{max}} N(E) \, dE\right]^{-1}
+            N(E)
+
     .. warning::
         The normalization of one of the additive components **must** be fixed
         to a positive value.
@@ -152,11 +156,11 @@ class PhFlux(NormConvolution):
     Parameters
     ----------
     emin : float or int
-        Minimum energy, in units of keV.
+        Minimum energy of the band to calculate the flux, in units of keV.
     emax : float or int
-        Maximum energy, in units of keV.
+        Maximum energy of the band to calculate the flux, in units of keV.
     F : Parameter, optional
-        Flux parameter, in units of cm⁻² s⁻¹.
+        Photon flux :math:`\mathcal{F}_\mathrm{ph}`, in units of cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     ngrid : int, optional
@@ -188,6 +192,12 @@ class PhFlux(NormConvolution):
 class EnFlux(NormConvolution):
     r"""Normalize an additive model by energy flux between `emin` and `emax`.
 
+    .. math::
+        N'(E) =
+            \mathcal{F}_\mathrm{en}
+            \left[\int_{E_\mathrm{min}}^{E_\mathrm{max}} EN(E)\,dE\right]^{-1}
+            N(E)
+
     .. warning::
         The normalization of one of the additive components **must** be fixed
         to a positive value.
@@ -195,11 +205,11 @@ class EnFlux(NormConvolution):
     Parameters
     ----------
     emin : float or int
-        Minimum energy, in units of keV.
+        Minimum energy of the band to calculate the flux, in units of keV.
     emax : float or int
-        Maximum energy, in units of keV.
+        Maximum energy of the band to calculate the flux, in units of keV.
     F : Parameter, optional
-        Flux parameter, in units of erg cm⁻² s⁻¹.
+        Energy flux :math:`\mathcal{F}_\mathrm{en}`, in units of erg cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     ngrid : int, optional
