@@ -447,7 +447,8 @@ def get_helper(fit: Fit) -> Helper:
     default_constr_dic = {
         pid_to_pname[k]: v for k, v in model_info.default.items()
     }
-    default_constr_arr = jnp.asarray(list(default_constr_dic.values()))
+    default_constr_dic = {k: default_constr_dic[k] for k in free_names}
+    default_constr_arr = jnp.array([default_constr_dic[i] for i in free_names])
     default_unconstr_arr = constr_arr_to_unconstr_arr(default_constr_arr)
     free_default: dict[str, dict[ParamName, JAXFloat] | JAXArray] = {
         'constr_dic': default_constr_dic,
