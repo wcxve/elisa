@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import jax
 import jax.numpy as jnp
 from jax.scipy import stats
 
@@ -14,7 +15,7 @@ from elisa.models.model import (
 )
 
 if TYPE_CHECKING:
-    from elisa.util.typing import JAXArray, NameValMapping
+    from elisa.util.typing import CompEval, JAXArray, NameValMapping
 
 __all__ = [
     'Band',
@@ -26,6 +27,8 @@ __all__ = [
     'Gauss',
     'OTTB',
     'OTTS',
+    'PLEnFlux',
+    'PLPhFlux',
     'PowerLaw',
 ]
 
@@ -494,9 +497,9 @@ class PowerLaw(AnaIntAdditive):
     Parameters
     ----------
     alpha : Parameter, optional
-        The power law photon index :math:`\alpha`, dimensionless.
+        Power law photon index :math:`\alpha`, dimensionless.
     K : Parameter, optional
-        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+        Amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     """
@@ -512,3 +515,151 @@ class PowerLaw(AnaIntAdditive):
         one_minus_alpha = 1.0 - params['alpha']
         f = params['K'] / one_minus_alpha * jnp.power(egrid, one_minus_alpha)
         return f[1:] - f[:-1]
+
+
+class PLFluxNorm(AnaIntAdditive):
+    _args = ('emin', 'emax')
+    _energy: bool
+
+    def __init__(
+        self,
+        emin: float | int,
+        emax: float | int,
+        params: dict,
+        latex: str | None,
+    ):
+        emin = float(emin)
+        emax = float(emax)
+
+        if emin >= emax:
+            raise ValueError('emin must be less than emax')
+
+        self._emin = emin
+        self._emax = emax
+
+        super().__init__(params, latex)
+
+    @property
+    def eval(self) -> CompEval:
+        if self._integral_jit is None:
+            emin = self._emin
+            emax = self._emax
+            energy = self._energy
+            fn = jax.jit(self.integral)
+
+            def integral(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+                if energy:
+                    keV_to_erg = 1.602176634e-9
+                    params_ = {'alpha': params['alpha'] - 1.0}
+                    f = fn(jnp.array([emin, emax]), params_)
+                    factor = params['F'] / (f * keV_to_erg)
+                else:
+                    f = fn(jnp.array([emin, emax]), params)
+                    factor = params['F'] / f
+
+                return factor * fn(egrid, params)
+
+            self._integral_jit = jax.jit(integral)
+
+        return self._integral_jit
+
+    @staticmethod
+    def integral(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+        # ignore the case of alpha = 1.0
+        one_minus_alpha = 1.0 - params['alpha']
+        f = jnp.power(egrid, one_minus_alpha) / one_minus_alpha
+        return f[1:] - f[:-1]
+
+
+class PLPhFlux(PLFluxNorm):
+    r"""Power law function with photon flux used as normalization.
+
+    .. math::
+        N(E) &=
+            \mathcal{F}_\mathrm{ph}
+            \left[
+                \int_{E_\mathrm{min}}^{E_\mathrm{max}}
+                \left(\frac{E}{E_0}\right)^{-\alpha} \, \mathrm{d}E
+            \right]^{-1}
+            \left(\frac{E}{E_0}\right)^{-\alpha}\\
+            &=
+            \mathcal{F}_\mathrm{ph} (1 - \alpha)
+            \left[
+                \left(\frac{E_\mathrm{max}}{E_0}\right)^{1 - \alpha}
+                - \left(\frac{E_\mathrm{min}}{E_0}\right)^{1 - \alpha}
+            \right]^{-1}
+            \left(\frac{E}{E_0}\right)^{-\alpha},
+
+    where :math:`E_0` is the pivot energy fixed at 1 keV.
+
+    Parameters
+    ----------
+    emin : float or int
+        Minimum energy of the band to calculate the flux, in units of keV.
+    emax : float or int
+        Maximum energy of the band to calculate the flux, in units of keV.
+    alpha : Parameter, optional
+        Power law photon index :math:`\alpha`, dimensionless.
+    F : Parameter, optional
+        Photon flux :math:`\mathcal{F}_\mathrm{ph}`, in units of cm⁻² s⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    """
+
+    _energy: bool = False
+    _config = (
+        ParamConfig('alpha', r'\alpha', '', 1.01, -3.0, 10.0),
+        ParamConfig(
+            'F', r'\mathcal{F}_\mathrm{ph}', 'cm^-2 s^-1', 1.0, 0.01, 1e10
+        ),
+    )
+
+
+class PLEnFlux(PLFluxNorm):
+    r"""Power law function with energy flux used as normalization.
+
+    .. math::
+        N(E) &=
+            \mathcal{F}_\mathrm{en}
+            \left[
+                \int_{E_\mathrm{min}}^{E_\mathrm{max}}
+                \left(\frac{E}{E_0}\right)^{-\alpha} \, E \, \mathrm{d}E
+            \right]^{-1}
+            \left(\frac{E}{E_0}\right)^{-\alpha}\\
+            &=
+            \mathcal{F}_\mathrm{en} (2 - \alpha)
+            \left[
+                \left(\frac{E_\mathrm{max}}{E_0}\right)^{2 - \alpha}
+                - \left(\frac{E_\mathrm{min}}{E_0}\right)^{2 - \alpha}
+            \right]^{-1}
+            \left(\frac{E}{E_0}\right)^{-\alpha},
+
+    where :math:`E_0` is the pivot energy fixed at 1 keV.
+
+    Parameters
+    ----------
+    emin : float or int
+        Minimum energy of the band to calculate the flux, in units of keV.
+    emax : float or int
+        Maximum energy of the band to calculate the flux, in units of keV.
+    alpha : Parameter, optional
+        Power law photon index :math:`\alpha`, dimensionless.
+    F : Parameter, optional
+        Energy flux :math:`\mathcal{F}_\mathrm{en}`, in units of erg cm⁻² s⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    """
+
+    _energy: bool = True
+    _config = (
+        ParamConfig('alpha', r'\alpha', '', 1.01, -3.0, 10.0),
+        ParamConfig(
+            'F',
+            r'\mathcal{F}_\mathrm{en}',
+            'erg cm^-2 s^-1',
+            1e-12,
+            1e-30,
+            1e30,
+            log=True,
+        ),
+    )
