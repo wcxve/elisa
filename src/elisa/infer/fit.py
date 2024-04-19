@@ -529,6 +529,7 @@ class BayesFit(Fit):
         chains: int | None = None,
         init: dict[str, float] | None = None,
         progress: bool = True,
+        chain_method='parallel',
         **nuts_kwargs: dict,
     ) -> PosteriorResult:
         """Run the No-U-Turn Sampler of :mod:`numpyro`.
@@ -596,6 +597,7 @@ class BayesFit(Fit):
             num_samples=samples,
             num_chains=chains,
             progress_bar=progress,
+            chain_method=chain_method,
         )
 
         sampler.run(
