@@ -95,7 +95,7 @@ class NormConvolution(ConvolutionComponent):
             self._prev_config = (self.emin, self.emax, self.ngrid, self.elog)
             self._convolve_jit = jax.jit(convolve, static_argnums=2)
 
-            return convolve
+            return self._convolve_jit
 
     @property
     def emin(self) -> float:
