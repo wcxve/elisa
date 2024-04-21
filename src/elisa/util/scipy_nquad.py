@@ -27,7 +27,7 @@ class NQuadTransform:
         return cfun.ctypes
 
     @staticmethod
-    def _nquad(cfun, opts=None):
+    def _nquad(cfun, opts=None, vectorized=False):
         from scipy import LowLevelCallable, integrate
 
         @jax.jit
@@ -46,7 +46,7 @@ class NQuadTransform:
                 shape=(2,), dtype=jnp.float64
             )
             return jax.pure_callback(
-                _pcb, result_shape_dtype, ranges, args, vectorized=False
+                _pcb, result_shape_dtype, ranges, args, vectorized=vectorized
             )
 
         return _nquad_scipy
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     args = jnp.array([3.0, 4.0], dtype=jnp.float64)
     nqt = NQuadTransform(f)
     cfun = nqt._cfun()
-    func_nquad = jax.jit(nqt._nquad(cfun))
+    func_nquad = jax.jit(nqt._nquad(cfun, opts=None, vectorized=False))
     func_arg_grad = nqt._args_grad()
     print(func_nquad(ranges, args))
     print(jax.grad(func_arg_grad)(ranges, args))
