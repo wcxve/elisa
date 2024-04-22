@@ -425,6 +425,7 @@ class MaxLikeFit(Fit):
 
         # refine hessian matrix
         minuit.hesse()
+        minuit.migrad()  # run Migrad again, refresh the EDM
 
         # for accuracy of confidence interval calculation, set strategy to 2
         minuit.strategy = 2
