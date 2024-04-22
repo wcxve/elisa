@@ -1006,7 +1006,7 @@ class Plotter(ABC):
         else:
             rsim['total'] = np.hstack(list(rsim.values()))
 
-        use_mle = True if rsim else False
+        use_mle = True if rsim['total'] is not None else False
         r = {
             name: data.residuals(rtype, seed, random_quantile, use_mle)
             for name, data in self.data.items()
