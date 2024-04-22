@@ -352,6 +352,13 @@ class MLEResult(FitResult):
         params: dict[str, JAXArray] | None,
     ) -> dict[str, Q | float]:
         """Calculate flux."""
+        boot_params = self._params_dist
+
+        if boot_params is None:
+            raise RuntimeError(
+                'MLEResult.boot(...) must be called before calculating flux'
+            )
+
         if energy:
             unit = u.erg / u.cm**2 / u.s
         else:
@@ -360,7 +367,6 @@ class MLEResult(FitResult):
         mle_params = {k: v[0] for k, v in self._mle.items()}
         mle_flux = self._flux_fn(egrid, mle_params, energy, comps)
 
-        boot_params = self._params_dist
         n = [i.size for i in boot_params.values()][0]
         if params is not None:
             params = dict(params)
@@ -374,15 +380,15 @@ class MLEResult(FitResult):
         cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
         q = 0.5 + np.array([-0.5, 0.5]) * cl_
         ci_fn = lambda x: np.quantile(x, q)
-        interval = jax.tree_map(ci_fn, boot_flux)
-        error = jax.tree_map(
-            lambda x, y: (x - y[0], x - y[1]), mle_flux, interval
+        intervals = jax.tree_map(ci_fn, boot_flux)
+        errors = jax.tree_map(
+            lambda x, y: (x - y[0], x - y[1]), mle_flux, intervals
         )
         add_unit = lambda x: x * unit
         return {
             'mle': jax.tree_map(add_unit, mle_flux),
-            'interval': jax.tree_map(add_unit, interval),
-            'error': jax.tree_map(add_unit, error),
+            'intervals': jax.tree_map(add_unit, intervals),
+            'errors': jax.tree_map(add_unit, errors),
             'cl': cl_,
             'dist': jax.tree_map(add_unit, boot_flux),
             'n': n,
@@ -455,8 +461,8 @@ class MLEResult(FitResult):
 
         return MLEFlux(
             mle=flux['mle'],
-            interval=flux['interval'],
-            error=flux['error'],
+            intervals=flux['intervals'],
+            errors=flux['errors'],
             cl=flux['cl'],
             dist=flux['dist'],
             energy=bool(energy),
@@ -530,8 +536,8 @@ class MLEResult(FitResult):
 
         return MLELumin(
             mle=jax.tree_map(to_lumin, flux['mle']),
-            interval=jax.tree_map(to_lumin, flux['interval']),
-            error=jax.tree_map(to_lumin, flux['error']),
+            intervals=jax.tree_map(to_lumin, flux['intervals']),
+            errors=jax.tree_map(to_lumin, flux['errors']),
             cl=flux['cl'],
             dist=jax.tree_map(to_lumin, flux['dist']),
             n=flux['n'],
@@ -604,8 +610,8 @@ class MLEResult(FitResult):
         to_eiso = lambda x: (x * factor).to(u.erg)
         return MLEEIso(
             mle=jax.tree_map(to_eiso, lumin.mle),
-            interval=jax.tree_map(to_eiso, lumin.interval),
-            error=jax.tree_map(to_eiso, lumin.error),
+            intervals=jax.tree_map(to_eiso, lumin.intervals),
+            errors=jax.tree_map(to_eiso, lumin.errors),
             cl=lumin.cl,
             dist=jax.tree_map(to_eiso, lumin.dist),
             n=lumin.n,
@@ -1038,8 +1044,8 @@ class PosteriorResult(FitResult):
 
         return CredibleInterval(
             median=_format_result(median, params),
-            interval=_format_result(interval, params),
-            error=_format_result(error, params),
+            intervals=_format_result(interval, params),
+            errors=_format_result(error, params),
             cl=cl_,
             method='HDI' if hdi else 'ETI',
         )
@@ -1077,15 +1083,15 @@ class PosteriorResult(FitResult):
             q = 0.5 + np.array([-0.5, 0.5]) * cl_
             ci_fn = lambda x: np.quantile(x, q)
         median = jax.tree_map(lambda x: np.median(x), flux)
-        interval = jax.tree_map(ci_fn, flux)
-        error = jax.tree_map(
-            lambda x, y: (x - y[0], x - y[1]), median, interval
+        intervals = jax.tree_map(ci_fn, flux)
+        errors = jax.tree_map(
+            lambda x, y: (x - y[0], x - y[1]), median, intervals
         )
         add_unit = lambda x: x * unit
         return {
             'median': jax.tree_map(add_unit, median),
-            'interval': jax.tree_map(add_unit, interval),
-            'error': jax.tree_map(add_unit, error),
+            'intervals': jax.tree_map(add_unit, intervals),
+            'errors': jax.tree_map(add_unit, errors),
             'cl': cl_,
             'dist': jax.tree_map(add_unit, flux),
             'n': n,
@@ -1157,8 +1163,8 @@ class PosteriorResult(FitResult):
 
         return PosteriorFlux(
             median=flux['median'],
-            interval=flux['interval'],
-            error=flux['error'],
+            intervals=flux['intervals'],
+            errors=flux['errors'],
             cl=flux['cl'],
             dist=flux['dist'],
             energy=bool(energy),
@@ -1236,8 +1242,8 @@ class PosteriorResult(FitResult):
         to_lumin = lambda x: (x * factor).to(unit)
         return PosteriorLumin(
             median=jax.tree_map(to_lumin, flux['median']),
-            interval=jax.tree_map(to_lumin, flux['interval']),
-            error=jax.tree_map(to_lumin, flux['error']),
+            intervals=jax.tree_map(to_lumin, flux['intervals']),
+            errors=jax.tree_map(to_lumin, flux['errors']),
             cl=flux['cl'],
             dist=jax.tree_map(to_lumin, flux['dist']),
             n=flux['n'],
@@ -1309,8 +1315,8 @@ class PosteriorResult(FitResult):
         to_eiso = lambda x: (x * factor).to(u.erg)
         return PosteriorEIso(
             median=jax.tree_map(to_eiso, lumin.median),
-            interval=jax.tree_map(to_eiso, lumin.interval),
-            error=jax.tree_map(to_eiso, lumin.error),
+            intervals=jax.tree_map(to_eiso, lumin.intervals),
+            errors=jax.tree_map(to_eiso, lumin.errors),
             cl=lumin.cl,
             dist=jax.tree_map(to_eiso, lumin.dist),
             n=lumin.n,
@@ -1781,10 +1787,10 @@ class MLEFlux(NamedTuple):
     mle: dict[str, Q] | dict[str, dict[str, Q]]
     """The model flux at MLE."""
 
-    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model flux."""
 
-    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model flux in error form."""
 
     dist: dict[str, Q] | dict[str, dict[str, Q]]
@@ -1806,10 +1812,10 @@ class MLELumin(NamedTuple):
     mle: dict[str, Q] | dict[str, dict[str, Q]]
     """The model luminosity at MLE."""
 
-    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model luminosity."""
 
-    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model luminosity in error form."""
 
     dist: dict[str, Q] | dict[str, dict[str, Q]]
@@ -1834,10 +1840,10 @@ class MLEEIso(NamedTuple):
     mle: dict[str, Q] | dict[str, dict[str, Q]]
     r"""The model Eiso at MLE."""
 
-    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model Eiso."""
 
-    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model Eiso in error form."""
 
     dist: dict[str, Q] | dict[str, dict[str, Q]]
@@ -1896,10 +1902,10 @@ class CredibleInterval(NamedTuple):
     median: dict[str, float]
     """Median of the model parameters."""
 
-    interval: dict[str, tuple[float, float]]
+    intervals: dict[str, tuple[float, float]]
     """The credible intervals."""
 
-    error: dict[str, tuple[float, float]]
+    errors: dict[str, tuple[float, float]]
     """The credible intervals in error form."""
 
     cl: float
@@ -1915,10 +1921,10 @@ class PosteriorFlux(NamedTuple):
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median flux."""
 
-    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The credible intervals of the model flux."""
 
-    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The credible intervals of the model flux in error form."""
 
     dist: dict[str, Q] | dict[str, dict[str, Q]]
@@ -1940,10 +1946,10 @@ class PosteriorLumin(NamedTuple):
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median luminosity."""
 
-    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The credible intervals of the model luminosity."""
 
-    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The credible intervals of the model luminosity in error form."""
 
     dist: dict[str, Q] | dict[str, dict[str, Q]]
@@ -1968,10 +1974,10 @@ class PosteriorEIso(NamedTuple):
     median: dict[str, Q] | dict[str, dict[str, Q]]
     r"""The median Eiso."""
 
-    interval: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The credible intervals of the model Eiso."""
 
-    error: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+    errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The credible intervals of the model Eiso in error form."""
 
     dist: dict[str, Q] | dict[str, dict[str, Q]]
