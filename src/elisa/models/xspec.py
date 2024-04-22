@@ -9,7 +9,13 @@ from typing import TYPE_CHECKING, Literal
 import jax
 import jax.numpy as jnp
 
-from elisa.models.model import Component, ParamConfig
+from elisa.models.model import (
+    Component,
+    ComponentMeta,
+    ConvolutionModel,
+    ConvolvedModel,
+    ParamConfig,
+)
 from elisa.util.misc import define_fdjvp
 
 try:
@@ -43,15 +49,32 @@ except ImportError as e:
     warnings.warn(f'Xspec model library is not available: {e}', ImportWarning)
 
 if TYPE_CHECKING:
-    from elisa.util.typing import CompEval
+    from elisa.models.model import Model, UniComponentModel
+    from elisa.util.typing import (
+        CompEval,
+        CompIDParamValMapping,
+        JAXArray,
+        ModelEval,
+    )
 
 __all__ = []
 
 
-class XspecComponent(Component):
+class XspecComponentMeta(ComponentMeta):
+    def __call__(
+        cls, *args, **kwargs
+    ) -> UniComponentModel | XspecConvolutionModel:
+        if issubclass(cls, XspecConvolution):
+            component = super(ComponentMeta, cls).__call__(*args, **kwargs)
+            return XspecConvolutionModel(component)
+        else:
+            return super().__call__(*args, **kwargs)
+
+
+class XspecComponent(Component, metaclass=XspecComponentMeta):
     """Xspec model wrapper."""
 
-    _kwargs = ('grad_method', 'spec_num')
+    _kwargs: tuple[str, ...] = ('grad_method', 'spec_num')
     _eval: CompEval | None = None
 
     def __init__(
@@ -62,13 +85,10 @@ class XspecComponent(Component):
         spec_num: int | None,
     ):
         self.grad_method = grad_method
-        self._spec_num = spec_num
 
         if spec_num is None:
             spec_num = 1
-        else:
-            spec_num = int(spec_num)
-        self._spec_num = spec_num
+        self._spec_num = int(spec_num)
 
         super().__init__(params, latex)
 
@@ -139,10 +159,126 @@ class XspecMultiplicative(XspecComponent):
         pass
 
 
+class XspecConvolutionModel(ConvolutionModel):
+    def __call__(self, model: Model) -> XspecConvolvedModel:
+        if model.type not in self._component._supported:
+            accepted = [f"'{i}'" for i in self._component._supported]
+            raise TypeError(
+                f'{self.name} convolution model supports models with type: '
+                f"{', '.join(accepted)}; got '{model.type}' type model {model}"
+            )
+
+        return XspecConvolvedModel(self._component, model)
+
+
+class XspecConvolvedModel(ConvolvedModel):
+    _op: XspecConvolution
+
+    @property
+    def eval(self) -> ModelEval:
+        comp_id = self._op._id
+        convolve = self._op.eval
+        model = self._model.eval
+
+        def fn(egrid: JAXArray, params: CompIDParamValMapping) -> JAXArray:
+            """The convolved model evaluation function."""
+            return convolve(egrid, params[comp_id], model(egrid, params))
+
+        return jax.jit(fn)
+
+
 class XspecConvolution(XspecComponent):
+    _supported: frozenset[Literal['add', 'mul']]
+    _convolve_jit = None
+    _kwargs = (
+        'low_energy',
+        'low_ngrid',
+        'low_log',
+        'high_energy',
+        'high_ngrid',
+        'high_log',
+        'grad_method',
+        'spec_num',
+    )
+
+    def __init__(
+        self,
+        params: dict,
+        latex: str | None,
+        low_energy: float | int | None,
+        low_ngrid: int | None,
+        low_log: bool | None,
+        high_energy: float | int | None,
+        high_ngrid: int | None,
+        high_log: bool | None,
+        grad_method: Literal['central', 'forward'] | None,
+        spec_num: int | None,
+    ):
+        self.grad_method = grad_method
+        self._spec_num = spec_num
+
+        if spec_num is None:
+            spec_num = 1
+        else:
+            spec_num = int(spec_num)
+        self._spec_num = spec_num
+
+        if low_energy is None:
+            low_energy = 0.01
+        self._low_energy = float(low_energy)
+
+        if low_ngrid is None:
+            low_ngrid = 100
+        self._low_ngrid = int(low_ngrid)
+
+        if low_log is None:
+            low_log = True
+        self._low_log = bool(low_log)
+
+        if high_energy is None:
+            high_energy = 100.0
+        self._high_energy = float(high_energy)
+
+        if high_ngrid is None:
+            high_ngrid = 100
+        self._high_ngrid = int(high_ngrid)
+
+        if high_log is None:
+            high_log = True
+        self._high_log = bool(high_log)
+
+        super().__init__(params, latex, grad_method, spec_num)
+
     @property
     def type(self) -> Literal['conv']:
         return 'conv'
+
+    @property
+    def eval(self):
+        if self._convolve_jit is not None:
+            self._convolve_jit = jax.jit(self._convolve)
+        return self._convolve_jit
+
+    @property
+    @abstractmethod
+    def _convolve(self):
+        pass
+
+
+class cflux(XspecConvolution):
+    _config = (ParamConfig('F', r'\mathrm{F}', 'keV', 1.0, 1e-10, 1e10),)
+
+    @property
+    def _convolve(self):
+        spec_num = self.spec_num
+        params_names = [p.name for p in self._config]
+        fn = _XSMODEL['primitive']['cflux']
+
+        def cflux(egrid, params, flux):
+            params = jnp.stack([params[p] for p in params_names])
+            return fn(params, egrid, flux, spec_num)
+
+        return cflux
 
 
 def create_xspec_components():
