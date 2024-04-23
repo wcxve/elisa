@@ -394,12 +394,15 @@ class Data:
 
         def apply_grouping(group_func, mask, args, all_good=()):
             """Apply the grouping array defined above."""
-            data = (
-                j[mask] * self._good_quality[mask]
-                if i not in all_good
-                else j[mask]
-                for i, j in enumerate(args)
-            )
+            data = []
+            for i, j in enumerate(args):
+                if np.shape(j) == ():  # scalar
+                    data.append(j)
+                else:
+                    if i not in all_good:
+                        data.append(j[mask] * self._good_quality[mask])
+                    else:
+                        data.append(j[mask])
             grouping_flag, grouping_success = group_func(*data, scale)
             grouping[mask] = grouping_flag
             return grouping_success
