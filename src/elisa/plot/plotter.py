@@ -659,10 +659,10 @@ class Plotter(ABC):
                 ax.set_yscale('log')
                 dmin, dmax = ax.get_yaxis().get_data_interval()
                 vmin = ax.get_ylim()[0]
-                if np.log10(dmax / vmin) > 7:
-                    vmin = 1e-7 * dmax
-                if yscale == 'linlog':
+                if yscale == 'linlog' and dmin <= 0.0:
                     lin_frac = config.lin_frac
+                    if np.log10(dmax / vmin) > 7:
+                        vmin = 1e-7 * dmax
                     scale = LinLogScale(
                         axis=None,
                         base=10.0,
@@ -671,6 +671,8 @@ class Plotter(ABC):
                     )
                     ax.set_yscale(scale)
                     ax.axhline(vmin, c='k', lw=0.15, ls=':', zorder=-1)
+                else:
+                    _adjust_log_range(ax, 'y', 7)
         if ne:
             self.plot_unfolded(axs_dict['ne'], 'ne', params, egrid)
             if yscale != 'linear':
