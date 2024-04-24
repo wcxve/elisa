@@ -486,6 +486,11 @@ class MLEResult(FitResult):
             The luminosity is calculated by trapezoidal rule, and is accurate
             only if enough numbers of energy grids are used.
 
+        .. warning::
+            If the spectral model is corrected for the time dilation effect,
+            such as convolved with :class:`~elisa.models.conv.ZAShift` model,
+            then the luminosity is consequently adjusted as well.
+
         Parameters
         ----------
         emin_rest : float or int
@@ -543,79 +548,82 @@ class MLEResult(FitResult):
             cosmo=cosmo,
         )
 
-    def eiso(
-        self,
-        emin_rest: float | int,
-        emax_rest: float | int,
-        z: float | int,
-        duration: float | int,
-        cl: float | int = 1,
-        ngrid: int = 1000,
-        comps: bool = False,
-        log: bool = True,
-        params: dict[str, float | int] | None = None,
-        cosmo: LambdaCDM = Planck18,
-    ) -> MLEEIso:
-        r"""Calculate the isotropic emission energy of model.
-
-        .. warning::
-            The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule, and
-            is accurate only if enough numbers of energy grids are used.
-
-        Parameters
-        ----------
-        emin_rest : float or int
-            Minimum value of rest-frame energy range, in units of keV.
-        emax_rest : float or int
-            Maximum value of rest-frame energy range, in units of keV.
-        z : float or int
-            Redshift of the source.
-        duration : float or int
-            Observed duration of the source, in units of seconds.
-        cl : float or int, optional
-            Confidence level for the confidence interval. If 0 < `cl` < 1, the
-            value is interpreted as the confidence level. If `cl` >= 1, it is
-            interpreted as the number of standard deviations. For example,
-            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
-            The default is 1.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
-
-        Other Parameters
-        ----------------
-        comps : bool, optional
-            Whether to return the result of each component. The default is
-            False.
-        log : bool, optional
-            Whether to use logarithmically regular energy grid. The default is
-            True.
-        params : dict, optional
-            Parameters dict to overwrite the fitted parameters.
-        cosmo : LambdaCDM, optional
-            Cosmology model used to calculate luminosity. The default is
-            Planck18.
-
-        Returns
-        -------
-        MLEEIso
-            The isotropic emission energy of the model.
-        """
-        lumin = self.lumin(
-            emin_rest, emax_rest, z, cl, ngrid, comps, log, params, cosmo
-        )
-        factor = duration / (1 + z) * u.s
-        to_eiso = lambda x: (x * factor).to(u.erg)
-        return MLEEIso(
-            mle=jax.tree_map(to_eiso, lumin.mle),
-            intervals=jax.tree_map(to_eiso, lumin.intervals),
-            errors=jax.tree_map(to_eiso, lumin.errors),
-            cl=lumin.cl,
-            dist=jax.tree_map(to_eiso, lumin.dist),
-            n=lumin.n,
-            z=lumin.z,
-            duration=float(duration),
-            cosmo=lumin.cosmo,
-        )
+    # def eiso(
+    #     self,
+    #     emin_rest: float | int,
+    #     emax_rest: float | int,
+    #     z: float | int,
+    #     duration: float | int,
+    #     cl: float | int = 1,
+    #     ngrid: int = 1000,
+    #     comps: bool = False,
+    #     log: bool = True,
+    #     params: dict[str, float | int] | None = None,
+    #     cosmo: LambdaCDM = Planck18,
+    # ) -> MLEEIso:
+    #     r"""Calculate the isotropic emission energy of model.
+    #
+    #     .. warning::
+    #         The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule,
+    #         which may not be accurate if not enough energy bins are used
+    #         when the difference between `emin_rest` and `emax_rest` is
+    #         large.
+    #
+    #     Parameters
+    #     ----------
+    #     emin_rest : float or int
+    #         Minimum value of rest-frame energy range, in units of keV.
+    #     emax_rest : float or int
+    #         Maximum value of rest-frame energy range, in units of keV.
+    #     z : float or int
+    #         Redshift of the source.
+    #     duration : float or int
+    #         Observed duration of the source, in units of seconds.
+    #     cl : float or int, optional
+    #         Confidence level for the confidence interval. If 0 < `cl` < 1,
+    #         the value is interpreted as the confidence level. If `cl` >= 1,
+    #         it is interpreted as the number of standard deviations.
+    #         For example, ``cl=1`` produces a 1-sigma or 68.3% confidence
+    #         interval. The default is 1.
+    #     ngrid : int, optional
+    #         The energy grid number to use in integration. The default is
+    #         1000.
+    #
+    #     Other Parameters
+    #     ----------------
+    #     comps : bool, optional
+    #         Whether to return the result of each component. The default is
+    #         False.
+    #     log : bool, optional
+    #         Whether to use logarithmically regular energy grid. The default
+    #         is True.
+    #     params : dict, optional
+    #         Parameters dict to overwrite the fitted parameters.
+    #     cosmo : LambdaCDM, optional
+    #         Cosmology model used to calculate luminosity. The default is
+    #         Planck18.
+    #
+    #     Returns
+    #     -------
+    #     MLEEIso
+    #         The isotropic emission energy of the model.
+    #     """
+    #     lumin = self.lumin(
+    #         emin_rest, emax_rest, z, cl, ngrid, comps, log, params, cosmo
+    #     )
+    #     factor = duration / (1 + z) * u.s
+    #     to_eiso = lambda x: (x * factor).to(u.erg)
+    #     return MLEEIso(
+    #         mle=jax.tree_map(to_eiso, lumin.mle),
+    #         intervals=jax.tree_map(to_eiso, lumin.intervals),
+    #         errors=jax.tree_map(to_eiso, lumin.errors),
+    #         cl=lumin.cl,
+    #         dist=jax.tree_map(to_eiso, lumin.dist),
+    #         n=lumin.n,
+    #         z=lumin.z,
+    #         duration=float(duration),
+    #         cosmo=lumin.cosmo,
+    #     )
 
     def boot(
         self,
@@ -1186,6 +1194,11 @@ class PosteriorResult(FitResult):
             The luminosity is calculated by trapezoidal rule, and is accurate
             only if enough numbers of energy grids are used.
 
+        .. warning::
+            If the spectral model is corrected for the time dilation effect,
+            such as convolved with :class:`~elisa.models.conv.ZAShift` model,
+            then the luminosity is consequently adjusted as well.
+
         Parameters
         ----------
         emin_rest : float or int
@@ -1246,83 +1259,81 @@ class PosteriorResult(FitResult):
             cosmo=cosmo,
         )
 
-    def eiso(
-        self,
-        emin_rest: float | int,
-        emax_rest: float | int,
-        z: float | int,
-        duration: float | int,
-        cl: float | int = 1,
-        ngrid: int = 1000,
-        hdi: bool = False,
-        comps: bool = False,
-        log: bool = True,
-        params: dict[str, float | int] | None = None,
-        cosmo: LambdaCDM = Planck18,
-    ) -> PosteriorEIso:
-        r"""Calculate the isotropic emission energy of model.
-
-        .. warning::
-            The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule, and
-            is accurate only if enough numbers of energy grids are used.
-
-        Parameters
-        ----------
-        emin_rest : float or int
-            Minimum value of rest-frame energy range, in units of keV.
-        emax_rest : float or int
-            Maximum value of rest-frame energy range, in units of keV.
-        z : float or int
-            Redshift of the source.
-        duration : float or int
-            Observed duration of the source, in units of seconds.
-        cl : float or int, optional
-            The credible level of samples within the credible interval. If
-            0 < `cl` < 1, the value is interpreted as the probability mass.
-            If `cl` >= 1, it is interpreted as the number of standard
-            deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
-            credible interval. The default is 1.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
-
-        Other Parameters
-        ----------------
-        hdi : bool, optional
-            Whether to return the highest density interval. The default is
-            False, which means an equal tailed interval is returned.
-        comps : bool, optional
-            Whether to return the result of each component. The default is
-            False.
-        log : bool, optional
-            Whether to use logarithmically regular energy grid. The default is
-            True.
-        params : dict, optional
-            Parameters dict to overwrite the fitted parameters.
-        cosmo : LambdaCDM, optional
-            Cosmology model used to calculate luminosity. The default is
-            Planck18.
-
-        Returns
-        -------
-        PosteriorEIso
-            The isotropic emission energy of the model.
-        """
-        lumin = self.lumin(
-            emin_rest, emax_rest, z, cl, ngrid, hdi, comps, log, params, cosmo
-        )
-        factor = duration / (1 + z) * u.s
-        to_eiso = lambda x: (x * factor).to(u.erg)
-        return PosteriorEIso(
-            median=jax.tree_map(to_eiso, lumin.median),
-            intervals=jax.tree_map(to_eiso, lumin.intervals),
-            errors=jax.tree_map(to_eiso, lumin.errors),
-            cl=lumin.cl,
-            dist=jax.tree_map(to_eiso, lumin.dist),
-            n=lumin.n,
-            z=lumin.z,
-            duration=float(duration),
-            cosmo=lumin.cosmo,
-        )
+    # def eiso(
+    #     self,
+    #     emin_rest: float | int,
+    #     emax_rest: float | int,
+    #     z: float | int,
+    #     duration: float | int,
+    #     cl: float | int = 1,
+    #     ngrid: int = 1000,
+    #     hdi: bool = False,
+    #     comps: bool = False,
+    #     log: bool = True,
+    #     params: dict[str, float | int] | None = None,
+    #     cosmo: LambdaCDM = Planck18,
+    # ) -> PosteriorEIso:
+    #     """Calculate the isotropic emission energy of model.
+    #
+    #     Parameters
+    #     ----------
+    #     emin_rest : float or int
+    #         Minimum value of rest-frame energy range, in units of keV.
+    #     emax_rest : float or int
+    #         Maximum value of rest-frame energy range, in units of keV.
+    #     z : float or int
+    #         Redshift of the source.
+    #     duration : float or int
+    #         Observed duration of the source, in units of seconds.
+    #     cl : float or int, optional
+    #         The credible level of samples within the credible interval. If
+    #         0 < `cl` < 1, the value is interpreted as the probability mass.
+    #         If `cl` >= 1, it is interpreted as the number of standard
+    #         deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
+    #         credible interval. The default is 1.
+    #     ngrid : int, optional
+    #         The energy grid number to use in integration. The default is
+    #         1000.
+    #
+    #     Other Parameters
+    #     ----------------
+    #     hdi : bool, optional
+    #         Whether to return the highest density interval. The default is
+    #         False, which means an equal tailed interval is returned.
+    #     comps : bool, optional
+    #         Whether to return the result of each component. The default is
+    #         False.
+    #     log : bool, optional
+    #         Whether to use logarithmically regular energy grid. The default
+    #         is True.
+    #     params : dict, optional
+    #         Parameters dict to overwrite the fitted parameters.
+    #     cosmo : LambdaCDM, optional
+    #         Cosmology model used to calculate luminosity. The default is
+    #         Planck18.
+    #
+    #     Returns
+    #     -------
+    #     PosteriorEIso
+    #         The isotropic emission energy of the model.
+    #     """
+    #     lumin = self.lumin(
+    #         emin_rest, emax_rest, z, cl, ngrid, hdi, comps, log, params,
+    #         cosmo
+    #     )
+    #     factor = duration / (1 + z) * u.s
+    #     to_eiso = lambda x: (x * factor).to(u.erg)
+    #     return PosteriorEIso(
+    #         median=jax.tree_map(to_eiso, lumin.median),
+    #         intervals=jax.tree_map(to_eiso, lumin.intervals),
+    #         errors=jax.tree_map(to_eiso, lumin.errors),
+    #         cl=lumin.cl,
+    #         dist=jax.tree_map(to_eiso, lumin.dist),
+    #         n=lumin.n,
+    #         z=lumin.z,
+    #         duration=float(duration),
+    #         cosmo=lumin.cosmo,
+    #     )
 
     def ppc(
         self,
@@ -1833,35 +1844,35 @@ class MLELumin(NamedTuple):
     """Cosmology model used to calculate luminosity."""
 
 
-class MLEEIso(NamedTuple):
-    """The isotropic emission energy of the MLE model."""
-
-    mle: dict[str, Q] | dict[str, dict[str, Q]]
-    r"""The model Eiso at MLE."""
-
-    intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The confidence intervals of the model Eiso."""
-
-    errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The confidence intervals of the model Eiso in error form."""
-
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Bootstrap Eiso distribution."""
-
-    cl: float
-    """The confidence level."""
-
-    n: int
-    """Numbers of bootstrap samples."""
-
-    z: float
-    """Redshift of the source."""
-
-    duration: float
-    """Observed duration of the source."""
-
-    cosmo: LambdaCDM
-    """Cosmology model used to calculate Eiso."""
+# class MLEEIso(NamedTuple):
+#     """The isotropic emission energy of the MLE model."""
+#
+#     mle: dict[str, Q] | dict[str, dict[str, Q]]
+#     r"""The model Eiso at MLE."""
+#
+#     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+#     """The confidence intervals of the model Eiso."""
+#
+#     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+#     """The confidence intervals of the model Eiso in error form."""
+#
+#     dist: dict[str, Q] | dict[str, dict[str, Q]]
+#     """Bootstrap Eiso distribution."""
+#
+#     cl: float
+#     """The confidence level."""
+#
+#     n: int
+#     """Numbers of bootstrap samples."""
+#
+#     z: float
+#     """Redshift of the source."""
+#
+#     duration: float
+#     """Observed duration of the source."""
+#
+#     cosmo: LambdaCDM
+#     """Cosmology model used to calculate Eiso."""
 
 
 class BootstrapResult(NamedTuple):
@@ -1967,35 +1978,35 @@ class PosteriorLumin(NamedTuple):
     """Cosmology model used to calculate luminosity."""
 
 
-class PosteriorEIso(NamedTuple):
-    """Posterior isotropic emission energy."""
-
-    median: dict[str, Q] | dict[str, dict[str, Q]]
-    r"""The median Eiso."""
-
-    intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The credible intervals of the model Eiso."""
-
-    errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The credible intervals of the model Eiso in error form."""
-
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Posterior distribution of Eiso."""
-
-    cl: float
-    """The credible level."""
-
-    n: int
-    """Numbers of posterior samples."""
-
-    z: float
-    """Redshift of the source."""
-
-    duration: float
-    """Observed duration of the source."""
-
-    cosmo: LambdaCDM
-    """Cosmology model used to calculate Eiso."""
+# class PosteriorEIso(NamedTuple):
+#     """Posterior isotropic emission energy."""
+#
+#     median: dict[str, Q] | dict[str, dict[str, Q]]
+#     r"""The median Eiso."""
+#
+#     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+#     """The credible intervals of the model Eiso."""
+#
+#     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
+#     """The credible intervals of the model Eiso in error form."""
+#
+#     dist: dict[str, Q] | dict[str, dict[str, Q]]
+#     """Posterior distribution of Eiso."""
+#
+#     cl: float
+#     """The credible level."""
+#
+#     n: int
+#     """Numbers of posterior samples."""
+#
+#     z: float
+#     """Redshift of the source."""
+#
+#     duration: float
+#     """Observed duration of the source."""
+#
+#     cosmo: LambdaCDM
+#     """Cosmology model used to calculate Eiso."""
 
 
 class PPCResult(NamedTuple):
