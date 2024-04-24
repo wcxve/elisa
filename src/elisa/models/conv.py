@@ -153,6 +153,7 @@ class PhFlux(NormConvolution):
         The normalization of one of the additive components **must** be fixed
         to a positive value.
 
+    .. warning::
         The flux is calculated by trapezoidal rule, and is accurate only if
         enough numbers of energy grids are used.
 
@@ -205,6 +206,7 @@ class EnFlux(NormConvolution):
         The normalization of one of the additive components **must** be fixed
         to a positive value.
 
+    .. warning::
         The flux is calculated by trapezoidal rule, and is accurate only if
         enough numbers of energy grids are used.
 
