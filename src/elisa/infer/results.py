@@ -408,9 +408,8 @@ class MLEResult(FitResult):
         r"""Calculate the flux of model.
 
         .. warning::
-            The flux is calculated by trapezoidal rule, which may not be
-            accurate if not enough energy bins are used when the difference
-            between `emin` and `emax` is large.
+            The flux is calculated by trapezoidal rule, and is accurate only
+            if enough numbers of energy grids are used.
 
         Parameters
         ----------
@@ -484,9 +483,8 @@ class MLEResult(FitResult):
         """Calculate the luminosity of model.
 
         .. warning::
-            The luminosity is calculated by trapezoidal rule, which may not be
-            accurate if not enough energy bins are used when the difference
-            between `emin_rest` and `emax_rest` is large.
+            The luminosity is calculated by trapezoidal rule, and is accurate
+            only if enough numbers of energy grids are used.
 
         Parameters
         ----------
@@ -561,9 +559,8 @@ class MLEResult(FitResult):
         r"""Calculate the isotropic emission energy of model.
 
         .. warning::
-            The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule, which
-            may not be accurate if not enough energy bins are used when the
-            difference between `emin_rest` and `emax_rest` is large.
+            The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule, and
+            is accurate only if enough numbers of energy grids are used.
 
         Parameters
         ----------
@@ -1112,9 +1109,8 @@ class PosteriorResult(FitResult):
         r"""Calculate the flux of model.
 
         .. warning::
-            The flux is calculated by trapezoidal rule, which may not be
-            accurate if not enough energy bins are used when the difference
-            between `emin` and `emax` is large.
+            The flux is calculated by trapezoidal rule, and is accurate only
+            if enough numbers of energy grids are used.
 
         Parameters
         ----------
@@ -1187,9 +1183,8 @@ class PosteriorResult(FitResult):
         """Calculate the luminosity of model.
 
         .. warning::
-            The luminosity is calculated by trapezoidal rule, which may not be
-            accurate if not enough energy bins are used when the difference
-            between `emin_rest` and `emax_rest` is large.
+            The luminosity is calculated by trapezoidal rule, and is accurate
+            only if enough numbers of energy grids are used.
 
         Parameters
         ----------
@@ -1265,7 +1260,11 @@ class PosteriorResult(FitResult):
         params: dict[str, float | int] | None = None,
         cosmo: LambdaCDM = Planck18,
     ) -> PosteriorEIso:
-        """Calculate the isotropic emission energy of model.
+        r"""Calculate the isotropic emission energy of model.
+
+        .. warning::
+            The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule, and
+            is accurate only if enough numbers of energy grids are used.
 
         Parameters
         ----------
