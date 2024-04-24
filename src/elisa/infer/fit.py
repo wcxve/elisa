@@ -420,15 +420,8 @@ class MaxLikeFit(Fit):
         )
 
         # TODO: test if simplex can be used to "polish" the initial guess
-        minuit.strategy = 0
-        minuit.migrad(iterate=10)
-
-        # refine hessian matrix
-        minuit.hesse()
-        minuit.migrad()  # run Migrad again, refresh the EDM
-
-        # for accuracy of confidence interval calculation, set strategy to 2
         minuit.strategy = 2
+        minuit.migrad(iterate=10)
 
         return minuit
 
