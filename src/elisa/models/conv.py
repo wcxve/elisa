@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
     from elisa.util.typing import ConvolveEval, JAXArray, NameValMapping
 
-__all__ = ['EnFlux', 'PhFlux', 'RedShift', 'VelocityShift']
+__all__ = ['EnFlux', 'PhFlux', 'ZAShift', 'ZMShift', 'VAShift', 'VMShift']
 
 
 class NormConvolution(ConvolutionComponent):
@@ -247,10 +247,19 @@ class EnFlux(NormConvolution):
         return F / mflux * flux
 
 
-class RedShift(ConvolutionComponent):
-    r"""Redshifts a model.
+class ZAShift(ConvolutionComponent):
+    r"""Redshifts an additive model.
 
-    It shifts energies by factor of :math:`1+z` and then calculates the model.
+    Given flux function :math:`N(E)` of a source at redshift :math:`z`, the
+    observed photon number :math:`n` between observed energy range :math:`e_1`
+    and :math:`e_2` during exposure :math:`\Delta t` is
+
+    .. math::
+        n &= \frac{\Delta t}{1+z} \int_{e_1}^{e_2} N(e (1+z)) \, \mathrm{d}e
+          \\\\
+          &= \frac{\Delta t}{(1+z)^2} \int_{E_1}^{E_2} N(E) \, \mathrm{d}E,
+
+    where :math:`E_1 = e_1 (1+z)` and :math:`E_2 = e_2 (1+z)`.
 
     Parameters
     ----------
@@ -260,6 +269,42 @@ class RedShift(ConvolutionComponent):
         :math:`\LaTeX` format of the component. Defaults to class name.
     """
 
+    _supported = frozenset({'add'})
+    _config = (ParamConfig('z', 'z', '', 0.0, -0.999, 15.0, fixed=True),)
+
+    @staticmethod
+    def convolve(
+        egrid: JAXArray,
+        params: NameValMapping,
+        model_fn: Callable[[JAXArray], JAXArray],
+    ) -> JAXArray:
+        factor = 1.0 + params['z']
+        return model_fn(egrid * factor) / (factor * factor)
+
+
+class ZMShift(ConvolutionComponent):
+    r"""Redshifts a multiplicative model.
+
+    Given model function :math:`M(E)` of a source at redshift :math:`z`, the
+    average observed value between observed energy range :math:`e_1` and
+    :math:`e_2` is
+
+    .. math::
+        m &= \frac{1}{e_2 - e_1} \int_{e_1}^{e_2} M(e (1+z)) \, \mathrm{d}e
+          \\\\
+          &= \frac{1}{E_2 - E_1} \int_{E_1}^{E_2} M(E) \, \mathrm{d}E,
+
+    where :math:`E_1 = e_1 (1+z)` and :math:`E_2 = e_2 (1+z)`.
+
+    Parameters
+    ----------
+    z : Parameter, optional
+        Redshift :math:`z`, dimensionless.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    """
+
+    _supported = frozenset({'mul'})
     _config = (ParamConfig('z', 'z', '', 0.0, -0.999, 15.0, fixed=True),)
 
     @staticmethod
@@ -272,10 +317,22 @@ class RedShift(ConvolutionComponent):
         return model_fn(egrid * factor)
 
 
-class VelocityShift(ConvolutionComponent):
-    r"""Velocity shifts a model.
+class VAShift(ConvolutionComponent):
+    r"""Velocity shifts an additive model.
 
-    It shifts energies :math:`-Ev/c` and then calculates the model.
+    Given flux function :math:`N(E)` of a source moving with speed :math:`v`
+    along line of sight, the observed photon rate :math:`n` between observed
+    energy range :math:`e_1` and :math:`e_2` during exposure :math:`\Delta t`
+    is
+
+    .. math::
+        n &= \frac{\Delta t}{\gamma} \int_{e_1}^{e_2} N(f e) \, \mathrm{d}e
+          \\\\
+          &= \frac{\Delta t}{\gamma f} \int_{E_1}^{E_2} N(E) \, \mathrm{d}E,
+
+    where :math:`E_1 = f e_1`, :math:`E_2 = f e_2`,
+    :math:`f = \sqrt{1-2\beta}`, :math:`\gamma = \sqrt{1-\beta^2}`, and
+    :math:`\beta=v/c`.
 
     Parameters
     ----------
@@ -285,6 +342,7 @@ class VelocityShift(ConvolutionComponent):
         :math:`\LaTeX` format of the component. Defaults to class name.
     """
 
+    _supported = frozenset({'add'})
     _config = (ParamConfig('v', 'v', 'km s^-1', 0.0, -1e4, 1e4, fixed=True),)
 
     @staticmethod
@@ -295,5 +353,45 @@ class VelocityShift(ConvolutionComponent):
     ) -> JAXArray:
         v = params['v']  # unit: km/s
         c = 299792.458  # unit: km/s
-        factor = 1.0 - v / c
-        return model_fn(egrid * factor)
+        beta = v / c
+        f = jnp.sqrt(1.0 - 2.0 * beta)
+        gamma = jnp.sqrt(1.0 - beta * beta)
+        return model_fn(egrid * f) / (f * gamma)
+
+
+class VMShift(ConvolutionComponent):
+    r"""Velocity shifts a multiplicative model.
+
+    Given model function :math:`M(E)` of a source moving with speed :math:`v`
+    along line of sight, the average observed value :math:`m` between observed
+    energy range :math:`e_1` and :math:`e_2` is
+
+    .. math::
+        m &= \frac{1}{e_2 - e_1} \int_{e_1}^{e_2} M(f e) \, \mathrm{d}e
+          \\\\
+          &= \frac{1}{E_2 - E_1} \int_{E_1}^{E_2} M(E) \, \mathrm{d}E,
+
+    where :math:`E_1 = f e_1`, :math:`E_2 = f e_2`,
+    :math:`f = \sqrt{1-2\beta}`, and :math:`\beta=v/c`.
+
+    Parameters
+    ----------
+    v : Parameter, optional
+        Velocity :math:`v`, in units of km s⁻¹.
+    latex : str, optional
+        :math:`\LaTeX` format of the component. Defaults to class name.
+    """
+
+    _supported = frozenset({'mul'})
+    _config = (ParamConfig('v', 'v', 'km s^-1', 0.0, -1e4, 1e4, fixed=True),)
+
+    @staticmethod
+    def convolve(
+        egrid: JAXArray,
+        params: NameValMapping,
+        model_fn: Callable[[JAXArray], JAXArray],
+    ) -> JAXArray:
+        v = params['v']  # unit: km/s
+        c = 299792.458  # unit: km/s
+        f = jnp.sqrt(1.0 - 2.0 * v / c)
+        return model_fn(egrid * f)
