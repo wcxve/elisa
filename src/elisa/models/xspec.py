@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 
 from elisa.models.model import (
     Component,
@@ -51,11 +52,18 @@ except ImportError as e:
 if TYPE_CHECKING:
     from elisa.models.model import Model, UniComponentModel
     from elisa.util.typing import (
+        Callable,
         CompEval,
         CompIDParamValMapping,
         JAXArray,
         ModelEval,
+        ParamNameValMapping,
     )
+
+    XspecConvolveEval = Callable[
+        [JAXArray, ParamNameValMapping, JAXArray],
+        JAXArray,
+    ]
 
 __all__ = []
 
@@ -176,14 +184,52 @@ class XspecConvolvedModel(ConvolvedModel):
 
     @property
     def eval(self) -> ModelEval:
+        model = self._model.eval
         comp_id = self._op._id
         convolve = self._op.eval
-        model = self._model.eval
+        elow = self._op._low_energy
+        nlow = self._op._low_ngrid
+        loglow = self._op._low_log
+        ehigh = self._op._high_energy
+        nhigh = self._op._high_ngrid
+        loghigh = self._op._high_log
+
+        def extend_low(egrid):
+            if egrid[0] < elow:
+                raise RuntimeError(
+                    f'the lower limit ({elow}) of the energy extension must '
+                    f'be less than the minimum energy grid ({egrid[0]})'
+                )
+            if loglow:
+                low_extension = np.geomspace(elow, egrid[0], nlow)
+            else:
+                low_extension = np.linspace(elow, egrid[0], nlow)
+            return np.concatenate((low_extension, egrid)).astype(egrid.dtype)
+
+        def extend_high(egrid):
+            if egrid[-1] > ehigh:
+                raise RuntimeError(
+                    f'the upper limit ({ehigh}) of the energy extension must '
+                    f'be greater than the maximum energy grid ({egrid[-1]})'
+                )
+            if loghigh:
+                high_extension = np.geomspace(egrid[-1], ehigh, nhigh)
+            else:
+                high_extension = np.linspace(egrid[-1], ehigh, nhigh)
+            return np.concatenate((egrid, high_extension)).astype(egrid.dtype)
 
         def fn(egrid: JAXArray, params: CompIDParamValMapping) -> JAXArray:
             """The convolved model evaluation function."""
-            return convolve(egrid, params[comp_id], model(egrid, params))
+            rtype = jax.ShapeDtypeStruct((egrid.size + nlow,), egrid.dtype)
+            egrid = jax.pure_callback(extend_low, rtype, egrid)
+            rtype = jax.ShapeDtypeStruct((egrid.size + nhigh,), egrid.dtype)
+            egrid = jax.pure_callback(extend_high, rtype, egrid)
+            conv_params = params[comp_id]
+            flux = model(egrid, params)
+            result = convolve(egrid, conv_params, flux)
+            return result[nlow:-nhigh]
 
+        fn = define_fdjvp(jax.jit(fn), self._op.grad_method)
         return jax.jit(fn)
 
 
@@ -254,31 +300,40 @@ class XspecConvolution(XspecComponent):
         return 'conv'
 
     @property
-    def eval(self):
-        if self._convolve_jit is not None:
+    def eval(self) -> XspecConvolveEval:
+        if self._convolve_jit is None:
             self._convolve_jit = jax.jit(self._convolve)
         return self._convolve_jit
 
     @property
     @abstractmethod
-    def _convolve(self):
+    def _convolve(self) -> XspecConvolveEval:
         pass
 
 
-class cflux(XspecConvolution):
-    _config = (ParamConfig('F', r'\mathrm{F}', 'keV', 1.0, 1e-10, 1e10),)
-
-    @property
-    def _convolve(self):
-        spec_num = self.spec_num
-        params_names = [p.name for p in self._config]
-        fn = _XSMODEL['primitive']['cflux']
-
-        def cflux(egrid, params, flux):
-            params = jnp.stack([params[p] for p in params_names])
-            return fn(params, egrid, flux, spec_num)
-
-        return cflux
+# class cflux(XspecConvolution):
+#     _supported = frozenset({'add'})
+#     _config = (
+#         ParamConfig(
+#             'emin', r'\mathrm{emin}', 'keV', 1.0, 1e-10, 1e10, fixed=1
+#         ),
+#         ParamConfig(
+#             'emax', r'\mathrm{emax}', 'keV', 10.0, 1e-10, 1e10, fixed=1
+#         ),
+#         ParamConfig('log10F', r'\mathrm{F}', '', -12, -100, 100),
+#     )
+#
+#     @property
+#     def _convolve(self):
+#         spec_num = self.spec_num
+#         params_names = [p.name for p in self._config]
+#         fn = _XSMODEL['primitive']['cflux']
+#
+#         def cflux(egrid, params, flux):
+#             params = jnp.stack([params[p] for p in params_names])
+#             return fn(params, egrid, flux, spec_num)
+#
+#         return cflux
 
 
 def create_xspec_components():
@@ -365,7 +420,81 @@ class {name}({component_class}):
     return model_classes
 
 
-_xs_comps = create_xspec_components()
+def create_xspec_conv_components():
+    """Create Xspec convolution model classes."""
+    if not _HAS_XSPEC:
+        return {}
+
+    template = '''
+class {name}(XspecConvolution):
+    """Xspec {name} model."""
+
+    _supported = frozenset(['{supported}'])
+    _config = (
+        {params_config},
+    )
+
+    @property
+    def _convolve(self):
+        spec_num = self.spec_num
+        params_names = [p.name for p in self._config]
+        fn = XSMODEL['primitive']['{name}']
+
+        def {name}(egrid, params, flux):
+            params = jnp.stack([params[p] for p in params_names])
+            return fn(params, egrid, flux, spec_num)
+
+        return {name}
+'''
+    env = {
+        'ParamConfig': ParamConfig,
+        'XSMODEL': _XSMODEL,
+        'XspecConvolution': XspecConvolution,
+        'jnp': jnp,
+    }
+    conv_mul = ['partcov', 'vmshift', 'zmshift']
+    models = _XSMODEL['con']
+    model_classes = {}
+    for name, info in models.items():
+        params_config = []
+        for p in info.parameters:
+            if p.units is None:
+                unit = ''
+            else:
+                unit = p.units
+
+            pname = p.name
+            if pname == 'del':
+                pname = 'delta'
+
+            pmin = p.hardmin
+            pmax = p.hardmax
+            default = p.default
+            if p.paramtype.name == 'Default' and (not pmin < default < pmax):
+                delta = 1e-3 * (pmax - pmin)
+                if pmin == default:
+                    default += delta
+                else:
+                    default -= delta
+
+            params_config.append(
+                rf"ParamConfig('{pname}', r'\mathrm{{{pname}}}', '{unit}', "
+                f'{default}, {pmin}, {pmax}, fixed={p.frozen})'
+            )
+
+        params_config = ',\n        '.join(params_config)
+
+        str_map = {
+            'name': name,
+            'params_config': params_config,
+            'supported': 'mul' if name in conv_mul else 'add',
+        }
+        exec(template.format_map(str_map), env, model_classes)
+
+    return model_classes
+
+
+_xs_comps = create_xspec_components() | create_xspec_conv_components()
 locals().update(_xs_comps)
 __all__.append(_xs_comps.keys())
 del _xs_comps
