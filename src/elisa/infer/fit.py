@@ -164,7 +164,7 @@ class Fit(ABC):
 
         return self._lm(jnp.asarray(unconstr_init, float))
 
-    def _optimize_ns(self, max_steps=100000, verbose=False) -> JAXArray:
+    def _optimize_ns(self, max_steps=131072, verbose=False) -> JAXArray:
         """Search MLE using nested sampling of :mod:`jaxns`."""
         if self._ns is None:
             self._ns = NestedSampler(
@@ -418,9 +418,9 @@ class MaxLikeFit(Fit):
     def _optimize_minuit(
         self,
         unconstr_init: JAXArray,
-        ncall: 0,
-        throw_nan: True,
-        verbose: False,
+        ncall: int | None = None,
+        throw: bool = True,
+        verbose: int | bool = False,
     ) -> Minuit:
         """Search MLE using Minuit algorithm of :mod:`iminuit`."""
         deviance = jax.jit(self._helper.deviance_total)
@@ -432,15 +432,14 @@ class MaxLikeFit(Fit):
             name=self._helper.params_names['free'],
         )
 
-        if throw_nan:
+        if throw:
             minuit.throw_nan = True
 
-        if verbose:
-            minuit.print_level = 2
+        minuit.print_level = int(verbose)
 
         # TODO: test if simplex can be used to "polish" the initial guess
         minuit.strategy = 2
-        minuit.migrad(iterate=10)
+        minuit.migrad(ncall=ncall, iterate=10)
 
         return minuit
 
@@ -449,7 +448,8 @@ class MaxLikeFit(Fit):
         init: ArrayLike | dict | None = None,
         method: Literal['minuit', 'lm', 'ns'] = 'minuit',
         max_steps: int = None,
-        throw_nan: bool = True,
+        throw: bool = True,
+        verbose: int | bool = False,
     ) -> MLEResult:
         """Search Maximum Likelihood Estimation (MLE) for the model.
 
@@ -471,12 +471,13 @@ class MaxLikeFit(Fit):
 
         Other Parameters
         ----------------
-        lm_max_steps : int, optional
-            The maximum number of steps the ``'lm'`` solver can take. Defaults
-            to 131072.
-        lm_throw : bool, optional
-            Whether to report any failures of the ``'lm'`` solver. Defaults to
-            True.
+        max_steps : int, optional
+            The maximum number of steps the solver can take. The default is
+            131072.
+        throw : bool, optional
+            Whether to report any failures of the solver. Defaults to True.
+        verbose : int or bool, optional
+            Whether to print fit progress information. The default is False.
 
         Returns
         -------
@@ -492,21 +493,20 @@ class MaxLikeFit(Fit):
         else:
             raise TypeError('params must be a array, sequence, or mapping')
 
+        max_steps = 131072 if max_steps is None else int(max_steps)
+
         if method == 'lm':  # use Levenberg-Marquardt algorithm to find MLE
-            max_steps = 131072 if max_steps is None else int(max_steps)
             init_unconstr, _ = self._optimize_lm(
-                init_unconstr, max_steps, throw_nan, verbose
+                init_unconstr, max_steps, throw, bool(verbose)
             )
         elif method == 'ns':  # use nested sampling to find MLE
-            max_steps = 100000 if max_steps is None else int(max_steps)
             init_unconstr = self._optimize_ns(max_steps, verbose)
         else:
             if method != 'minuit':
                 raise ValueError(f'unsupported optimization method {method}')
 
-        ncall = 0 if max_steps is None else int(max_steps)
         minuit = self._optimize_minuit(
-            init_unconstr, ncall, throw_nan, verbose
+            init_unconstr, max_steps, throw, verbose
         )
 
         return MLEResult(minuit, self._helper)
