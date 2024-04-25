@@ -21,30 +21,52 @@ from elisa.util.misc import define_fdjvp
 
 try:
     from xspex import (
-        abundance as abundance,
-        chatter as chatter,
-        clear_db as clear_db,
-        clear_model_string as clear_model_string,
-        clear_xflt as clear_xflt,
-        cosmology as cosmology,
-        cross_section as cross_section,
-        element_abundance as element_abundance,
-        element_name as element_name,
-        get_db as get_db,
-        get_model_string as get_model_string,
-        get_number_xflt as get_number_xflt,
-        get_xflt as get_xflt,
-        in_xflt as in_xflt,
-        list_models as list_models,
-        number_elements as number_elements,
-        set_db as set_db,
-        set_xflt as set_xflt,
-        version as version,
+        abundance,
+        chatter,
+        clear_db,
+        clear_model_string,
+        clear_xflt,
+        cosmology,
+        cross_section,
+        element_abundance,
+        element_name,
+        get_db,
+        get_model_string,
+        get_number_xflt,
+        get_xflt,
+        in_xflt,
+        list_models,
+        number_elements,
+        set_db,
+        set_xflt,
+        version,
     )
     from xspex.primitive import XSModel as _XSMODEL
 
+    __all__ = [
+        'abundance',
+        'chatter',
+        'clear_db',
+        'clear_model_string',
+        'clear_xflt',
+        'cosmology',
+        'cross_section',
+        'element_abundance',
+        'element_name',
+        'get_db',
+        'get_model_string',
+        'get_number_xflt',
+        'get_xflt',
+        'in_xflt',
+        'list_models',
+        'number_elements',
+        'set_db',
+        'set_xflt',
+        'version',
+    ]
     _HAS_XSPEC = True
 except ImportError as e:
+    __all__ = []
     _XSMODEL = {}
     _HAS_XSPEC = False
     warnings.warn(f'Xspec model library is not available: {e}', ImportWarning)
@@ -64,8 +86,6 @@ if TYPE_CHECKING:
         [JAXArray, ParamNameValMapping, JAXArray],
         JAXArray,
     ]
-
-__all__ = []
 
 
 class XspecComponentMeta(ComponentMeta):
@@ -496,5 +516,5 @@ class {name}(XspecConvolution):
 
 _xs_comps = create_xspec_components() | create_xspec_conv_components()
 locals().update(_xs_comps)
-__all__.append(_xs_comps.keys())
+__all__.extend(_xs_comps.keys())
 del _xs_comps
