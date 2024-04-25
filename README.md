@@ -47,7 +47,7 @@ It is recommended to install `elisa` as follows:
    install `elisa`:
 
     ```console
-    pip install elisa-lib[xspec]
+    pip install elisa-lib xspex
     ```
 
 
