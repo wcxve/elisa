@@ -2,6 +2,7 @@
 
 See https://iopscience.iop.org/article/10.1088/0957-0233/24/2/027001.
 
+Contributed by @xiesl97 (https://github.com/xiesl97).
 """
 
 from __future__ import annotations
