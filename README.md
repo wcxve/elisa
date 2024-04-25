@@ -15,6 +15,7 @@ The key features of `elisa` include:
 - **Easy to Use**: Simple and intuitive interfaces
 - **Robustness**: Utilizing the state-of-the-art algorithm to fit, test, and compare models
 - **Performance**: Efficient computation backend using [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html)
+- ...
 
 -----
 
