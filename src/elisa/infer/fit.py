@@ -599,7 +599,7 @@ class BayesFit(Fit):
 
     def ns(
         self,
-        max_samples: int = 100000,
+        max_samples: int = 131072,
         num_live_points: int | None = None,
         s: int | None = None,
         k: int | None = None,
@@ -620,7 +620,7 @@ class BayesFit(Fit):
         Parameters
         ----------
         max_samples : int, optional
-            Maximum number of posterior samples. The default is 100000.
+            Maximum number of posterior samples. The default is 131072.
         num_live_points : int, optional
             Approximate number of live points. The default is `c` * (`k` + 1).
         s : int, optional
