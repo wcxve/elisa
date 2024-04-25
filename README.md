@@ -8,9 +8,9 @@
 
 **`elisa` is an efficient library for spectral analysis in high-energy astrophysics.**
 
-The aim of `elisa` is to offer astronomers a modern and efficient tool to
-explore and analyze the spectral data. It is designed to be user-friendly
-and flexible. The key features of `elisa` include:
+The aim of `elisa` is to provide a modern and efficient tool to explore and
+analyze the spectral data. It is designed to be user-friendly and flexible.
+The key features of `elisa` include:
 
 - **Easy to Use**: Simple and intuitive interfaces
 - **Robustness**: Use the state-of-the-art algorithm to fit and test models
