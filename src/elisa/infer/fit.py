@@ -143,9 +143,11 @@ class Fit(ABC):
             verbose = frozenset({'step', 'loss'})
         else:
             verbose = frozenset()
-        
+
         if self._lm is None:
-            lm_solver = optx.LevenbergMarquardt(rtol=0.0, atol=1e-6, verbose=verbose)
+            lm_solver = optx.LevenbergMarquardt(
+                rtol=0.0, atol=1e-6, verbose=verbose
+            )
             residual = jax.jit(lambda x, aux: self._helper.residual(x))
 
             def lm(init):
