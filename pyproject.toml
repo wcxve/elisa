@@ -33,7 +33,7 @@ dependencies = [
     "numpyro",
     "optimistix",
     "prettytable",
-    "quadax @ git+https://github.com/f0uriest/quadax.git@640afd5bacc1a42f1e3c55c266fc5a02f668b2d1",
+    "quadax>=0.2.1",
     "scipy>=1.11.0, <=1.12.0",
     "seaborn",
     "tinygp",
