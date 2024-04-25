@@ -37,7 +37,10 @@ It is recommended to install `elisa` as follows:
     conda create -n elisa python=3.9
     ```
 
-2. Activate the environment:
+   Note that you can customize the environment name to your preference,
+   and the `Python` version should range from 3.9 to 3.11.
+
+2. Activate the environment we just created:
 
     ```console
     conda activate elisa
