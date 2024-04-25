@@ -55,10 +55,10 @@ It is recommended to install `elisa` as follows:
    If you want to use models of [Xspec](https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/Models.html),
    make sure `HEASoft` and `Xspec` are installed on your system, and the
    `HEASoft` environment is initialized, then use the following command to
-   install `elisa`:
+   install [`xspex`](https://github.com/wcxve/xspex):
 
     ```console
-    pip install elisa-lib xspex
+    pip install xspex
     ```
 
 
