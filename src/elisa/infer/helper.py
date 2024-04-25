@@ -283,15 +283,20 @@ def get_helper(fit: Fit) -> Helper:
     pname_to_log: dict[ParamName, bool] = {
         pname: model_info.log[pid] for pid, pname in model_info.name.items()
     }
+
+    def get_unit_latex(pid: str) -> str:
+        """Get unit latex string of a parameter."""
+        ustr = model_info.unit[pid]
+        if ustr:
+            try:
+                ustr = Unit(ustr).to_string('latex', fraction=False)
+                ustr = ustr.replace(r'1 \times ', '')
+            except ValueError:
+                ustr = ''
+        return ustr
+
     pname_to_unit: dict[ParamName, str] = {
-        pname: (
-            Unit(ustr)
-            .to_string('latex', fraction=False)
-            .replace(r'1 \times ', '')
-            if (ustr := model_info.unit[pid])
-            else ''
-        )
-        for pid, pname in model_info.name.items()
+        pname: get_unit_latex(pid) for pid, pname in model_info.name.items()
     }
     pname_to_comp_latex: dict[ParamName, str] = {
         pname: model_info.pid_to_comp_latex[pid]
