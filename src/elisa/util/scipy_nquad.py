@@ -1,12 +1,20 @@
-# # # #
+"""Helper for using scipy.integrate.nquad in JAX.
+
+Contributed by @xiesl97 (https://github.com/xiesl97).
+"""
+
 import jax
 import jax.numpy as jnp
-
-jax.config.update('jax_enable_x64', True)
-import numba as nb
 import numpy as np
+from scipy import LowLevelCallable, integrate
 
-# # # #
+try:
+    import numba as nb
+except ImportError as e:
+    raise ImportError(
+        'To use this module, please install `numba` package. It can be'
+        ' installed with `pip install numba`'
+    ) from e
 
 
 class NQuadTransform:
@@ -28,8 +36,6 @@ class NQuadTransform:
 
     @staticmethod
     def _nquad(cfun, opts=None, vectorized=False):
-        from scipy import LowLevelCallable, integrate
-
         @jax.jit
         def _nquad_scipy(ranges, args):
             ranges = jnp.asarray(ranges)
@@ -43,7 +49,7 @@ class NQuadTransform:
                 return jnp.asarray([result, abserr])
 
             result_shape_dtype = jax.ShapeDtypeStruct(
-                shape=(2,), dtype=jnp.float64
+                shape=(2,), dtype=ranges.dtype
             )
             return jax.pure_callback(
                 _pcb, result_shape_dtype, ranges, args, vectorized=vectorized
@@ -63,20 +69,12 @@ class NQuadTransform:
         @_fn.defjvp
         @jax.jit
         def _fn_jvp(primals, tangents):
-            (
-                ranges,
-                args,
-            ) = primals
-            (
-                ranges_dot,
-                args_dots,
-            ) = tangents
+            ranges, args = primals
+            ranges_dot, args_dots = tangents
             primal_out = _fn(ranges, args)
-            #
             args_h = args + jnp.eye(len(args)) * h
             primal_dx = jax.vmap(_fn, in_axes=(None, 0))(ranges, args_h)
             primal_grad_dx = (primal_dx - primal_out) / h
-            #
             tangent_out = jnp.sum(primal_grad_dx * args_dots)
             return primal_out, tangent_out
 
@@ -108,8 +106,6 @@ if __name__ == '__main__':
     def bbodyrad(params):
         e, kT, K = params
         return 1.0344e-3 * K * e * e / np.expm1(e / kT)
-
-    from elisa.util.scipy_nquad import NQuadTransform
 
     nqt = NQuadTransform(bbodyrad)
     func_arg_grad = nqt._args_grad()
