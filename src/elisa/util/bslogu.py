@@ -111,7 +111,7 @@ class BiSymLogUniform(TransformedDistribution):
         self._c = c
         self.low, self.high = promote_shapes(low, high)
         self._support = constraints.interval(self.low, self.high)
-        super(BiSymLogUniform, self).__init__(
+        super().__init__(
             base_dist, BiSymTransform(c=c), validate_args=validate_args
         )
 
