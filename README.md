@@ -18,19 +18,46 @@
 
 ## Installation
 
-The package is still under heavy development, please DO NOT install it right now.
+### Stable Version
 
-The stable version
+It is recommended to install `elisa` as follows:
 
-```console
-pip install elisa-lib
-```
+1. Create a new `conda` environment. The following command creates a new
+   environment named "elisa" with Python 3.9:
 
-The latest version
+    ```console
+    conda create -n elisa python=3.9
+    ```
 
-```console
-pip install -U git+https://github.com/wcxve/elisa
-```
+2. Activate the environment:
+
+    ```console
+    conda activate elisa
+    ```
+
+3. Install `elisa` using `pip`:
+
+    ```console
+    pip install elisa-lib
+    ```
+
+   If you want to use models of [Xspec](https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/Models.html),
+   make sure `HEASoft` and `Xspec` are installed on your system, and the
+   `HEASoft` environment is initialized, then use the following command to
+   install `elisa`:
+
+    ```console
+    pip install elisa-lib[xspec]
+    ```
+
+
+### Development Version
+The latest version of `elisa` can be installed by the following command:
+
+   ```console
+   pip install -U git+https://github.com/wcxve/elisa.git
+   ```
+
 
 ## Documentation
 
