@@ -258,16 +258,17 @@ class EnFlux(NormConvolution):
 class ZAShift(ConvolutionComponent):
     r"""Redshifts an additive model.
 
-    Given flux function :math:`N(E)` of a source at redshift :math:`z`, the
-    observed photon number :math:`n` between observed energy range :math:`e_1`
-    and :math:`e_2` during exposure :math:`\Delta t` is
+    Given flux function :math:`N(E)` [s⁻¹ cm⁻² keV⁻¹] of a source at redshift
+    :math:`z`, the observed photon number :math:`n` between observed energy
+    range :math:`e_1` [keV] and :math:`e_2` [keV] during exposure
+    :math:`\Delta t` [s] is
 
     .. math::
         n &= \frac{\Delta t}{1+z} \int_{e_1}^{e_2} N(e (1+z)) \, \mathrm{d}e
           \\\\
           &= \frac{\Delta t}{(1+z)^2} \int_{E_1}^{E_2} N(E) \, \mathrm{d}E,
 
-    where :math:`E_1 = e_1 (1+z)` and :math:`E_2 = e_2 (1+z)`.
+    where :math:`E_1 = e_1 (1+z)` [keV] and :math:`E_2 = e_2 (1+z)` [keV].
 
     Parameters
     ----------
@@ -294,15 +295,15 @@ class ZMShift(ConvolutionComponent):
     r"""Redshifts a multiplicative model.
 
     Given model function :math:`M(E)` of a source at redshift :math:`z`, the
-    average observed value between observed energy range :math:`e_1` and
-    :math:`e_2` is
+    average observed value between observed energy range :math:`e_1` [keV] and
+    :math:`e_2` [keV] is
 
     .. math::
         m &= \frac{1}{e_2 - e_1} \int_{e_1}^{e_2} M(e (1+z)) \, \mathrm{d}e
           \\\\
           &= \frac{1}{E_2 - E_1} \int_{E_1}^{E_2} M(E) \, \mathrm{d}E,
 
-    where :math:`E_1 = e_1 (1+z)` and :math:`E_2 = e_2 (1+z)`.
+    where :math:`E_1 = e_1 (1+z)` [keV] and :math:`E_2 = e_2 (1+z)` [keV].
 
     Parameters
     ----------
@@ -328,17 +329,17 @@ class ZMShift(ConvolutionComponent):
 class VAShift(ConvolutionComponent):
     r"""Velocity shifts an additive model.
 
-    Given flux function :math:`N(E)` of a source moving with speed :math:`v`
-    along line of sight, the observed photon rate :math:`n` between observed
-    energy range :math:`e_1` and :math:`e_2` during exposure :math:`\Delta t`
-    is
+    Given flux function :math:`N(E)` [s⁻¹ cm⁻² keV⁻¹] of a source moving with
+    speed :math:`v` along line of sight, the observed photon rate :math:`n`
+    between observed energy range :math:`e_1` [keV] and :math:`e_2` [keV]
+    during exposure :math:`\Delta t` [s] is
 
     .. math::
         n &= \frac{\Delta t}{\gamma} \int_{e_1}^{e_2} N(f e) \, \mathrm{d}e
           \\\\
           &= \frac{\Delta t}{\gamma f} \int_{E_1}^{E_2} N(E) \, \mathrm{d}E,
 
-    where :math:`E_1 = f e_1`, :math:`E_2 = f e_2`,
+    where :math:`E_1 = f e_1` [keV], :math:`E_2 = f e_2` [keV],
     :math:`f = \sqrt{1-2\beta}`, :math:`\gamma = \sqrt{1-\beta^2}`, and
     :math:`\beta=v/c`.
 
@@ -372,14 +373,14 @@ class VMShift(ConvolutionComponent):
 
     Given model function :math:`M(E)` of a source moving with speed :math:`v`
     along line of sight, the average observed value :math:`m` between observed
-    energy range :math:`e_1` and :math:`e_2` is
+    energy range :math:`e_1` [keV] and :math:`e_2` [keV] is
 
     .. math::
         m &= \frac{1}{e_2 - e_1} \int_{e_1}^{e_2} M(f e) \, \mathrm{d}e
           \\\\
           &= \frac{1}{E_2 - E_1} \int_{E_1}^{E_2} M(E) \, \mathrm{d}E,
 
-    where :math:`E_1 = f e_1`, :math:`E_2 = f e_2`,
+    where :math:`E_1 = f e_1` [keV], :math:`E_2 = f e_2` [keV],
     :math:`f = \sqrt{1-2\beta}`, and :math:`\beta=v/c`.
 
     Parameters
