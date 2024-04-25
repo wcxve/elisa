@@ -2,11 +2,19 @@
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-lib?color=blue&logo=Python&logoColor=white&style=for-the-badge)](https://pypi.org/project/elisa-lib)
 [![PyPI - Version](https://img.shields.io/pypi/v/elisa-lib?color=blue&logo=PyPI&logoColor=white&style=for-the-badge)](https://pypi.org/project/elisa-lib)
-[![License: GPL v3](https://img.shields.io/github/license/wcxve/elisa?color=blue&logo=open-source-initiative&logoColor=white&style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0)<br>
+[![License: GPL v3](https://img.shields.io/github/license/wcxve/elisa?color=blue&logo=open-source-initiative&logoColor=white&style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0)<br><br>
 [![Coverage Status](https://img.shields.io/coverallsCoverage/github/wcxve/elisa?logo=Coveralls&logoColor=white&style=for-the-badge)](https://coveralls.io/github/wcxve/elisa)
 [![Documentation Status](https://img.shields.io/readthedocs/elisa-lib?logo=Read-the-Docs&logoColor=white&style=for-the-badge)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
 
-**An efficient library for spectral analysis in high-energy astrophysics.**
+**`elisa` is an efficient library for spectral analysis in high-energy astrophysics.**
+
+The aim of `elisa` is to offer astronomers a modern and efficient tool to
+explore and analyze the spectral data. It is designed to be user-friendly
+and flexible. The key features of `elisa` include:
+
+- **Easy to Use**: Simple and intuitive interfaces
+- **Robustness**: Use the state-of-the-art algorithm to fit and test models
+- **Performance**: Efficient computation backend using [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html)
 
 -----
 
