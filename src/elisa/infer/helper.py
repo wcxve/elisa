@@ -336,7 +336,7 @@ def get_helper(fit: Fit) -> Helper:
     #     if (reparam_and_inv := get_reparam(prior)) is not None
     # }
 
-    def numpyro_model(predictive: bool = False) -> None:
+    def numpyro_model(predictive: bool = False, rng_key=None) -> None:
         """The numpyro model for spectral fitting."""
         # TODO:
         #  figure out how to handle reparam transformation, so we can
@@ -355,7 +355,7 @@ def get_helper(fit: Fit) -> Helper:
 
         # get parameter value from prior
         params_name_values = {
-            name: numpyro.sample(name, dist)
+            name: numpyro.sample(name, dist, rng_key=rng_key)
             for name, dist in params_prior.items()
         }
         params_id_values = {
