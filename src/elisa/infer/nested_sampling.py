@@ -8,7 +8,7 @@ https://github.com/pyro-ppl/numpyro/raw/master/numpyro/contrib/nested_sampling.p
 """
 from __future__ import annotations
 
-from functools import singledispatch
+from functools import singledispatch, partial
 
 import jax
 import jax.numpy as jnp
@@ -188,7 +188,8 @@ class NestedSampler:
 
         rng_sampling, rng_predictive = random.split(rng_key)
         # reparam the model so that latent sites have Uniform(0, 1) priors
-        prototype_trace = trace(seed(self.model, rng_key)).get_trace(*args, **kwargs)
+        jit_model = jax.jit(partial(self.model, rng_key=rng_key))
+        prototype_trace = trace(seed(jit_model, rng_key)).get_trace(*args, **kwargs)
         param_names = [
             site["name"]
             for site in prototype_trace.values()
