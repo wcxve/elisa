@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 import optimistix as optx
 from iminuit import Minuit
-from numpyro.infer import MCMC, NUTS, init_to_value
+from numpyro.infer import MCMC, NUTS, MixedHMC, HMC, AIES, init_to_value
 
 from elisa.data.ogip import Data
 from elisa.infer.data import FitData
@@ -521,6 +521,7 @@ class BayesFit(Fit):
         samples=20000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
+        chain_method: str = 'parallel',
         progress: bool = True,
         **nuts_kwargs: dict,
     ) -> PosteriorResult:
@@ -588,6 +589,7 @@ class BayesFit(Fit):
             num_warmup=warmup,
             num_samples=samples,
             num_chains=chains,
+            chain_method=chain_method,
             progress_bar=progress,
         )
 
@@ -599,7 +601,7 @@ class BayesFit(Fit):
 
     def ns(
         self,
-        max_samples: int = 131072,
+        max_samples: int = 100000,
         num_live_points: int | None = None,
         s: int | None = None,
         k: int | None = None,
@@ -620,7 +622,7 @@ class BayesFit(Fit):
         Parameters
         ----------
         max_samples : int, optional
-            Maximum number of posterior samples. The default is 131072.
+            Maximum number of posterior samples. The default is 100000.
         num_live_points : int, optional
             Approximate number of live points. The default is `c` * (`k` + 1).
         s : int, optional
@@ -689,3 +691,43 @@ class BayesFit(Fit):
         sampler.run(rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']))
         print(f'Sampling cost {time.time() - t0:.2f} s')
         return PosteriorResult(sampler, self._helper, self)
+
+    def aies(
+        self,
+        warmup=2000,
+        samples=20000,
+        chains: int | None = None,
+        init: dict[str, float] | None = None,
+        chain_method: str = 'vectorized',
+        progress: bool = True,
+        moves = None,
+        **aies_kwargs: dict,
+    ) -> PosteriorResult:
+        device_count = jax.local_device_count()
+
+
+        if init is None:
+            init = self._helper.free_default['constr_dic']
+
+        default_aies_kwargs = {
+            'model': self._helper.numpyro_model,
+        }
+        aies_kwargs = default_aies_kwargs | aies_kwargs
+        aies_kwargs['moves'] = {AIES.DEMove() : 0.5, AIES.StretchMove() : 0.5} if moves is None else moves
+
+        sampler = MCMC(
+            AIES(**aies_kwargs),
+            num_warmup=warmup,
+            num_samples=samples,
+            num_chains=chains,
+            chain_method=chain_method,
+            progress_bar=progress,
+        )
+
+        sampler.run(
+            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc'])
+        )
+        return PosteriorResult(sampler, self._helper, self)
+
+
+
