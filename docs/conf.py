@@ -71,6 +71,7 @@ html_theme_options = {
 # html_static_path = ['_static']
 html_baseurl = 'https://elisa-lib.readthedocs.io/en/latest/'
 
+add_module_names = False
 autodoc_member_order = 'bysource'
 
 intersphinx_mapping = {
