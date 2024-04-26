@@ -68,7 +68,10 @@ html_theme_options = {
     'use_download_button': True,
     'use_issues_button': True,
 }
-# html_static_path = ['_static']
+html_title = 'elisa'
+html_static_path = ['_static']
+html_logo = '_static/logo2.png'
+html_favicon = '_static/favicon.svg'
 html_baseurl = 'https://elisa-lib.readthedocs.io/en/latest/'
 
 add_module_names = False
