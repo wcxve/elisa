@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 import optimistix as optx
 from iminuit import Minuit
-from numpyro.infer import MCMC, NUTS, MixedHMC, HMC, AIES, init_to_value
+from numpyro.infer import AIES, MCMC, NUTS, init_to_value
 
 from elisa.data.ogip import Data
 from elisa.infer.data import FitData
@@ -700,11 +700,10 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'vectorized',
         progress: bool = True,
-        moves = None,
+        moves=None,
         **aies_kwargs: dict,
     ) -> PosteriorResult:
         device_count = jax.local_device_count()
-
 
         if init is None:
             init = self._helper.free_default['constr_dic']
@@ -713,7 +712,11 @@ class BayesFit(Fit):
             'model': self._helper.numpyro_model,
         }
         aies_kwargs = default_aies_kwargs | aies_kwargs
-        aies_kwargs['moves'] = {AIES.DEMove() : 0.5, AIES.StretchMove() : 0.5} if moves is None else moves
+        aies_kwargs['moves'] = (
+            {AIES.DEMove(): 0.5, AIES.StretchMove(): 0.5}
+            if moves is None
+            else moves
+        )
 
         sampler = MCMC(
             AIES(**aies_kwargs),
@@ -724,10 +727,5 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
-        sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc'])
-        )
+        sampler.run(rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']))
         return PosteriorResult(sampler, self._helper, self)
-
-
-
