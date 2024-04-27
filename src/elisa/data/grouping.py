@@ -235,12 +235,15 @@ def group_opt(
     return flag, success
 
 
-def _significance_lima(
+def significance_lima(
     n_on: float | NDArray,
     n_off: float | NDArray,
     a: float | NDArray,
 ) -> NDArray:
     """Significance using the formula of Li & Ma 1983."""
+    n_on = np.asarray(n_on)
+    n_off = np.asarray(n_off)
+
     term1 = np.zeros_like(n_on).astype(float)
     mask = n_on > 0.0
     if mask.any():
@@ -258,13 +261,17 @@ def _significance_lima(
     return np.sqrt(2.0 * (term1 + term2))
 
 
-def _significance_gv(
+def significance_gv(
     n: float | NDArray,
     b: float | NDArray,
     s: float | NDArray,
     a: float | NDArray,
 ) -> NDArray:
     """Significance using the formula of Vianello 2018."""
+    n = np.asarray(n)
+    b = np.asarray(b)
+    s = np.asarray(s)
+
     b = b * a
     s = s * a
     s2 = s * s
@@ -445,10 +452,10 @@ def group_optsig_lima(
         # that constraint
         on = n_on[i : j + 1].sum()
         off = n_off[i : j + 1].sum()
-        if _significance_lima(on, off, a) < sig:
+        if significance_lima(on, off, a) < sig:
             on = n_on[j + 1 :].cumsum()
             off = n_off[j + 1 :].cumsum()
-            mask = _significance_lima(on, off, a) >= sig
+            mask = significance_lima(on, off, a) >= sig
             if np.any(mask):
                 # the smallest j for the significance threshold
                 j += np.flatnonzero(mask)[0] + 1
@@ -474,7 +481,7 @@ def group_optsig_lima(
 
     on = np.add.reduceat(n_on, idx)
     off = np.add.reduceat(n_off, idx)
-    if np.all(_significance_lima(on, off, a) >= sig):
+    if np.all(significance_lima(on, off, a) >= sig):
         success = True
     else:
         success = False
@@ -551,12 +558,12 @@ def group_optsig_gv(
         b_ = b[i : j + 1].sum()
         s_ = s[i : j + 1]
         s_ = np.sqrt(np.sum(s_ * s_))
-        if _significance_gv(n_, b_, s_, a) < sig:
+        if significance_gv(n_, b_, s_, a) < sig:
             n_ = n[j + 1 :].cumsum()
             b_ = b[j + 1 :].cumsum()
             s_ = s[j + 1 :]
             s_ = np.sqrt(np.sum(s_ * s_))
-            mask = _significance_gv(n_, b_, s_, a) >= sig
+            mask = significance_gv(n_, b_, s_, a) >= sig
             if np.any(mask):
                 # the smallest j for the significance threshold
                 j += np.flatnonzero(mask)[0] + 1
@@ -583,7 +590,7 @@ def group_optsig_gv(
     n_ = np.add.reduceat(n, idx)
     b_ = np.add.reduceat(b, idx)
     s_ = np.sqrt(np.add.reduceat(s * s, idx))
-    if np.all(_significance_gv(n_, b_, s_, a) >= sig):
+    if np.all(significance_gv(n_, b_, s_, a) >= sig):
         success = True
     else:
         success = False
@@ -705,7 +712,7 @@ def group_sig_lima(
     for i, (j, k) in enumerate(zip(n_on, n_off)):
         group_on += j
         group_off += k
-        group_sig = _significance_lima(group_on, group_off, a)
+        group_sig = significance_lima(group_on, group_off, a)
 
         if i == imax:
             if group_sig < sig and ng > 1:
@@ -725,7 +732,7 @@ def group_sig_lima(
     idx = idx[:ng]
     group_on = np.add.reduceat(n_on, idx)
     group_off = np.add.reduceat(n_off, idx)
-    if np.all(_significance_lima(group_on, group_off, a) >= sig):
+    if np.all(significance_lima(group_on, group_off, a) >= sig):
         success = True
     else:
         success = False
@@ -786,7 +793,7 @@ def group_sig_gv(
         group_n += ni
         group_b += bi
         group_var += si * si
-        group_sig = _significance_gv(group_n, group_b, np.sqrt(group_var), a)
+        group_sig = significance_gv(group_n, group_b, np.sqrt(group_var), a)
 
         if i == imax:
             if group_sig < sig and ng > 1:
@@ -808,7 +815,7 @@ def group_sig_gv(
     group_n = np.add.reduceat(n, idx)
     group_b = np.add.reduceat(b, idx)
     group_var = np.sqrt(np.add.reduceat(s * s, idx))
-    group_sig = _significance_gv(group_n, group_b, np.sqrt(group_var), a)
+    group_sig = significance_gv(group_n, group_b, np.sqrt(group_var), a)
     if np.all(group_sig >= sig):
         success = True
     else:

@@ -21,7 +21,10 @@ from elisa.data.grouping import (
     group_sig_gv,
     group_sig_lima,
     group_sig_normal,
+    significance_gv,
+    significance_lima,
 )
+from elisa.plot.misc import get_colors
 
 if TYPE_CHECKING:
     from elisa.util.typing import NumPyArray as NDArray
@@ -601,6 +604,119 @@ class Data:
         mask1 = np.less_equal(emin, ch_emin)
         mask2 = np.less_equal(ch_emax, emax)
         return np.bitwise_and(mask1, mask2)
+
+    def plot_spec(self, xlog: bool = True, ylog: bool = False):
+        """Plot the spectrum.
+
+        .. warning::
+            The significance plot is accurate only if the spectrum data has
+            enough count statistics.
+
+        Parameters
+        ----------
+        xlog : bool, optional
+            Whether to use log scale on x-axis. The default is True.
+        ylog : bool, optional
+            Whether to use log scale on y-axis. The default is False.
+        """
+        fig, axs = plt.subplots(
+            nrows=2,
+            ncols=1,
+            sharex=True,
+            height_ratios=[1.618, 1.0],
+            gridspec_kw={'hspace': 0.05},
+        )
+        fig.align_ylabels(axs)
+
+        for ax in axs:
+            ax.tick_params(
+                axis='both',
+                which='both',
+                direction='in',
+                bottom=True,
+                top=True,
+                left=True,
+                right=True,
+            )
+
+        plt.rcParams['axes.formatter.min_exponent'] = 3
+
+        axs[0].set_ylabel(r'$C_E\ \mathrm{[s^{-1}\ keV^{-1}]}$')
+        axs[1].set_ylabel(r'Significance [$\mathrm{\sigma}$]')
+        axs[1].set_xlabel(r'$\mathrm{Energy\ [keV]}$')
+
+        if self.has_back:
+            colors = get_colors(2, 'colorblind')
+        else:
+            colors = get_colors(1, 'colorblind')
+
+        factor = 1.0 / (self.spec_exposure * self.ch_width)
+        x = self.ch_mean if xlog else self.ch_emid
+        xerr = self.ch_error if xlog else 0.5 * self.ch_width
+        axs[0].errorbar(
+            x=x,
+            xerr=xerr,
+            y=self.spec_counts * factor,
+            yerr=self.spec_error * factor,
+            fmt='o',
+            color=colors[0],
+            alpha=0.8,
+            label='Observation',
+            ms=3,
+            mfc='#FFFFFFCC',
+        )
+
+        if self.has_back:
+            factor = self.back_ratio / (self.spec_exposure * self.ch_width)
+            axs[0].errorbar(
+                x=x,
+                xerr=xerr,
+                y=self.back_counts * factor,
+                yerr=self.back_error * factor,
+                fmt='s',
+                color=colors[1],
+                alpha=0.8,
+                label='Background',
+                ms=3,
+                mfc='#FFFFFFCC',
+            )
+
+        if self.spec_poisson and self.has_back:
+            if self.back_poisson:
+                sig = significance_lima(
+                    self.spec_counts, self.back_counts, self.back_ratio
+                )
+            else:
+                sig = significance_gv(
+                    self.spec_counts,
+                    self.back_counts,
+                    self.back_error,
+                    self.back_ratio,
+                )
+            sig *= np.sign(self.net_counts)
+        else:
+            sig = self.net_counts / self.net_error
+
+        axs[1].errorbar(
+            x=x,
+            xerr=xerr,
+            y=sig,
+            yerr=1,
+            fmt='o',
+            color=colors[0],
+            alpha=0.8,
+            ms=3,
+            mfc='#FFFFFFCC',
+        )
+        axs[1].axhline(0, color='k', ls=':', lw=0.5)
+
+        if xlog:
+            axs[0].set_xscale('log')
+        if ylog:
+            axs[0].set_yscale('log')
+
+        axs[0].legend()
+        axs[0].set_title(self.name)
 
     def plot_matrix(self, hatch: bool = True) -> None:
         """Plot the response matrix.
