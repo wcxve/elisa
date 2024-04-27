@@ -40,6 +40,6 @@ section and share your findings on the
 guide
 tutorials
 contributing
-modules
+api
 GitHub Repository <https://github.com/wcxve/elisa>
 ```
