@@ -718,6 +718,16 @@ class Data:
         axs[0].legend()
         axs[0].set_title(self.name)
 
+    def plot_effective_area(self, hatch: bool = True):
+        """Plot the effective area.
+
+        Parameters
+        ----------
+        hatch : bool, optional
+            Whether to add hatches in the ignored region. The default is True.
+        """
+        self._resp.plot_effective_area(self._erange if hatch else None)
+
     def plot_matrix(self, hatch: bool = True) -> None:
         """Plot the response matrix.
 
@@ -726,7 +736,7 @@ class Data:
         hatch : bool, optional
             Whether to add hatches in the ignored region. The default is True.
         """
-        self._resp.plot(self._erange if hatch else None)
+        self._resp.plot_matrix(self._erange if hatch else None)
 
     @property
     def name(self) -> str:
@@ -1485,16 +1495,62 @@ class Response:
             matrix = self._sparse_matrix.dot(grouping_matrix)
             self._matrix = matrix.tocsc()[:, non_empty]
 
-    def plot(self, hatch_range: NDArray | None = None):
+    def plot_effective_area(self, noticed_range: NDArray | None = None):
         """Plot the response matrix.
 
         Parameters
         ----------
-        hatch_range : ndarray, optional
-            Energy range to add hatches.
+        noticed_range : ndarray, optional
+            Energy range to show. Other energy ranges will be hatched.
+        """
+        eff_area = self._sparse_matrix.sum(axis=1)
+        eff_area = np.clip(eff_area, a_min=0.0, a_max=None)
+
+        plt.figure()
+        plt.rcParams['axes.formatter.min_exponent'] = 3
+        plt.step(self.ph_egrid, np.append(eff_area, eff_area[-1]))
+        plt.xlim(self.ph_egrid[0], self.ph_egrid[-1])
+        plt.xlabel('Photon Energy [keV]')
+        plt.ylabel('Effective Area [cm$^2$]')
+        plt.xscale('log')
+
+        if noticed_range is not None:
+            ph_emin = self.ph_egrid[:-1]
+            ph_emax = self.ph_egrid[1:]
+            noticed_range = np.atleast_2d(noticed_range)
+            emin = np.expand_dims(noticed_range[:, 0], axis=1)
+            emax = np.expand_dims(noticed_range[:, 1], axis=1)
+            mask1 = np.less_equal(emin, ph_emin)
+            mask2 = np.less_equal(ph_emax, emax)
+            idx = [np.flatnonzero(i) for i in np.bitwise_and(mask1, mask2)]
+
+            ignored = []
+            if ph_emin[idx[0][0]] > ph_emin[0]:
+                ignored.append((ph_emin[0], ph_emin[idx[0][0]]))
+            for i in range(len(idx) - 1):
+                this_noticed_right = ph_emax[idx[i][-1]]
+                next_noticed_left = ph_emin[idx[i + 1][0]]
+                ignored.append((this_noticed_right, next_noticed_left))
+            if ph_emax[idx[-1][-1]] < ph_emax[-1]:
+                ignored.append((ph_emax[idx[-1][-1]], ph_emax[-1]))
+
+            ylim = plt.gca().get_ylim()
+            for i in ignored:
+                plt.fill_betweenx(
+                    ylim, *i, alpha=0.8, color='gray', hatch='x', zorder=10
+                )
+            plt.ylim(ylim)
+
+    def plot_matrix(self, noticed_range: NDArray | None = None):
+        """Plot the response matrix.
+
+        Parameters
+        ----------
+        noticed_range : ndarray, optional
+            Energy range to show. Other energy ranges will be hatched.
         """
         ch_emin, ch_emax = self._raw_channel_egrid.T
-        matrix = self._sparse_matrix.todense()
+        matrix = np.clip(self._sparse_matrix.todense(), a_min=0.0, a_max=None)
 
         # some response matrix has discontinuity in channel energy grid,
         # insert np.nan to handle this
@@ -1507,6 +1563,7 @@ class Response:
         ch_egrid = np.append(ch_emin, ch_emax[-1])
         ch, ph = np.meshgrid(ch_egrid, self._ph_egrid)
         plt.figure()
+        plt.rcParams['axes.formatter.min_exponent'] = 3
         plt.pcolormesh(ch, ph, matrix, cmap='jet')
         plt.xlabel('Measurement Energy [keV]')
         plt.ylabel('Photon Energy [keV]')
@@ -1514,10 +1571,10 @@ class Response:
         plt.xscale('log')
         plt.yscale('log')
 
-        if hatch_range is not None:
-            hatch_range = np.atleast_2d(hatch_range)
-            emin = np.expand_dims(hatch_range[:, 0], axis=1)
-            emax = np.expand_dims(hatch_range[:, 1], axis=1)
+        if noticed_range is not None:
+            noticed_range = np.atleast_2d(noticed_range)
+            emin = np.expand_dims(noticed_range[:, 0], axis=1)
+            emax = np.expand_dims(noticed_range[:, 1], axis=1)
             mask1 = np.less_equal(emin, ch_emin)
             mask2 = np.less_equal(ch_emax, emax)
             idx = [np.flatnonzero(i) for i in np.bitwise_and(mask1, mask2)]
