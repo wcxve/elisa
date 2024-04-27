@@ -106,12 +106,6 @@ class Data:
         has ``GROUPING`` defined. The default is False.
     resp_sparse : bool, optional
         Whether the response matrix is sparse. The default is False.
-    corrfile : str or None, optional
-        Correction file applied to `specfile`. Read from the `specfile`
-        header if None. The default is None.
-    corrnorm : float or None, optional
-        Scaling factor to be applied to `corrfile`. Read from the
-        `specfile` header if None. The default is None.
 
     Notes
     -----
@@ -142,8 +136,8 @@ class Data:
         ignore_bad: bool = True,
         record_channel: bool = False,
         resp_sparse: bool = False,
-        corrfile: bool | None = None,
-        corrnorm: bool | None = None,
+        # corrfile: bool | None = None,
+        # corrnorm: bool | None = None,
     ):
         erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
 
@@ -229,13 +223,13 @@ class Data:
             raise RuntimeError(f'no good channel is found for {name} data')
 
         # corrfile and corrnorm are not supported yet
-        if corrfile or corrnorm:
-            warnings.warn(
-                'correction to data is not yet supported',
-                Warning,
-                stacklevel=2,
-            )
-
+        # if corrfile or corrnorm:
+        #     warnings.warn(
+        #         'correction to data is not yet supported',
+        #         Warning,
+        #         stacklevel=2,
+        #     )
+        #
         # check correction file
         # use poisson=True to bypass stat_err check, which takes no effect
         # if corrfile:
@@ -244,7 +238,7 @@ class Data:
         #     corr = Spectrum(spec.corrfile, True)
         # else:
         #     corr = None
-
+        #
         # check correction scale
         # if corr:
         #     if corrnorm:
@@ -947,7 +941,7 @@ class Spectrum:
         self._ancrfile = get_field('ANCRFILE', '', excluded_file)
 
         # get corrfile
-        self._corrfile = get_field('CORRFILE', '', excluded_file)
+        # self._corrfile = get_field('CORRFILE', '', excluded_file)
 
         # get the background scaling factor
         back_scale = np.float64(get_field('BACKSCAL', 1.0))
@@ -966,7 +960,7 @@ class Spectrum:
         self._area_scale = area_scale
 
         # get the correction scaling factor
-        self._corr_scale = np.float64(get_field('CORRSCAL', 0.0))
+        # self._corr_scale = np.float64(get_field('CORRSCAL', 0.0))
 
         self._header = header
         self._data = data
@@ -1091,10 +1085,10 @@ class Spectrum:
         """Ancillary response file."""
         return self._ancrfile
 
-    @property
-    def corrfile(self) -> str:
-        """Correction file."""
-        return self._corrfile
+    # @property
+    # def corrfile(self) -> str:
+    #     """Correction file."""
+    #     return self._corrfile
 
     @property
     def back_scale(self) -> np.float64 | NDArray:
@@ -1106,10 +1100,10 @@ class Spectrum:
         """Area scaling factor."""
         return self._area_scale
 
-    @property
-    def corr_scale(self) -> np.float64:
-        """Correction scaling factor."""
-        return self._corr_scale
+    # @property
+    # def corr_scale(self) -> np.float64:
+    #     """Correction scaling factor."""
+    #     return self._corr_scale
 
 
 class Response:
