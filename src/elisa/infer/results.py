@@ -16,7 +16,8 @@ import scipy.stats as stats
 from astropy.cosmology import Planck18
 from iminuit import Minuit
 from jax.experimental.mesh_utils import create_device_mesh
-from jax.sharding import PositionalSharding
+from jax.experimental.shard_map import shard_map
+from jax.sharding import Mesh, PartitionSpec
 from numpyro.infer import MCMC
 
 from elisa.__about__ import __version__
@@ -53,14 +54,8 @@ class FitResult(ABC):
         self._helper = helper
 
         models = helper.model
-        ne = {
-            name: jax.jit(model.ne, static_argnums=2)
-            for name, model in models.items()
-        }
-        ene = {
-            name: jax.jit(model.ene, static_argnums=2)
-            for name, model in models.items()
-        }
+        ne = {name: model.ne for name, model in models.items()}
+        ene = {name: model.ene for name, model in models.items()}
 
         def _flux(
             egrid: JAXArray,
@@ -365,6 +360,8 @@ class MLEResult(FitResult):
             unit = u.cm**-2 / u.s
 
         mle_params = {k: v[0] for k, v in self._mle.items()}
+        if params is not None:
+            mle_params |= params
         mle_flux = self._flux_fn(egrid, mle_params, energy, comps)
 
         n = [i.size for i in boot_params.values()][0]
@@ -373,10 +370,18 @@ class MLEResult(FitResult):
             params = {k: jnp.full(n, v) for k, v in params.items()}
             boot_params = boot_params | params
         devices = create_device_mesh((jax.local_device_count(),))
-        sharding = PositionalSharding(devices)
-        boot_params = jax.device_put(boot_params, sharding)
-        boot_flux = self._flux_fn(egrid, boot_params, energy, comps)
-        boot_flux = jax.device_get(boot_flux)
+        mesh = Mesh(devices, axis_names=('i',))
+        p = PartitionSpec()
+        pi = PartitionSpec('i')
+        fn = shard_map(
+            f=self._flux_fn,
+            mesh=mesh,
+            in_specs=(p, pi, p, p),
+            out_specs=pi,
+            check_rep=False,
+        )
+        boot_flux = jax.device_get(fn(egrid, boot_params, energy, comps))
+
         cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
         q = 0.5 + np.array([-0.5, 0.5]) * cl_
         ci_fn = lambda x: np.quantile(x, q)
@@ -1069,11 +1074,17 @@ class PosteriorResult(FitResult):
             params = {k: jnp.full(n, v) for k, v in params.items()}
             post = post | params
         devices = create_device_mesh((jax.local_device_count(),))
-        sharding = PositionalSharding(devices)
-        post = jax.device_put(post, sharding)
-
-        flux = self._flux_fn(egrid, post, energy, comps)
-        flux = jax.device_get(flux)
+        mesh = Mesh(devices, axis_names=('i',))
+        p = PartitionSpec()
+        pi = PartitionSpec('i')
+        fn = shard_map(
+            f=self._flux_fn,
+            mesh=mesh,
+            in_specs=(p, pi, p, p),
+            out_specs=pi,
+            check_rep=False,
+        )
+        flux = jax.device_get(fn(egrid, post, energy, comps))
         cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
         if hdi:
             ci_fn = lambda x: az.hdi(x, cl_)

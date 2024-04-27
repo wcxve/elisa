@@ -11,7 +11,8 @@ import jax.numpy as jnp
 import numpy as np
 import scipy.stats as stats
 from jax.experimental.mesh_utils import create_device_mesh
-from jax.sharding import PositionalSharding
+from jax.experimental.shard_map import shard_map
+from jax.sharding import Mesh, PartitionSpec
 
 from elisa.infer.likelihood import (
     _STATISTIC_BACK_NORMAL,
@@ -119,20 +120,8 @@ class PlotData(ABC):
 
         model = self.result._helper.model[self.name]
         self._ne = jax.jit(model.ne, static_argnums=2)
-        self._ne_vmap = jax.jit(
-            jax.vmap(self._ne, in_axes=(None, 0, None)),
-            static_argnums=2,
-        )
         self._ene = jax.jit(model.ene, static_argnums=2)
-        self._ene_vmap = jax.jit(
-            jax.vmap(self._ene, in_axes=(None, 0, None)),
-            static_argnums=2,
-        )
         self._eene = jax.jit(model.eene, static_argnums=2)
-        self._eene_vmap = jax.jit(
-            jax.vmap(self._eene, in_axes=(None, 0, None)),
-            static_argnums=2,
-        )
 
     @property
     def channel(self) -> NumPyArray:
@@ -239,12 +228,19 @@ class PlotData(ABC):
         comps: bool,
     ) -> Array | dict:
         assert mtype in {'ne', 'ene', 'eene'}
-        v = '_vmap' if len(np.shape(list(params.values())[0])) != 0 else ''
-        if v:
+        fn = getattr(self, f'_{mtype}')
+        if len(np.shape(list(params.values())[0])) != 0:
             devices = create_device_mesh((jax.local_device_count(),))
-            sharding = PositionalSharding(devices)
-            params = jax.device_put(params, sharding)
-        fn = getattr(self, f'_{mtype}{v}')
+            mesh = Mesh(devices, axis_names=('i',))
+            p = PartitionSpec()
+            pi = PartitionSpec('i')
+            fn = shard_map(
+                f=fn,
+                mesh=mesh,
+                in_specs=(p, pi, p),
+                out_specs=pi,
+                check_rep=False,
+            )
         return jax.device_get(fn(egrid, params, comps))
 
     @abstractmethod
