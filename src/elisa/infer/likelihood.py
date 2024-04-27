@@ -244,7 +244,8 @@ def cstat(
         numpyro.deterministic(name, source_rate / channel_width)
         source_counts = source_rate * eff_expo
         spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
-        spec_model = numpyro.deterministic(f'{name}_Non_model', source_counts)
+        spec_model = jnp.clip(source_counts, a_min=1e-30, a_max=1e15)
+        spec_model = numpyro.deterministic(f'{name}_Non_model', spec_model)
 
         with numpyro.plate(f'{name}_plate', len(spec)):
             dist_on = BetterPoisson(spec_model)
@@ -289,7 +290,8 @@ def pstat(
         numpyro.deterministic(name, source_rate / channel_width)
         model_counts = source_rate * eff_expo + back_ratio * back
         spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
-        spec_model = numpyro.deterministic(f'{name}_Non_model', model_counts)
+        spec_model = jnp.clip(model_counts, a_min=1e-30, a_max=1e15)
+        spec_model = numpyro.deterministic(f'{name}_Non_model', spec_model)
 
         with numpyro.plate(f'{name}_plate', len(spec_data)):
             dist_on = BetterPoisson(spec_model)
@@ -339,7 +341,8 @@ def pgstat(
             source_counts, spec_data, back_data, back_error, back_ratio
         )
         model_counts = source_counts + back_ratio * b
-        spec_model = numpyro.deterministic(f'{name}_Non_model', model_counts)
+        spec_model = jnp.clip(model_counts, a_min=1e-30, a_max=1e15)
+        spec_model = numpyro.deterministic(f'{name}_Non_model', spec_model)
         back_model = numpyro.deterministic(f'{name}_Noff_model', b)
 
         with numpyro.plate(f'{name}_plate', len(spec_data)):
@@ -398,8 +401,10 @@ def wstat(
         source_counts = model_rate * eff_expo
         b = wstat_background(source_counts, spec_data, back_data, back_ratio)
         model_counts = source_counts + back_ratio * b
-        spec_model = numpyro.deterministic(f'{name}_Non_model', model_counts)
-        back_model = numpyro.deterministic(f'{name}_Noff_model', b)
+        spec_model = jnp.clip(model_counts, a_min=1e-30, a_max=1e15)
+        back_model = jnp.clip(b, a_min=1e-30, a_max=1e15)
+        spec_model = numpyro.deterministic(f'{name}_Non_model', spec_model)
+        back_model = numpyro.deterministic(f'{name}_Noff_model', back_model)
 
         with numpyro.plate(f'{name}_plate', len(spec_data)):
             dist_on = BetterPoisson(spec_model)
