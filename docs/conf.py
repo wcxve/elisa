@@ -55,7 +55,6 @@ html_theme_options = {
     'github_url': 'https://github.com/wcxve/elisa',
     'repository_url': 'https://github.com/wcxve/elisa',
     'repository_branch': 'main',
-    'home_page_in_toc': True,
     'path_to_docs': 'docs',
     'launch_buttons': {
         'binderhub_url': 'https://mybinder.org',
@@ -73,6 +72,8 @@ html_static_path = ['_static']
 html_logo = '_static/logo2.png'
 html_favicon = '_static/favicon.svg'
 html_baseurl = 'https://elisa-lib.readthedocs.io/en/latest/'
+html_show_sourcelink = False
+master_doc = 'index'
 
 add_module_names = False
 autodoc_member_order = 'bysource'
