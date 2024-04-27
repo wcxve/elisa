@@ -188,7 +188,8 @@ class NestedSampler:
 
         rng_sampling, rng_predictive = random.split(rng_key)
         # reparam the model so that latent sites have Uniform(0, 1) priors
-        prototype_trace = trace(seed(self.model, rng_key)).get_trace(*args, **kwargs)
+        seeded = jax.jit(seed(self.model, rng_key))
+        prototype_trace = trace(seeded).get_trace(*args, **kwargs)
         param_names = [
             site["name"]
             for site in prototype_trace.values()
