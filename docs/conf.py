@@ -78,6 +78,8 @@ master_doc = 'index'
 add_module_names = False
 autodoc_member_order = 'bysource'
 
+copybutton_selector = 'div:not(.output) > div.highlight pre'
+
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3.9', None),
     'arviz': ('https://python.arviz.org/en/stable/', None),
