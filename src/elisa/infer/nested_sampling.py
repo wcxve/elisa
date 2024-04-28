@@ -269,11 +269,13 @@ class NestedSampler:
             model=model,
             **self.constructor_kwargs,
         )
-
-        # disable jit when num_parallel_workers > 1
-        run_default_ns = jax.jit(default_ns) \
-            if self.constructor_kwargs['num_parallel_workers']==1 \
-                else default_ns
+        
+        # TODO: check if this is necessary
+        # jit when num_parallel_workers is 1
+        if self.constructor_kwargs['num_parallel_workers'] == 1
+            run_default_ns = jax.jit(default_ns)
+        else:
+            run_default_ns = default_ns
 
         termination_reason, state = run_default_ns(
             rng_sampling, term_cond=TerminationCondition(**self.termination_kwargs)
