@@ -221,9 +221,9 @@ class XspecConvolvedModel(ConvolvedModel):
                     f'be less than the minimum energy grid ({egrid[0]})'
                 )
             if loglow:
-                low_extension = np.geomspace(elow, egrid[0], nlow)
+                low_extension = np.geomspace(elow, egrid[0], nlow + 1)[:-1]
             else:
-                low_extension = np.linspace(elow, egrid[0], nlow)
+                low_extension = np.linspace(elow, egrid[0], nlow + 1)[:-1]
             return np.concatenate((low_extension, egrid)).astype(egrid.dtype)
 
         def extend_high(egrid):
@@ -233,9 +233,9 @@ class XspecConvolvedModel(ConvolvedModel):
                     f'be greater than the maximum energy grid ({egrid[-1]})'
                 )
             if loghigh:
-                high_extension = np.geomspace(egrid[-1], ehigh, nhigh)
+                high_extension = np.geomspace(egrid[-1], ehigh, nhigh + 1)[1:]
             else:
-                high_extension = np.linspace(egrid[-1], ehigh, nhigh)
+                high_extension = np.linspace(egrid[-1], ehigh, nhigh + 1)[1:]
             return np.concatenate((egrid, high_extension)).astype(egrid.dtype)
 
         def fn(egrid: JAXArray, params: CompIDParamValMapping) -> JAXArray:
