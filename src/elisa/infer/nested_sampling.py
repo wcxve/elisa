@@ -269,7 +269,7 @@ class NestedSampler:
             model=model,
             **self.constructor_kwargs,
         )
-        
+
         # TODO: check if this is necessary
         # jit when num_parallel_workers is 1
         if self.constructor_kwargs['num_parallel_workers'] == 1
