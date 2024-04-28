@@ -543,6 +543,8 @@ class BayesFit(Fit):
             ``jax.local_device_count()``.
         init : dict, optional
             Initial parameter for sampler to start from.
+        chain_method : str, optional
+            The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
         **nuts_kwargs : dict
@@ -574,15 +576,17 @@ class BayesFit(Fit):
         # TODO: option to let sampler starting from MLE
         if init is None:
             init = self._helper.free_default['constr_dic']
+        else:
+            init = self._helper.free_default['constr_dic'] | dict(init)
 
         default_nuts_kwargs = {
             'dense_mass': True,
             'target_accept_prob': 0.8,
             'max_tree_depth': 10,
-            'init_strategy': init_to_value(values=init),
         }
         nuts_kwargs = default_nuts_kwargs | nuts_kwargs
         nuts_kwargs['model'] = self._helper.numpyro_model
+        nuts_kwargs['init_strategy'] = init_to_value(values=init)
 
         sampler = MCMC(
             NUTS(**nuts_kwargs),
@@ -700,23 +704,35 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'vectorized',
         progress: bool = True,
-        moves=None,
+        moves: dict | None = None,
         **aies_kwargs: dict,
     ) -> PosteriorResult:
-        device_count = jax.local_device_count()
+        if chains is None:
+            chains = 4 * len(self._helper.params_names['free'])
+        else:
+            chains = int(chains)
 
+        # TODO: option to let sampler starting from MLE
         if init is None:
             init = self._helper.free_default['constr_dic']
+        else:
+            init = self._helper.free_default['constr_dic'] | dict(init)
+        init = self._helper.constr_dic_to_unconstr_arr(init)
+        rng = np.random.default_rng(self._helper.seed['mcmc'])
+        jitter = 0.1 * np.abs(init)
+        low = init - jitter
+        high = init + jitter
+        init = rng.uniform(low, high, size=(chains, len(init)))
+        init = dict(zip(self._helper.params_names['free'], init.T))
 
-        default_aies_kwargs = {
-            'model': self._helper.numpyro_model,
-        }
-        aies_kwargs = default_aies_kwargs | aies_kwargs
-        aies_kwargs['moves'] = (
-            {AIES.DEMove(): 0.5, AIES.StretchMove(): 0.5}
-            if moves is None
-            else moves
-        )
+        aies_kwargs['model'] = self._helper.numpyro_model
+        if moves is None:
+            aies_kwargs['moves'] = {
+                AIES.DEMove(): 0.5,
+                AIES.StretchMove(): 0.5,
+            }
+        else:
+            aies_kwargs['moves'] = moves
 
         sampler = MCMC(
             AIES(**aies_kwargs),
@@ -727,5 +743,8 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
-        sampler.run(rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']))
+        sampler.run(
+            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+            init_params=init,
+        )
         return PosteriorResult(sampler, self._helper, self)
