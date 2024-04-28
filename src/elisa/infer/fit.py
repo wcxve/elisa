@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 import optimistix as optx
 from iminuit import Minuit
-from numpyro.infer import MCMC, NUTS, init_to_value
+from numpyro.infer import AIES, MCMC, NUTS, init_to_value
 
 from elisa.data.ogip import Data
 from elisa.infer.data import FitData
@@ -521,6 +521,7 @@ class BayesFit(Fit):
         samples=20000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
+        chain_method: str = 'parallel',
         progress: bool = True,
         **nuts_kwargs: dict,
     ) -> PosteriorResult:
@@ -542,6 +543,8 @@ class BayesFit(Fit):
             ``jax.local_device_count()``.
         init : dict, optional
             Initial parameter for sampler to start from.
+        chain_method : str, optional
+            The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
         **nuts_kwargs : dict
@@ -573,21 +576,24 @@ class BayesFit(Fit):
         # TODO: option to let sampler starting from MLE
         if init is None:
             init = self._helper.free_default['constr_dic']
+        else:
+            init = self._helper.free_default['constr_dic'] | dict(init)
 
         default_nuts_kwargs = {
             'dense_mass': True,
             'target_accept_prob': 0.8,
             'max_tree_depth': 10,
-            'init_strategy': init_to_value(values=init),
         }
         nuts_kwargs = default_nuts_kwargs | nuts_kwargs
         nuts_kwargs['model'] = self._helper.numpyro_model
+        nuts_kwargs['init_strategy'] = init_to_value(values=init)
 
         sampler = MCMC(
             NUTS(**nuts_kwargs),
             num_warmup=warmup,
             num_samples=samples,
             num_chains=chains,
+            chain_method=chain_method,
             progress_bar=progress,
         )
 
@@ -688,4 +694,101 @@ class BayesFit(Fit):
         t0 = time.time()
         sampler.run(rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']))
         print(f'Sampling cost {time.time() - t0:.2f} s')
+        return PosteriorResult(sampler, self._helper, self)
+
+    def aies(
+        self,
+        warmup=2000,
+        samples=20000,
+        chains: int | None = None,
+        init: dict[str, float] | None = None,
+        chain_method: str = 'vectorized',
+        progress: bool = True,
+        moves: dict | None = None,
+        **aies_kwargs: dict,
+    ) -> PosteriorResult:
+        """Affine-Invariant Ensemble Sampling (AIES) of :mod:`numpyro`.
+
+        Affine-invariant ensemble sampling [1]_ is a gradient-free method
+        that informs Metropolis-Hastings proposals by sharing information
+        between chains. Suitable for low to moderate dimensional models.
+        Generally, num_chains should be at least twice the dimensionality
+        of the model.
+
+        .. note::
+            This kernel must be used with even `num_chains` > 1 and
+            ``chain_method='vectorized'``.
+
+        Parameters
+        ----------
+        warmup : int, optional
+            Number of warmup steps.
+        samples : int, optional
+            Number of samples to generate from each chain.
+        chains : int, optional
+            Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
+            the dimension of model parameters.
+        init : dict, optional
+            Initial parameter for sampler to start from.
+        chain_method : str, optional
+            The chain method passed to :class:`numpyro.inf.MCMC`.
+        progress : bool, optional
+            Whether to show progress bar during sampling. The default is True.
+        moves : dict, optional
+            Moves for the sampler.
+        **aies_kwargs : dict
+            Extra parameters passed to :class:`numpyro.infer.AIES`.
+
+        Returns
+        -------
+        PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] *emcee: The MCMC Hammer*
+               (https://iopscience.iop.org/article/10.1086/670067),
+               Daniel Foreman-Mackey, David W. Hogg, Dustin Lang,
+               and Jonathan Goodman.
+        """
+        if chains is None:
+            chains = 4 * len(self._helper.params_names['free'])
+        else:
+            chains = int(chains)
+
+        # TODO: option to let sampler starting from MLE
+        if init is None:
+            init = self._helper.free_default['constr_dic']
+        else:
+            init = self._helper.free_default['constr_dic'] | dict(init)
+        init = self._helper.constr_dic_to_unconstr_arr(init)
+        rng = np.random.default_rng(self._helper.seed['mcmc'])
+        jitter = 0.1 * np.abs(init)
+        low = init - jitter
+        high = init + jitter
+        init = rng.uniform(low, high, size=(chains, len(init)))
+        init = dict(zip(self._helper.params_names['free'], init.T))
+
+        aies_kwargs['model'] = self._helper.numpyro_model
+        if moves is None:
+            aies_kwargs['moves'] = {
+                AIES.DEMove(): 0.5,
+                AIES.StretchMove(): 0.5,
+            }
+        else:
+            aies_kwargs['moves'] = moves
+
+        sampler = MCMC(
+            AIES(**aies_kwargs),
+            num_warmup=warmup,
+            num_samples=samples,
+            num_chains=chains,
+            chain_method=chain_method,
+            progress_bar=progress,
+        )
+
+        sampler.run(
+            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+            init_params=init,
+        )
         return PosteriorResult(sampler, self._helper, self)

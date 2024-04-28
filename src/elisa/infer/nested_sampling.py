@@ -188,7 +188,8 @@ class NestedSampler:
 
         rng_sampling, rng_predictive = random.split(rng_key)
         # reparam the model so that latent sites have Uniform(0, 1) priors
-        prototype_trace = trace(seed(self.model, rng_key)).get_trace(*args, **kwargs)
+        seeded = jax.jit(seed(self.model, rng_key))
+        prototype_trace = trace(seeded).get_trace(*args, **kwargs)
         param_names = [
             site["name"]
             for site in prototype_trace.values()
@@ -269,7 +270,14 @@ class NestedSampler:
             **self.constructor_kwargs,
         )
 
-        termination_reason, state = jax.jit(default_ns)(
+        # TODO: check if this is necessary
+        # jit when num_parallel_workers is 1
+        if self.constructor_kwargs['num_parallel_workers'] == 1:
+            run_default_ns = jax.jit(default_ns)
+        else:
+            run_default_ns = default_ns
+
+        termination_reason, state = run_default_ns(
             rng_sampling, term_cond=TerminationCondition(**self.termination_kwargs)
         )
         results = default_ns.to_results(
