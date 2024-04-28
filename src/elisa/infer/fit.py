@@ -707,6 +707,50 @@ class BayesFit(Fit):
         moves: dict | None = None,
         **aies_kwargs: dict,
     ) -> PosteriorResult:
+        """Affine-Invariant Ensemble Sampling (AIES) of :mod:`numpyro`.
+
+        Affine-invariant ensemble sampling [1]_ is a gradient-free method
+        that informs Metropolis-Hastings proposals by sharing information
+        between chains. Suitable for low to moderate dimensional models.
+        Generally, num_chains should be at least twice the dimensionality
+        of the model.
+
+        .. note::
+            This kernel must be used with even `num_chains` > 1 and
+            ``chain_method='vectorized'``.
+
+        Parameters
+        ----------
+        warmup : int, optional
+            Number of warmup steps.
+        samples : int, optional
+            Number of samples to generate from each chain.
+        chains : int, optional
+            Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
+            the dimension of model parameters.
+        init : dict, optional
+            Initial parameter for sampler to start from.
+        chain_method : str, optional
+            The chain method passed to :class:`numpyro.inf.MCMC`.
+        progress : bool, optional
+            Whether to show progress bar during sampling. The default is True.
+        moves : dict, optional
+            Moves for the sampler.
+        **aies_kwargs : dict
+            Extra parameters passed to :class:`numpyro.infer.AIES`.
+
+        Returns
+        -------
+        PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] *emcee: The MCMC Hammer*
+               (https://iopscience.iop.org/article/10.1086/670067),
+               Daniel Foreman-Mackey, David W. Hogg, Dustin Lang,
+               and Jonathan Goodman.
+        """
         if chains is None:
             chains = 4 * len(self._helper.params_names['free'])
         else:
