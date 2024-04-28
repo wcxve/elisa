@@ -13,7 +13,7 @@ from elisa.util.typing import NumPyArray as NDArray
 def get_colors(
     n: int, palette: str = 'husl'
 ) -> list[tuple[float, float, float]]:
-    if len(colors := sns.color_palette(palette)) <= n:
+    if len(colors := sns.color_palette(palette)) >= n:
         return colors[:n]
     else:
         return sns.color_palette(palette, n)
