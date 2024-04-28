@@ -272,7 +272,7 @@ class NestedSampler:
 
         # TODO: check if this is necessary
         # jit when num_parallel_workers is 1
-        if self.constructor_kwargs['num_parallel_workers'] == 1
+        if self.constructor_kwargs['num_parallel_workers'] == 1:
             run_default_ns = jax.jit(default_ns)
         else:
             run_default_ns = default_ns
