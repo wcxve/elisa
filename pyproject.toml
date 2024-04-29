@@ -29,6 +29,7 @@ dependencies = [
     "jax>=0.4.5",
     "jaxns>=2.4.8",
     "matplotlib",
+    "nautilus-sampler",
     "numpy",
     "numpyro",
     "optimistix",
@@ -38,6 +39,7 @@ dependencies = [
     "seaborn",
     "tinygp",
     "tqdm",
+    "ultranest",
 ]
 
 
