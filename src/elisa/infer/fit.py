@@ -9,8 +9,10 @@ from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
+import nautilus
 import numpy as np
 import optimistix as optx
+import ultranest
 from iminuit import Minuit
 from numpyro.infer import AIES, MCMC, NUTS, init_to_value
 
@@ -18,7 +20,7 @@ from elisa.data.ogip import Data
 from elisa.infer.data import FitData
 from elisa.infer.helper import Helper, get_helper
 from elisa.infer.likelihood import _STATISTIC_OPTIONS
-from elisa.infer.nested_sampling import NestedSampler
+from elisa.infer.nested_sampling import NestedSampler, reparam_loglike
 from elisa.infer.results import MLEResult, PosteriorResult
 from elisa.models.model import Model, get_model_info
 from elisa.util.misc import add_suffix, build_namespace, make_pretty_table
@@ -603,7 +605,7 @@ class BayesFit(Fit):
         )
         return PosteriorResult(sampler, self._helper, self)
 
-    def ns(
+    def jaxns(
         self,
         max_samples: int = 131072,
         num_live_points: int | None = None,
@@ -694,6 +696,60 @@ class BayesFit(Fit):
         t0 = time.time()
         sampler.run(rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']))
         print(f'Sampling cost {time.time() - t0:.2f} s')
+        return PosteriorResult(sampler, self._helper, self)
+
+    def ultranest(self, ess: int = 10000):
+        """Run the Nested Sampler of :mod:`ultranest`."""
+        log_prob, transform, param_names = reparam_loglike(
+            self._helper.numpyro_model,
+            jax.random.PRNGKey(self._helper.seed['mcmc']),
+        )
+
+        @jax.jit
+        def log_prob_(params):
+            return log_prob(dict(zip(param_names, params)))
+
+        @jax.vmap
+        @jax.jit
+        def transform_(samples):
+            base_names = [name + '_base' for name in param_names]
+            return transform(dict(zip(base_names, samples)))
+
+        sampler = ultranest.ReactiveNestedSampler(param_names, log_prob_)
+        sampler.run(min_ess=int(ess))
+        sampler._transform_back = transform_
+        return PosteriorResult(sampler, self._helper, self)
+
+    def nautilus(self, ess: int = 10000) -> PosteriorResult:
+        """Run the Nested Sampler of :mod:`nautilus-sampler`."""
+        log_prob, transform, param_names = reparam_loglike(
+            self._helper.numpyro_model,
+            jax.random.PRNGKey(self._helper.seed['mcmc']),
+        )
+
+        @jax.jit
+        def log_prob_(params):
+            return log_prob(dict(zip(param_names, params)))
+
+        @jax.vmap
+        @jax.jit
+        def transform_(samples):
+            base_names = [name + '_base' for name in param_names]
+            return transform(dict(zip(base_names, samples)))
+
+        prior = nautilus.Prior()
+        for param in param_names:
+            prior.add_parameter(param)
+
+        sampler = nautilus.Sampler(
+            prior,
+            log_prob_,
+            pass_dict=False,
+            pool=(None, jax.local_device_count()),
+            seed=self._helper.seed['mcmc'],
+        )
+        sampler.run(n_eff=int(ess), discard_exploration=True, verbose=True)
+        sampler._transform_back = transform_
         return PosteriorResult(sampler, self._helper, self)
 
     def aies(
