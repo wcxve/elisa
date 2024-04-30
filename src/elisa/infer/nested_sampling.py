@@ -357,7 +357,8 @@ class NestedSampler:
 def reparam_loglike(model, rng_key, *args, **kwargs):
     rng_sampling, rng_predictive = random.split(rng_key)
     # reparam the model so that latent sites have Uniform(0, 1) priors
-    prototype_trace = trace(seed(model, rng_key)).get_trace(*args, **kwargs)
+    seeded = jax.jit(seed(model, rng_key))
+    prototype_trace = trace(seeded).get_trace(*args, **kwargs)
     param_names = [
         site['name']
         for site in prototype_trace.values()
@@ -391,14 +392,12 @@ def reparam_loglike(model, rng_key, *args, **kwargs):
 
     # Jaxns requires loglikelihood function to have explicit signatures.
     local_dict = {}
-    loglik_fn_def = """def loglik_fn({}):\n
-    \tparams = dict({})\n
+    loglik_fn_def = """def loglik_fn(params):\n
+    \tparams = {k + '_base': v for k, v in params.items()}\n
     \treturn log_density_(reparam_model, args, kwargs, params)[0]
-    """.format(
-        ', '.join([f'{name}_base' for name in param_names]),
-        ', '.join([f'{name}_base={name}_base' for name in param_names]),
-    )
+    """
     exec(loglik_fn_def, locals(), local_dict)
+    loglik_fn = local_dict['loglik_fn']
 
     def transform_back(samples):
         predictive = Predictive(
@@ -406,11 +405,7 @@ def reparam_loglike(model, rng_key, *args, **kwargs):
         )
         return predictive(rng_predictive, *args, **kwargs)
 
-    return (
-        local_dict['loglik_fn'],
-        transform_back,
-        [f'{name}_base' for name in param_names],
-    )
+    return local_dict['loglik_fn'], transform_back, param_names
 
 
 class GlobalOptimizer:

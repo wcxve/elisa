@@ -10,9 +10,11 @@ import arviz as az
 import astropy.units as u
 import jax
 import jax.numpy as jnp
+import nautilus
 import numpy as np
 import numpyro
 import scipy.stats as stats
+import ultranest
 from astropy.cosmology import Planck18
 from iminuit import Minuit
 from jax.experimental.mesh_utils import create_device_mesh
@@ -39,6 +41,9 @@ if TYPE_CHECKING:
     from elisa.infer.helper import Helper
     from elisa.plot.plotter import Plotter
     from elisa.util.typing import JAXArray
+
+ReactiveNestedSampler = ultranest.ReactiveNestedSampler
+Sampler = nautilus.Sampler
 
 
 class FitResult(ABC):
@@ -832,17 +837,26 @@ class PosteriorResult(FitResult):
     _info_tabs: dict | None = None
 
     def __init__(
-        self, sampler: MCMC | NestedSampler, helper: Helper, fit: BayesFit
+        self,
+        sampler: MCMC | NestedSampler | ReactiveNestedSampler | Sampler,
+        helper: Helper,
+        fit: BayesFit,
     ):
-        if not isinstance(sampler, (MCMC, NestedSampler)):
+        if not isinstance(
+            sampler, (MCMC, NestedSampler, ReactiveNestedSampler, Sampler)
+        ):
             raise ValueError(f'unknown sampler type {type(sampler)}')
 
         super().__init__(helper)
         self._fit = fit
         if isinstance(sampler, MCMC):
             self._init_from_numpyro(sampler)
-        else:
+        elif isinstance(sampler, NestedSampler):
             self._init_from_jaxns(sampler)
+        elif isinstance(sampler, ReactiveNestedSampler):
+            self._init_from_ultranest(sampler)
+        else:
+            self._init_from_nautilus(sampler)
 
     def __repr__(self):
         tabs = self._tabs()
@@ -1551,6 +1565,64 @@ class PosteriorResult(FitResult):
         self._reff = float(result.ESS / result.total_num_samples)
         # model evidence
         self._lnZ = (float(result.log_Z_mean), float(result.log_Z_uncert))
+
+    def _init_from_ultranest(self, sampler: ReactiveNestedSampler):
+        result = sampler._transform_back(sampler.results['samples'])
+        nsamples = len(sampler.results['samples'])
+        ncores = jax.local_device_count()
+        ndrop = nsamples % ncores
+
+        # get posterior samples
+        samples = jax.tree_map(lambda x: x[None, : nsamples - ndrop], result)
+
+        # attrs for each group of arviz.InferenceData
+        attrs = {
+            'elisa_version': __version__,
+            'inference_library': 'ultranest',
+            'inference_library_version': ultranest.__version__,
+        }
+
+        self._generate_idata(samples, attrs)
+
+        # effective sample size
+        ess = int(sampler.results['ess'])
+        self._ess = {'total': ess}
+        # relative mcmc efficiency
+        self._reff = float(ess / nsamples)
+        # model evidence
+        self._lnZ = (
+            float(sampler.results['logz']),
+            float(sampler.results['logzerr']),
+        )
+
+    def _init_from_nautilus(self, sampler: Sampler):
+        result = sampler.posterior(equal_weight=True)[0]
+        result = sampler._transform_back(result)
+        ncores = jax.local_device_count()
+
+        # get posterior samples
+        samples = jax.tree_map(
+            lambda x: x[None, : len(x) - len(x) % ncores],
+            result,
+        )
+
+        # attrs for each group of arviz.InferenceData
+        attrs = {
+            'elisa_version': __version__,
+            'inference_library': 'nautilus',
+            'inference_library_version': nautilus.__version__,
+        }
+
+        self._generate_idata(samples, attrs)
+
+        # effective sample size
+        ess = int(sampler.n_eff)
+        self._ess = {'total': ess}
+        # relative mcmc efficiency
+        total_sample = len(sampler.posterior(equal_weight=False)[0])
+        self._reff = float(ess / total_sample)
+        # model evidence
+        self._lnZ = (float(sampler.log_z), None)
 
     def _generate_idata(self, samples, attrs, sample_stats=None):
         samples = jax.tree_map(jax.device_get, samples)
