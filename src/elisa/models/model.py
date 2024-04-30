@@ -863,7 +863,7 @@ class ComponentMeta(ABCMeta):
             ]
             sig1 += ['latex: str | None = None']
 
-            params = '{%s}' % ', '.join(f"'{i[0]}': {i[0]}" for i in config)
+            params = '{' + ', '.join(f"'{i[0]}': {i[0]}" for i in config) + '}'
 
             # signature of super().__init__ method
             sig2 = [f'params={params}', 'latex=latex']
@@ -1064,7 +1064,7 @@ class Component(ABC, metaclass=ComponentMeta):
         self._id = hex(id(self))[2:]
 
         if latex is None:
-            latex = r'\mathrm{%s}' % self.__class__.__name__
+            latex = rf'\mathrm{{{self.__class__.__name__}}}'
         self.latex = latex
 
         self._name = self.__class__.__name__
