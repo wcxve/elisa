@@ -698,8 +698,44 @@ class BayesFit(Fit):
         print(f'Sampling cost {time.time() - t0:.2f} s')
         return PosteriorResult(sampler, self._helper, self)
 
-    def ultranest(self, ess: int = 10000):
-        """Run the Nested Sampler of :mod:`ultranest`."""
+    def ultranest(
+        self,
+        ess: int = 10000,
+        ignore_nan: bool = True,
+        *,
+        constructor_kwargs: dict | None = None,
+        termination_kwargs: dict | None = None,
+    ) -> PosteriorResult:
+        """Run the Nested Sampler of :mod:`ultranest`.
+
+        Parameters
+        ----------
+        ess : int, optional
+            The desired effective sample size.
+        ignore_nan : bool, optional
+            Whether to transform a NaN log probability to a large negative
+            number (-1e300). The default is True.
+
+            .. warning ::
+                Setting ``ignore_nan=True`` may fail to spot potential issues
+                with model computation.
+        constructor_kwargs : dict, optional
+            Extra parameters passed to
+            :class:`ultranest.ReactiveNestedSampler`.
+        termination_kwargs : dict, optional
+            Extra parameters passed to
+            :class:`ultranest.ReactiveNestedSampler.run()`.
+        """
+        if constructor_kwargs is None:
+            constructor_kwargs = {}
+        else:
+            constructor_kwargs = dict(constructor_kwargs)
+
+        if termination_kwargs is None:
+            termination_kwargs = {}
+        else:
+            termination_kwargs = dict(termination_kwargs)
+
         log_prob, transform, param_names = reparam_loglike(
             self._helper.numpyro_model,
             jax.random.PRNGKey(self._helper.seed['mcmc']),
@@ -707,7 +743,11 @@ class BayesFit(Fit):
 
         @jax.jit
         def log_prob_(params):
-            return log_prob(dict(zip(param_names, params)))
+            logp = log_prob(dict(zip(param_names, params)))
+            if ignore_nan:
+                return jnp.nan_to_num(logp, nan=-1e300)
+            else:
+                return logp
 
         @jax.vmap
         @jax.jit
@@ -715,13 +755,54 @@ class BayesFit(Fit):
             base_names = [name + '_base' for name in param_names]
             return transform(dict(zip(base_names, samples)))
 
-        sampler = ultranest.ReactiveNestedSampler(param_names, log_prob_)
-        sampler.run(min_ess=int(ess))
+        sampler = ultranest.ReactiveNestedSampler(
+            param_names=param_names, loglike=log_prob_, **constructor_kwargs
+        )
+        print('Start nested sampling...')
+        t0 = time.time()
+        sampler.run(min_ess=int(ess), **termination_kwargs)
+        print(f'Sampling cost {time.time() - t0:.2f} s')
         sampler._transform_back = transform_
         return PosteriorResult(sampler, self._helper, self)
 
-    def nautilus(self, ess: int = 10000) -> PosteriorResult:
-        """Run the Nested Sampler of :mod:`nautilus-sampler`."""
+    def nautilus(
+        self,
+        ess: int = 10000,
+        ignore_nan: bool = True,
+        *,
+        constructor_kwargs: dict | None = None,
+        termination_kwargs: dict | None = None,
+    ) -> PosteriorResult:
+        """Run the Nested Sampler of :mod:`nautilus`.
+
+        Parameters
+        ----------
+        ess : int, optional
+            The desired effective sample size.
+        ignore_nan : bool, optional
+            Whether to transform a NaN log probability to a large negative
+            number (-1e300). The default is True.
+
+            .. warning ::
+                Setting ``ignore_nan=True`` may fail to spot potential issues
+                with model computation.
+        constructor_kwargs : dict, optional
+            Extra parameters passed to
+            :class:`nautilus.Sampler`.
+        termination_kwargs : dict, optional
+            Extra parameters passed to
+            :class:`nautilus.Sampler.run()`.
+        """
+        if constructor_kwargs is None:
+            constructor_kwargs = {}
+        else:
+            constructor_kwargs = dict(constructor_kwargs)
+
+        if termination_kwargs is None:
+            termination_kwargs = {}
+        else:
+            termination_kwargs = dict(termination_kwargs)
+
         log_prob, transform, param_names = reparam_loglike(
             self._helper.numpyro_model,
             jax.random.PRNGKey(self._helper.seed['mcmc']),
@@ -729,7 +810,11 @@ class BayesFit(Fit):
 
         @jax.jit
         def log_prob_(params):
-            return log_prob(dict(zip(param_names, params)))
+            logp = log_prob(dict(zip(param_names, params)))
+            if ignore_nan:
+                return jnp.nan_to_num(logp, nan=-1e300)
+            else:
+                return logp
 
         @jax.vmap
         @jax.jit
@@ -741,14 +826,22 @@ class BayesFit(Fit):
         for param in param_names:
             prior.add_parameter(param)
 
+        constructor_kwargs['pass_dict'] = False
+        constructor_kwargs['seed'] = self._helper.seed['mcmc']
+        constructor_kwargs['vectorized'] = False
+        constructor_kwargs.setdefault('pool', (None, jax.local_device_count()))
         sampler = nautilus.Sampler(
-            prior,
-            log_prob_,
-            pass_dict=False,
-            pool=(None, jax.local_device_count()),
-            seed=self._helper.seed['mcmc'],
+            prior=prior,
+            likelihood=log_prob_,
+            **constructor_kwargs,
         )
-        sampler.run(n_eff=int(ess), discard_exploration=True, verbose=True)
+
+        termination_kwargs['discard_exploration'] = True
+        termination_kwargs.setdefault('verbose', True)
+        print('Start nested sampling...')
+        t0 = time.time()
+        sampler.run(n_eff=int(ess), **termination_kwargs)
+        print(f'Sampling cost {time.time() - t0:.2f} s')
         sampler._transform_back = transform_
         return PosteriorResult(sampler, self._helper, self)
 
