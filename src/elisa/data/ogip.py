@@ -1564,7 +1564,7 @@ class Response:
         ch, ph = np.meshgrid(ch_egrid, self._ph_egrid)
         plt.figure()
         plt.rcParams['axes.formatter.min_exponent'] = 3
-        plt.pcolormesh(ch, ph, matrix, cmap='jet')
+        plt.pcolormesh(ch, ph, matrix, cmap='magma')
         plt.xlabel('Measurement Energy [keV]')
         plt.ylabel('Photon Energy [keV]')
         plt.colorbar(label='Effective Area [cm$^2$]')
