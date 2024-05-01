@@ -892,7 +892,7 @@ class PosteriorResult(FitResult):
     def _tabs(self):
         if self._info_tabs is not None:
             return self._info_tabs
-        params_name = self._helper.params_names['free']
+        params_name = self._helper.params_names['all']
         params = self.idata['posterior'][params_name]
         mean = params.mean()
         std = params.std(ddof=1)
@@ -908,7 +908,7 @@ class PosteriorResult(FitResult):
                 f'{median[k]:.4g}',
                 f'[{ci[k][0]:.4g}, {ci[k][1]:.4g}]',
                 f'{ess[k]}',
-                f'{rhat[k]:.2f}',
+                f'{rhat[k]:.2f}' if not np.isnan(rhat[k]) else 'N/A',
             ]
             for k in params_name
         ]
@@ -1556,9 +1556,10 @@ class PosteriorResult(FitResult):
         self._generate_idata(samples, attrs)
 
         # effective sample size
-        self._ess = {'total': int(result.ESS)}
+        ess = int(result.ESS)
+        self._ess = {p: ess for p in self._helper.params_names['all']}
         # relative mcmc efficiency
-        self._reff = float(result.ESS / result.total_num_samples)
+        self._reff = float(ess / result.total_num_samples)
         # model evidence
         self._lnZ = (float(result.log_Z_mean), float(result.log_Z_uncert))
 
@@ -1582,7 +1583,7 @@ class PosteriorResult(FitResult):
 
         # effective sample size
         ess = int(sampler.results['ess'])
-        self._ess = {'total': ess}
+        self._ess = {p: ess for p in self._helper.params_names['all']}
         # relative mcmc efficiency
         self._reff = float(ess / nsamples)
         # model evidence
@@ -1613,7 +1614,7 @@ class PosteriorResult(FitResult):
 
         # effective sample size
         ess = int(sampler.n_eff)
-        self._ess = {'total': ess}
+        self._ess = {p: ess for p in self._helper.params_names['all']}
         # relative mcmc efficiency
         total_sample = len(sampler.posterior(equal_weight=False)[0])
         self._reff = float(ess / total_sample)
@@ -1713,7 +1714,7 @@ class PosteriorResult(FitResult):
         .. [1] https://arxiv.org/abs/1903.08008
         """
         if self._rhat is None:
-            params_names = self._helper.params_names['free']
+            params_names = self._helper.params_names['all']
             posterior = self.idata['posterior'][params_names]
 
             if len(posterior['chain']) == 1:
