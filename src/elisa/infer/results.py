@@ -10,9 +10,11 @@ import arviz as az
 import astropy.units as u
 import jax
 import jax.numpy as jnp
+import nautilus
 import numpy as np
 import numpyro
 import scipy.stats as stats
+import ultranest
 from astropy.cosmology import Planck18
 from iminuit import Minuit
 from jax.experimental.mesh_utils import create_device_mesh
@@ -39,6 +41,9 @@ if TYPE_CHECKING:
     from elisa.infer.helper import Helper
     from elisa.plot.plotter import Plotter
     from elisa.util.typing import JAXArray
+
+ReactiveNestedSampler = ultranest.ReactiveNestedSampler
+Sampler = nautilus.Sampler
 
 
 class FitResult(ABC):
@@ -821,6 +826,7 @@ class PosteriorResult(FitResult):
 
     _plotter: PosteriorResultPlotter | None = None
     _idata: az.InferenceData
+    _deviance: dict | None = None
     _mle_result: dict | None = None
     _ppc: PPCResult | None = None
     _loo: az.stats.stats_utils.ELPDData | None = None
@@ -832,17 +838,26 @@ class PosteriorResult(FitResult):
     _info_tabs: dict | None = None
 
     def __init__(
-        self, sampler: MCMC | NestedSampler, helper: Helper, fit: BayesFit
+        self,
+        sampler: MCMC | NestedSampler | ReactiveNestedSampler | Sampler,
+        helper: Helper,
+        fit: BayesFit,
     ):
-        if not isinstance(sampler, (MCMC, NestedSampler)):
+        if not isinstance(
+            sampler, (MCMC, NestedSampler, ReactiveNestedSampler, Sampler)
+        ):
             raise ValueError(f'unknown sampler type {type(sampler)}')
 
         super().__init__(helper)
         self._fit = fit
         if isinstance(sampler, MCMC):
             self._init_from_numpyro(sampler)
-        else:
+        elif isinstance(sampler, NestedSampler):
             self._init_from_jaxns(sampler)
+        elif isinstance(sampler, ReactiveNestedSampler):
+            self._init_from_ultranest(sampler)
+        else:
+            self._init_from_nautilus(sampler)
 
     def __repr__(self):
         tabs = self._tabs()
@@ -878,7 +893,7 @@ class PosteriorResult(FitResult):
         if self._info_tabs is not None:
             return self._info_tabs
         params_name = self._helper.params_names['free']
-        params = self._idata['posterior'][params_name]
+        params = self.idata['posterior'][params_name]
         mean = params.mean()
         std = params.std(ddof=1)
         median = params.median()
@@ -909,18 +924,13 @@ class PosteriorResult(FitResult):
         params_tab = make_pretty_table(names, rows)
 
         stat_type = self._helper.statistic
-        stat_keys = [
-            f'{i}_total' if i != 'total' else i for i in self.ndata.keys()
-        ]
-        deviance = -2.0 * self._idata['log_likelihood'][stat_keys]
-        deviance_mean = deviance.mean()
-        deviance_median = deviance.median()
+        deviance = self.deviance
         rows = [
             [
                 i,
                 stat_type[i],
-                f'{deviance_mean[f"{i}_total"]:.2f}',
-                f'{deviance_median[f"{i}_total"]:.2f}',
+                f'{deviance[i]["mean"]:.2f}',
+                f'{deviance[i]["median"]:.2f}',
                 j,
             ]
             for i, j in self.ndata.items()
@@ -930,8 +940,8 @@ class PosteriorResult(FitResult):
             [
                 'Total',
                 'stat/dof',
-                f'{deviance_mean["total"]:.2f}/{self.dof}',
-                f'{deviance_median["total"]:.2f}/{self.dof}',
+                f'{deviance["total"]["mean"]:.2f}/{self.dof}',
+                f'{deviance["total"]["median"]:.2f}/{self.dof}',
                 self.ndata['total'],
             ]
         )
@@ -1020,18 +1030,18 @@ class PosteriorResult(FitResult):
         cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
 
         if hdi:
-            median = self._idata['posterior'].median()
+            median = self.idata['posterior'].median()
             median = {
                 k: float(v) for k, v in median.data_vars.items() if k in params
             }
-            interval = az.hdi(self._idata, cl_, var_names=params)
+            interval = az.hdi(self.idata, cl_, var_names=params)
             interval = {
                 k: (float(v[0]), float(v[1]))
                 for k, v in interval.data_vars.items()
             }
         else:
             q = [0.5, 0.5 - cl_ / 2.0, 0.5 + cl_ / 2.0]
-            quantile = self._idata['posterior'].quantile(q)
+            quantile = self.idata['posterior'].quantile(q)
             quantile = {
                 k: v for k, v in quantile.data_vars.items() if k in params
             }
@@ -1368,7 +1378,7 @@ class PosteriorResult(FitResult):
 
         # randomly select n samples from posterior
         rng = np.random.default_rng(seed)
-        idata = self._idata
+        idata = self.idata
         i = rng.integers(0, idata['posterior'].chain.size, n)
         j = rng.integers(0, idata['posterior'].draw.size, n)
         params = {
@@ -1423,8 +1433,8 @@ class PosteriorResult(FitResult):
 
             # MLE information of the model
             free_params = helper.params_names['free']
-            mle_idx = self._idata['log_likelihood']['total'].argmax(...)
-            init = self._idata['posterior'][free_params].sel(**mle_idx)
+            mle_idx = self.idata['log_likelihood']['total'].argmax(...)
+            init = self.idata['posterior'][free_params].sel(**mle_idx)
             init = {k: v.values for k, v in init.data_vars.items()}
             init = helper.constr_dic_to_unconstr_arr(init)
             mle_unconstr = self._fit._optimize_lm(init, throw=False)[0]
@@ -1467,7 +1477,7 @@ class PosteriorResult(FitResult):
             return self._params
 
         nmax = 10000
-        post = self._idata['posterior'][self._helper.params_names['free']]
+        post = self.idata['posterior'][self._helper.params_names['free']]
         n = post.chain.size * post.draw.size
         if n > nmax:
             n = nmax - nmax % jax.local_device_count()
@@ -1552,6 +1562,64 @@ class PosteriorResult(FitResult):
         # model evidence
         self._lnZ = (float(result.log_Z_mean), float(result.log_Z_uncert))
 
+    def _init_from_ultranest(self, sampler: ReactiveNestedSampler):
+        result = sampler._transform_back(sampler.results['samples'])
+        nsamples = len(sampler.results['samples'])
+        ncores = jax.local_device_count()
+        ndrop = nsamples % ncores
+
+        # get posterior samples
+        samples = jax.tree_map(lambda x: x[None, : nsamples - ndrop], result)
+
+        # attrs for each group of arviz.InferenceData
+        attrs = {
+            'elisa_version': __version__,
+            'inference_library': 'ultranest',
+            'inference_library_version': ultranest.__version__,
+        }
+
+        self._generate_idata(samples, attrs)
+
+        # effective sample size
+        ess = int(sampler.results['ess'])
+        self._ess = {'total': ess}
+        # relative mcmc efficiency
+        self._reff = float(ess / nsamples)
+        # model evidence
+        self._lnZ = (
+            float(sampler.results['logz']),
+            float(sampler.results['logzerr']),
+        )
+
+    def _init_from_nautilus(self, sampler: Sampler):
+        result = sampler.posterior(equal_weight=True)[0]
+        result = sampler._transform_back(result)
+        ncores = jax.local_device_count()
+
+        # get posterior samples
+        samples = jax.tree_map(
+            lambda x: x[None, : len(x) - len(x) % ncores],
+            result,
+        )
+
+        # attrs for each group of arviz.InferenceData
+        attrs = {
+            'elisa_version': __version__,
+            'inference_library': 'nautilus',
+            'inference_library_version': nautilus.__version__,
+        }
+
+        self._generate_idata(samples, attrs)
+
+        # effective sample size
+        ess = int(sampler.n_eff)
+        self._ess = {'total': ess}
+        # relative mcmc efficiency
+        total_sample = len(sampler.posterior(equal_weight=False)[0])
+        self._reff = float(ess / total_sample)
+        # model evidence
+        self._lnZ = (float(sampler.log_z), None)
+
     def _generate_idata(self, samples, attrs, sample_stats=None):
         samples = jax.tree_map(jax.device_get, samples)
         helper = self._helper
@@ -1601,6 +1669,28 @@ class PosteriorResult(FitResult):
         )
 
     @property
+    def deviance(self) -> dict:
+        """Mean and median of model deviance."""
+        if self._deviance is None:
+            stat_keys = {
+                i: f'{i}_total' if i != 'total' else i
+                for i in self.ndata.keys()
+            }
+            keys = list(stat_keys.values())
+            deviance = -2.0 * self.idata['log_likelihood'][keys]
+            deviance_mean = deviance.mean()
+            deviance_median = deviance.median()
+            self._deviance = {
+                k: {
+                    'mean': float(deviance_mean[v]),
+                    'median': float(deviance_median[v]),
+                }
+                for k, v in stat_keys.items()
+            }
+
+        return self._deviance
+
+    @property
     def reff(self) -> float:
         """Relative MCMC efficiency."""
         return self._reff
@@ -1624,7 +1714,7 @@ class PosteriorResult(FitResult):
         """
         if self._rhat is None:
             params_names = self._helper.params_names['free']
-            posterior = self._idata['posterior'][params_names]
+            posterior = self.idata['posterior'][params_names]
 
             if len(posterior['chain']) == 1:
                 rhat = {k: float('nan') for k in posterior.data_vars.keys()}
@@ -1642,8 +1732,8 @@ class PosteriorResult(FitResult):
     def divergence(self) -> int:
         """Number of divergent samples."""
         if self._divergence is None:
-            if 'sample_stats' in self._idata:
-                n = int(self._idata['sample_stats']['diverging'].sum())
+            if 'sample_stats' in self.idata:
+                n = int(self.idata['sample_stats']['diverging'].sum())
             else:
                 n = 0
 
@@ -1666,7 +1756,7 @@ class PosteriorResult(FitResult):
         """
         if self._waic is None:
             self._waic = az.waic(
-                self._idata, var_name='channels', scale='deviance'
+                self.idata, var_name='channels', scale='deviance'
             )
 
         return self._waic
@@ -1688,7 +1778,7 @@ class PosteriorResult(FitResult):
         """
         if self._loo is None:
             self._loo = az.loo(
-                self._idata,
+                self.idata,
                 var_name='channels',
                 reff=self.reff,
                 scale='deviance',
@@ -1707,7 +1797,7 @@ class PosteriorResult(FitResult):
         if self._pit is not None:
             return self._pit
 
-        idata = self._idata
+        idata = self.idata
         reff = self.reff
         helper = self._helper
         stack_kwargs = {'__sample__': ('chain', 'draw')}

@@ -197,7 +197,6 @@ def define_fdjvp(
                 'JVP for non-scalar parameter is not implemented'
             )
 
-        params = lax.stop_gradient(params)
         non_zero_tangents = [not isinstance(v, SymbolicZero) for v in tvals]
         idx = [i for i, v in enumerate(non_zero_tangents) if v]
         idx_arr = jnp.array(idx)
