@@ -1344,8 +1344,10 @@ class MLEResultPlotter(Plotter):
             for all dimensions, or as a list of integers for each dimension.
             The default is 40.
         hist_bin_factor : float or list of float, optional
-            The number of bins to use in histograms, either as a fixed value
-            for all dimensions, or as a list of integers for each dimension.
+            This is a factor (or list of factors, one for each dimension)
+            that will multiply the bin specifications when making the 1-D
+            histograms. This is generally used to increase the number of
+            bins in the 1-D plots to provide more resolution.
             The default is 1.5.
         fig_path : str, optional
             Path to save the figure. The default is ``None``.
@@ -1558,8 +1560,10 @@ class PosteriorResultPlotter(Plotter):
             for all dimensions, or as a list of integers for each dimension.
             The default is 40.
         hist_bin_factor : float or list of float, optional
-            The number of bins to use in histograms, either as a fixed value
-            for all dimensions, or as a list of integers for each dimension.
+            This is a factor (or list of factors, one for each dimension)
+            that will multiply the bin specifications when making the 1-D
+            histograms. This is generally used to increase the number of
+            bins in the 1-D plots to provide more resolution.
             The default is 1.5.
         fig_path : str, optional
             Path to save the figure. The default is ``None``.
