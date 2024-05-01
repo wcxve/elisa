@@ -1327,6 +1327,8 @@ class MLEResultPlotter(Plotter):
         self,
         params: str | Sequence[str] | None = None,
         color: str | None = None,
+        bins: int | Sequence[int] = 40,
+        hist_bin_factor: float | Sequence[float] = 1.5,
         fig_path: str | None = None,
     ) -> Figure:
         """Corner plot of bootstrap parameters.
@@ -1337,6 +1339,14 @@ class MLEResultPlotter(Plotter):
             Parameters to plot. The default is all spectral parameters.
         color : str, optional
             Color of the plot. The default is ``None``.
+        bins : int or list of int, optional
+            The number of bins to use in histograms, either as a fixed value
+            for all dimensions, or as a list of integers for each dimension.
+            The default is 40.
+        hist_bin_factor : float or list of float, optional
+            The number of bins to use in histograms, either as a fixed value
+            for all dimensions, or as a list of integers for each dimension.
+            The default is 1.5.
         fig_path : str, optional
             Path to save the figure. The default is ``None``.
 
@@ -1357,6 +1367,8 @@ class MLEResultPlotter(Plotter):
         params_labels = self.params_labels
         fig = plot_corner(
             idata=az.from_dict(self._result._boot.params),
+            bins=bins,
+            hist_bin_factor=hist_bin_factor,
             params=params,
             axes_scale=axes_scale,
             levels=self.config.cl,
@@ -1527,6 +1539,8 @@ class PosteriorResultPlotter(Plotter):
         params: str | Sequence[str] | None = None,
         color: str | None = None,
         divergences: bool = True,
+        bins: int | Sequence[int] = 40,
+        hist_bin_factor: float | Sequence[float] = 1.5,
         fig_path: str | None = None,
     ) -> Figure:
         """Corner plot of posterior parameters.
@@ -1539,6 +1553,14 @@ class PosteriorResultPlotter(Plotter):
             Color of the plot. The default is ``None``.
         divergences : bool, optional
             Whether to show divergent samples. The default is ``True``.
+        bins : int or list of int, optional
+            The number of bins to use in histograms, either as a fixed value
+            for all dimensions, or as a list of integers for each dimension.
+            The default is 40.
+        hist_bin_factor : float or list of float, optional
+            The number of bins to use in histograms, either as a fixed value
+            for all dimensions, or as a list of integers for each dimension.
+            The default is 1.5.
         fig_path : str, optional
             Path to save the figure. The default is ``None``.
 
@@ -1556,6 +1578,8 @@ class PosteriorResultPlotter(Plotter):
         params_labels = self.params_labels
         fig = plot_corner(
             idata=self._result._idata,
+            bins=bins,
+            hist_bin_factor=hist_bin_factor,
             params=params,
             axes_scale=axes_scale,
             levels=self.config.cl,
