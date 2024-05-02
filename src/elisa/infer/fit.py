@@ -728,7 +728,7 @@ class BayesFit(Fit):
             :class:`ultranest.ReactiveNestedSampler.run()`.
         read_file : dict, optional
             read the log file and return class:`PosteriorResult()`
-            should Note that this option does not 
+            should Note that this option does not
             perform `ultranest.ReactiveNestedSampler.run()`
             please make sure the data and model setting is right
         """
@@ -775,7 +775,9 @@ class BayesFit(Fit):
             log_dir = read_file['log_dir']
             verbose = read_file['verbose'] if 'verbose' in read_file else False
             x_dim = sampler.x_dim
-            sequence, final = ultranest.read_file(log_dir,x_dim,verbose=verbose)
+            sequence, final = ultranest.read_file(
+                log_dir, x_dim, verbose=verbose
+            )
             sampler.results = {**sequence, **final}
         return PosteriorResult(sampler, self._helper, self)
 
