@@ -705,6 +705,7 @@ class BayesFit(Fit):
         *,
         constructor_kwargs: dict | None = None,
         termination_kwargs: dict | None = None,
+        read_file: dict | None = None,
     ) -> PosteriorResult:
         """Run the Nested Sampler of :mod:`ultranest`.
 
@@ -725,6 +726,11 @@ class BayesFit(Fit):
         termination_kwargs : dict, optional
             Extra parameters passed to
             :class:`ultranest.ReactiveNestedSampler.run()`.
+        read_file : dict, optional
+            read the log file and return class:`PosteriorResult()`
+            should Note that this option does not 
+            perform `ultranest.ReactiveNestedSampler.run()`
+            please make sure the data and model setting is right
         """
         if constructor_kwargs is None:
             constructor_kwargs = {}
@@ -758,11 +764,19 @@ class BayesFit(Fit):
         sampler = ultranest.ReactiveNestedSampler(
             param_names=param_names, loglike=log_prob_, **constructor_kwargs
         )
-        print('Start nested sampling...')
-        t0 = time.time()
-        sampler.run(min_ess=int(ess), **termination_kwargs)
-        print(f'Sampling cost {time.time() - t0:.2f} s')
         sampler._transform_back = transform_
+
+        if read_file is None:
+            print('Start nested sampling...')
+            t0 = time.time()
+            sampler.run(min_ess=int(ess), **termination_kwargs)
+            print(f'Sampling cost {time.time() - t0:.2f} s')
+        else:
+            log_dir = read_file['log_dir']
+            verbose = read_file['verbose'] if 'verbose' in read_file else False
+            x_dim = sampler.x_dim
+            sequence, final = ultranest.read_file(log_dir,x_dim,verbose=verbose)
+            sampler.results = {**sequence, **final}
         return PosteriorResult(sampler, self._helper, self)
 
     def nautilus(
