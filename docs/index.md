@@ -19,7 +19,7 @@ The key features of ``elisa`` include:
 explore our {ref}`tutorials`.
 
 📚 Curious about the details? The {ref}`guide` has you covered, including the
-[full API documentation](modules).
+[API reference](api).
 
 💡 Encountering issues? Don’t worry! See the {ref}`troubleshooting` page for
 helpful tips and tricks.
