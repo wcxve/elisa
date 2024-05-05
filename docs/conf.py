@@ -93,6 +93,7 @@ intersphinx_mapping = {
 myst_enable_extensions = [
     'amsmath',
     'dollarmath',
+    'colon_fence',
 ]
 
 nb_ipywidgets_js = {
@@ -119,7 +120,12 @@ numpydoc_xref_aliases = {
     'Parameter': 'elisa.models.parameter.Parameter',
 }
 numpydoc_xref_param_type = True
-numpydoc_xref_ignore = {'optional', 'type_without_description', 'BadException'}
+numpydoc_xref_ignore = {
+    'or',
+    'optional',
+    'type_without_description',
+    'BadException',
+}
 # Run docstring validation as part of build process
 # numpydoc_validation_checks = {"all", "GL01", "SA04", "RT03"}
 # The name of the Pygments (syntax highlighting) style to use.
