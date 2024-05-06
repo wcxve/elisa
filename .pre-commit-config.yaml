@@ -20,4 +20,4 @@ repos:
     rev: "0.7.1"
     hooks:
       - id: nbstripout
-        exclude: notebooks/quick-start.ipynb
+        # exclude: notebooks/quick-start.ipynb
