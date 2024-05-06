@@ -727,10 +727,11 @@ class BayesFit(Fit):
             Extra parameters passed to
             :class:`ultranest.ReactiveNestedSampler.run()`.
         read_file : dict, optional
-            read the log file and return class:`PosteriorResult()`
-            should Note that this option does not
-            perform `ultranest.ReactiveNestedSampler.run()`
-            please make sure the data and model setting is right
+            Read the log file from a previous run. The dictionary should
+            contain the log directory and other optional parameters. It
+            should be noted that when providing this keyword argument, the
+            sampler will not run, but read the log file instead, and make
+            sure the data and model setting is the same as the previous run.
         """
         if constructor_kwargs is None:
             constructor_kwargs = {}
@@ -772,13 +773,14 @@ class BayesFit(Fit):
             sampler.run(min_ess=int(ess), **termination_kwargs)
             print(f'Sampling cost {time.time() - t0:.2f} s')
         else:
+            read_file = dict(read_file)
             log_dir = read_file['log_dir']
-            verbose = read_file['verbose'] if 'verbose' in read_file else False
+            verbose = read_file.get('verbose', False)
             x_dim = sampler.x_dim
             sequence, final = ultranest.read_file(
                 log_dir, x_dim, verbose=verbose
             )
-            sampler.results = {**sequence, **final}
+            sampler.results = sequence | final
         return PosteriorResult(sampler, self._helper, self)
 
     def nautilus(
