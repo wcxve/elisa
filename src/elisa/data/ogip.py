@@ -218,7 +218,7 @@ class Data:
                 good_quality &= back_good
                 warnings.warn(
                     'ignore bad channels defined by the union of spectrum '
-                    f'({specfile})and background ({backfile}) quality',
+                    f'({specfile}) and background ({backfile}) quality',
                     Warning,
                     stacklevel=2,
                 )
