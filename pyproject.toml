@@ -45,6 +45,7 @@ dependencies = [
 xspec = ["xspex"]
 test = ["pytest", "pytest-cov", "coverage[toml]"]
 docs = [
+    "ipywidgets",
     "sphinx",
     "sphinx-autodoc-typehints",
     "sphinx-book-theme",
