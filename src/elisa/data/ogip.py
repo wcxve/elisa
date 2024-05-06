@@ -726,7 +726,10 @@ class Data:
         hatch : bool, optional
             Whether to add hatches in the ignored region. The default is True.
         """
-        self._resp.plot_effective_area(self._erange if hatch else None)
+        self._resp.plot_effective_area(
+            noticed_range=self._erange if hatch else None,
+            good_quality=self._good_quality,
+        )
 
     def plot_matrix(self, hatch: bool = True) -> None:
         """Plot the response matrix.
@@ -736,7 +739,10 @@ class Data:
         hatch : bool, optional
             Whether to add hatches in the ignored region. The default is True.
         """
-        self._resp.plot_matrix(self._erange if hatch else None)
+        self._resp.plot_matrix(
+            noticed_range=self._erange if hatch else None,
+            good_quality=self._good_quality,
+        )
 
     @property
     def name(self) -> str:
@@ -1495,15 +1501,30 @@ class Response:
             matrix = self._sparse_matrix.dot(grouping_matrix)
             self._matrix = matrix.tocsc()[:, non_empty]
 
-    def plot_effective_area(self, noticed_range: NDArray | None = None):
+    def plot_effective_area(
+        self,
+        noticed_range: NDArray | None = None,
+        good_quality: NDArray | None = None,
+    ):
         """Plot the response matrix.
 
         Parameters
         ----------
         noticed_range : ndarray, optional
             Energy range to show. Other energy ranges will be hatched.
+        good_quality : ndarray, optional
+            Flags indicating which measurement channel to be used in plotting.
+            It Must be the same length as the number of channels.
         """
-        eff_area = self._sparse_matrix.sum(axis=1)
+        if good_quality is None:
+            eff_area = self._sparse_matrix.sum(axis=1)
+        else:
+            if len(good_quality) != self._sparse_matrix.shape[1]:
+                raise ValueError(
+                    'length of good_quality must match to number of channels'
+                )
+            factor = np.array(good_quality, dtype=bool)
+            eff_area = (self._sparse_matrix * factor).sum(axis=1)
         eff_area = np.clip(eff_area, a_min=0.0, a_max=None)
 
         plt.figure()
@@ -1541,16 +1562,36 @@ class Response:
                 )
             plt.ylim(ylim)
 
-    def plot_matrix(self, noticed_range: NDArray | None = None):
+    def plot_matrix(
+        self,
+        noticed_range: NDArray | None = None,
+        good_quality: NDArray | None = None,
+    ):
         """Plot the response matrix.
 
         Parameters
         ----------
         noticed_range : ndarray, optional
             Energy range to show. Other energy ranges will be hatched.
+        good_quality : ndarray, optional
+            Flags indicating which measurement channel to be used in plotting.
+            It Must be the same length as the number of channels.
         """
         ch_emin, ch_emax = self._raw_channel_egrid.T
-        matrix = np.clip(self._sparse_matrix.todense(), a_min=0.0, a_max=None)
+        matrix = self._sparse_matrix
+
+        if good_quality is not None:
+            if len(good_quality) != self._sparse_matrix.shape[1]:
+                raise ValueError(
+                    'length of good_quality must match to number of channels'
+                )
+
+            good_quality = np.array(good_quality, dtype=bool)
+            ch_emin = ch_emin[good_quality]
+            ch_emax = ch_emax[good_quality]
+            matrix = matrix.tocsc()[:, good_quality]
+
+        matrix = np.clip(matrix.todense(), a_min=0.0, a_max=None)
 
         # some response matrix has discontinuity in channel energy grid,
         # insert np.nan to handle this
