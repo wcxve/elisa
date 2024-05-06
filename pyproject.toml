@@ -48,6 +48,9 @@ dependencies = [
 xspec = ["xspex"]
 test = ["pytest", "pytest-cov", "coverage[toml]"]
 docs = [
+    "ipywidgets",
+    "jupyter",
+    "jupyterlab_widgets",
     "sphinx",
     "sphinx-autodoc-typehints",
     "sphinx-book-theme",
@@ -56,6 +59,7 @@ docs = [
     "myst-nb",
     "numba",
     "numpydoc",
+    "widgetsnbextension",
 ]
 dev = ["pre-commit>=3.6.0", "ruff>=2.0"]
 

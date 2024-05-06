@@ -331,31 +331,6 @@ class XspecConvolution(XspecComponent):
         pass
 
 
-# class cflux(XspecConvolution):
-#     _supported = frozenset({'add'})
-#     _config = (
-#         ParamConfig(
-#             'emin', r'\mathrm{emin}', 'keV', 1.0, 1e-10, 1e10, fixed=1
-#         ),
-#         ParamConfig(
-#             'emax', r'\mathrm{emax}', 'keV', 10.0, 1e-10, 1e10, fixed=1
-#         ),
-#         ParamConfig('log10F', r'\mathrm{F}', '', -12, -100, 100),
-#     )
-#
-#     @property
-#     def _convolve(self):
-#         spec_num = self.spec_num
-#         params_names = [p.name for p in self._config]
-#         fn = _XSMODEL['primitive']['cflux']
-#
-#         def cflux(egrid, params, flux):
-#             params = jnp.stack([params[p] for p in params_names])
-#             return fn(params, egrid, flux, spec_num)
-#
-#         return cflux
-
-
 def create_xspec_components():
     """Create Xspec model classes."""
     if not _HAS_XSPEC:
