@@ -20,4 +20,4 @@ repos:
     rev: "0.7.1"
     hooks:
       - id: nbstripout
-        exclude: notebooks/.+\.ipynb
+        exclude: notebooks/xspec-models\.ipynb
