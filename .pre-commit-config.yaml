@@ -3,9 +3,9 @@ repos:
     rev: "v4.6.0"
     hooks:
       - id: trailing-whitespace
-        exclude: notebooks/data/*
+        exclude: notebooks/data/.+
       - id: end-of-file-fixer
-        exclude: notebooks/data/*
+        exclude: notebooks/data/.+
         exclude_types: [json, binary]
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.4.1"
@@ -20,3 +20,4 @@ repos:
     rev: "0.7.1"
     hooks:
       - id: nbstripout
+        exclude: notebooks/quick-start.ipynb
