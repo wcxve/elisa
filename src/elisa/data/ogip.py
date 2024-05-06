@@ -1534,6 +1534,7 @@ class Response:
         plt.xlabel('Photon Energy [keV]')
         plt.ylabel('Effective Area [cm$^2$]')
         plt.xscale('log')
+        plt.yscale('log')
 
         if noticed_range is not None:
             ph_emin = self.ph_egrid[:-1]
