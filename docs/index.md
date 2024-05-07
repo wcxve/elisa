@@ -1,7 +1,7 @@
 
 # elisa
 
-**An efficient library for spectral analysis in high-energy astrophysics.**
+**Efficient Library for Spectral Analysis (ELISA) in High-Energy Astrophysics.**
 
 The aim of ``elisa`` is to provide a modern and efficient tool to explore and
 analyze the spectral data. It is designed to be user-friendly and flexible.
