@@ -14,6 +14,9 @@ import numpy as np
 import optimistix as optx
 import ultranest
 from iminuit import Minuit
+from jax.experimental.mesh_utils import create_device_mesh
+from jax.experimental.shard_map import shard_map
+from jax.sharding import Mesh, PartitionSpec
 from numpyro.infer import AIES, MCMC, NUTS, init_to_value
 
 from elisa.data.ogip import Data
@@ -756,6 +759,31 @@ class BayesFit(Fit):
             else:
                 return logp
 
+        # if parallel:
+        #     ncore = jax.local_device_count()
+        #     devices = create_device_mesh((ncore,))
+        #     mesh = Mesh(devices, axis_names=('i',))
+        #     pi = PartitionSpec('i')
+        #     log_prob_parallel = shard_map(
+        #         f=jax.jit(jax.vmap(log_prob_)),
+        #         mesh=mesh,
+        #         in_specs=(pi,),
+        #         out_specs=pi,
+        #         check_rep=False,
+        #     )
+        #
+        #     def log_prob_(params):
+        #         pad = 0
+        #         if len(params) % ncore:
+        #             pad = ncore - len(params) % ncore
+        #             params = np.pad(params, (0, pad), mode='edge')
+        #         return log_prob_parallel(params)[: len(params) - pad]
+        #
+        #     constructor_kwargs['ndraw_min'] = n_batch * ncore
+        #     constructor_kwargs['ndraw_max'] = n_batch * ncore
+        #     constructor_kwargs['num_test_samples'] = ncore
+        #     constructor_kwargs['vectorized'] = True
+
         @jax.vmap
         @jax.jit
         def transform_(samples):
@@ -787,6 +815,8 @@ class BayesFit(Fit):
         self,
         ess: int = 10000,
         ignore_nan: bool = True,
+        parallel: bool = True,
+        n_batch: int = 5000,
         *,
         constructor_kwargs: dict | None = None,
         termination_kwargs: dict | None = None,
@@ -804,6 +834,11 @@ class BayesFit(Fit):
             .. warning ::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
+        parallel : bool, optional
+            Whether to parallelize likelihood evaluation. The default is True.
+        n_batch : int, optional
+            Number of likelihood evaluations that are performed at each step
+            for each core when `parallel` is True. The default is 5000.
         constructor_kwargs : dict, optional
             Extra parameters passed to
             :class:`nautilus.Sampler`.
@@ -834,6 +869,20 @@ class BayesFit(Fit):
             else:
                 return logp
 
+        if parallel:
+            ncore = jax.local_device_count()
+            devices = create_device_mesh((ncore,))
+            mesh = Mesh(devices, axis_names=('i',))
+            pi = PartitionSpec('i')
+            log_prob_ = shard_map(
+                f=jax.jit(jax.vmap(log_prob_)),
+                mesh=mesh,
+                in_specs=(pi,),
+                out_specs=pi,
+                check_rep=False,
+            )
+            constructor_kwargs['n_batch'] = n_batch * ncore
+
         @jax.vmap
         @jax.jit
         def transform_(samples):
@@ -846,7 +895,7 @@ class BayesFit(Fit):
 
         constructor_kwargs['pass_dict'] = False
         constructor_kwargs['seed'] = self._helper.seed['mcmc']
-        constructor_kwargs['vectorized'] = False
+        constructor_kwargs['vectorized'] = bool(parallel)
         constructor_kwargs.setdefault('pool', (None, jax.local_device_count()))
         sampler = nautilus.Sampler(
             prior=prior,
