@@ -21,7 +21,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-    "arviz",
+    "arviz>=0.18.0",
     "astropy>=5.3",
     "corner>=2.2.2",
     "h5py",
@@ -36,8 +36,7 @@ dependencies = [
     "optimistix",
     "prettytable",
     "quadax>=0.2.1",
-    "scipy>=1.11.0; python_version > '3.9'",
-    "scipy>=1.11.0, <=1.12.0; python_version == '3.9'",
+    "scipy>=1.11.0",
     "seaborn",
     "tinygp",
     "tqdm",
