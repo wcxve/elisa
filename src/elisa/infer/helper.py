@@ -206,7 +206,14 @@ def get_helper(fit: Fit) -> Helper:
 
     # ======================== count data calculator ==========================
 
-    obs_counts = {f'{k}_Non': v.spec_counts for k, v in data.items()}
+    obs_counts = {
+        f'{k}_Non': (
+            v.net_counts
+            if stat[k] in _STATISTIC_SPEC_NORMAL
+            else v.spec_counts
+        )
+        for k, v in data.items()
+    }
     obs_counts |= {
         f'{k}_Noff': v.back_counts
         for k, v in data.items()

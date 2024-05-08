@@ -21,7 +21,10 @@ from elisa.data.grouping import (
     group_sig_gv,
     group_sig_lima,
     group_sig_normal,
+    significance_gv,
+    significance_lima,
 )
+from elisa.plot.misc import get_colors
 
 if TYPE_CHECKING:
     from elisa.util.typing import NumPyArray as NDArray
@@ -106,12 +109,6 @@ class Data:
         has ``GROUPING`` defined. The default is False.
     resp_sparse : bool, optional
         Whether the response matrix is sparse. The default is False.
-    corrfile : str or None, optional
-        Correction file applied to `specfile`. Read from the `specfile`
-        header if None. The default is None.
-    corrnorm : float or None, optional
-        Scaling factor to be applied to `corrfile`. Read from the
-        `specfile` header if None. The default is None.
 
     Notes
     -----
@@ -142,8 +139,8 @@ class Data:
         ignore_bad: bool = True,
         record_channel: bool = False,
         resp_sparse: bool = False,
-        corrfile: bool | None = None,
-        corrnorm: bool | None = None,
+        # corrfile: bool | None = None,
+        # corrnorm: bool | None = None,
     ):
         erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
 
@@ -221,7 +218,7 @@ class Data:
                 good_quality &= back_good
                 warnings.warn(
                     'ignore bad channels defined by the union of spectrum '
-                    f'({specfile})and background ({backfile}) quality',
+                    f'({specfile}) and background ({backfile}) quality',
                     Warning,
                     stacklevel=2,
                 )
@@ -229,13 +226,13 @@ class Data:
             raise RuntimeError(f'no good channel is found for {name} data')
 
         # corrfile and corrnorm are not supported yet
-        if corrfile or corrnorm:
-            warnings.warn(
-                'correction to data is not yet supported',
-                Warning,
-                stacklevel=2,
-            )
-
+        # if corrfile or corrnorm:
+        #     warnings.warn(
+        #         'correction to data is not yet supported',
+        #         Warning,
+        #         stacklevel=2,
+        #     )
+        #
         # check correction file
         # use poisson=True to bypass stat_err check, which takes no effect
         # if corrfile:
@@ -244,7 +241,7 @@ class Data:
         #     corr = Spectrum(spec.corrfile, True)
         # else:
         #     corr = None
-
+        #
         # check correction scale
         # if corr:
         #     if corrnorm:
@@ -608,6 +605,132 @@ class Data:
         mask2 = np.less_equal(ch_emax, emax)
         return np.bitwise_and(mask1, mask2)
 
+    def plot_spec(self, xlog: bool = True, ylog: bool = False):
+        """Plot the spectrum.
+
+        .. warning::
+            The significance plot is accurate only if the spectrum data has
+            enough count statistics.
+
+        Parameters
+        ----------
+        xlog : bool, optional
+            Whether to use log scale on x-axis. The default is True.
+        ylog : bool, optional
+            Whether to use log scale on y-axis. The default is False.
+        """
+        fig, axs = plt.subplots(
+            nrows=2,
+            ncols=1,
+            sharex=True,
+            height_ratios=[1.618, 1.0],
+            gridspec_kw={'hspace': 0.05},
+        )
+        fig.align_ylabels(axs)
+
+        for ax in axs:
+            ax.tick_params(
+                axis='both',
+                which='both',
+                direction='in',
+                bottom=True,
+                top=True,
+                left=True,
+                right=True,
+            )
+
+        plt.rcParams['axes.formatter.min_exponent'] = 3
+
+        axs[0].set_ylabel(r'$C_E\ \mathrm{[s^{-1}\ keV^{-1}]}$')
+        axs[1].set_ylabel(r'Significance [$\mathrm{\sigma}$]')
+        axs[1].set_xlabel(r'$\mathrm{Energy\ [keV]}$')
+
+        if self.has_back:
+            colors = get_colors(2, 'colorblind')
+        else:
+            colors = get_colors(1, 'colorblind')
+
+        factor = 1.0 / (self.spec_exposure * self.ch_width)
+        x = self.ch_mean if xlog else self.ch_emid
+        xerr = self.ch_error if xlog else 0.5 * self.ch_width
+        axs[0].errorbar(
+            x=x,
+            xerr=xerr,
+            y=self.spec_counts * factor,
+            yerr=self.spec_error * factor,
+            fmt='o',
+            color=colors[0],
+            alpha=0.8,
+            label='Observation',
+            ms=3,
+            mfc='#FFFFFFCC',
+        )
+
+        if self.has_back:
+            factor = self.back_ratio / (self.spec_exposure * self.ch_width)
+            axs[0].errorbar(
+                x=x,
+                xerr=xerr,
+                y=self.back_counts * factor,
+                yerr=self.back_error * factor,
+                fmt='s',
+                color=colors[1],
+                alpha=0.8,
+                label='Background',
+                ms=3,
+                mfc='#FFFFFFCC',
+            )
+
+        if self.spec_poisson and self.has_back:
+            if self.back_poisson:
+                sig = significance_lima(
+                    self.spec_counts, self.back_counts, self.back_ratio
+                )
+            else:
+                sig = significance_gv(
+                    self.spec_counts,
+                    self.back_counts,
+                    self.back_error,
+                    self.back_ratio,
+                )
+            sig *= np.sign(self.net_counts)
+        else:
+            sig = self.net_counts / self.net_error
+
+        axs[1].errorbar(
+            x=x,
+            xerr=xerr,
+            y=sig,
+            yerr=1,
+            fmt='o',
+            color=colors[0],
+            alpha=0.8,
+            ms=3,
+            mfc='#FFFFFFCC',
+        )
+        axs[1].axhline(0, color='k', ls=':', lw=0.5)
+
+        if xlog:
+            axs[0].set_xscale('log')
+        if ylog:
+            axs[0].set_yscale('log')
+
+        axs[0].legend()
+        axs[0].set_title(self.name)
+
+    def plot_effective_area(self, hatch: bool = True):
+        """Plot the effective area.
+
+        Parameters
+        ----------
+        hatch : bool, optional
+            Whether to add hatches in the ignored region. The default is True.
+        """
+        self._resp.plot_effective_area(
+            noticed_range=self._erange if hatch else None,
+            good_quality=self._good_quality,
+        )
+
     def plot_matrix(self, hatch: bool = True) -> None:
         """Plot the response matrix.
 
@@ -616,7 +739,10 @@ class Data:
         hatch : bool, optional
             Whether to add hatches in the ignored region. The default is True.
         """
-        self._resp.plot(self._erange if hatch else None)
+        self._resp.plot_matrix(
+            noticed_range=self._erange if hatch else None,
+            good_quality=self._good_quality,
+        )
 
     @property
     def name(self) -> str:
@@ -947,7 +1073,7 @@ class Spectrum:
         self._ancrfile = get_field('ANCRFILE', '', excluded_file)
 
         # get corrfile
-        self._corrfile = get_field('CORRFILE', '', excluded_file)
+        # self._corrfile = get_field('CORRFILE', '', excluded_file)
 
         # get the background scaling factor
         back_scale = np.float64(get_field('BACKSCAL', 1.0))
@@ -966,7 +1092,7 @@ class Spectrum:
         self._area_scale = area_scale
 
         # get the correction scaling factor
-        self._corr_scale = np.float64(get_field('CORRSCAL', 0.0))
+        # self._corr_scale = np.float64(get_field('CORRSCAL', 0.0))
 
         self._header = header
         self._data = data
@@ -1091,10 +1217,10 @@ class Spectrum:
         """Ancillary response file."""
         return self._ancrfile
 
-    @property
-    def corrfile(self) -> str:
-        """Correction file."""
-        return self._corrfile
+    # @property
+    # def corrfile(self) -> str:
+    #     """Correction file."""
+    #     return self._corrfile
 
     @property
     def back_scale(self) -> np.float64 | NDArray:
@@ -1106,10 +1232,10 @@ class Spectrum:
         """Area scaling factor."""
         return self._area_scale
 
-    @property
-    def corr_scale(self) -> np.float64:
-        """Correction scaling factor."""
-        return self._corr_scale
+    # @property
+    # def corr_scale(self) -> np.float64:
+    #     """Correction scaling factor."""
+    #     return self._corr_scale
 
 
 class Response:
@@ -1375,16 +1501,98 @@ class Response:
             matrix = self._sparse_matrix.dot(grouping_matrix)
             self._matrix = matrix.tocsc()[:, non_empty]
 
-    def plot(self, hatch_range: NDArray | None = None):
+    def plot_effective_area(
+        self,
+        noticed_range: NDArray | None = None,
+        good_quality: NDArray | None = None,
+    ):
         """Plot the response matrix.
 
         Parameters
         ----------
-        hatch_range : ndarray, optional
-            Energy range to add hatches.
+        noticed_range : ndarray, optional
+            Energy range to show. Other energy ranges will be hatched.
+        good_quality : ndarray, optional
+            Flags indicating which measurement channel to be used in plotting.
+            It Must be the same length as the number of channels.
+        """
+        if good_quality is None:
+            eff_area = self._sparse_matrix.sum(axis=1)
+        else:
+            if len(good_quality) != self._sparse_matrix.shape[1]:
+                raise ValueError(
+                    'length of good_quality must match to number of channels'
+                )
+            factor = np.array(good_quality, dtype=bool)
+            eff_area = (self._sparse_matrix * factor).sum(axis=1)
+        eff_area = np.clip(eff_area, a_min=0.0, a_max=None)
+
+        plt.figure()
+        plt.rcParams['axes.formatter.min_exponent'] = 3
+        plt.step(self.ph_egrid, np.append(eff_area, eff_area[-1]))
+        plt.xlim(self.ph_egrid[0], self.ph_egrid[-1])
+        plt.xlabel('Photon Energy [keV]')
+        plt.ylabel('Effective Area [cm$^2$]')
+        plt.xscale('log')
+        plt.yscale('log')
+
+        if noticed_range is not None:
+            ph_emin = self.ph_egrid[:-1]
+            ph_emax = self.ph_egrid[1:]
+            noticed_range = np.atleast_2d(noticed_range)
+            emin = np.expand_dims(noticed_range[:, 0], axis=1)
+            emax = np.expand_dims(noticed_range[:, 1], axis=1)
+            mask1 = np.less_equal(emin, ph_emin)
+            mask2 = np.less_equal(ph_emax, emax)
+            idx = [np.flatnonzero(i) for i in np.bitwise_and(mask1, mask2)]
+
+            ignored = []
+            if ph_emin[idx[0][0]] > ph_emin[0]:
+                ignored.append((ph_emin[0], ph_emin[idx[0][0]]))
+            for i in range(len(idx) - 1):
+                this_noticed_right = ph_emax[idx[i][-1]]
+                next_noticed_left = ph_emin[idx[i + 1][0]]
+                ignored.append((this_noticed_right, next_noticed_left))
+            if ph_emax[idx[-1][-1]] < ph_emax[-1]:
+                ignored.append((ph_emax[idx[-1][-1]], ph_emax[-1]))
+
+            ylim = plt.gca().get_ylim()
+            for i in ignored:
+                plt.fill_betweenx(
+                    ylim, *i, alpha=0.8, color='gray', hatch='x', zorder=10
+                )
+            plt.ylim(ylim)
+
+    def plot_matrix(
+        self,
+        noticed_range: NDArray | None = None,
+        good_quality: NDArray | None = None,
+    ):
+        """Plot the response matrix.
+
+        Parameters
+        ----------
+        noticed_range : ndarray, optional
+            Energy range to show. Other energy ranges will be hatched.
+        good_quality : ndarray, optional
+            Flags indicating which measurement channel to be used in plotting.
+            It Must be the same length as the number of channels.
         """
         ch_emin, ch_emax = self._raw_channel_egrid.T
-        matrix = self._sparse_matrix.todense()
+        matrix = self._sparse_matrix
+
+        if good_quality is not None:
+            if len(good_quality) != self._sparse_matrix.shape[1]:
+                raise ValueError(
+                    'length of good_quality must match to number of channels'
+                )
+
+            good_quality = np.array(good_quality, dtype=bool)
+            ch_emin = ch_emin[good_quality]
+            ch_emax = ch_emax[good_quality]
+            matrix = matrix.tocsc()[:, good_quality]
+
+        matrix = np.clip(matrix.todense(), a_min=0.0, a_max=None)
 
         # some response matrix has discontinuity in channel energy grid,
         # insert np.nan to handle this
@@ -1397,17 +1605,18 @@ class Response:
         ch_egrid = np.append(ch_emin, ch_emax[-1])
         ch, ph = np.meshgrid(ch_egrid, self._ph_egrid)
         plt.figure()
-        plt.pcolormesh(ch, ph, matrix, cmap='jet')
+        plt.rcParams['axes.formatter.min_exponent'] = 3
+        plt.pcolormesh(ch, ph, matrix, cmap='magma')
         plt.xlabel('Measurement Energy [keV]')
         plt.ylabel('Photon Energy [keV]')
         plt.colorbar(label='Effective Area [cm$^2$]')
         plt.xscale('log')
         plt.yscale('log')
 
-        if hatch_range is not None:
-            hatch_range = np.atleast_2d(hatch_range)
-            emin = np.expand_dims(hatch_range[:, 0], axis=1)
-            emax = np.expand_dims(hatch_range[:, 1], axis=1)
+        if noticed_range is not None:
+            noticed_range = np.atleast_2d(noticed_range)
+            emin = np.expand_dims(noticed_range[:, 0], axis=1)
+            emax = np.expand_dims(noticed_range[:, 1], axis=1)
             mask1 = np.less_equal(emin, ch_emin)
             mask2 = np.less_equal(ch_emax, emax)
             idx = [np.flatnonzero(i) for i in np.bitwise_and(mask1, mask2)]

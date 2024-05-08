@@ -55,7 +55,6 @@ html_theme_options = {
     'github_url': 'https://github.com/wcxve/elisa',
     'repository_url': 'https://github.com/wcxve/elisa',
     'repository_branch': 'main',
-    'home_page_in_toc': True,
     'path_to_docs': 'docs',
     'launch_buttons': {
         'binderhub_url': 'https://mybinder.org',
@@ -68,10 +67,18 @@ html_theme_options = {
     'use_download_button': True,
     'use_issues_button': True,
 }
-# html_static_path = ['_static']
+html_title = 'elisa'
+html_static_path = ['_static']
+html_logo = '_static/logo2.png'
+html_favicon = '_static/favicon.svg'
 html_baseurl = 'https://elisa-lib.readthedocs.io/en/latest/'
+html_show_sourcelink = False
+master_doc = 'index'
 
+add_module_names = False
 autodoc_member_order = 'bysource'
+
+copybutton_selector = 'div:not(.output) > div.highlight pre'
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3.9', None),
@@ -86,6 +93,7 @@ intersphinx_mapping = {
 myst_enable_extensions = [
     'amsmath',
     'dollarmath',
+    'colon_fence',
 ]
 
 nb_ipywidgets_js = {
@@ -112,7 +120,12 @@ numpydoc_xref_aliases = {
     'Parameter': 'elisa.models.parameter.Parameter',
 }
 numpydoc_xref_param_type = True
-numpydoc_xref_ignore = {'optional', 'type_without_description', 'BadException'}
+numpydoc_xref_ignore = {
+    'or',
+    'optional',
+    'type_without_description',
+    'BadException',
+}
 # Run docstring validation as part of build process
 # numpydoc_validation_checks = {"all", "GL01", "SA04", "RT03"}
 # The name of the Pygments (syntax highlighting) style to use.

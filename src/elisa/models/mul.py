@@ -86,7 +86,7 @@ class Edge(NumIntMultiplicative):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         Ec = params['Ec']
         D = params['D']
         return jnp.where(
@@ -114,7 +114,7 @@ class ExpAbs(NumIntMultiplicative):
     _config = (ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 2.0, 0.0, 200.0),)
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         return jnp.exp(-params['Ec'] / egrid)
 
 
@@ -152,7 +152,7 @@ class ExpFac(NumIntMultiplicative):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         A = params['A']
         f = params['f']
         Ec = params['Ec']
@@ -193,7 +193,7 @@ class GAbs(NumIntMultiplicative):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         El = params['El']
         sigma = params['sigma']
         tau = params['tau']
@@ -234,7 +234,7 @@ class HighECut(NumIntMultiplicative):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         Ec = params['Ec']
         Ef = params['Ef']
         return jnp.where(egrid >= Ec, jnp.exp((Ec - egrid) / Ef), 1.0)
@@ -341,23 +341,23 @@ class PhotonAbsorption(NumIntMultiplicative):
     @property
     def eval(self) -> CompEval:
         """Get photon absorption model function."""
-        if self._continnum_jit is None:
-            self._continnum_jit = jax.jit(
-                self.continnum, static_argnums=(2, 3, 4)
+        if self._continuum_jit is None:
+            self._continuum_jit = jax.jit(
+                self.continuum, static_argnums=(2, 3, 4)
             )
 
         abs_model = self.__class__.__name__.lower()
         abund = self.abund
         xsect = self.xsect
-        continnum = jax.jit(
-            lambda egrid, params: self._continnum_jit(
+        continuum = jax.jit(
+            lambda egrid, params: self._continuum_jit(
                 egrid, params, abs_model, abund, xsect
             )
         )
-        return self._make_integral(continnum)
+        return self._make_integral(continuum)
 
     @staticmethod
-    def continnum(
+    def continuum(
         egrid: JAXArray,
         params: NameValMapping,
         abs_model: str,

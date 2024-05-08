@@ -164,8 +164,16 @@ def quantile_residuals_poisson(
         sf = rng.uniform(sf_right, sf_left)
 
     r = np.empty(lam_shape)
-    r[mask1] = norm.ppf(cdf)
-    r[mask2] = norm.isf(sf)
+    r[mask1] = np.where(
+        cdf != 0.0,
+        norm.ppf(cdf),
+        (k1 - lam1) / np.sqrt(lam1),
+    )
+    r[mask2] = np.where(
+        sf != 0.0,
+        norm.isf(sf),
+        (k2 - lam2) / np.sqrt(lam2),
+    )
 
     if keep_sign:
         r = np.where(k >= lam, 1.0, -1.0) * np.abs(r)

@@ -79,7 +79,7 @@ class Band(NumIntAdditive):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         alpha = params['alpha']
         beta = params['beta']
         Ec = params['Ec']
@@ -151,7 +151,7 @@ class BandEp(NumIntAdditive):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         alpha = params['alpha']
         beta = params['beta']
         Ep = params['Ep']
@@ -204,7 +204,7 @@ class Blackbody(NumIntAdditive):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         kT = params['kT']
         K = params['K']
         x = egrid / kT
@@ -255,7 +255,7 @@ class BlackbodyRad(NumIntAdditive):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         kT = params['kT']
         K = params['K']
 
@@ -326,7 +326,7 @@ class CutoffPL(NumIntAdditive):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         alpha = params['alpha']
         Ec = params['Ec']
         K = params['K']
@@ -365,7 +365,7 @@ class Compt(NumIntAdditive):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         alpha = params['alpha']
         Ep = params['Ep']
         K = params['K']
@@ -403,7 +403,7 @@ class Gauss(NumIntAdditive):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         El = params['El']
         sigma = params['sigma']
         K = params['K']
@@ -445,7 +445,7 @@ class OTTB(NumIntAdditive):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         kT = params['kT']
         K = params['K']
         return K * jnp.exp((1.0 - egrid) / kT) / egrid
@@ -480,7 +480,7 @@ class OTTS(NumIntAdditive):
     )
 
     @staticmethod
-    def continnum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+    def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
         Ec = params['Ec']
         K = params['K']
         return K * jnp.exp(-jnp.power(egrid / Ec, 1.0 / 3.0))

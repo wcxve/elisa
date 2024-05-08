@@ -24,6 +24,7 @@ from elisa.plot.residuals import (
     pit_poisson,
     pit_poisson_normal,
     pit_poisson_poisson,
+    quantile_residuals_poisson,
 )
 
 if TYPE_CHECKING:
@@ -618,7 +619,28 @@ class MLEPlotData(PlotData):
 
         lower = upper = False
 
-        if self.statistic in {'pgstat', 'wstat'}:
+        if self.statistic == 'chi2':
+            mask = (pit == 0.0) | (pit == 1.0)
+            if np.any(mask):
+                on_data = self.net_counts[mask]
+                on_model = self.on_models['mle'][mask]
+                error = self.net_error[mask]
+                r[mask] = (on_data - on_model) / error
+
+        elif self.statistic in {'cstat', 'pstat'}:
+            mask = (pit == 0.0) | (pit == 1.0)
+            if np.any(mask):
+                on_data = self.spec_counts[mask]
+                on_model = self.on_models['mle'][mask]
+                r[mask] = quantile_residuals_poisson(
+                    on_data,
+                    on_model,
+                    keep_sign=not random,
+                    random=random,
+                    seed=seed,
+                )
+
+        elif self.statistic in {'pgstat', 'wstat'}:
             upper_mask = pit == 0.0
             if np.any(upper_mask):
                 r[upper_mask] = stats.norm.ppf(1.0 / self._nsim)

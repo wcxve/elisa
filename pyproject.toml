@@ -1,7 +1,7 @@
 [project]
 name = "elisa-lib"
 dynamic = ["version"]
-description = "An efficient library for spectral analysis in high-energy astrophysics."
+description = "Efficient library for spectral analysis in high-energy astrophysics."
 readme = "README.md"
 requires-python = ">=3.9, <3.12"
 license = "GPL-3.0-or-later"
@@ -32,7 +32,7 @@ dependencies = [
     "matplotlib",
     "nautilus-sampler",
     "numpy",
-    "numpyro",
+    "numpyro>=0.14.0",
     "optimistix",
     "prettytable",
     "quadax>=0.2.1",
@@ -48,6 +48,9 @@ dependencies = [
 xspec = ["xspex"]
 test = ["pytest", "pytest-cov", "coverage[toml]"]
 docs = [
+    "ipywidgets",
+    "jupyter",
+    "jupyterlab_widgets",
     "sphinx",
     "sphinx-autodoc-typehints",
     "sphinx-book-theme",
@@ -56,6 +59,7 @@ docs = [
     "myst-nb",
     "numba",
     "numpydoc",
+    "widgetsnbextension",
 ]
 dev = ["pre-commit>=3.6.0", "ruff>=2.0"]
 

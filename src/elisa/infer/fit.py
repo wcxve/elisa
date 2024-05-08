@@ -14,6 +14,9 @@ import numpy as np
 import optimistix as optx
 import ultranest
 from iminuit import Minuit
+from jax.experimental.mesh_utils import create_device_mesh
+from jax.experimental.shard_map import shard_map
+from jax.sharding import Mesh, PartitionSpec
 from numpyro.infer import AIES, MCMC, NUTS, init_to_value
 
 from elisa.data.ogip import Data
@@ -705,6 +708,7 @@ class BayesFit(Fit):
         *,
         constructor_kwargs: dict | None = None,
         termination_kwargs: dict | None = None,
+        read_file: dict | None = None,
     ) -> PosteriorResult:
         """Run the Nested Sampler of :mod:`ultranest`.
 
@@ -725,6 +729,12 @@ class BayesFit(Fit):
         termination_kwargs : dict, optional
             Extra parameters passed to
             :class:`ultranest.ReactiveNestedSampler.run()`.
+        read_file : dict, optional
+            Read the log file from a previous run. The dictionary should
+            contain the log directory and other optional parameters. It
+            should be noted that when providing this keyword argument, the
+            sampler will not run, but read the log file instead, and make
+            sure the data and model setting is the same as the previous run.
         """
         if constructor_kwargs is None:
             constructor_kwargs = {}
@@ -749,6 +759,31 @@ class BayesFit(Fit):
             else:
                 return logp
 
+        # if parallel:
+        #     ncore = jax.local_device_count()
+        #     devices = create_device_mesh((ncore,))
+        #     mesh = Mesh(devices, axis_names=('i',))
+        #     pi = PartitionSpec('i')
+        #     log_prob_parallel = shard_map(
+        #         f=jax.jit(jax.vmap(log_prob_)),
+        #         mesh=mesh,
+        #         in_specs=(pi,),
+        #         out_specs=pi,
+        #         check_rep=False,
+        #     )
+        #
+        #     def log_prob_(params):
+        #         pad = 0
+        #         if len(params) % ncore:
+        #             pad = ncore - len(params) % ncore
+        #             params = np.pad(params, (0, pad), mode='edge')
+        #         return log_prob_parallel(params)[: len(params) - pad]
+        #
+        #     constructor_kwargs['ndraw_min'] = n_batch * ncore
+        #     constructor_kwargs['ndraw_max'] = n_batch * ncore
+        #     constructor_kwargs['num_test_samples'] = ncore
+        #     constructor_kwargs['vectorized'] = True
+
         @jax.vmap
         @jax.jit
         def transform_(samples):
@@ -758,17 +793,30 @@ class BayesFit(Fit):
         sampler = ultranest.ReactiveNestedSampler(
             param_names=param_names, loglike=log_prob_, **constructor_kwargs
         )
-        print('Start nested sampling...')
-        t0 = time.time()
-        sampler.run(min_ess=int(ess), **termination_kwargs)
-        print(f'Sampling cost {time.time() - t0:.2f} s')
         sampler._transform_back = transform_
+
+        if read_file is None:
+            print('Start nested sampling...')
+            t0 = time.time()
+            sampler.run(min_ess=int(ess), **termination_kwargs)
+            print(f'Sampling cost {time.time() - t0:.2f} s')
+        else:
+            read_file = dict(read_file)
+            log_dir = read_file['log_dir']
+            verbose = read_file.get('verbose', False)
+            x_dim = sampler.x_dim
+            sequence, final = ultranest.read_file(
+                log_dir, x_dim, verbose=verbose
+            )
+            sampler.results = sequence | final
         return PosteriorResult(sampler, self._helper, self)
 
     def nautilus(
         self,
         ess: int = 10000,
         ignore_nan: bool = True,
+        parallel: bool = True,
+        n_batch: int = 5000,
         *,
         constructor_kwargs: dict | None = None,
         termination_kwargs: dict | None = None,
@@ -786,6 +834,11 @@ class BayesFit(Fit):
             .. warning ::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
+        parallel : bool, optional
+            Whether to parallelize likelihood evaluation. The default is True.
+        n_batch : int, optional
+            Number of likelihood evaluations that are performed at each step
+            for each core when `parallel` is True. The default is 5000.
         constructor_kwargs : dict, optional
             Extra parameters passed to
             :class:`nautilus.Sampler`.
@@ -816,6 +869,20 @@ class BayesFit(Fit):
             else:
                 return logp
 
+        if parallel:
+            ncore = jax.local_device_count()
+            devices = create_device_mesh((ncore,))
+            mesh = Mesh(devices, axis_names=('i',))
+            pi = PartitionSpec('i')
+            log_prob_ = shard_map(
+                f=jax.jit(jax.vmap(log_prob_)),
+                mesh=mesh,
+                in_specs=(pi,),
+                out_specs=pi,
+                check_rep=False,
+            )
+            constructor_kwargs['n_batch'] = n_batch * ncore
+
         @jax.vmap
         @jax.jit
         def transform_(samples):
@@ -828,7 +895,7 @@ class BayesFit(Fit):
 
         constructor_kwargs['pass_dict'] = False
         constructor_kwargs['seed'] = self._helper.seed['mcmc']
-        constructor_kwargs['vectorized'] = False
+        constructor_kwargs['vectorized'] = bool(parallel)
         constructor_kwargs.setdefault('pool', (None, jax.local_device_count()))
         sampler = nautilus.Sampler(
             prior=prior,
