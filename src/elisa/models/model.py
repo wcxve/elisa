@@ -1191,8 +1191,8 @@ class NumericalIntegral(Component):
     """Prototype component to calculate model integral numerically."""
 
     _kwargs = ('method',)
-    _continnum_jit: CompEval | None = None
-    _staticmethod = ('continnum',)
+    _continuum_jit: CompEval | None = None
+    _staticmethod = ('continuum',)
 
     def __init__(
         self,
@@ -1205,13 +1205,13 @@ class NumericalIntegral(Component):
 
     @property
     def eval(self) -> CompEval:
-        if self._continnum_jit is None:
-            # _continnum is assumed to be a pure function, independent of self
-            self._continnum_jit = jax.jit(self.continnum)
+        if self._continuum_jit is None:
+            # _continuum is assumed to be a pure function, independent of self
+            self._continuum_jit = jax.jit(self.continuum)
 
-        return self._make_integral(self._continnum_jit)
+        return self._make_integral(self._continuum_jit)
 
-    def _make_integral(self, continnum: CompEval):
+    def _make_integral(self, continuum: CompEval):
         mtype = self.type
 
         if self.method == 'trapz':
@@ -1222,7 +1222,7 @@ class NumericalIntegral(Component):
                     factor = 0.5 * (egrid[1:] - egrid[:-1])
                 else:
                     factor = 0.5
-                f_grid = continnum(egrid, params)
+                f_grid = continuum(egrid, params)
                 return factor * (f_grid[:-1] + f_grid[1:])
 
         elif self.method == 'simpson':
@@ -1234,8 +1234,8 @@ class NumericalIntegral(Component):
                 else:
                     factor = 1.0 / 6.0
                 e_mid = 0.5 * (egrid[:-1] + egrid[1:])
-                f_grid = continnum(egrid, params)
-                f_mid = continnum(e_mid, params)
+                f_grid = continuum(egrid, params)
+                f_mid = continuum(e_mid, params)
                 return factor * (f_grid[:-1] + 4.0 * f_mid + f_grid[1:])
 
         else:
@@ -1245,7 +1245,7 @@ class NumericalIntegral(Component):
 
     @staticmethod
     @abstractmethod
-    def continnum(*args, **kwargs) -> JAXArray:
+    def continuum(*args, **kwargs) -> JAXArray:
         """Calculate the model value at the energy grid."""
         pass
 
@@ -1289,11 +1289,11 @@ class AnaIntAdditive(AnalyticalIntegral, AdditiveComponent):
 
 
 class NumIntAdditive(NumericalIntegral, AdditiveComponent):
-    """Prototype additive component with continnum expression defined."""
+    """Prototype additive component with continuum expression defined."""
 
     @staticmethod
     @abstractmethod
-    def continnum(*args, **kwargs) -> JAXArray:
+    def continuum(*args, **kwargs) -> JAXArray:
         """Calculate the photon flux at the energy grid.
 
         Parameters
@@ -1335,11 +1335,11 @@ class AnaIntMultiplicative(AnalyticalIntegral, MultiplicativeComponent):
 
 
 class NumIntMultiplicative(NumericalIntegral, MultiplicativeComponent):
-    """Prototype multiplicative component with continnum expression defined."""
+    """Prototype multiplicative component with continuum expression defined."""
 
     @staticmethod
     @abstractmethod
-    def continnum(*args, **kwargs) -> JAXArray:
+    def continuum(*args, **kwargs) -> JAXArray:
         """Calculate the model value at the energy grid.
 
         Parameters
