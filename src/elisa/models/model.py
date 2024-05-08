@@ -979,18 +979,24 @@ def _param_setter(name: str, idx: int) -> Callable[[Component, Any], None]:
 
         elif isinstance(param, Sequence):
             # given sequence
-            if len(param) not in {3, 4}:
+            if len(param) not in {1, 3, 4}:
                 raise ValueError(
-                    f'{type(self).__name__}.{cfg.name} expected sequence with '
-                    '3 or 4 elements: '
+                    f'{type(self).__name__}.{cfg.name} expected sequence of '
+                    'length 1, 3, or 4: '
+                    '[default (float)], '
                     '[default (float), min (float), max (float)], or '
                     '[default (float), min (float), max (float), log (bool)], '
                     f'but got {param}'
                 )
 
-            if len(param) == 3:
+            if len(param) == 1:
+                (default,) = param
+                min_ = cfg.min
+                max_ = cfg.max
+                log = cfg.log
+            elif len(param) == 3:
                 default, min_, max_ = param
-                log = False
+                log = cfg.log
             else:
                 default, min_, max_, log = param
 
