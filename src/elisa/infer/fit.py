@@ -907,10 +907,13 @@ class BayesFit(Fit):
         termination_kwargs.setdefault('verbose', True)
         print('Start nested sampling...')
         t0 = time.time()
-        sampler.run(n_eff=int(ess), **termination_kwargs)
-        print(f'Sampling cost {time.time() - t0:.2f} s')
-        sampler._transform_back = transform_
-        return PosteriorResult(sampler, self._helper, self)
+        success = sampler.run(n_eff=int(ess), **termination_kwargs)
+        if bool(success):
+            print(f'Sampling cost {time.time() - t0:.2f} s')
+            sampler._transform_back = transform_
+            return PosteriorResult(sampler, self._helper, self)
+        else:
+            raise UserWarning(r"faild sampling due to limits were reached, please change `n_like_max` or `timeout`, or you can run again if you have set checkpoint `filepath`")
 
     def aies(
         self,
