@@ -915,8 +915,8 @@ class BayesFit(Fit):
         else:
             raise RuntimeError(
                 'Sampling failed due to limits were reached, please set a '
-                'larger `n_like_max` or `timeout`. You can also run the '
-                'sampler again, providing `filepath` and `resume`.'
+                'larger `n_like_max` or `timeout`. You can also resume the '
+                'sampler from previous one, providing `filepath` and `resume`.'
             )
 
     def aies(
