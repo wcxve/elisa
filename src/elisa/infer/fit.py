@@ -913,7 +913,9 @@ class BayesFit(Fit):
             sampler._transform_back = transform_
             return PosteriorResult(sampler, self._helper, self)
         else:
-            raise UserWarning(r"faild sampling due to limits were reached, please change `n_like_max` or `timeout`, or you can run again if you have set checkpoint `filepath`")
+            raise UserWarning(
+                r'faild sampling due to limits were reached, please change `n_like_max` or `timeout`, or you can run again if you have set checkpoint `filepath`'
+            )
 
     def aies(
         self,
