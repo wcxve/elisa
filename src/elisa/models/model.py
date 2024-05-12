@@ -9,9 +9,11 @@ from enum import Enum
 from functools import reduce
 from typing import TYPE_CHECKING, NamedTuple
 
+import astropy.units as u
 import jax
 import jax.numpy as jnp
 import numpy as np
+from astropy.cosmology import Planck18
 
 from elisa.models.parameter import Parameter, UniformParameter
 from elisa.util.misc import build_namespace
@@ -19,6 +21,7 @@ from elisa.util.misc import build_namespace
 if TYPE_CHECKING:
     from typing import Any, Callable, Literal
 
+    from astropy.cosmology.flrw.lambdacdm import LambdaCDM
     from numpyro.distributions import Distribution
 
     from elisa.models.parameter import ParamInfo
@@ -494,7 +497,7 @@ class CompiledModel:
     def eene(
         self,
         egrid: ArrayLike,
-        params: Sequence | Mapping,
+        params: Sequence | Mapping | None = None,
         comps: bool = False,
     ) -> JAXArray | dict[str, JAXArray]:
         r"""Calculate :math:`E^2 N(E)`, i.e. :math:`\nu F(\nu)`.
@@ -646,6 +649,139 @@ class CompiledModel:
             return jax.tree_map(fn, f)
         else:
             return fn(f)
+
+    def lumin(
+        self,
+        emin_rest: float | int,
+        emax_rest: float | int,
+        z: float | int,
+        params: dict[str, float | int] | None = None,
+        comps: bool = False,
+        ngrid: int = 1000,
+        log: bool = True,
+        cosmo: LambdaCDM = Planck18,
+    ) -> JAXArray | dict[str, JAXArray]:
+        """Calculate the luminosity of model.
+
+        .. warning::
+            The luminosity is calculated by trapezoidal rule, and is accurate
+            only if enough numbers of energy grids are used.
+
+        Parameters
+        ----------
+        emin_rest : float or int
+            Minimum value of rest-frame energy range, in units of keV.
+        emax_rest : float or int
+            Maximum value of rest-frame energy range, in units of keV.
+        z : float or int
+            Redshift of the source.
+        params : sequence or mapping, optional
+            Parameter sequence or mapping for the model.
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+        cosmo : LambdaCDM, optional
+            Cosmology model used to calculate luminosity. The default is
+            Planck18.
+
+        Returns
+        -------
+        jax.Array, or dict[str, jax.Array]
+            The model luminosity.
+        """
+        if self.type != 'add':
+            msg = f'lumin is undefined for {self.type} type model "{self}"'
+            raise TypeError(msg)
+
+        z = float(z)
+        flux = self.flux(
+            emin=float(emin_rest) / (1.0 + z),
+            emax=float(emax_rest) / (1.0 + z),
+            params=params,
+            energy=True,
+            comps=bool(comps),
+            ngrid=int(ngrid),
+            log=bool(log),
+        )
+        flux_unit = u.Unit('erg cm^-2 s^-1')
+
+        factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
+        to_lumin = lambda x: (x * flux_unit * factor).to('erg s^-1')
+
+        if comps:
+            return jax.tree_map(to_lumin, flux)
+        else:
+            return to_lumin(flux)
+
+    def eiso(
+        self,
+        emin_rest: float | int,
+        emax_rest: float | int,
+        z: float | int,
+        duration: float | int,
+        params: dict[str, float | int] | None = None,
+        comps: bool = False,
+        ngrid: int = 1000,
+        log: bool = True,
+        cosmo: LambdaCDM = Planck18,
+    ) -> JAXArray | dict[str, JAXArray]:
+        r"""Calculate the isotropic emission energy of model.
+
+        .. warning::
+            The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule,
+            and is accurate only if enough numbers of energy grids are used.
+
+        Parameters
+        ----------
+        emin_rest : float or int
+            Minimum value of rest-frame energy range, in units of keV.
+        emax_rest : float or int
+            Maximum value of rest-frame energy range, in units of keV.
+        z : float or int
+            Redshift of the source.
+        duration : float or int
+            Observed duration of the source, in units of second.
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is
+            1000.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default
+            is True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+        cosmo : LambdaCDM, optional
+            Cosmology model used to calculate luminosity. The default is
+            Planck18.
+
+        Returns
+        -------
+        jax.Array, or dict[str, jax.Array]
+            The isotropic emission energy of the model.
+        """
+        if self.type != 'add':
+            msg = f'eiso is undefined for {self.type} type model "{self}"'
+            raise TypeError(msg)
+
+        lumin = self.lumin(
+            emin_rest, emax_rest, z, params, comps, ngrid, log, cosmo
+        )
+
+        # This includes correction for time dilation.
+        factor = duration / (1 + z) * u.s
+        to_eiso = lambda x: (x * factor).to('erg')
+
+        if comps:
+            return jax.tree_map(to_eiso, lumin)
+        else:
+            return to_eiso(lumin)
 
     def __str__(self) -> str:
         return self.name
