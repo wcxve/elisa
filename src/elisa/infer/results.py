@@ -360,9 +360,9 @@ class MLEResult(FitResult):
             )
 
         if energy:
-            unit = u.erg / u.cm**2 / u.s
+            unit = u.Unit('erg cm^-2 s^-1')
         else:
-            unit = u.cm**-2 / u.s
+            unit = u.Unit('cm^-2 s^-1')
 
         mle_params = {k: v[0] for k, v in self._mle.items()}
         if params is not None:
@@ -538,9 +538,9 @@ class MLEResult(FitResult):
             egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
 
         flux = self._calc_flux(egrid, cl, True, comps, params)
-        unit = u.erg / u.s
+
         factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
-        to_lumin = lambda x: (x * factor).to(unit)
+        to_lumin = lambda x: (x * factor).to('erg s^-1')
 
         return MLELumin(
             mle=jax.tree_map(to_lumin, flux['mle']),
@@ -614,8 +614,11 @@ class MLEResult(FitResult):
         lumin = self.lumin(
             emin_rest, emax_rest, z, cl, ngrid, comps, log, params, cosmo
         )
+
+        # This includes correction for energy redshift and time dilation.
         factor = duration / (1 + z) * u.s
-        to_eiso = lambda x: (x * factor).to(u.erg)
+        to_eiso = lambda x: (x * factor).to('erg')
+
         return MLEEIso(
             mle=jax.tree_map(to_eiso, lumin.mle),
             intervals=jax.tree_map(to_eiso, lumin.intervals),
@@ -1073,9 +1076,9 @@ class PosteriorResult(FitResult):
         params: dict[str, JAXArray] | None,
     ) -> dict[str, Q | float]:
         if energy:
-            unit = u.erg / u.cm**2 / u.s
+            unit = u.Unit('erg cm^-2 s^-1')
         else:
-            unit = u.cm**-2 / u.s
+            unit = u.Unit('cm^-2 s^-1')
 
         post = self._params_dist
         n = [i.size for i in post.values()][0]
@@ -1254,9 +1257,10 @@ class PosteriorResult(FitResult):
 
         z = float(z)
         flux = self._calc_flux(egrid, cl, hdi, True, comps, params)
-        unit = u.erg / u.s
+
         factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
-        to_lumin = lambda x: (x * factor).to(unit)
+        to_lumin = lambda x: (x * factor).to('erg s^-1')
+
         return PosteriorLumin(
             median=jax.tree_map(to_lumin, flux['median']),
             intervals=jax.tree_map(to_lumin, flux['intervals']),
@@ -1333,8 +1337,11 @@ class PosteriorResult(FitResult):
         lumin = self.lumin(
             emin_rest, emax_rest, z, cl, ngrid, hdi, comps, log, params, cosmo
         )
+
+        # This includes correction for energy redshift and time dilation.
         factor = duration / (1 + z) * u.s
-        to_eiso = lambda x: (x * factor).to(u.erg)
+        to_eiso = lambda x: (x * factor).to('erg')
+
         return PosteriorEIso(
             median=jax.tree_map(to_eiso, lumin.median),
             intervals=jax.tree_map(to_eiso, lumin.intervals),
