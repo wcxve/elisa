@@ -345,9 +345,9 @@ class VAShift(ConvolutionComponent):
     during an exposure time of :math:`\Delta t` [s] is calculated as follows:
 
     .. math::
-        n &= \frac{\Delta t} \int_{fe_1}^{fe_2} N(E) \, \mathrm{d}E
+        n &= \Delta t \int_{fe_1}^{fe_2} N(E) \, \mathrm{d}E
           \\\\
-          &= \frac{\Delta t} \int_{E_1}^{E_2} N(E) \, \mathrm{d}E,
+          &= \Delta t \int_{E_1}^{E_2} N(E) \, \mathrm{d}E,
 
     where :math:`E_1 = f e_1` [keV], :math:`E_2 = f e_2` [keV], and
     :math:`f = 1 - v/c`.
