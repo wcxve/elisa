@@ -10,9 +10,9 @@ The aim of ``elisa`` is to provide a modern and efficient tool to explore and
 analyze the spectral data. It is designed to be user-friendly and flexible.
 The key features of ``elisa`` include:
 
-- **Easy to Use**: Simple and intuitive interfaces
+- **Ease of Use**: Simple and intuitive interfaces
 - **Robustness**: Utilizing the state-of-the-art algorithm to fit, test, and compare models
-- **Performance**: Efficient computation backend using [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html)
+- **Performance**: Efficient computation backend based on [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html)
 - ...
 
 ```{admonition} How to find your way around?

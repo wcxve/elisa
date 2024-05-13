@@ -702,7 +702,11 @@ class Plotter(ABC):
             ax.autoscale_view()
 
         if 'ce' in axs_dict:
-            axs_dict['ce'].legend()
+            if len(self.data) > 5:
+                ncols = int(np.ceil(len(self.data) / 4))
+            else:
+                ncols = 1
+            axs_dict['ce'].legend(ncols=ncols)
 
         return fig
 
