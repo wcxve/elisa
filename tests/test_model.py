@@ -6,7 +6,12 @@ from elisa import ConstantValue
 from elisa.models import PowerLaw, ZAShift
 
 
-def test_model_lumin():
+def test_name():
+    model = PowerLaw() + PowerLaw()
+    assert model.name == 'PowerLaw + PowerLaw_2'
+
+
+def test_lumin_and_eiso():
     def powerlaw(alpha, K, egrid):
         egrid = np.array(egrid)
         one_minus_alpha = 1.0 - alpha
