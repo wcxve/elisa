@@ -273,8 +273,10 @@ def plot_trace(
             draw_slice = draw[:: bw // 2]
             y = np.log(sample) if log_scale else sample
             smoothed = gaussian_kernel_smooth(draw, y, bw, draw_slice)
-            smoothed = np.exp(smoothed) if log_scale else smoothed
-            x, kde = az.kde(sample)
+            x, kde = az.kde(y)
+            if log_scale:
+                smoothed = np.exp(smoothed)
+                x = np.exp(x)
 
             color = colors[c]
             zorder = 10 - c
