@@ -711,11 +711,12 @@ class CompiledModel:
         flux_unit = u.Unit('erg cm^-2 s^-1')
 
         factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
+        to_lumin = lambda x: (x * flux_unit * factor).to('erg s^-1')
 
-        return jax.tree_map(
-            lambda x: (x * flux_unit * factor).to('erg s^-1'),
-            flux,
-        )
+        if comps:
+            return jax.tree_map(to_lumin, flux)
+        else:
+            return to_lumin(flux)
 
     def eiso(
         self,
@@ -744,7 +745,7 @@ class CompiledModel:
         z : float or int
             Redshift of the source.
         duration : float or int
-            Observed duration of the source, in units of seconds.
+            Observed duration of the source, in units of second.
         comps : bool, optional
             Whether to return the result of each component. The default is
             False.
@@ -775,11 +776,12 @@ class CompiledModel:
 
         # This includes correction for time dilation.
         factor = duration / (1 + z) * u.s
+        to_eiso = lambda x: (x * factor).to('erg')
 
-        return jax.tree_map(
-            lambda x: (x * factor).to('erg'),
-            lumin,
-        )
+        if comps:
+            return jax.tree_map(to_eiso, lumin)
+        else:
+            return to_eiso(lumin)
 
     def __str__(self) -> str:
         return self.name
