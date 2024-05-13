@@ -265,18 +265,18 @@ class ZAShift(ConvolutionComponent):
     time of :math:`\Delta t` [s] is calculated as follows:
 
     .. math::
-        n &= \frac{R^2}{{D_L}^2} \frac{\Delta t}{1+z}
+        n &= \frac{R^2}{{D_\mathrm{c}}^2} \frac{\Delta t}{1+z}
              \int_{e_1(1+z)}^{e_2(1+z)} N(E) \, \mathrm{d}E
           \\\\
-          &= \frac{R^2}{{D_L}^2} \frac{\Delta t}{1+z}
+          &= \frac{R^2}{{D_\mathrm{c}}^2} \frac{\Delta t}{1+z}
              \int_{E_1}^{E_2} N(E) \, \mathrm{d}E,
 
     where :math:`E_1 = e_1 (1+z)` [keV], :math:`E_2 = e_2 (1+z)` [keV] and
-    :math:`{D_L}^2` is the luminosity distance of the source at redshift
+    :math:`D_\mathrm{c}` is the comoving distance of the source at redshift
     :math:`z`.
 
-    Note that the :math:`\frac{R^2}{{D_L}^2}` factor is absorbed into the
-    normalization of :math:`N(E)` in practice.
+    Note that the :math:`\frac{R^2}{{D_\mathrm{c}}^2}` factor is absorbed into
+    the normalization of :math:`N(E)` in practice.
 
     Parameters
     ----------
