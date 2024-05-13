@@ -749,7 +749,7 @@ class Plotter(ABC):
 
         for name, data in self.data.items():
             color = colors[name]
-            egrid_ = egrid.get(name, data.ph_egrid)
+            egrid_ = egrid.get(name, data.photon_egrid)
             ne, ci = data.unfolded_model(mtype, egrid_, params, False, cl)
             _plot_step(
                 ax, egrid_[:-1], egrid_[1:], ne, color=color, **step_kwargs
@@ -808,8 +808,8 @@ class Plotter(ABC):
 
             _plot_step(
                 ax,
-                data.ch_emin,
-                data.ch_emax,
+                data.channel_emin,
+                data.channel_emax,
                 data.ce_model,
                 color=color,
                 **step_kwargs,
@@ -823,8 +823,8 @@ class Plotter(ABC):
             if quantiles:
                 _plot_ribbon(
                     ax,
-                    data.ch_emin,
-                    data.ch_emax,
+                    data.channel_emin,
+                    data.channel_emax,
                     quantiles,
                     color=color,
                     **ribbon_kwargs,
@@ -847,10 +847,10 @@ class Plotter(ABC):
             color = colors[name]
             marker = self._markers[name]
             ax.errorbar(
-                x=data.ch_mean if xlog else data.ch_emid,
-                xerr=data.ch_error if xlog else 0.5 * data.ch_width,
+                x=data.channel_emean if xlog else data.channel_emid,
+                xerr=data.channel_errors if xlog else 0.5 * data.channel_width,
                 y=data.ce_data,
-                yerr=data.ce_error,
+                yerr=data.ce_errors,
                 alpha=alpha,
                 color=color,
                 fmt=f'{marker} ',
@@ -900,8 +900,8 @@ class Plotter(ABC):
         for name, data in self.data.items():
             color = colors[name]
             marker = self._markers[name]
-            x = data.ch_mean if xlog else data.ch_emid
-            xerr = data.ch_error if xlog else 0.5 * data.ch_width
+            x = data.channel_emean if xlog else data.channel_emid
+            xerr = data.channel_errors if xlog else 0.5 * data.channel_width
 
             quantiles = []
             for i_cl in cl:
@@ -914,8 +914,8 @@ class Plotter(ABC):
             if quantiles:
                 _plot_ribbon(
                     ax,
-                    data.ch_emin,
-                    data.ch_emax,
+                    data.channel_emin,
+                    data.channel_emax,
                     quantiles,
                     color=color,
                     **ribbon_kwargs,
@@ -923,7 +923,7 @@ class Plotter(ABC):
             else:
                 for q in normal_q:
                     ax.fill_between(
-                        [data.ch_emin[0], data.ch_emax[-1]],
+                        [data.channel_emin[0], data.channel_emax[-1]],
                         -q,
                         q,
                         color=color,
@@ -1617,10 +1617,10 @@ class PosteriorResultPlotter(Plotter):
             color = colors[name]
             marker = self._markers[name]
             khat_data = khat.sel(channel=data.channel).values
-            x = data.ch_mean if xlog else data.ch_emid
+            x = data.channel_emean if xlog else data.channel_emid
             ax.errorbar(
                 x=x,
-                xerr=data.ch_error if xlog else 0.5 * data.ch_width,
+                xerr=data.channel_errors if xlog else 0.5 * data.channel_width,
                 y=khat_data,
                 alpha=alpha,
                 color=color,

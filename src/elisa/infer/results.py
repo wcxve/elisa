@@ -1830,7 +1830,7 @@ class PosteriorResult(FitResult):
         if has_discrete:
             data_minus = {}
             for k, d in helper.data.items():
-                unit = 1.0 / (d.ch_width * d.spec_exposure)
+                unit = 1.0 / (d.channel_width * d.spec_exposure)
                 if data_stats[k] in {'cstat', 'pstat'}:
                     data_minus[k] = (d.spec_counts - 1.0) * unit
                 elif data_stats[k] == 'wstat':

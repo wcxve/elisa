@@ -129,36 +129,38 @@ class PlotData(ABC):
         return self.data.channel
 
     @property
-    def ch_emin(self) -> NumPyArray:
-        return self.data.ch_emin
+    def channel_emin(self) -> NumPyArray:
+        return self.data.channel_emin
 
     @property
-    def ch_emax(self) -> NumPyArray:
-        return self.data.ch_emax
+    def channel_emax(self) -> NumPyArray:
+        return self.data.channel_emax
 
     @property
-    def ch_emid(self) -> NumPyArray:
-        return self.data.ch_emid
+    def channel_emid(self) -> NumPyArray:
+        return self.data.channel_emid
 
     @property
-    def ch_width(self) -> NumPyArray:
-        return self.data.ch_width
+    def channel_width(self) -> NumPyArray:
+        return self.data.channel_width
 
     @property
-    def ch_mean(self) -> NumPyArray:
-        return self.data.ch_mean
+    def channel_emean(self) -> NumPyArray:
+        return self.data.channel_emean
 
     @property
-    def ch_error(self) -> NumPyArray:
-        return self.data.ch_error
+    def channel_errors(self) -> NumPyArray:
+        return self.data.channel_errors
 
     @property
-    def ph_egrid(self) -> NumPyArray:
+    def photon_egrid(self) -> NumPyArray:
         if self._ph_egrid is not None:
             return self._ph_egrid
 
-        ph_egrid = self.data.ph_egrid
-        mask = (self.ch_emin[0] <= ph_egrid) & (ph_egrid <= self.ch_emax[-1])
+        ph_egrid = self.data.photon_egrid
+        mask = np.bitwise_and(
+            self.channel_emin[0] <= ph_egrid, ph_egrid <= self.channel_emax[-1]
+        )
         self._ph_egrid = ph_egrid[mask]
         return self._ph_egrid
 
@@ -167,8 +169,8 @@ class PlotData(ABC):
         return self.data.spec_counts
 
     @property
-    def spec_error(self) -> Array:
-        return self.data.spec_error
+    def spec_errors(self) -> Array:
+        return self.data.spec_errors
 
     @property
     def back_ratio(self) -> float | Array:
@@ -179,16 +181,16 @@ class PlotData(ABC):
         return self.data.back_counts
 
     @property
-    def back_error(self) -> Array | None:
-        return self.data.back_error
+    def back_errors(self) -> Array | None:
+        return self.data.back_errors
 
     @property
     def net_counts(self) -> Array:
         return self.data.net_counts
 
     @property
-    def net_error(self) -> Array:
-        return self.data.net_error
+    def net_errors(self) -> Array:
+        return self.data.net_errors
 
     @property
     def ndata(self) -> int:
@@ -199,8 +201,8 @@ class PlotData(ABC):
         return self.data.ce
 
     @property
-    def ce_error(self) -> Array:
-        return self.data.ce_error
+    def ce_errors(self) -> Array:
+        return self.data.ce_errors
 
     @property
     @abstractmethod
@@ -449,7 +451,7 @@ class MLEPlotData(PlotData):
         on_model = self.on_models['mle']
 
         if stat in _STATISTIC_SPEC_NORMAL:  # chi2
-            pit = stats.norm.cdf((on_data - on_model) / self.net_error)
+            pit = stats.norm.cdf((on_data - on_model) / self.net_errors)
             return pit, pit
 
         if stat in _STATISTIC_WITH_BACK:
@@ -462,7 +464,7 @@ class MLEPlotData(PlotData):
                     lam=on_model,
                     v=off_data,
                     mu=off_model,
-                    sigma=self.back_error,
+                    sigma=self.back_errors,
                     ratio=self.back_ratio,
                     seed=self.seed + 1,
                     nsim=self._nsim,
@@ -583,7 +585,7 @@ class MLEPlotData(PlotData):
             on_data = self.get_data_boot(f'{self.name}_Non')
 
         if stat in _STATISTIC_SPEC_NORMAL:
-            std = self.net_error
+            std = self.net_errors
         else:
             std = None
 
@@ -596,7 +598,7 @@ class MLEPlotData(PlotData):
                 off_data = self.get_data_boot(f'{self.name}_Noff')
 
             if self.statistic in _STATISTIC_BACK_NORMAL:
-                std = self.back_error
+                std = self.back_errors
             else:
                 std = None
 
@@ -624,7 +626,7 @@ class MLEPlotData(PlotData):
             if np.any(mask):
                 on_data = self.net_counts[mask]
                 on_model = self.on_models['mle'][mask]
-                error = self.net_error[mask]
+                error = self.net_errors[mask]
                 r[mask] = (on_data - on_model) / error
 
         elif self.statistic in {'cstat', 'pstat'}:
@@ -948,7 +950,7 @@ class PosteriorPlotData(PlotData):
         on_model = self.on_models[rtype]
 
         if stat in _STATISTIC_SPEC_NORMAL:
-            std = self.net_error
+            std = self.net_errors
         else:
             std = None
 
@@ -962,7 +964,7 @@ class PosteriorPlotData(PlotData):
             off_model = self.off_models[rtype]
 
             if self.statistic in _STATISTIC_BACK_NORMAL:
-                std = self.back_error
+                std = self.back_errors
             else:
                 std = None
 

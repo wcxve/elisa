@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 
     from numpyro.distributions import Distribution
 
-    from elisa.infer.data import FitData
+    from elisa.data.base import FixedData
     from elisa.infer.fit import Fit
     from elisa.infer.likelihood import Statistic
     from elisa.models.model import CompiledModel, ModelInfo, ParamSetup
@@ -132,7 +132,7 @@ def check_params(
 def get_helper(fit: Fit) -> Helper:
     """Get helper functions for fitting."""
     model_info: ModelInfo = fit._model_info
-    data: dict[str, FitData] = fit._data
+    data: dict[str, FixedData] = fit._data
     model: dict[str, CompiledModel] = fit._model
     stat: dict[str, Statistic] = fit._stat
     seed0 = fit._seed
@@ -165,7 +165,7 @@ def get_helper(fit: Fit) -> Helper:
         if stat[k] in _STATISTIC_WITH_BACK
     }
     spec_unit = {
-        k: 1.0 / (v.spec_exposure * v.ch_width) for k, v in data.items()
+        k: 1.0 / (v.spec_exposure * v.channel_width) for k, v in data.items()
     }
 
     @jax.jit
@@ -876,8 +876,8 @@ class Helper(NamedTuple):
     and "off" measurements.
     """
 
-    data: dict[str, FitData]
-    """FitData instances."""
+    data: dict[str, FixedData]
+    """FixedData instances."""
 
     model: dict[str, CompiledModel]
     """Compiled spectral models."""

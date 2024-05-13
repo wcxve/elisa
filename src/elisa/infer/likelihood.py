@@ -16,7 +16,7 @@ from numpyro.distributions.util import validate_sample
 if TYPE_CHECKING:
     from typing import Callable
 
-    from elisa.infer.data import FitData
+    from elisa.data.base import FixedData
     from elisa.util.typing import (
         ArrayLike,
         JAXArray,
@@ -174,25 +174,25 @@ class BetterPoisson(Poisson):
             return jnp.clip(logp - gof, a_max=0.0)
 
 
-def _get_resp_matrix(data: FitData) -> JAXArray | BCSR:
-    if data.resp_sparse:
-        return BCSR.from_scipy_sparse(data.sparse_resp_matrix.T)
+def _get_resp_matrix(data: FixedData) -> JAXArray | BCSR:
+    if data.response_sparse:
+        return BCSR.from_scipy_sparse(data.sparse_matrix.T)
     else:
-        return jnp.array(data.resp_matrix.T, float)
+        return jnp.array(data.response_matrix.T, float)
 
 
 def chi2(
-    data: FitData,
+    data: FixedData,
     model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """S^2 statistic, Gaussian likelihood."""
     name = str(data.name)
     spec = jnp.array(data.net_counts, float)
-    error = jnp.array(data.net_error, float)
-    photon_egrid = jnp.array(data.ph_egrid, float)
-    channel_width = jnp.array(data.ch_width, float)
+    error = jnp.array(data.net_errors, float)
+    photon_egrid = jnp.array(data.photon_egrid, float)
+    channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
+    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
 
     def likelihood(
         params: ParamNameValMapping,
@@ -227,16 +227,16 @@ def chi2(
 
 
 def cstat(
-    data: FitData,
+    data: FixedData,
     model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """C-statistic, Poisson likelihood."""
     name = str(data.name)
     spec = jnp.array(data.spec_counts, float)
-    photon_egrid = jnp.array(data.ph_egrid, float)
-    channel_width = jnp.array(data.ch_width, float)
+    photon_egrid = jnp.array(data.photon_egrid, float)
+    channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
+    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
 
     def likelihood(
         params: ParamNameValMapping,
@@ -271,7 +271,7 @@ def cstat(
 
 
 def pstat(
-    data: FitData,
+    data: FixedData,
     model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """P-statistic, Poisson likelihood for data with a known background."""
@@ -280,10 +280,10 @@ def pstat(
     name = str(data.name)
     spec = jnp.array(data.spec_counts, float)
     back = jnp.array(data.back_counts, float)
-    photon_egrid = jnp.array(data.ph_egrid, float)
-    channel_width = jnp.array(data.ch_width, float)
+    photon_egrid = jnp.array(data.photon_egrid, float)
+    channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
+    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
     back_ratio = jnp.array(data.back_ratio, float)
 
     def likelihood(
@@ -319,7 +319,7 @@ def pstat(
 
 
 def pgstat(
-    data: FitData,
+    data: FixedData,
     model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """PG-statistic, Poisson likelihood for data and profile Gaussian
@@ -330,11 +330,11 @@ def pgstat(
     name = str(data.name)
     spec = jnp.array(data.spec_counts, float)
     back = jnp.array(data.back_counts, float)
-    back_error = jnp.array(data.back_error, float)
-    photon_egrid = jnp.array(data.ph_egrid, float)
-    channel_width = jnp.array(data.ch_width, float)
+    back_error = jnp.array(data.back_errors, float)
+    photon_egrid = jnp.array(data.photon_egrid, float)
+    channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
+    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
     back_ratio = jnp.array(data.back_ratio, float)
 
     def likelihood(params: ParamNameValMapping, predictive: bool = False):
@@ -384,7 +384,7 @@ def pgstat(
 
 
 def wstat(
-    data: FitData,
+    data: FixedData,
     model: ModelCompiledFn,
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """W-statistic, i.e. Poisson likelihood for data and profile Poisson
@@ -395,10 +395,10 @@ def wstat(
     name = str(data.name)
     spec = jnp.array(data.spec_counts, float)
     back = jnp.array(data.back_counts, float)
-    photon_egrid = jnp.array(data.ph_egrid, float)
-    channel_width = jnp.array(data.ch_width, float)
+    photon_egrid = jnp.array(data.photon_egrid, float)
+    channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_factor * data.spec_exposure, float)
+    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
     back_ratio = jnp.array(data.back_ratio, float)
 
     def likelihood(params: ParamNameValMapping, predictive: bool = False):
