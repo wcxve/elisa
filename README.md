@@ -6,9 +6,9 @@
 [![Coverage Status](https://img.shields.io/coverallsCoverage/github/wcxve/elisa?logo=Coveralls&logoColor=white&style=for-the-badge)](https://coveralls.io/github/wcxve/elisa)
 [![Documentation Status](https://img.shields.io/readthedocs/elisa-lib?logo=Read-the-Docs&logoColor=white&style=for-the-badge)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
 
-The aim of `elisa` is to provide a modern and efficient tool to explore and
+The aim of ``ELISA`` is to provide a modern and efficient tool to explore and
 analyze the spectral data. It is designed to be user-friendly and flexible.
-The key features of `elisa` include:
+The key features of ``ELISA`` include:
 
 - **Ease of Use**: Simple and intuitive interfaces
 - **Robustness**: Utilizing the state-of-the-art algorithm to fit, test, and compare models
@@ -27,7 +27,7 @@ The key features of `elisa` include:
 
 ### Stable Version
 
-It is recommended to install ``elisa`` as follows:
+It is recommended to install ``ELISA`` as follows:
 
 1. Create a new ``conda`` environment. The following command creates a new
    environment named "elisa" with ``Python`` 3.9:
@@ -45,7 +45,7 @@ It is recommended to install ``elisa`` as follows:
     conda activate elisa
     ```
 
-3. Install ``elisa`` using ``pip``:
+3. Install ``ELISA`` using ``pip``:
 
     ```console
     pip install elisa-lib
@@ -62,7 +62,7 @@ It is recommended to install ``elisa`` as follows:
 
 
 ### Development Version
-The latest version of ``elisa`` can be installed by the following command:
+The latest version of ``ELISA`` can be installed by the following command:
 
    ```console
    pip install -U git+https://github.com/wcxve/elisa.git
@@ -75,4 +75,4 @@ Read the documentation at: https://elisa-lib.readthedocs.io
 
 ## License
 
-`elisa` is distributed under the terms of the [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html) license.
+`ELISA` is distributed under the terms of the [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html) license.
