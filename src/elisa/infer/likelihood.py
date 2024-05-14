@@ -192,7 +192,8 @@ def chi2(
     photon_egrid = jnp.array(data.photon_egrid, float)
     channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
+    area_scale = jnp.array(data.area_scale, float)
+    exposure = jnp.array(data.spec_exposure, float)
 
     def likelihood(
         params: ParamNameValMapping,
@@ -201,9 +202,9 @@ def chi2(
         """Gaussian likelihood defined via numpyro primitives."""
         unfold = model(photon_egrid, params)
         unfold = jnp.clip(unfold, a_min=-1e-300, a_max=1e300)
-        source_rate = resp_matrix @ unfold
+        source_rate = resp_matrix @ unfold * area_scale
         numpyro.deterministic(name, source_rate / channel_width)
-        source_counts = source_rate * eff_expo
+        source_counts = source_rate * exposure
         source_counts = jnp.clip(source_counts, a_min=1e-30, a_max=1e15)
         spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
         spec_model = numpyro.deterministic(f'{name}_Non_model', source_counts)
@@ -236,7 +237,8 @@ def cstat(
     photon_egrid = jnp.array(data.photon_egrid, float)
     channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
+    area_scale = jnp.array(data.area_scale, float)
+    exposure = jnp.array(data.spec_exposure, float)
 
     def likelihood(
         params: ParamNameValMapping,
@@ -245,9 +247,9 @@ def cstat(
         """Poisson likelihood defined via numpyro primitives."""
         unfold = model(photon_egrid, params)
         unfold = jnp.clip(unfold, a_min=-1e-300, a_max=1e300)
-        source_rate = resp_matrix @ unfold
+        source_rate = resp_matrix @ unfold * area_scale
         numpyro.deterministic(name, source_rate / channel_width)
-        source_counts = source_rate * eff_expo
+        source_counts = source_rate * exposure
         source_counts = jnp.clip(source_counts, a_min=1e-30, a_max=1e15)
         spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
         spec_model = numpyro.deterministic(f'{name}_Non_model', source_counts)
@@ -283,7 +285,8 @@ def pstat(
     photon_egrid = jnp.array(data.photon_egrid, float)
     channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
+    area_scale = jnp.array(data.area_scale, float)
+    exposure = jnp.array(data.spec_exposure, float)
     back_ratio = jnp.array(data.back_ratio, float)
 
     def likelihood(
@@ -293,9 +296,9 @@ def pstat(
         """Poisson likelihood defined via numpyro primitives."""
         unfold = model(photon_egrid, params)
         unfold = jnp.clip(unfold, a_min=-1e-300, a_max=1e300)
-        source_rate = resp_matrix @ unfold
+        source_rate = resp_matrix @ unfold * area_scale
         numpyro.deterministic(name, source_rate / channel_width)
-        model_counts = source_rate * eff_expo + back_ratio * back
+        model_counts = source_rate * exposure + back_ratio * back
         model_counts = jnp.clip(model_counts, a_min=1e-30, a_max=1e15)
         spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
         spec_model = numpyro.deterministic(f'{name}_Non_model', model_counts)
@@ -334,18 +337,19 @@ def pgstat(
     photon_egrid = jnp.array(data.photon_egrid, float)
     channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
+    area_scale = jnp.array(data.area_scale, float)
+    exposure = jnp.array(data.spec_exposure, float)
     back_ratio = jnp.array(data.back_ratio, float)
 
     def likelihood(params: ParamNameValMapping, predictive: bool = False):
         """Poisson and Gaussian likelihood defined via numpyro primitives."""
         unfold = model(photon_egrid, params)
         unfold = jnp.clip(unfold, a_min=-1e-300, a_max=1e300)
-        source_rate = resp_matrix @ unfold
+        source_rate = resp_matrix @ unfold * area_scale
         numpyro.deterministic(name, source_rate / channel_width)
         spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
         back_data = numpyro.primitives.mutable(f'{name}_Noff_data', back)
-        source_counts = source_rate * eff_expo
+        source_counts = source_rate * exposure
         source_counts = jnp.clip(source_counts, a_min=1e-30, a_max=1e15)
         b = pgstat_background(
             source_counts, spec_data, back_data, back_error, back_ratio
@@ -398,18 +402,19 @@ def wstat(
     photon_egrid = jnp.array(data.photon_egrid, float)
     channel_width = jnp.array(data.channel_width, float)
     resp_matrix = _get_resp_matrix(data)
-    eff_expo = jnp.array(data.area_scale * data.spec_exposure, float)
+    area_scale = jnp.array(data.area_scale, float)
+    exposure = jnp.array(data.spec_exposure, float)
     back_ratio = jnp.array(data.back_ratio, float)
 
     def likelihood(params: ParamNameValMapping, predictive: bool = False):
         """Poisson and Poisson likelihood defined via numpyro primitives."""
         unfold = model(photon_egrid, params)
         unfold = jnp.clip(unfold, a_min=-1e-300, a_max=1e300)
-        source_rate = resp_matrix @ unfold
+        source_rate = resp_matrix @ unfold * area_scale
         numpyro.deterministic(name, source_rate / channel_width)
         spec_data = numpyro.primitives.mutable(f'{name}_Non_data', spec)
         back_data = numpyro.primitives.mutable(f'{name}_Noff_data', back)
-        source_counts = source_rate * eff_expo
+        source_counts = source_rate * exposure
         source_counts = jnp.clip(source_counts, a_min=1e-30, a_max=1e15)
         b = wstat_background(source_counts, spec_data, back_data, back_ratio)
         model_counts = source_counts + back_ratio * b
