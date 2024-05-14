@@ -436,7 +436,7 @@ class ObservationData:
         if not success:
             warnings.warn(
                 f'"{method}" grouping failed in some {self._name} channels',
-                GroupingWaring,
+                GroupingWarning,
             )
 
         self.set_grouping(grouping)
@@ -1555,5 +1555,5 @@ class FixedData(NamedTuple):
     """Whether the response matrix is sparse."""
 
 
-class GroupingWaring(Warning):
+class GroupingWarning(Warning):
     """Issued by grouping scale not being met for all channel groups."""
