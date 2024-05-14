@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from astropy.cosmology.flrw.lambdacdm import LambdaCDM
     from numpyro.distributions import Distribution
 
+    from elisa.data.base import ObservationData
     from elisa.models.parameter import ParamInfo
     from elisa.util.integrate import IntegralFactory
     from elisa.util.typing import (
@@ -541,7 +542,7 @@ class CompiledModel:
         self,
         egrid: ArrayLike,
         resp_matrix: ArrayLike,
-        ch_width: ArrayLike,
+        channel_width: ArrayLike,
         params: Sequence | Mapping | None = None,
         comps: bool = False,
     ) -> JAXArray | dict[str, JAXArray]:
@@ -553,7 +554,7 @@ class CompiledModel:
             Photon energy grid of `resp_matrix`, in units of keV.
         resp_matrix : ndarray
             Instrumental response matrix used to fold the model.
-        ch_width : ndarray
+        channel_width : ndarray
             Measured energy channel width of `resp_matrix`.
         params : sequence or mapping, optional
             Parameter sequence or mapping for the model.
@@ -574,11 +575,11 @@ class CompiledModel:
 
         egrid = jnp.asarray(egrid, float)
         resp_matrix = jnp.asarray(resp_matrix, float)
-        ch_width = jnp.asarray(ch_width, float)
+        channel_width = jnp.asarray(channel_width, float)
 
         ne = self.ne(egrid, params, comps)
         de = egrid[1:] - egrid[:-1]
-        fn = jax.jit(lambda v: (v * de) @ resp_matrix / ch_width)
+        fn = jax.jit(lambda v: (v * de) @ resp_matrix / channel_width)
 
         if comps:
             return jax.tree_map(fn, ne)
@@ -655,7 +656,7 @@ class CompiledModel:
         emin_rest: float | int,
         emax_rest: float | int,
         z: float | int,
-        params: dict[str, float | int] | None = None,
+        params: Sequence | Mapping | None = None,
         comps: bool = False,
         ngrid: int = 1000,
         log: bool = True,
@@ -724,7 +725,7 @@ class CompiledModel:
         emax_rest: float | int,
         z: float | int,
         duration: float | int,
-        params: dict[str, float | int] | None = None,
+        params: Sequence | Mapping | None = None,
         comps: bool = False,
         ngrid: int = 1000,
         log: bool = True,
@@ -782,6 +783,23 @@ class CompiledModel:
             return jax.tree_map(to_eiso, lumin)
         else:
             return to_eiso(lumin)
+
+    # def fakeit(
+    #     self,
+    #     erange: list | tuple,
+    #     specfile: str,
+    #     backfile: str | None = None,
+    #     respfile: str | None = None,
+    #     ancrfile: str | None = None,
+    #     params: Sequence | Mapping | None = None,
+    # ) -> ObservationData:
+    #     ...
+
+    def simulate(
+        self,
+        photon_egrid: ArrayLike,
+        exposure: float | int,
+    ) -> ObservationData: ...
 
     def __str__(self) -> str:
         return self.name

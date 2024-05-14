@@ -19,8 +19,7 @@ from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
 from numpyro.infer import AIES, MCMC, NUTS, init_to_value
 
-from elisa.data.ogip import Data
-from elisa.infer.data import FitData
+from elisa.data.base import FixedData, ObservationData
 from elisa.infer.helper import Helper, get_helper
 from elisa.infer.likelihood import _STATISTIC_OPTIONS
 from elisa.infer.nested_sampling import NestedSampler, reparam_loglike
@@ -72,13 +71,13 @@ class Fit(ABC):
 
     def __init__(
         self,
-        data: Data | Sequence[Data],
+        data: ObservationData | Sequence[ObservationData],
         model: Model | Sequence[Model],
         stat: Statistic | Sequence[Statistic] | None = None,
         seed: int = 42,
     ):
         inputs = self._parse_input(data, model, stat)
-        data: list[FitData] = inputs[0]
+        data: list[FixedData] = inputs[0]
         models: list[Model] = inputs[1]
         stats: list[Statistic] = inputs[2]
 
@@ -126,7 +125,7 @@ class Fit(ABC):
         }
 
         # store data, stat, seed
-        self._data: dict[str, FitData] = dict(zip(data_names, data))
+        self._data: dict[str, FixedData] = dict(zip(data_names, data))
         self._stat: dict[str, Statistic] = dict(zip(data_names, stats))
         self._seed: int = int(seed)
 
@@ -255,10 +254,10 @@ class Fit(ABC):
 
     @staticmethod
     def _parse_input(
-        data: Data | Sequence[Data],
+        data: ObservationData | Sequence[ObservationData],
         model: Model | Sequence[Model],
         stat: Statistic | Sequence[Statistic] | None,
-    ) -> tuple[list[FitData], list[Model], list[Statistic]]:
+    ) -> tuple[list[FixedData], list[Model], list[Statistic]]:
         """Check if data, model, and stat are correct and return lists."""
 
         # ====================== some helper functions ========================
@@ -278,7 +277,7 @@ class Fit(ABC):
                 raise ValueError(f'got wrong type {type(inputs)} for {name}')
             return input_list
 
-        def get_stat(d: FitData) -> Statistic:
+        def get_stat(d: FixedData) -> Statistic:
             """Get the default stat for the data."""
             # 'pstat' is used only when specified explicitly by user
             if d.spec_poisson:
@@ -291,14 +290,14 @@ class Fit(ABC):
             else:
                 return 'chi2'
 
-        def check_stat(d: FitData, s: Statistic):
+        def check_stat(d: FixedData, s: Statistic):
             """Check if data type and likelihood are matched."""
             name = d.name
             if not d.spec_poisson and s != 'chi2':
                 msg = f'{name} is Gaussian data, use stat "chi2" instead'
                 raise ValueError(msg)
 
-            if s == 'chi2' and np.any(d.back_error == 0.0):
+            if s == 'chi2' and np.any(d.back_errors == 0.0):
                 raise ValueError(
                     f'"chi2" is not valid for {name} data, which has zero '
                     'uncertainties; grouping the data may fix this error'
@@ -326,7 +325,7 @@ class Fit(ABC):
                     msg += 'use C-statistic instead (cstat)'
                     raise ValueError(msg)
 
-                if np.any(d.back_error == 0.0):
+                if np.any(d.back_errors == 0.0):
                     raise ValueError(
                         f'PG-statistic is not valid for {name} data, '
                         'which has zero background uncertainties; '
@@ -342,8 +341,9 @@ class Fit(ABC):
         # ====================== some helper functions ========================
 
         # get data
-        data_list: list[FitData] = [
-            FitData.from_ogip(d) for d in get_list(data, 'data', Data, 'Data')
+        data_list: list[FixedData] = [
+            d.get_fixed_data()
+            for d in get_list(data, 'data', ObservationData, 'Data')
         ]
 
         # check if data are used multiple times
