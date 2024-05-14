@@ -16,7 +16,7 @@ path = pathlib.Path(__file__)
 sys.path.append(path.parent.parent.as_posix() + '/src')
 import elisa  # noqa: E402
 
-project = 'elisa'
+project = 'ELISA'
 copyright = f'2023-{datetime.now().year}, Wang-Chen Xue & contributors'
 release = elisa.__version__
 
@@ -67,7 +67,7 @@ html_theme_options = {
     'use_download_button': True,
     'use_issues_button': True,
 }
-html_title = 'elisa'
+html_title = 'ELISA'
 html_static_path = ['_static']
 html_logo = '_static/logo2.png'
 html_favicon = '_static/favicon.svg'

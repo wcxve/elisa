@@ -8,7 +8,7 @@
 🚧 This page is still a work in progress.
 ```
 
-The following tutorials are designed to help you get started with ``elisa``.
+The following tutorials are designed to help you get started with ``ELISA``.
 
 ```{toctree}
 :maxdepth: 1

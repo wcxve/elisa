@@ -2,7 +2,7 @@
 
 # API Reference
 
-Here follows the API documentation of ``elisa``.
+Here follows the API documentation of ``ELISA``.
 
 ```{toctree}
 :maxdepth: 4

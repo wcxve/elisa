@@ -4,7 +4,7 @@
 
 ## Stable Version
 
-It is recommended to install ``elisa`` as follows:
+It is recommended to install ``ELISA`` as follows:
 
 1. Create a new ``conda`` environment. The following command creates a new
    environment named "elisa" with Python 3.9:
@@ -22,7 +22,7 @@ It is recommended to install ``elisa`` as follows:
     conda activate elisa
     ```
 
-3. Install ``elisa`` using ``pip``:
+3. Install ``ELISA`` using ``pip``:
 
     ```console
     pip install elisa-lib
@@ -39,7 +39,7 @@ It is recommended to install ``elisa`` as follows:
 
 
 ## Development Version
-The latest version of ``elisa`` can be installed by the following command:
+The latest version of ``ELISA`` can be installed by the following command:
 
    ```console
    pip install -U git+https://github.com/wcxve/elisa.git
