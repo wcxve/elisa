@@ -26,6 +26,8 @@ if TYPE_CHECKING:
     NDArray = np.ndarray
 
 
+# TODO: support multiple response in a single data object
+# TODO: support area and background scale arrays
 class ObservationData:
     """Observation data.
 
@@ -1302,7 +1304,8 @@ class ResponseData:
             channel_emax = channel_emax[good_quality]
             matrix = matrix.tocsc()[:, good_quality]
 
-        matrix = np.clip(matrix.todense(), a_min=0.0, a_max=None)
+        a_min = matrix.max() * 1e-5
+        matrix = np.clip(matrix.todense(), a_min=a_min, a_max=None)
 
         # some response matrix has discontinuity in channel energy grid,
         # insert np.nan to handle this
@@ -1317,7 +1320,7 @@ class ResponseData:
         ch, ph = np.meshgrid(channel_egrid, self.photon_egrid)
         plt.figure()
         plt.rcParams['axes.formatter.min_exponent'] = 3
-        plt.pcolormesh(ch, ph, matrix, cmap='magma')
+        plt.pcolormesh(ch, ph, matrix, cmap='magma', norm='log')
         plt.xlabel('Measurement Energy [keV]')
         plt.ylabel('Photon Energy [keV]')
         plt.colorbar(label='Effective Area [cm$^2$]')
