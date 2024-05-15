@@ -253,8 +253,8 @@ def get_helper(fit: Fit) -> Helper:
 
         name = f'{k}_Non'
         if s in _STATISTIC_SPEC_NORMAL:
-            simulators[name] = simulator_factory('norm', d.spec_error)
-            sampling_dist[name] = ('norm', (d.spec_error,))
+            simulators[name] = simulator_factory('norm', d.spec_errors)
+            sampling_dist[name] = ('norm', (d.spec_errors,))
         else:
             simulators[name] = simulator_factory('poisson')
             sampling_dist[name] = ('poisson', ())
@@ -262,8 +262,8 @@ def get_helper(fit: Fit) -> Helper:
         if s in _STATISTIC_WITH_BACK:
             name = f'{k}_Noff'
             if s in _STATISTIC_BACK_NORMAL:
-                simulators[name] = simulator_factory('norm', d.back_error)
-                sampling_dist[name] = ('norm', (d.spec_error,))
+                simulators[name] = simulator_factory('norm', d.back_errors)
+                sampling_dist[name] = ('norm', (d.spec_errors,))
             else:
                 simulators[name] = simulator_factory('poisson')
                 sampling_dist[name] = ('poisson', ())
@@ -684,9 +684,22 @@ def get_helper(fit: Fit) -> Helper:
         init: JAXArray,
         run_str: str,
         progress: bool,
+        update_rate: int,
     ):
         """Fit simulation data in sequence."""
-        raise NotImplementedError
+        n = len(result['valid'])
+
+        if progress:
+            pbar_factory = progress_bar_factory(
+                n, 1, run_str=run_str, update_rate=update_rate
+            )
+            fn = pbar_factory(fit_once)
+        else:
+            fn = fit_once
+
+        fit_jit = jax.jit(lambda *args: lax.fori_loop(0, n, fn, args)[1])
+        result = fit_jit(sim_data, result, init)
+        return result
 
     def sim_parallel_fit(
         sim_data: dict[str, JAXArray],
@@ -694,6 +707,7 @@ def get_helper(fit: Fit) -> Helper:
         init: JAXArray,
         run_str: str,
         progress: bool,
+        update_rate: int,
     ) -> dict:
         """Fit simulation data in parallel."""
         n = len(result['valid'])
@@ -701,7 +715,10 @@ def get_helper(fit: Fit) -> Helper:
         batch = n // cores
 
         if progress:
-            fn = progress_bar_factory(n, cores, run_str=run_str)(fit_once)
+            pbar_factory = progress_bar_factory(
+                n, cores, run_str=run_str, update_rate=update_rate
+            )
+            fn = pbar_factory(fit_once)
         else:
             fn = fit_once
 
@@ -722,6 +739,7 @@ def get_helper(fit: Fit) -> Helper:
         n: int = 1,
         parallel: bool = True,
         progress: bool = True,
+        update_rate: int = 50,
         run_str: str = 'Fitting',
     ) -> dict:
         """Simulate data and then fit the simulation data.
@@ -740,6 +758,8 @@ def get_helper(fit: Fit) -> Helper:
             Whether to fit in parallel, by default True.
         progress : bool, optional
             Whether to show progress bar, by default True.
+        update_rate : int, optional
+            The update rate of the progress bar, by default 50.
         run_str : str, optional
             The string to ahead progress bar during the run when `progress` is
             True. The default is 'Fitting'.
@@ -801,7 +821,7 @@ def get_helper(fit: Fit) -> Helper:
 
         # fit simulation data
         fit_fn = sim_parallel_fit if parallel else sim_sequence_fit
-        result = fit_fn(sim_data, result, init, run_str, progress)
+        result = fit_fn(sim_data, result, init, run_str, progress, update_rate)
         result['data'] = sim_data
         return result
 
@@ -981,5 +1001,7 @@ class Helper(NamedTuple):
     simulate: Callable[[int, dict[str, JAXArray], int], dict[str, JAXArray]]
     """Function to simulate data."""
 
-    simulate_and_fit: Callable[[int, dict, dict, int, bool, bool, str], dict]
+    simulate_and_fit: Callable[
+        [int, dict, dict, int, bool, bool, int, str], dict
+    ]
     """Function to simulate data and then fit the simulation data."""

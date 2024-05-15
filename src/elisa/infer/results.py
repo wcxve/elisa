@@ -637,6 +637,7 @@ class MLEResult(FitResult):
         seed: int | None = None,
         parallel: bool = True,
         progress: bool = True,
+        update_rate: int = 50,
     ):
         """Preform parametric bootstrap.
 
@@ -651,6 +652,8 @@ class MLEResult(FitResult):
             Whether to run simulation fit in parallel. The default is True.
         progress : bool, optional
             Whether to display progress bar. The default is True.
+        update_rate : int, optional
+            The update rate of progress bar. The default is 50.
         """
         # reuse the previous result if all setup is the same
         if self._boot and self._boot.n == n and self._boot.seed == seed:
@@ -664,7 +667,14 @@ class MLEResult(FitResult):
 
         # perform parametric bootstrap
         result = helper.simulate_and_fit(
-            seed, params, models, n, parallel, progress, 'Bootstrap'
+            seed,
+            params,
+            models,
+            n,
+            parallel,
+            progress,
+            update_rate,
+            'Bootstrap',
         )
         valid = result.pop('valid')
         result = jax.tree_map(lambda x: x[valid], result)
@@ -1360,6 +1370,7 @@ class PosteriorResult(FitResult):
         seed: int | None = None,
         parallel: bool = True,
         progress: bool = True,
+        update_rate: int = 50,
     ):
         """Perform posterior predictive check.
 
@@ -1373,6 +1384,8 @@ class PosteriorResult(FitResult):
             Whether to run simulation fit in parallel. The default is True.
         progress : bool, optional
             Whether to display progress bar. The default is True.
+        update_rate : int, optional
+            The update rate of progress bar. The default is 50.
         """
         # reuse the previous result if all setup is the same
         if self._ppc and self._ppc.n == n and self._ppc.seed == seed:
@@ -1399,7 +1412,7 @@ class PosteriorResult(FitResult):
 
         # perform ppc
         result = helper.simulate_and_fit(
-            seed, params, models, 1, parallel, progress, 'PPC'
+            seed, params, models, 1, parallel, progress, update_rate, 'PPC'
         )
         valid = result.pop('valid')
         result = jax.tree_map(lambda x: x[valid], result)
