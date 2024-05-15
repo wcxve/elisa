@@ -470,7 +470,7 @@ class ObservationData:
 
         self.set_grouping(grouping)
 
-    def plot_spec(self, xlog: bool = True, ylog: bool = False):
+    def plot_spec(self, xlog: bool = True, ylog: bool = True):
         """Plot the spectrum.
 
         .. warning::
@@ -590,6 +590,7 @@ class ObservationData:
             axs[0].set_xscale('log')
         if ylog:
             axs[0].set_yscale('log')
+            axs[1].set_yscale('log')
 
         axs[0].legend()
         axs[0].set_title(self.name)
