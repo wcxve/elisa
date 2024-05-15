@@ -344,12 +344,13 @@ class CompiledModel:
     def _prepare_eval(self, params: ArrayLike | Sequence | Mapping | None):
         """Check if `params` is valid for the model."""
         if isinstance(params, (np.ndarray, jax.Array, Sequence)):
-            if len(params) != self._nparam:
+            params = jnp.atleast_1d(jnp.asarray(params, float))
+            if params.shape[-1] != self._nparam:
                 raise ValueError(
-                    f'got {len(params)} params, expected {self._nparam}'
+                    f'expected params shape (..., {self._nparam}), got '
+                    f'{jnp.shape(params)}'
                 )
-
-            params = [jnp.asarray(p, float) for p in params]
+            params = jnp.moveaxis(params, -1, 0)
             params = self._value_sequence_to_params(params)
 
         elif isinstance(params, Mapping):
