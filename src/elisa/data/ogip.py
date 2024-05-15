@@ -75,7 +75,7 @@ class Data(ObservationData):
         from the `backfile` header. This value must be set if ``POISSERR``
         is undefined in the header.
     ignore_bad : bool, optional
-        Whether to ignore channels with ``QUALITY==5``.
+        Whether to ignore channels with ``QUALITY`` being 2 or 5.
         The default is True. The possible values for spectral ``QUALITY`` are
 
             * ``0``: good
@@ -311,21 +311,21 @@ class Spectrum(SpectrumData):
 
         # get fractional systematic error of counts
         sys_err = get_field('SYS_ERR', 0)
-        if np.shape(sys_err) == () and sys_err == 0:
+        if np.shape(sys_err) == ():
             sys_err = np.zeros(len(counts))
         else:
             sys_err = np.array(sys_err, dtype=np.float64, order='C')
 
         # get quality flag
-        quality = get_field('QUALITY', np.zeros(len(counts)))
-        if np.shape(quality) == () and quality == 0:
+        quality = get_field('QUALITY', 0)
+        if np.shape(quality) == ():
             quality = np.zeros(len(counts), dtype=np.int64)
         else:
             quality = np.array(quality, dtype=np.int64, order='C')
 
         # get grouping flag
         grouping = get_field('GROUPING', 0)
-        if np.shape(grouping) == () and grouping == 0:
+        if np.shape(grouping) == ():
             grouping = np.ones(len(counts), np.int64)
         else:
             grouping = np.array(grouping, dtype=np.int64, order='C')
@@ -336,7 +336,7 @@ class Spectrum(SpectrumData):
             diff = np.abs(counts - np.round(counts))
             if np.any(diff > 1e-8 * counts):
                 warnings.warn(
-                    f'Poisson spectrum ({specfile}) has non-integer counts, '
+                    f'Poisson spectrum {specfile} has non-integer counts, '
                     'which may lead to wrong result',
                     Warning,
                     stacklevel=3,
@@ -345,12 +345,12 @@ class Spectrum(SpectrumData):
             # check if statistical errors are positive
             if np.any(stat_err < 0.0):
                 raise ValueError(
-                    f'spectrum ({specfile}) has negative statistical errors'
+                    f'spectrum {specfile} has negative statistical errors'
                 )
 
             if np.any(stat_err == 0.0):
                 warnings.warn(
-                    f'spectrum ({specfile}) has zero statistical errors, '
+                    f'spectrum {specfile} has zero statistical errors, '
                     'which may lead to wrong result under Gaussian statistics,'
                     ' consider grouping the spectrum',
                     Warning,
@@ -360,7 +360,7 @@ class Spectrum(SpectrumData):
             # check if systematic errors are non-negative
             if np.any(sys_err < 0.0):
                 raise ValueError(
-                    f'spectrum ({specfile}) has systematic errors < 0'
+                    f'spectrum {specfile} has systematic errors < 0'
                 )
 
         # total error of counts
@@ -371,7 +371,7 @@ class Spectrum(SpectrumData):
         else:
             if np.any(sys_err > 0.0):
                 warnings.warn(
-                    'systematic errors will be ignored for Poisson spectrum '
+                    'systematic errors are ignored for Poisson spectrum '
                     f'{specfile}',
                     Warning,
                     stacklevel=3,
