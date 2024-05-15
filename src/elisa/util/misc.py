@@ -370,6 +370,7 @@ def progress_bar_factory(
     ncores: int,
     init_str: str | None = None,
     run_str: str | None = None,
+    update_rate: int = 50,
 ) -> Callable[[Callable], Callable]:
     """Add a progress bar to JAX ``fori_loop`` kernel, see [1]_ for details.
 
@@ -383,6 +384,8 @@ def progress_bar_factory(
         The string displayed before progress bar when initialization.
     run_str : str, optional
         The string displayed before progress bar when run.
+    update_rate : int, optional
+        The update rate of the progress bar. The default is 50.
 
     Returns
     -------
@@ -413,8 +416,8 @@ def progress_bar_factory(
 
     process_re = re.compile(r'\d+$')
 
-    if neval > 20:
-        print_rate = int(neval_single / 20)
+    if neval > update_rate:
+        print_rate = int(neval_single / update_rate)
     else:
         print_rate = 1
 
