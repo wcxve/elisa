@@ -4,7 +4,8 @@
 
 ## Stable Version
 
-It is recommended to install ``ELISA`` as follows:
+It is recommended to install ``ELISA`` in a new [``conda``](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html)
+environment as follows:
 
 1. Create a new ``conda`` environment. The following command creates a new
    environment named "elisa" with Python 3.9:
