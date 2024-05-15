@@ -44,7 +44,7 @@ class ObservationData:
     back_data : SpectrumData
         Background data of the observation.
     ignore_bad : bool, optional
-        Whether to ignore bad channels whose quality flags are 5.
+        Whether to ignore bad channels whose quality flags are 2 or 5.
         The default is True.
     keep_channel_info : bool, optional
         Whether to keep channel information when grouping the data.
@@ -61,17 +61,6 @@ class ObservationData:
         ignore_bad: bool = True,
         keep_channel_info: bool = False,
     ):
-        erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
-
-        # check if erange is increasing
-        if np.any(np.diff(erange, axis=1) <= 0.0):
-            raise ValueError('erange must be increasing')
-
-        # check if erange is overlapped
-        erange = erange[erange[:, 0].argsort()]
-        if np.any(np.diff(np.hstack(erange)) <= 0.0):
-            raise ValueError('erange must not be overlapped')
-
         if not isinstance(spec_data, SpectrumData):
             raise TypeError('spec_data must be a SpectrumData instance')
 
@@ -95,8 +84,7 @@ class ObservationData:
                     'matched'
                 )
 
-        self._name = str(name)
-        self._erange = erange
+        self.name = name
         self._spec_data = spec_data
         self._resp_data = resp_data
         self._back_data = back_data
@@ -105,16 +93,13 @@ class ObservationData:
             spec = self.spec_data
             back = self.back_data
             self._back_ratio = (
-                spec.exposure
-                * spec.area_scale
-                * spec.back_scale
-                / (back.exposure * back.area_scale * back.back_scale)
-            )
+                spec.exposure * spec.area_scale * spec.back_scale
+            ) / (back.exposure * back.area_scale * back.back_scale)
         else:
             self._back_ratio = None
 
         # bad quality flags of the spectrum
-        bad_quality = (1, 5) if ignore_bad else (1,)
+        bad_quality = (1, 2, 5) if ignore_bad else (1,)
         bad_flag = np.isin(self.spec_data.quality, bad_quality)
         good_quality = np.bitwise_not(bad_flag)
 
@@ -136,7 +121,11 @@ class ObservationData:
 
         self._good_quality = good_quality
         self._keep_channel_info = bool(keep_channel_info)
+
+        self._initialized = False
+        self.set_erange(erange)
         self.set_grouping(self.spec_data.grouping)
+        self._initialized = True
 
     def _get_channel_mask(
         self, channel_emin: NDArray, channel_emax: NDArray
@@ -148,15 +137,53 @@ class ObservationData:
         mask2 = np.less_equal(channel_emax, emax)
         return np.bitwise_and(mask1, mask2)
 
-    def set_grouping(self, grouping: NDArray):
+    def set_erange(self, erange: list | tuple):
+        """Set energy range of interest.
+
+        Parameters
+        ----------
+        erange : array_like
+            Energy range of interest in keV, e.g.,
+            ``erange=[(0.5, 2), (5, 200)]``.
+        """
+        erange = np.array(erange, dtype=np.float64, order='C', ndmin=2)
+
+        # check if erange is increasing
+        if np.any(np.diff(erange, axis=1) <= 0.0):
+            raise ValueError('erange must be increasing')
+
+        # check if erange is overlapped
+        erange = erange[erange[:, 0].argsort()]
+        if np.any(np.diff(np.hstack(erange)) <= 0.0):
+            raise ValueError('erange must not be overlapped')
+
+        self._erange = erange
+
+        if self._initialized:
+            self.set_grouping(self.grouping)
+
+    def set_grouping(self, grouping: NDArray | None):
         """Set grouping flags.
+
+        First group the spectrum and background accordind to the grouping
+        flags, then ignore the channel groups falling outside the energy
+        range of interest.
 
         Parameters
         ----------
         grouping : ndarray
-            The grouping flags.
-
+            The grouping flags. If None, clear current grouping flags.
         """
+        if grouping is None:
+            grouping = np.ones(self.resp_data.channel_number, dtype=np.int64)
+        else:
+            grouping = np.asarray(grouping)
+
+        if grouping.shape != (self.resp_data.channel_number,):
+            raise ValueError(
+                'grouping must have the same size as the number of channels'
+            )
+
         self._grouping = grouping
         quality = self.good_quality
 
@@ -188,7 +215,7 @@ class ObservationData:
         self._channel_emid = 0.5 * (self.channel_emin + self.channel_emax)
         self._channel_emean = np.sqrt(self.channel_emin * self.channel_emax)
         self._channel_width = self.channel_emax - self.channel_emin
-        emean = self._channel_emean
+        emean = self.channel_emean
         self._channel_errors = np.abs(
             [self.channel_emin - emean, self.channel_emax - emean]
         )
@@ -227,7 +254,7 @@ class ObservationData:
             self._ce = self.net_counts * unit
             self._ce_errors = self.spec_errors * unit
 
-    def group(self, method: str, scale: float):
+    def group(self, method: str, scale: float | None = None):
         """Group the spectrum.
 
         Parameters
@@ -525,19 +552,24 @@ class ObservationData:
                 mfc='#FFFFFFCC',
             )
 
-        if self.spec_data.poisson and self.has_back:
-            if self.back_data.poisson:
-                sig = significance_lima(
-                    self.spec_counts, self.back_counts, self.back_ratio
-                )
+        if self.spec_data.poisson:
+            if self.has_back:
+                if self.back_data.poisson:
+                    sig = significance_lima(
+                        self.spec_counts, self.back_counts, self.back_ratio
+                    )
+                else:
+                    sig = significance_gv(
+                        self.spec_counts,
+                        self.back_counts,
+                        self.back_errors,
+                        self.back_ratio,
+                    )
+                sig *= np.sign(self.net_counts)
             else:
-                sig = significance_gv(
-                    self.spec_counts,
-                    self.back_counts,
-                    self.back_errors,
-                    self.back_ratio,
-                )
-            sig *= np.sign(self.net_counts)
+                sig = np.zeros_like(self.net_counts, dtype=np.float64)
+                mask = self.net_counts > 0
+                sig[mask] = self.net_counts[mask] / self.net_errors[mask]
         else:
             sig = self.net_counts / self.net_errors
 
@@ -545,7 +577,7 @@ class ObservationData:
             x=x,
             xerr=xerr,
             y=sig,
-            yerr=1,
+            yerr=np.where(sig != 0.0, 1.0, 0.0),
             fmt='o',
             color=colors[0],
             alpha=0.8,
@@ -628,6 +660,15 @@ class ObservationData:
     def name(self) -> str:
         """Name of the observation data."""
         return self._name
+
+    @name.setter
+    def name(self, name: str):
+        self._name = str(name)
+
+    @property
+    def erange(self) -> list[list[float]]:
+        """Energy range of interest."""
+        return self._erange.tolist()
 
     @property
     def spec_data(self) -> SpectrumData:
@@ -852,20 +893,16 @@ class SpectrumData:
             )
 
         if quality is None:
-            quality = 1
+            quality = np.zeros(len(counts), dtype=np.int64)
 
-        if np.shape(quality) != () and np.shape(quality) != counts_shape:
-            raise ValueError(
-                'quality must be a scalar or have the same size as counts'
-            )
+        if np.shape(quality) != counts_shape:
+            raise ValueError('quality must have the same size as counts')
 
         if grouping is None:
-            grouping = 1
+            grouping = np.ones(len(counts), dtype=np.int64)
 
-        if np.shape(grouping) != () and np.shape(grouping) != counts_shape:
-            raise ValueError(
-                'grouping must be a scalar or have the same size as counts'
-            )
+        if np.shape(grouping) != counts_shape:
+            raise ValueError('grouping must have the same size as counts')
 
         if np.shape(area_scale) != ():
             raise NotImplementedError('area scale array not supported yet')
@@ -882,6 +919,7 @@ class SpectrumData:
         counts = np.array(counts, dtype=np.float64, order='C')
         errors = np.array(errors, dtype=np.float64, order='C')
         quality = np.array(quality, dtype=np.int64, order='C')
+        grouping = np.array(grouping, dtype=np.int64, order='C')
 
         poisson = bool(poisson)
         exposure = float(exposure)
