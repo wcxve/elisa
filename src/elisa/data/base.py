@@ -482,7 +482,7 @@ class ObservationData:
         xlog : bool, optional
             Whether to use log scale on x-axis. The default is True.
         ylog : bool, optional
-            Whether to use log scale on y-axis. The default is False.
+            Whether to use log scale on y-axis. The default is True.
         """
         fig, axs = plt.subplots(
             nrows=2,
