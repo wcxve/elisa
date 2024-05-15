@@ -873,6 +873,7 @@ class CompiledModel:
             channel_type=resp_data.channel_type,
             response_sparse=resp_data.sparse,
             params=params,
+            name=data.name,
             seed=seed,
             **kwargs,
         )
@@ -903,6 +904,7 @@ class CompiledModel:
         channel_type: str = 'Ch',
         response_sparse: bool = False,
         params: Sequence | Mapping | None = None,
+        name: str = 'simulation',
         seed: int = 42,
         **kwargs: dict,
     ) -> ObservationData:
@@ -956,6 +958,8 @@ class CompiledModel:
             Whether the response matrix is sparse. The default is False.
         params : sequence or mapping, optional
             Parameter sequence or mapping for the model.
+        name : str, optional
+            Name of the simulation data. The default is 'simulation'.
         seed : int, optional
             Random seed for simulation. The default is 42.
         **kwargs : dict, optional
@@ -1094,7 +1098,7 @@ class CompiledModel:
         )
 
         return ObservationData(
-            name='simulation',
+            name=name,
             erange=[resp_data.channel_emin[0], resp_data.channel_emax[-1]],
             spec_data=spec_data,
             resp_data=resp_data,
