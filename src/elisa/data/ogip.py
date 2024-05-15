@@ -140,7 +140,7 @@ class Data(ObservationData):
         else:
             raise ValueError(
                 f'name must be set manually for {specfile} data, i.e., '
-                "Data(..., name='XXX')"
+                "Data(..., name='NAME')"
             )
 
         # check ancillary response file
@@ -156,7 +156,7 @@ class Data(ObservationData):
         else:
             raise ValueError(
                 f'response file must be set manually for {specfile} data, '
-                "i.e., Data(..., respfile='XXX')"
+                "i.e., Data(..., respfile='/path/to/rsp.fits')"
             )
 
         if len(spec_data.counts) != resp_data.channel_number:
