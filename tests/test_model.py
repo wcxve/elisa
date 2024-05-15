@@ -3,12 +3,17 @@ from astropy.cosmology import Planck18
 from astropy.units import Unit
 
 from elisa import ConstantValue
-from elisa.models import PLPhFlux, PowerLaw, ZAShift
+from elisa.models import PhAbs, PLPhFlux, PowerLaw, ZAShift
 
 
 def test_name():
-    model = PowerLaw() + PowerLaw()
-    assert model.name == 'PowerLaw + PowerLaw_2'
+    model1 = PowerLaw() + PowerLaw()
+    model2 = PhAbs() * PowerLaw()
+    model3 = ZAShift(1.0)(PowerLaw())
+
+    assert model1.name == 'PowerLaw + PowerLaw_2'
+    assert model2.name == 'PhAbs * PowerLaw'
+    assert model3.name == 'ZAShift(PowerLaw)'
 
 
 def test_lumin_and_eiso():
