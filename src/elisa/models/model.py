@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+import warnings
 from abc import ABC, ABCMeta, abstractmethod
 from collections.abc import Mapping, Sequence
 from enum import Enum
@@ -14,7 +15,9 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from astropy.cosmology import Planck18
+from scipy.sparse import sparray
 
+from elisa.data.base import ObservationData, ResponseData, SpectrumData
 from elisa.models.parameter import Parameter, UniformParameter
 from elisa.util.misc import build_namespace
 
@@ -24,7 +27,6 @@ if TYPE_CHECKING:
     from astropy.cosmology.flrw.lambdacdm import LambdaCDM
     from numpyro.distributions import Distribution
 
-    from elisa.data.base import ObservationData
     from elisa.models.parameter import ParamInfo
     from elisa.util.integrate import IntegralFactory
     from elisa.util.typing import (
@@ -47,6 +49,8 @@ if TYPE_CHECKING:
         ParamIDValMapping,
         ParamNameValMapping,
     )
+
+    NDArray = np.ndarray
 
 
 class Model(ABC):
@@ -340,12 +344,13 @@ class CompiledModel:
     def _prepare_eval(self, params: ArrayLike | Sequence | Mapping | None):
         """Check if `params` is valid for the model."""
         if isinstance(params, (np.ndarray, jax.Array, Sequence)):
-            if len(params) != self._nparam:
+            params = jnp.atleast_1d(jnp.asarray(params, float))
+            if params.shape[-1] != self._nparam:
                 raise ValueError(
-                    f'got {len(params)} params, expected {self._nparam}'
+                    f'expected params shape (..., {self._nparam}), got '
+                    f'{jnp.shape(params)}'
                 )
-
-            params = [jnp.asarray(p, float) for p in params]
+            params = jnp.moveaxis(params, -1, 0)
             params = self._value_sequence_to_params(params)
 
         elif isinstance(params, Mapping):
@@ -784,22 +789,318 @@ class CompiledModel:
         else:
             return to_eiso(lumin)
 
-    # def fakeit(
-    #     self,
-    #     erange: list | tuple,
-    #     specfile: str,
-    #     backfile: str | None = None,
-    #     respfile: str | None = None,
-    #     ancrfile: str | None = None,
-    #     params: Sequence | Mapping | None = None,
-    # ) -> ObservationData:
-    #     ...
+    def simulate_from_data(
+        self,
+        data: ObservationData,
+        spec_exposure: float | None = None,
+        back_exposure: float | None = None,
+        params: Sequence | Mapping | None = None,
+        seed: int = 42,
+        **kwargs: dict,
+    ) -> ObservationData:
+        """Simulate observation based on the configuration of existing data.
+
+        Parameters
+        ----------
+        data : ObservationData
+            Observation data to read observation configuration.
+        spec_exposure : float, optional
+            Exposure time of the source. Defaults to the exposure time of
+            `spec_data`.
+        back_exposure : float, optional
+            Exposure time of the background. Defaults to the exposure time of
+            `back_data`.
+        params : sequence or mapping, optional
+            Parameter sequence or mapping for the model.
+        seed : int, optional
+            Random seed for the simulation. The default is 42.
+        **kwargs : dict, optional
+            Additional keyword arguments passed to :class:`ObservationData`.
+
+        Returns
+        -------
+        ObservationData
+            Simulated observation data.
+        """
+        if self.type != 'add':
+            msg = f'cannot simulate data from {self.type} type model "{self}"'
+            raise TypeError(msg)
+
+        if not isinstance(data, ObservationData):
+            raise TypeError('data must be an ObservationData instance')
+
+        if spec_exposure is None:
+            spec_exposure = data.spec_exposure
+        else:
+            spec_exposure = float(spec_exposure)
+
+        if data.has_back:
+            back_counts = data.back_data.counts
+            back_errors = data.back_data.errors
+            back_poisson = data.back_poisson
+            back_area_scale = data.back_data.area_scale
+            back_back_scale = data.back_data.back_scale
+            if back_exposure is None:
+                back_exposure = data.back_exposure
+            else:
+                back_exposure = float(back_exposure)
+        else:
+            back_counts = back_errors = back_exposure = back_poisson = None
+            back_area_scale = back_back_scale = 1.0
+
+        spec_data = data.spec_data
+        resp_data = data.resp_data
+
+        simulation = self.simulate(
+            photon_egrid=resp_data.photon_egrid,
+            channel_emin=resp_data.channel_emin,
+            channel_emax=resp_data.channel_emax,
+            response_matrix=resp_data.sparse_matrix,
+            spec_exposure=spec_exposure,
+            spec_poisson=spec_data.poisson,
+            spec_errors=spec_data.errors,
+            back_counts=back_counts,
+            back_errors=back_errors,
+            back_exposure=back_exposure,
+            back_poisson=back_poisson,
+            spec_area_scale=spec_data.area_scale,
+            spec_back_scale=spec_data.back_scale,
+            back_area_scale=back_area_scale,
+            back_back_scale=back_back_scale,
+            quality=np.where(data.good_quality, 0, 1),
+            grouping=data.grouping,
+            channel=resp_data.channel,
+            channel_type=resp_data.channel_type,
+            response_sparse=resp_data.sparse,
+            params=params,
+            seed=seed,
+            **kwargs,
+        )
+        simulation.set_erange(data.erange)
+
+        return simulation
 
     def simulate(
         self,
-        photon_egrid: ArrayLike,
-        exposure: float | int,
-    ) -> ObservationData: ...
+        photon_egrid: NDArray,
+        channel_emin: NDArray,
+        channel_emax: NDArray,
+        response_matrix: NDArray | sparray,
+        spec_exposure: float,
+        spec_poisson: bool = True,
+        spec_errors: NDArray | None = None,
+        back_counts: NDArray | None = None,
+        back_errors: NDArray | None = None,
+        back_exposure: float | None = None,
+        back_poisson: bool | None = None,
+        spec_area_scale: float | NDArray = 1.0,
+        spec_back_scale: float | NDArray = 1.0,
+        back_area_scale: float | NDArray = 1.0,
+        back_back_scale: float | NDArray = 1.0,
+        quality: NDArray | None = None,
+        grouping: NDArray | None = None,
+        channel: NDArray | None = None,
+        channel_type: str = 'Ch',
+        response_sparse: bool = False,
+        params: Sequence | Mapping | None = None,
+        seed: int = 42,
+        **kwargs: dict,
+    ) -> ObservationData:
+        """Simulate observation data.
+
+        Parameters
+        ----------
+        photon_egrid : ndarray
+            Photon energy grid in units of keV.
+        channel_emin : ndarray
+            Lower energy bounds of the detector channels.
+        channel_emax : ndarray
+            Upper energy bounds of the detector channels.
+        response_matrix : ndarray
+            Response matrix of the detector.
+        spec_exposure : float
+            Exposure time of the source.
+        spec_poisson : bool, optional
+            Whether the source spectrum is Poisson distributed. If false,
+            `spec_errors` must be provided. The default is True.
+        spec_errors : ndarray, optional
+            Errors of the source spectrum. Must be provided if `spec_poisson`
+            is False.
+        back_counts : ndarray, optional
+            Background counts in each channel.
+        back_errors : ndarray, optional
+            Errors of the background counts. Must be provided if `back_poisson`
+            is False.
+        back_exposure : float, optional
+            Exposure time of the background.
+        back_poisson : bool, optional
+            Whether the background spectrum is Poisson distributed. If false,
+            `back_errors` must be provided.
+        spec_area_scale : float or ndarray, optional
+            Area scale factor of the source. The default is 1.0.
+        spec_back_scale : float or ndarray, optional
+            Background scale factor of the source. The default is 1.0.
+        back_area_scale : float or ndarray, optional
+            Area scale factor of the background. The default is 1.0.
+        back_back_scale : float or ndarray, optional
+            Background scale factor of the background. The default is 1.0.
+        quality : ndarray, optional
+            Quality flags of the data.
+        grouping : ndarray, optional
+            Grouping flags of the data.
+        channel : ndarray, optional
+            Channel numbers.
+        channel_type : str, optional
+            Channel type. The default is 'Ch'.
+        response_sparse : bool, optional
+            Whether the response matrix is sparse. The default is False.
+        params : sequence or mapping, optional
+            Parameter sequence or mapping for the model.
+        seed : int, optional
+            Random seed for simulation. The default is 42.
+        **kwargs : dict, optional
+            Additional keyword arguments passed to :class:`ObservationData`.
+
+        Returns
+        -------
+        ObservationData
+            Simulated observation data.
+        """
+        if self.type != 'add':
+            msg = f'cannot simulate data from {self.type} type model "{self}"'
+            raise TypeError(msg)
+
+        if channel is None:
+            channel = np.arange(len(channel_emin)).astype(str)
+
+        rng = np.random.default_rng(int(seed))
+
+        resp_data = ResponseData(
+            photon_egrid=photon_egrid,
+            channel_emin=channel_emin,
+            channel_emax=channel_emax,
+            response_matrix=response_matrix,
+            channel=channel,
+            channel_type=channel_type,
+            sparse=response_sparse,
+        )
+
+        if not spec_poisson:
+            if spec_errors is None:
+                raise ValueError(
+                    'spec_errors must be provided if spec_poisson is False'
+                )
+            else:
+                spec_errors = np.asarray(spec_errors, float)
+                if spec_errors.size != resp_data.channel_number:
+                    raise ValueError(
+                        f'spec_errors size ({np.size(spec_errors)}) must be '
+                        f'channel number ({resp_data.channel_number})'
+                    )
+
+        if not (
+            back_counts is None
+            and back_exposure is None
+            and back_poisson is None
+            and back_errors is None
+        ):
+            if back_counts is None:
+                raise ValueError('back_counts must be also provided')
+            if back_exposure is None:
+                raise ValueError('back_exposure must be also provided')
+            if back_poisson is None:
+                raise ValueError('back_poisson must be also provided')
+
+            back_counts = np.asarray(back_counts, np.float64)
+            if back_counts.size != resp_data.channel_number:
+                raise ValueError(
+                    f'back_counts size ({np.size(back_counts)}) must be '
+                    f'channel number ({resp_data.channel_number})'
+                )
+
+            if spec_poisson or back_poisson:
+                if np.any(back_counts < 0):
+                    warnings.warn(
+                        'negative background counts is set to 0 for '
+                        'Poisson counts simulation',
+                        Warning,
+                        stacklevel=2,
+                    )
+                    back_counts = np.clip(back_counts, 0, None)
+
+            if not back_poisson:
+                if back_errors is None:
+                    raise ValueError(
+                        'back_errors must be provided if back_poisson is False'
+                    )
+                else:
+                    back_errors = np.asarray(back_errors, float)
+                    if back_errors.size != resp_data.channel_number:
+                        raise ValueError(
+                            f'back_errors size ({np.size(back_errors)}) must '
+                            f'be channel number ({resp_data.channel_number})'
+                        )
+            has_back = True
+        else:
+            has_back = False
+
+        if has_back:
+            if back_poisson:
+                back_sim = np.array(rng.poisson(back_counts), np.float64)
+                back_errors = np.sqrt(back_sim)
+            else:
+                # TODO: should fractional systematic errors be added?
+                back_sim = rng.normal(back_counts, back_errors)
+
+            back_data = SpectrumData(
+                counts=back_sim,
+                errors=back_errors,
+                poisson=back_poisson,
+                exposure=back_exposure,
+                quality=quality,
+                grouping=grouping,
+                area_scale=back_area_scale,
+                back_scale=back_back_scale,
+            )
+        else:
+            back_data = None
+
+        matrix = resp_data.sparse_matrix.T
+        folded_rate = matrix @ self.eval(resp_data.photon_egrid, params)
+        spec_counts = folded_rate * spec_exposure * spec_area_scale
+
+        if has_back:
+            back_ratio = (
+                spec_exposure * spec_area_scale * spec_back_scale
+            ) / (back_exposure * back_area_scale * back_back_scale)
+            spec_counts += back_ratio * back_counts
+
+        if spec_poisson:
+            spec_sim = np.array(rng.poisson(spec_counts), np.float64)
+            spec_errors = np.sqrt(spec_sim)
+        else:
+            # TODO: should fractional systematic errors be added?
+            spec_sim = rng.normal(spec_counts, spec_errors)
+
+        spec_data = SpectrumData(
+            counts=spec_sim,
+            errors=spec_errors,
+            poisson=spec_poisson,
+            exposure=spec_exposure,
+            quality=quality,
+            grouping=grouping,
+            area_scale=spec_area_scale,
+            back_scale=spec_back_scale,
+        )
+
+        return ObservationData(
+            name='simulation',
+            erange=[resp_data.channel_emin[0], resp_data.channel_emax[-1]],
+            spec_data=spec_data,
+            resp_data=resp_data,
+            back_data=back_data,
+            **kwargs,
+        )
 
     def __str__(self) -> str:
         return self.name

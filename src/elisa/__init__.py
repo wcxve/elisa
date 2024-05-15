@@ -1,5 +1,12 @@
 from .__about__ import __version__ as __version__
-from .data import Data as Data, Response as Response, Spectrum as Spectrum
+from .data import (
+    Data as Data,
+    ObservationData as ObservationData,
+    Response as Response,
+    ResponseData as ResponseData,
+    Spectrum as Spectrum,
+    SpectrumData as SpectrumData,
+)
 from .infer import BayesFit as BayesFit, MaxLikeFit as MaxLikeFit
 from .models.model import (
     AnaIntAdditive as AnaIntAdditive,
