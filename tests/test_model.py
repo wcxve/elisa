@@ -16,6 +16,15 @@ def test_name():
     assert model3.name == 'ZAShift(PowerLaw)'
 
 
+def test_str_repr():
+    model = ZAShift(1.0)(PhAbs() * PowerLaw())
+    compiled = model.compile()
+
+    assert str(model) == str(compiled) == 'ZAShift(PhAbs * PowerLaw)'
+    assert repr(model) == repr(compiled)
+    assert model._repr_html_() == compiled._repr_html_()
+
+
 def test_lumin_and_eiso():
     def powerlaw(alpha, K, egrid):
         egrid = np.array(egrid)

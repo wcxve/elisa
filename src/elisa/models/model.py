@@ -19,7 +19,7 @@ from scipy.sparse import sparray
 
 from elisa.data.base import ObservationData, ResponseData, SpectrumData
 from elisa.models.parameter import Parameter, UniformParameter
-from elisa.util.misc import build_namespace
+from elisa.util.misc import build_namespace, make_pretty_table
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Literal
@@ -243,15 +243,31 @@ class Model(ABC):
 
         return fn
 
-    def _repr_html_(self) -> str:
-        return self.name
-
     def __str__(self) -> str:
         return self.name
 
     def __repr__(self) -> str:
-        # TODO: show the component name, LaTeX, type and parameters
-        return self.name
+        fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
+        info = get_model_info(
+            self._comps, self._cid_to_cname, self._cid_to_clatex
+        ).info
+        tab_params = make_pretty_table(fields, info)
+        return (
+            f'Model: {self.name} ({self.type})\n' f'{tab_params.get_string()}'
+        )
+
+    def _repr_html_(self) -> str:
+        fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
+        info = get_model_info(
+            self._comps, self._cid_to_cname, self._cid_to_clatex
+        ).info
+        tab_params = make_pretty_table(fields, info)
+        return (
+            '<details open>'
+            f'<summary><b>Model: {self.name} ({self.type})</b></summary>'
+            f'{tab_params.get_html_string(format=True)}'
+            '</details>'
+        )
 
     def __delattr__(self, key: str):
         if self.__initialized and hasattr(self, key):
@@ -1110,8 +1126,23 @@ class CompiledModel:
         return self.name
 
     def __repr__(self) -> str:
-        # TODO: show the component name, LaTeX, type and parameters
-        return self.name
+        fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
+        info = self._model_info.info
+        tab_params = make_pretty_table(fields, info)
+        return (
+            f'Model: {self.name} ({self.type})\n' f'{tab_params.get_string()}'
+        )
+
+    def _repr_html_(self) -> str:
+        fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
+        info = self._model_info.info
+        tab_params = make_pretty_table(fields, info)
+        return (
+            '<details open>'
+            f'<summary><b>Model: {self.name} ({self.type})</b></summary>'
+            f'{tab_params.get_html_string(format=True)}'
+            '</details>'
+        )
 
     def __delattr__(self, key: str):
         if self.__initialized and hasattr(self, key):
