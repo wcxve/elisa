@@ -14,6 +14,5 @@ The following tutorials are designed to help you get started with ``ELISA``.
 :maxdepth: 1
 
 notebooks/quick-start
-notebooks/model-creation
-notebooks/xspec-models
+notebooks/model-building
 ```
