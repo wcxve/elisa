@@ -690,16 +690,18 @@ class ConstantValue(ConstantParameter):
 class ConstantInterval(ConstantParameter):
     r"""Constant parameter to be integrated over a given interval.
 
-    When assigning this parameter to a model component, the component
-    evaluation of the component is modified according to the following
-    integration formula:
+    When assigning :class:`ConstantInterval` parameters to a model component,
+    the model will be evaluated according to the following formula:
 
     .. math::
-        \frac{1}{b - a} \int_{a}^{b} f(E, \vec{\theta}, x) \, \mathrm{d} x
+        \frac{1}{\prod_i (b_i - a_i)}
+        \int f(E, \vec{\theta}(\vec{p}, \vec{q})) \, \mathrm{d} \vec{p}
 
-    where :math:`f` is the component function, :math:`\vec{\theta}` is the
-    vector of other parameters within the model, and :math:`a` and :math:`b`
-    are the integration bounds.
+    where :math:`f` is the model function, :math:`\vec{\theta}` is the
+    parameter vector of the model, :math:`\vec{p}` is the
+    :class:`ConstantInterval` parameters, :math:`\vec{q}` is the other
+    parameters, and :math:`a_i` and :math:`b_i` are the intervals given
+    by :math:`\vec{p}`.
 
     Parameters
     ----------
