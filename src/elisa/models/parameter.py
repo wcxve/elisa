@@ -823,7 +823,7 @@ class CompositeParameter(Parameter):
         params: Parameter | Sequence[Parameter],
         op: Callable[..., JAXFloat],
         op_name: str,
-        op_latex: str,
+        op_latex: str | None = None,
         *,
         op_symbol: Literal['+', '-', '*', '/', '^'] | None = None,
     ):
