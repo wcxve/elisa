@@ -18,14 +18,13 @@ The key features of ``ELISA`` include:
 ```{admonition} How to find your way around?
 :class: tip
 
-🖥️ Ready to give it a try? Start with the {ref}`installation` section and then
-explore our {ref}`tutorials`.
+🖥️ Ready to give it a try? Start with the {ref}`installation`.
 
-📚 Curious about the details? The {ref}`guide` has you covered, including the
-{ref}`api`.
+📚 Curious about the details? The {ref}`tutorials` have you covered, including
+the {ref}`api`.
 
-💡 Encountering issues? Don’t worry! See the {ref}`troubleshooting` page for
-helpful tips and tricks.
+💡 Encountering issues? See the {ref}`troubleshooting` page for helpful tips
+and tricks.
 
 🐛 If the {ref}`troubleshooting` section doesn’t clear things up, or if you
 stumble upon bugs, we’d love your input! Check out our {ref}`contributing`
