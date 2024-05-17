@@ -253,7 +253,7 @@ class Model(ABC):
         ).info
         tab_params = make_pretty_table(fields, info)
         return (
-            f'Model: {self.name} ({self.type})\n' f'{tab_params.get_string()}'
+            f'Model: {self.name} [{self.type}]\n' f'{tab_params.get_string()}'
         )
 
     def _repr_html_(self) -> str:
@@ -264,7 +264,7 @@ class Model(ABC):
         tab_params = make_pretty_table(fields, info)
         return (
             '<details open>'
-            f'<summary><b>Model: {self.name} ({self.type})</b></summary>'
+            f'<summary><b>Model: {self.name} [{self.type}]</b></summary>'
             f'{tab_params.get_html_string(format=True)}'
             '</details>'
         )
@@ -303,7 +303,7 @@ class Model(ABC):
 
 
 class CompiledModel:
-    """Model with fast evaluation and frozen configuration."""
+    """Model with fast evaluation and fixed configuration."""
 
     __initialized: bool = False
 
@@ -370,9 +370,9 @@ class CompiledModel:
             params = self._value_sequence_to_params(params)
 
         elif isinstance(params, Mapping):
-            if not set(self.params_name).issubset(params):
-                missing = set(self.params_name) - set(params)
-                raise ValueError(f'missing parameters: {", ".join(missing)}')
+            # if not set(self.params_name).issubset(params):
+            #     missing = set(self.params_name) - set(params)
+            #     raise ValueError(f'missing parameters: {", ".join(missing)}')
 
             params = jax.tree_map(jnp.asarray, params)
             params = self._value_mapping_to_params(params)
@@ -1130,7 +1130,7 @@ class CompiledModel:
         info = self._model_info.info
         tab_params = make_pretty_table(fields, info)
         return (
-            f'Model: {self.name} ({self.type})\n' f'{tab_params.get_string()}'
+            f'Model: {self.name} [{self.type}]\n' f'{tab_params.get_string()}'
         )
 
     def _repr_html_(self) -> str:
@@ -1139,7 +1139,7 @@ class CompiledModel:
         tab_params = make_pretty_table(fields, info)
         return (
             '<details open>'
-            f'<summary><b>Model: {self.name} ({self.type})</b></summary>'
+            f'<summary><b>Model: {self.name} [{self.type}]</b></summary>'
             f'{tab_params.get_html_string(format=True)}'
             '</details>'
         )

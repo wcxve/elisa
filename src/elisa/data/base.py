@@ -595,30 +595,36 @@ class ObservationData:
         axs[0].legend()
         axs[0].set_title(self.name)
 
-    def plot_effective_area(self, hatch: bool = True):
+    def plot_effective_area(self, hatch: bool = True, ylog: bool = True):
         """Plot the effective area.
 
         Parameters
         ----------
         hatch : bool, optional
             Whether to add hatches in the ignored region. The default is True.
+        ylog : bool, optional
+            Whether to use log scale on y-axis. The default is True.
         """
         self.resp_data.plot_effective_area(
             noticed_range=self._erange if hatch else None,
             good_quality=self._good_quality,
+            ylog=ylog,
         )
 
-    def plot_matrix(self, hatch: bool = True) -> None:
+    def plot_matrix(self, hatch: bool = True, norm: str = 'log') -> None:
         """Plot the response matrix.
 
         Parameters
         ----------
         hatch : bool, optional
             Whether to add hatches in the ignored region. The default is True.
+        norm : str, optional
+            Colorbar normalization method. The default is ``'log'``.
         """
         self.resp_data.plot_matrix(
             noticed_range=self._erange if hatch else None,
             good_quality=self._good_quality,
+            norm=norm,
         )
 
     def get_fixed_data(self) -> FixedData:
@@ -1255,6 +1261,7 @@ class ResponseData:
         self,
         noticed_range: NDArray | None = None,
         good_quality: NDArray | None = None,
+        ylog: bool = True,
     ):
         """Plot the response matrix.
 
@@ -1265,6 +1272,8 @@ class ResponseData:
         good_quality : ndarray, optional
             Flags indicating which measurement channel to be used in plotting.
             It Must be the same length as the number of channels.
+        ylog : bool, optional
+            Whether to use log scale on y-axis. The default is True.
         """
         if good_quality is None:
             eff_area = self.sparse_matrix.sum(axis=1)
@@ -1284,7 +1293,8 @@ class ResponseData:
         plt.xlabel('Photon Energy [keV]')
         plt.ylabel('Effective Area [cm$^2$]')
         plt.xscale('log')
-        plt.yscale('log')
+        if ylog:
+            plt.yscale('log')
 
         if noticed_range is not None:
             ph_emin = self.photon_egrid[:-1]
@@ -1317,6 +1327,7 @@ class ResponseData:
         self,
         noticed_range: NDArray | None = None,
         good_quality: NDArray | None = None,
+        norm: str = 'log',
     ):
         """Plot the response matrix.
 
@@ -1327,6 +1338,8 @@ class ResponseData:
         good_quality : ndarray, optional
             Flags indicating which measurement channel to be used in plotting.
             It Must be the same length as the number of channels.
+        norm : str, optional
+            Colorbar normalization method. The default is ``'log'``.
         """
         channel_emin = self.channel_emin
         channel_emax = self.channel_emax
@@ -1343,7 +1356,10 @@ class ResponseData:
             channel_emax = channel_emax[good_quality]
             matrix = matrix.tocsc()[:, good_quality]
 
-        a_min = matrix.max() * 1e-5
+        if norm == 'log':
+            a_min = matrix.max() * 1e-5
+        else:
+            a_min = 0.0
         matrix = np.clip(matrix.todense(), a_min=a_min, a_max=None)
 
         # some response matrix has discontinuity in channel energy grid,
@@ -1359,7 +1375,7 @@ class ResponseData:
         ch, ph = np.meshgrid(channel_egrid, self.photon_egrid)
         plt.figure()
         plt.rcParams['axes.formatter.min_exponent'] = 3
-        plt.pcolormesh(ch, ph, matrix, cmap='magma', norm='log')
+        plt.pcolormesh(ch, ph, matrix, cmap='magma', norm=norm)
         plt.xlabel('Measurement Energy [keV]')
         plt.ylabel('Photon Energy [keV]')
         plt.colorbar(label='Effective Area [cm$^2$]')

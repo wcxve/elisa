@@ -305,14 +305,14 @@ class ParameterHelper(Parameter):
 
 
 class DistParameter(ParameterHelper):
-    r"""Parameter definition given a distribution.
+    r"""Define a parameter by a distribution.
 
     Parameters
     ----------
     name : str
         Parameter name.
     dist : Distribution
-        Numpyro distribution to which the parameter is sampled.
+        Numpyro distribution from which the parameter is sampled.
     default : float
         Parameter default value.
     min : float, optional
@@ -690,6 +690,19 @@ class ConstantValue(ConstantParameter):
 class ConstantInterval(ConstantParameter):
     r"""Constant parameter to be integrated over a given interval.
 
+    When assigning :class:`ConstantInterval` parameters to a model component,
+    the model will be evaluated according to the following formula:
+
+    .. math::
+        \frac{1}{\prod_i (b_i - a_i)}
+        \int f(E, \vec{\theta}(\vec{p}, \vec{q})) \, \mathrm{d} \vec{p}
+
+    where :math:`f` is the model function, :math:`\vec{\theta}` is the
+    parameter vector of the model, :math:`\vec{p}` is the
+    :class:`ConstantInterval` parameters, :math:`\vec{q}` is the other
+    parameters, and :math:`a_i` and :math:`b_i` are the intervals given
+    by :math:`\vec{p}`.
+
     Parameters
     ----------
     name: str
@@ -787,19 +800,21 @@ class ConstantInterval(ConstantParameter):
 
 
 class CompositeParameter(Parameter):
-    r"""Compose parameters into a new parameter.
+    r"""Combine parameters to create a new parameter.
 
     Parameters
     ----------
     params : Parameter, or sequence of Parameter
-        Parameters to be composed.
+        Parameters to be combined.
     op : callable
-        Function to be applied to `params`.
+        Function applied to `params`. The function should take the same
+        number and order of arguments as `params` and return a single value.
+        The function must be compatible with :mod:`JAX`.
     op_name : str
         Name of the composition operator `op`.
     op_latex : str, optional
-        :math:`\LaTeX` format of the composition operator `op`. The default is
-        as `op_name`.
+        :math:`\LaTeX` format of the composition operator `op`.
+        The default is as `op_name`.
     """
 
     _params: tuple[Parameter, ...]
@@ -810,7 +825,7 @@ class CompositeParameter(Parameter):
         params: Parameter | Sequence[Parameter],
         op: Callable[..., JAXFloat],
         op_name: str,
-        op_latex: str,
+        op_latex: str | None = None,
         *,
         op_symbol: Literal['+', '-', '*', '/', '^'] | None = None,
     ):
@@ -990,12 +1005,12 @@ class CompositeParameter(Parameter):
 
     @property
     def log(self) -> bool:
-        """If any of the sub-parameters is logarithmically parameterized."""
+        """If the sub-parameters are all logarithmically parameterized."""
         return all(i.log for i in self._params)
 
     @property
     def fixed(self) -> bool:
-        """If all the sub-parameters are fixed."""
+        """If the sub-parameters are all fixed."""
         return all(i.fixed for i in self._params)
 
     @property
