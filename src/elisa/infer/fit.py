@@ -360,7 +360,7 @@ class Fit(ABC):
         name_list = [d.name for d in data_list]
         if len(set(name_list)) != len(data_list):
             raise ValueError(
-                f'data names are not unique: {", ".join(name_list)}, '
+                f'data names are not unique: {", ".join(set(name_list))}, '
                 "please give a unique name in Data(..., name='NAME'), "
                 "or set data.name='NAME'"
             )
