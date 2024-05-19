@@ -15,8 +15,8 @@ The key features of ``ELISA`` include:
 - **Performance**: Efficient computation backend based on [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html)
 - ...
 
-**NOTE**: ``ELISA`` is currently under active development. Please be aware of
-potential brittleness, bugs, and changes to the API as the design evolves.
+**NOTE**: The documentations of ``ELISA`` is a work in progress. If you have any
+questions or suggestions, please feel free to open an issue on the [GitHub issues page](https://github.com/wcxve/elisa/issues).
 
 ```{admonition} How to find your way around?
 :class: tip
