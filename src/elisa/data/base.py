@@ -190,21 +190,12 @@ class ObservationData:
         spec_counts, spec_errors = self.spec_data.group(grouping, quality)
 
         channel_emin, channel_emax, matrix, channels = self.resp_data.group(
-            grouping, quality
+            grouping, quality, self.keep_channel_info
         )
 
         ch = self.resp_data.channel_type
         prefix = f'{self.name}_{ch}'
-        if self.keep_channel_info:
-            groups_channel = np.array(
-                [f'{prefix}_{"+".join(c)}' for c in self.resp_data.channel]
-            )
-        else:
-            group_index = np.flatnonzero(grouping != -1)  # transform to index
-            mask = np.add.reduceat(self._good_quality, group_index) > 0.0
-            groups_channel = np.array(
-                [f'{prefix}_{c}' for c in np.flatnonzero(mask)]
-            )
+        groups_channel = np.array([f'{prefix}_{i}' for i in channels])
         channel_mask = self._get_channel_mask(channel_emin, channel_emax)
         channel_mask = np.any(channel_mask, axis=0)
 
@@ -337,23 +328,26 @@ class ObservationData:
                 if np.shape(j) == ():  # scalar
                     data.append(j)
                 else:
+                    d = j[mask]
                     if i not in all_good:
-                        data.append(j[mask] * self._good_quality[mask])
-                    else:
-                        data.append(j[mask])
+                        d = d * self._good_quality[mask]
+                        if method == 'const':
+                            d = d.sum()
+                    data.append(d)
             grouping_flag, grouping_success = group_func(*data, scale)
             grouping[mask] = grouping_flag
             return grouping_success
 
         def apply_map(func, *args, all_good=()):
             """Map the apply function and return a success flag."""
-            return all(
+            flags = [
                 apply_grouping(func, mask, args, all_good)
                 for mask in channel_mask
-            )
+            ]
+            return all(flags)
 
         if method == 'const':
-            success = apply_map(group_const, len(spec_counts))
+            success = apply_map(group_const, np.ones(spec_counts.size, int))
 
         elif method == 'min':
             success = apply_map(group_min, spec_counts)
@@ -1172,7 +1166,10 @@ class ResponseData:
         self._channel_fwhm: NDArray | None = None
 
     def group(
-        self, grouping: NDArray, quality: NDArray | None = None
+        self,
+        grouping: NDArray,
+        quality: NDArray | None = None,
+        keep_channel_info: bool = False,
     ) -> tuple[NDArray, NDArray, coo_array, NDArray]:
         """Group the response matrix.
 
@@ -1198,6 +1195,9 @@ class ResponseData:
         channel : ndarray
             Grouped channel information. The values of groups filled with bad
             channels are automatically dropped.
+        keep_channel_info : bool, optional
+            Whether to keep channel information when grouping the response.
+            The default is False.
         """
         channel_number = self.channel_number
         if np.shape(grouping) != (channel_number,):
@@ -1209,7 +1209,7 @@ class ResponseData:
         if np.shape(quality) != (channel_number,):
             raise ValueError('quality must have the same size as channel')
 
-        channel = self.channel
+        group_channels = np.array(self.channel, dtype=str)
         group_emin = self.channel_emin
         group_emax = self.channel_emax
         matrix = self.sparse_matrix
@@ -1218,7 +1218,7 @@ class ResponseData:
 
         if len(group_index) == channel_number:  # apply good mask only
             if np.count_nonzero(quality) != quality.size:
-                channel = tuple((c,) for c in self.channel[quality])
+                group_channels = np.array(group_channels[quality], dtype=str)
                 group_emin = group_emin[quality]
                 group_emax = group_emax[quality]
                 matrix = self.sparse_matrix.tocsc()[:, quality]
@@ -1230,7 +1230,7 @@ class ResponseData:
             raw_channel = self.channel.tolist()
             emin = self.channel_emin
             emax = self.channel_emax
-            group_channel = []
+            group_channels = []
             group_emin = []
             group_emax = []
 
@@ -1240,11 +1240,14 @@ class ResponseData:
                 slice_i = slice(edge_indices[i], edge_indices[i + 1])
                 quality_slice = quality[slice_i]
                 channel_slice = np.array(raw_channel[slice_i])[quality_slice]
-                group_channel.append(tuple(channel_slice))
+                if keep_channel_info:
+                    group_channels.append(np.array('+'.join(channel_slice)))
+                else:
+                    group_channels.append(str(i))
                 group_emin.append(min(emin[slice_i]))
                 group_emax.append(max(emax[slice_i]))
 
-            channel = tuple(group_channel)
+            group_channels = np.array(group_channels)
             group_emin = np.array(group_emin)
             group_emax = np.array(group_emax)
 
@@ -1255,7 +1258,7 @@ class ResponseData:
             matrix = self.sparse_matrix.dot(grouping_matrix)
             matrix = matrix.tocsc()[:, mask]
 
-        return group_emin, group_emax, coo_array(matrix), channel
+        return group_emin, group_emax, coo_array(matrix), group_channels
 
     def plot_effective_area(
         self,

@@ -347,12 +347,10 @@ def group_optsig_normal(
         # Ensure minimum significance and extend the bin if necessary to abide
         # that constraint
         cts = counts[i : j + 1].sum()
-        err = errors[i : j + 1]
-        err = np.sqrt(np.sum(err * err))
+        err = np.sqrt(np.sum(np.square(errors[i : j + 1])))
         if cts - sig * err < 0.0:
-            cts = counts[j + 1 :].cumsum()
-            err = errors[j + 1 :]
-            err = np.sqrt(np.cumsum(err * err))
+            cts = cts + counts[j + 1 :].cumsum()
+            err = err + np.sqrt(np.cumsum(np.square(errors[j + 1 :])))
             mask = cts - sig * err >= 0.0
             if np.any(mask):
                 # the smallest j for the significance threshold
@@ -453,8 +451,8 @@ def group_optsig_lima(
         on = n_on[i : j + 1].sum()
         off = n_off[i : j + 1].sum()
         if significance_lima(on, off, a) < sig:
-            on = n_on[j + 1 :].cumsum()
-            off = n_off[j + 1 :].cumsum()
+            on = on + n_on[j + 1 :].cumsum()
+            off = off + n_off[j + 1 :].cumsum()
             mask = significance_lima(on, off, a) >= sig
             if np.any(mask):
                 # the smallest j for the significance threshold
@@ -556,13 +554,11 @@ def group_optsig_gv(
         # that constraint
         n_ = n[i : j + 1].sum()
         b_ = b[i : j + 1].sum()
-        s_ = s[i : j + 1]
-        s_ = np.sqrt(np.sum(s_ * s_))
+        s_ = np.sqrt(np.sum(np.square(s[i : j + 1])))
         if significance_gv(n_, b_, s_, a) < sig:
-            n_ = n[j + 1 :].cumsum()
-            b_ = b[j + 1 :].cumsum()
-            s_ = s[j + 1 :]
-            s_ = np.sqrt(np.sum(s_ * s_))
+            n_ = n_ + n[j + 1 :].cumsum()
+            b_ = b_ + b[j + 1 :].cumsum()
+            s_ = s_ + np.sqrt(np.cumsum(np.square(s[j + 1 :])))
             mask = significance_gv(n_, b_, s_, a) >= sig
             if np.any(mask):
                 # the smallest j for the significance threshold
