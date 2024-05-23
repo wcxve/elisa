@@ -348,10 +348,10 @@ def group_optsig_normal(
         # that constraint
         cts = counts[i : j + 1].sum()
         err = np.sqrt(np.sum(np.square(errors[i : j + 1])))
-        if cts - sig * err < 0.0:
+        if cts - sig * err < 0.0 or err == 0.0:
             cts = cts + counts[j + 1 :].cumsum()
             err = err + np.sqrt(np.cumsum(np.square(errors[j + 1 :])))
-            mask = cts - sig * err >= 0.0
+            mask = (cts - sig * err >= 0.0) & (err > 0.0)
             if np.any(mask):
                 # the smallest j for the significance threshold
                 j += np.flatnonzero(mask)[0] + 1
@@ -635,7 +635,7 @@ def group_sig_normal(
         x = group_count - sig * np.sqrt(group_variance)
 
         if i == imax:
-            if x < 0.0 and ng > 1:
+            if (x < 0.0 or group_variance == 0.0) and ng > 1:
                 # if the last group does not have a nominal significance,
                 # then combine the last two groups to ensure all
                 # groups meet the count requirement
@@ -643,7 +643,7 @@ def group_sig_normal(
 
             break
 
-        if x >= 0.0:
+        if x >= 0.0 and group_variance > 0.0:
             idx[ng] = i + 1
             ng += 1
             group_count = 0.0
