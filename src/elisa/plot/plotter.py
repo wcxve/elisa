@@ -1192,9 +1192,9 @@ class Plotter(ABC):
             ax.axvline(d_obs, color=color, ls=':')
             p = p_value[name]
             if p > 0.0:
-                pstr = f'{name} $p = {p:.2f}$'
+                pstr = f'{name} $p = {p:.2g}$'
             else:
-                pstr = f'{name} $p < {1.0/n}$'
+                pstr = f'{name} $p < {1}/{n}$'
             ax.annotate(
                 text=pstr,
                 xy=(0.97, 0.97),

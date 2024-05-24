@@ -241,6 +241,7 @@ def plot_trace(
         nrows=len(params),
         ncols=3,
         sharey='row',
+        squeeze=False,
         gridspec_kw={'width_ratios': [3, 1, 1]},
         figsize=(9, nparam * 2),
         tight_layout=True,
