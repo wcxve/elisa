@@ -526,7 +526,7 @@ class ObservationData:
             fmt='o',
             color=colors[0],
             alpha=0.8,
-            label='Observation',
+            label='Total',
             ms=3,
             mfc='#FFFFFFCC',
         )
