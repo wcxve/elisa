@@ -80,6 +80,7 @@ build-backend = "hatchling.build"
 [tool.hatch]
 metadata.allow-direct-references = true
 version.path = "src/elisa/__about__.py"
+build.targets.sdist.only-include = ["src", "tests"]
 build.targets.wheel.packages = ["src/elisa"]
 
 [[tool.hatch.envs.all.matrix]]
