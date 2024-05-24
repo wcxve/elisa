@@ -106,7 +106,7 @@ if __name__ == '__main__':
         file.create_dataset(
             name='energy',
             shape=egrid.shape,
-            dtype=np.float64,
+            dtype=np.float32,
             data=egrid,
         )
 
@@ -115,7 +115,7 @@ if __name__ == '__main__':
                 file.create_dataset(
                     f'phabs/{xsect}/{abund}',
                     shape=egrid.shape,
-                    dtype=np.float64,
+                    dtype=np.float32,
                     data=phabs_xsect[(xsect, abund)],
                 )
 
@@ -123,13 +123,13 @@ if __name__ == '__main__':
             file.create_dataset(
                 f'tbabs/vern/{abund}',
                 shape=egrid.shape,
-                dtype=np.float64,
+                dtype=np.float32,
                 data=tbabs_xsect[abund],
             )
 
         file.create_dataset(
             'wabs/wabs/aneb',
             shape=egrid.shape,
-            dtype=np.float64,
+            dtype=np.float32,
             data=wabs_xsect,
         )
