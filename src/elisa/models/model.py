@@ -2056,31 +2056,17 @@ class PyNumInt(PyComponent, NumericalIntegral):
     """Prototype component with python continuum expression defined."""
 
     _staticmethod = ('continuum_fn',)
-    _kwargs = ('int_method', 'grad_method')
+    _kwargs = ('method', 'grad_method')
 
     def __init__(
         self,
         params: dict,
         latex: str | None,
-        int_method: Literal['trapz', 'simpson'] | None,
+        method: Literal['trapz', 'simpson'] | None,
         grad_method: Literal['central', 'forward'] | None,
     ):
-        self.integrate_method = int_method
         super().__init__(params, latex, grad_method)
-
-    @property
-    def int_method(self) -> Literal['trapz', 'simpson']:
-        """Numerical integration method."""
-        return self._int_method
-
-    @int_method.setter
-    def int_method(self, method: Literal['trapz', 'simpson']):
-        if method not in ('trapz', 'simpson'):
-            raise ValueError(
-                f"available integration methods are 'trapz' and 'simpson', "
-                f"but got '{method}'"
-            )
-        self._int_method = method
+        self.method = 'trapz' if method is None else method
 
     @property
     def continuum(self) -> JAXArray:
