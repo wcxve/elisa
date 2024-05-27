@@ -2015,47 +2015,34 @@ class PyComponent(Component):
 class PyAnaInt(PyComponent, AnalyticalIntegral):
     """Prototype component with python integral expression defined."""
 
-    _staticmethod = ('integral_fn',)
-
     @property
-    def integral(self) -> CompEval:
-        integral_fn = self.integral_fn
+    def eval(self) -> CompEval:
+        if self._integral_jit is None:
+            integral_fn = self.integral
 
-        def eval_integral(egrid, params):
-            egrid = np.asarray(egrid)
-            params = {k: np.asarray(v) for k, v in params.items()}
-            return integral_fn(egrid, params)
+            def eval_integral(egrid, params):
+                egrid = np.asarray(egrid)
+                params = {k: np.asarray(v) for k, v in params.items()}
+                return integral_fn(egrid, params)
 
-        def integral(egrid: JAXArray, params: NameValMapping) -> JAXArray:
-            shape_dtype = jax.ShapeDtypeStruct((egrid.size - 1,), egrid.dtype)
-            return jax.pure_callback(eval_integral, shape_dtype, egrid, params)
+            def integral(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+                shape_dtype = jax.ShapeDtypeStruct(
+                    (egrid.size - 1,), egrid.dtype
+                )
+                return jax.pure_callback(
+                    eval_integral, shape_dtype, egrid, params
+                )
 
-        return jax.jit(define_fdjvp(jax.jit(integral), self.grad_method))
+            self._integral_jit = jax.jit(
+                define_fdjvp(jax.jit(integral), self.grad_method)
+            )
 
-    @staticmethod
-    @abstractmethod
-    def integral_fn(egrid, params):
-        """Calculate the model values over the energy grid.
-
-        Parameters
-        ----------
-        egrid : ndarray
-            Photon energy grid in units of keV.
-        params : dict
-            Parameter dict for the model.
-
-        Returns
-        -------
-        jax.Array
-            The model given `egrid`.
-        """
-        pass
+        return self._integral_jit
 
 
 class PyNumInt(PyComponent, NumericalIntegral):
     """Prototype component with python continuum expression defined."""
 
-    _staticmethod = ('continuum_fn',)
     _kwargs = ('method', 'grad_method')
 
     def __init__(
@@ -2069,40 +2056,27 @@ class PyNumInt(PyComponent, NumericalIntegral):
         self.method = 'trapz' if method is None else method
 
     @property
-    def continuum(self) -> JAXArray:
-        continuum_fn = self.continuum_fn
+    def eval(self) -> CompEval:
+        if self._continuum_jit is None:
+            # continuum is assumed to be a pure function, independent of self
+            continuum_fn = self.continuum
 
-        def eval_continuum(egrid, params):
-            egrid = np.asarray(egrid)
-            params = {k: np.asarray(v) for k, v in params.items()}
-            return continuum_fn(egrid, params)
+            def eval_continuum(egrid, params):
+                egrid = np.asarray(egrid)
+                params = {k: np.asarray(v) for k, v in params.items()}
+                return continuum_fn(egrid, params)
 
-        def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
-            shape_dtype = jax.ShapeDtypeStruct(egrid.shape, egrid.dtype)
-            return jax.pure_callback(
-                eval_continuum, shape_dtype, egrid, params
+            def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+                shape_dtype = jax.ShapeDtypeStruct(egrid.shape, egrid.dtype)
+                return jax.pure_callback(
+                    eval_continuum, shape_dtype, egrid, params
+                )
+
+            self._continuum_jit = jax.jit(
+                define_fdjvp(jax.jit(continuum), self.grad_method)
             )
 
-        return jax.jit(define_fdjvp(jax.jit(continuum), self.grad_method))
-
-    @staticmethod
-    @abstractmethod
-    def continuum_fn(egrid, params):
-        """Calculate the model values at the energy grid.
-
-        Parameters
-        ----------
-        egrid : ndarray
-            Photon energy grid in units of keV.
-        params : dict
-            Parameter dict for the model.
-
-        Returns
-        -------
-        jax.Array
-            The model given `egrid`.
-        """
-        pass
+        return self._make_integral(self._continuum_jit)
 
 
 def get_model_info(

@@ -35,7 +35,7 @@ def test_custom_model():
         type: str = 'add'
 
         @staticmethod
-        def integral_fn(egrid, params):
+        def integral(egrid, params):
             alpha = params['alpha']
             K = params['K']
             one_minus_alpha = 1.0 - alpha
@@ -50,7 +50,7 @@ def test_custom_model():
         type: str = 'add'
 
         @staticmethod
-        def continuum_fn(egrid, params):
+        def continuum(egrid, params):
             return params['K'] * egrid ** -params['alpha']
 
     egrid = np.geomspace(1, 10, 1000)
