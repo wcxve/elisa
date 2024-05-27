@@ -465,6 +465,7 @@ class Plotter(ABC):
         if self._palette != self.config.palette:
             colors = get_colors(len(self.data), palette=self.config.palette)
             self._colors = dict(zip(self.data.keys(), colors))
+            self._palette = self.config.palette
         return self._colors
 
     @property
