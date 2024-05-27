@@ -298,8 +298,8 @@ def plot_trace(
                 loglike, sample, color=color, s=0.05, alpha=0.05, zorder=zorder
             )
 
-        axes[i, 0].set_xlim(-0.5, ndraw + 0.5)
-        axes[i, 0].set_xticks([])
+        axes[i, 0].set_xlim(0.5, ndraw - 0.5)
+        # axes[i, 0].set_xticks([])
         axes[i, 1].set_xticks([])
 
     if diverging_index is not None:
