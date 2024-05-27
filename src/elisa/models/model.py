@@ -19,7 +19,7 @@ from scipy.sparse import sparray
 
 from elisa.data.base import ObservationData, ResponseData, SpectrumData
 from elisa.models.parameter import Parameter, UniformParameter
-from elisa.util.misc import build_namespace, make_pretty_table
+from elisa.util.misc import build_namespace, define_fdjvp, make_pretty_table
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Literal
@@ -1977,6 +1977,106 @@ class ConvolutionComponent(Component):
             The convolved model value over `egrid`.
         """
         pass
+
+
+class PyComponent(Component):
+    """Prototype component with pure Python expression defined."""
+
+    _kwargs: tuple[str, ...] = ('grad_method',)
+
+    def __init__(
+        self,
+        params: dict,
+        latex: str | None,
+        grad_method: Literal['central', 'forward'] | None,
+    ):
+        self.grad_method = grad_method
+
+        super().__init__(params, latex)
+
+    @property
+    def grad_method(self) -> Literal['central', 'forward']:
+        """Numerical differentiation method."""
+        return self._grad_method
+
+    @grad_method.setter
+    def grad_method(self, value: Literal['central', 'forward'] | None):
+        if value is None:
+            value: Literal['central'] = 'central'
+
+        if value not in {'central', 'forward'}:
+            raise ValueError(
+                f"supported methods are 'central' and 'forward', but got "
+                f"'{value}'"
+            )
+        self._grad_method = value
+
+
+class PyAnaInt(PyComponent, AnalyticalIntegral):
+    """Prototype component with python integral expression defined."""
+
+    @property
+    def eval(self) -> CompEval:
+        if self._integral_jit is None:
+            integral_fn = self.integral
+
+            def eval_integral(egrid, params):
+                egrid = np.asarray(egrid)
+                params = {k: np.asarray(v) for k, v in params.items()}
+                return integral_fn(egrid, params)
+
+            def integral(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+                shape_dtype = jax.ShapeDtypeStruct(
+                    (egrid.size - 1,), egrid.dtype
+                )
+                return jax.pure_callback(
+                    eval_integral, shape_dtype, egrid, params
+                )
+
+            self._integral_jit = jax.jit(
+                define_fdjvp(jax.jit(integral), self.grad_method)
+            )
+
+        return self._integral_jit
+
+
+class PyNumInt(PyComponent, NumericalIntegral):
+    """Prototype component with python continuum expression defined."""
+
+    _kwargs = ('method', 'grad_method')
+
+    def __init__(
+        self,
+        params: dict,
+        latex: str | None,
+        method: Literal['trapz', 'simpson'] | None,
+        grad_method: Literal['central', 'forward'] | None,
+    ):
+        super().__init__(params, latex, grad_method)
+        self.method = 'trapz' if method is None else method
+
+    @property
+    def eval(self) -> CompEval:
+        if self._continuum_jit is None:
+            # continuum is assumed to be a pure function, independent of self
+            continuum_fn = self.continuum
+
+            def eval_continuum(egrid, params):
+                egrid = np.asarray(egrid)
+                params = {k: np.asarray(v) for k, v in params.items()}
+                return continuum_fn(egrid, params)
+
+            def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
+                shape_dtype = jax.ShapeDtypeStruct(egrid.shape, egrid.dtype)
+                return jax.pure_callback(
+                    eval_continuum, shape_dtype, egrid, params
+                )
+
+            self._continuum_jit = jax.jit(
+                define_fdjvp(jax.jit(continuum), self.grad_method)
+            )
+
+        return self._make_integral(self._continuum_jit)
 
 
 def get_model_info(

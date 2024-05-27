@@ -14,6 +14,9 @@ from .models.model import (
     ConvolutionComponent as ConvolutionComponent,
     NumIntAdditive as NumIntAdditive,
     NumIntMultiplicative as NumIntMultiplicative,
+    ParamConfig as ParamConfig,
+    PyAnaInt as PyAnaInt,
+    PyNumInt as PyNumInt,
 )
 from .models.parameter import (
     CompositeParameter as CompositeParameter,
