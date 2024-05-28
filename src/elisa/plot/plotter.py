@@ -522,6 +522,9 @@ class Plotter(ABC):
             for p in params
         }
 
+    def set_xlabel(self, ax: Axes):
+        ax.set_xlabel(r'$\mathrm{Energy\ [keV]}$')
+
     def plot_spec(
         self,
         data: bool = True,
@@ -604,47 +607,25 @@ class Plotter(ABC):
 
         plt.rcParams['axes.formatter.min_exponent'] = 3
 
-        axs[-1].set_xlabel(r'$\mathrm{Energy\ [keV]}$')
+        self.set_xlabel(axs[-1])
 
-        plot_ylabels = config._YLABLES
         plots = []
-        ylabels = []
         if data:
             plots.append('ce')
-            ylabels.append(plot_ylabels['ce'])
         if ne:
             plots.append('ne')
-            ylabels.append(plot_ylabels['ne'])
         if ene:
             plots.append('ene')
-            if label_Fv:
-                ylabels.append(plot_ylabels['Fv'])
-            else:
-                ylabels.append(plot_ylabels['ene'])
         if eene:
             plots.append('eene')
-            if label_vFv:
-                ylabels.append(plot_ylabels['vFv'])
-            else:
-                ylabels.append(plot_ylabels['eene'])
 
         residuals: Literal['rd', 'rp', 'rq'] | None
         if residuals:
             plots.append('residuals')
             if residuals is True:
                 residuals = config.residuals
-            else:
-                if residuals not in {'rd', 'rp', 'rq'}:
-                    raise ValueError(
-                        'residuals type must be "rd" (deviance), "rp" '
-                        '(pearson), or "rq" (quantile)'
-                    )
-            ylabels.append(plot_ylabels[residuals])
         else:
             residuals = None
-
-        for ax, ylabel in zip(axs, ylabels):
-            ax.set_ylabel(ylabel)
 
         axs_dict = dict(zip(plots, axs))
 
@@ -680,12 +661,16 @@ class Plotter(ABC):
                 axs_dict['ne'].set_yscale('log')
                 _adjust_log_range(axs_dict['ne'], 'y')
         if ene:
-            self.plot_unfolded(axs_dict['ene'], 'ene', params, egrid)
+            self.plot_unfolded(
+                axs_dict['ene'], 'ene', params, egrid, label_Fv=label_Fv
+            )
             if yscale != 'linear':
                 axs_dict['ene'].set_yscale('log')
                 _adjust_log_range(axs_dict['ene'], 'y')
         if eene:
-            self.plot_unfolded(axs_dict['eene'], 'eene', params, egrid)
+            self.plot_unfolded(
+                axs_dict['eene'], 'eene', params, egrid, label_vFv=label_vFv
+            )
             if yscale != 'linear':
                 axs_dict['eene'].set_yscale('log')
                 _adjust_log_range(axs_dict['eene'], 'y')
@@ -702,13 +687,6 @@ class Plotter(ABC):
             ax.relim()
             ax.autoscale_view()
 
-        if 'ce' in axs_dict:
-            if len(self.data) > 5:
-                ncols = int(np.ceil(len(self.data) / 4))
-            else:
-                ncols = 1
-            axs_dict['ce'].legend(ncols=ncols)
-
         return fig
 
     def plot_unfolded(
@@ -717,6 +695,8 @@ class Plotter(ABC):
         mtype: Literal['ne', 'ene', 'eene'],
         params: Mapping[str, float | int | Array] | None = None,
         egrid: Mapping[str, NumPyArray] | None = None,
+        label_Fv: bool = False,
+        label_vFv: bool = False,
     ):
         """Plot unfolded model.
 
@@ -735,6 +715,12 @@ class Plotter(ABC):
             Overwrite the parameters when plotting unfolded model.
         egrid : dict, optional
             Overwrite the photon energy grid when plotting unfolded model.
+        label_Fv : bool, optional
+            Whether to label the y-axis of :math:`E N(E)` plot as
+            :math:`F_{\nu}`. The default is ``False``.
+        label_vFv : bool, optional
+            Whether to label the y-axis of :math:`E^2 N(E)` plot as
+            :math:`\nu F_{\nu}`. The default is ``False``.
         """
         params = dict(params) if params is not None else {}
         if params:
@@ -747,6 +733,17 @@ class Plotter(ABC):
         comps = config.plot_comps
         step_kwargs = {'lw': 1.618, 'alpha': config.alpha}
         ribbon_kwargs = {'lw': 0.618, 'alpha': 0.2 * config.alpha}
+
+        if mtype == 'ne':
+            label_type = 'ne'
+        elif mtype == 'ene':
+            label_type = 'Fv' if label_Fv else 'ene'
+        elif mtype == 'eene':
+            label_type = 'vFv' if label_vFv else 'eene'
+        else:
+            raise ValueError("mtype must be 'ne', 'ene', or 'eene'")
+
+        ax.set_ylabel(config._YLABLES[label_type])
 
         for name, data in self.data.items():
             color = colors[name]
@@ -804,6 +801,8 @@ class Plotter(ABC):
         step_kwargs = {'lw': 1.618, 'alpha': config.alpha}
         ribbon_kwargs = {'lw': 0.618, 'alpha': 0.2 * config.alpha}
 
+        ax.set_ylabel(config._YLABLES['ce'])
+
         for name, data in self.data.items():
             color = colors[name]
 
@@ -844,6 +843,8 @@ class Plotter(ABC):
         alpha = config.alpha
         xlog = config.xscale == 'log'
 
+        ax.set_ylabel(config._YLABLES['ce'])
+
         for name, data in self.data.items():
             color = colors[name]
             marker = self._markers[name]
@@ -861,6 +862,12 @@ class Plotter(ABC):
                 mec=color,
                 mfc='#FFFFFFCC',
             )
+
+        if len(self.data) > 5:
+            ncols = int(np.ceil(len(self.data) / 4))
+        else:
+            ncols = 1
+        ax.legend(ncols=ncols)
 
     def plot_residuals(
         self,
@@ -881,6 +888,12 @@ class Plotter(ABC):
                 * ``'rq'``: quantile residuals
 
         """
+        if rtype not in {'rd', 'rp', 'rq', None}:
+            raise ValueError(
+                'residuals type must be "rd" (deviance), "rp" (pearson), '
+                '"rq" (quantile), or None (use default residuals)'
+            )
+
         config = self.config
         colors = self.colors
         cl = config.cl
@@ -897,6 +910,8 @@ class Plotter(ABC):
         xlog = config.xscale == 'log'
 
         normal_q = stats.norm.isf(0.5 * (1.0 - cl))
+
+        ax.set_ylabel(config._YLABLES[rtype])
 
         for name, data in self.data.items():
             color = colors[name]
