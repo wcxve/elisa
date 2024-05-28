@@ -698,7 +698,7 @@ class Plotter(ABC):
         label_Fv: bool = False,
         label_vFv: bool = False,
     ):
-        """Plot unfolded model.
+        r"""Plot unfolded model.
 
         Parameters
         ----------
