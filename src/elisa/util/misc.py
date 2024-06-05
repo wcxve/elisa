@@ -270,10 +270,10 @@ def make_pretty_table(fields: Sequence[str], rows: Sequence) -> PrettyTable:
         bottom_junction_char='┴',
         right_junction_char='┤',
         left_junction_char='├',
-        top_right_junction_char='┐',
-        top_left_junction_char='┌',
-        bottom_right_junction_char='┘',
-        bottom_left_junction_char='└',
+        top_right_junction_char='╮',
+        top_left_junction_char='╭',
+        bottom_right_junction_char='╯',
+        bottom_left_junction_char='╰',
     )
     table.add_rows(rows)
     return table
