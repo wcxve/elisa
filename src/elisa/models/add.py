@@ -43,8 +43,10 @@ class Band(NumIntAdditive):
             \exp\bigl(-\frac{E}{E_\mathrm{c}}\bigr),
             &\text{if } E < (\alpha-\beta) E_\mathrm{c},
         \\\\
-        \left[\frac{(\alpha-\beta)E_\mathrm{c}}{E_0}\right]^{\alpha-\beta}
-            \exp(\beta-\alpha) \bigl(\frac{E}{E_0}\bigr)^\beta,
+        \bigl(\frac{E}{E_0}\bigr)^\beta \exp(\beta-\alpha)
+            \left[
+                \frac{(\alpha-\beta)E_\mathrm{c}}{E_0}
+            \right]^{\alpha-\beta},
             &\text{otherwise,}
         \end{cases}
 
@@ -113,9 +115,10 @@ class BandEp(NumIntAdditive):
             \exp\left[-\frac{(2+\alpha)E}{E_\mathrm{p}}\right],
             &\text{if } E < \frac{(\alpha-\beta)E_\mathrm{p}}{2+\alpha},
         \\\\
-        \left[\frac{(\alpha-\beta)E_\mathrm{p}}{(2+\alpha)E_0}\right]
-            ^{\alpha-\beta}
-            \exp(\beta-\alpha)\bigl(\frac{E}{E_0}\bigr)^\beta,
+        \bigl(\frac{E}{E_0}\bigr)^\beta \exp(\beta-\alpha)
+            \left[
+                \frac{(\alpha-\beta)E_\mathrm{p}}{(2+\alpha)E_0}
+            \right]^{\alpha-\beta},
             &\text{otherwise},
         \end{cases}
 
