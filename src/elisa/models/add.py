@@ -410,7 +410,7 @@ class Gauss(NumIntAdditive):
         El = params['El']
         sigma = params['sigma']
         K = params['K']
-        return K * stats.norm.pdf((egrid - El) / sigma)
+        return K * stats.norm.pdf(x=egrid, loc=El, scale=sigma)
 
 
 class LogParabola(NumIntAdditive):
