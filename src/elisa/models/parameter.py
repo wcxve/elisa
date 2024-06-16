@@ -585,16 +585,16 @@ class UniformParameter(DistParameter):
             raise ValueError(f'min ({_min}) must be positive for log uniform')
 
         if _min >= _max:
-            raise ValueError(f'min ({_min}) must less than max ({_max})')
+            raise ValueError(f'min ({_min}) must be less than max ({_max})')
 
         if _default <= _min:
             raise ValueError(
-                f'default ({_default}) must greater than min ({_min})'
+                f'default ({_default}) must be greater than min ({_min})'
             )
 
         if _default >= _max:
             raise ValueError(
-                f'default ({_default}) must less than max ({_max})'
+                f'default ({_default}) must be less than max ({_max})'
             )
 
         if default is not None:
