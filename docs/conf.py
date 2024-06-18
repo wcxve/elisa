@@ -33,6 +33,7 @@ extensions = [
     'numpydoc',
     'sphinx_autodoc_typehints',
     'sphinx_book_theme',
+    'sphinx_codeautolink',
     'sphinx_copybutton',
     'sphinx_design',
     'myst_nb',
@@ -69,6 +70,7 @@ html_theme_options = {
 }
 html_title = 'ELISA'
 html_static_path = ['_static']
+html_css_files = ['custom.css']
 html_logo = '_static/logo2.png'
 html_favicon = '_static/favicon.svg'
 html_baseurl = 'https://elisa-lib.readthedocs.io/en/latest/'
@@ -78,6 +80,7 @@ master_doc = 'index'
 add_module_names = False
 autodoc_member_order = 'bysource'
 
+codeautolink_concat_default = True
 copybutton_selector = 'div:not(.output) > div.highlight pre'
 
 intersphinx_mapping = {
