@@ -297,7 +297,7 @@ class Fit(ABC):
                 msg = f'{name} is Gaussian data, use stat "chi2" instead'
                 raise ValueError(msg)
 
-            if s == 'chi2' and np.any(d.back_errors == 0.0):
+            if s == 'chi2' and np.any(d.net_errors == 0.0):
                 raise ValueError(
                     f'"chi2" is not valid for {name} data, which has zero '
                     'uncertainties; grouping the data may fix this error'
