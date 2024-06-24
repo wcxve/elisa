@@ -500,7 +500,7 @@ class ObservationData:
 
         plt.rcParams['axes.formatter.min_exponent'] = 3
 
-        axs[0].set_ylabel(r'$C_E\ \mathrm{[s^{-1}\ keV^{-1}]}$')
+        axs[0].set_ylabel(r'$C_E\ \mathrm{[count s^{-1}\ keV^{-1}]}$')
         axs[1].set_ylabel(r'Significance [$\mathrm{\sigma}$]')
         axs[1].set_xlabel(r'$\mathrm{Energy\ [keV]}$')
 

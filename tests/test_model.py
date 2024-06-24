@@ -85,7 +85,7 @@ def test_lumin_and_eiso():
     flux_unit = Unit('keV cm^-2 s^-1')
 
     alpha = 2.5
-    K = 1e4  # normalization at 1 keV, s^-1 cm^-2 keV^-1
+    K = 1e4  # normalization at 1 keV, ph s^-1 cm^-2 keV^-1
     r = 1.0 * Unit('km')
     area = 4.0 * np.pi * r**2
     exposure = 1.0 * Unit('s')

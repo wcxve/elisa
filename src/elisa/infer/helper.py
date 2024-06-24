@@ -10,7 +10,6 @@ import jax.numpy as jnp
 import numpy as np
 import numpyro
 import optimistix as optx
-from astropy.units import Unit
 from jax import lax
 from numpyro import handlers
 from numpyro.infer.util import constrain_fn, unconstrain_fn
@@ -25,7 +24,7 @@ from elisa.infer.likelihood import (
     pstat,
     wstat,
 )
-from elisa.util.misc import progress_bar_factory
+from elisa.util.misc import get_unit_latex, progress_bar_factory
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -188,7 +187,7 @@ def get_helper(fit: Fit) -> Helper:
             for i in data
         }
 
-        # net spectrum [s^-1 keV^-1]
+        # net spectrum [count s^-1 keV^-1]
         counts_data |= {i: net_counts[i] * spec_unit[i] for i in data.keys()}
 
         # stack net spectrum of all channels of all datasets
@@ -291,19 +290,9 @@ def get_helper(fit: Fit) -> Helper:
         pname: model_info.log[pid] for pid, pname in model_info.name.items()
     }
 
-    def get_unit_latex(pid: str) -> str:
-        """Get unit latex string of a parameter."""
-        ustr = model_info.unit[pid]
-        if ustr:
-            try:
-                ustr = Unit(ustr).to_string('latex', fraction=False)
-                ustr = ustr.replace(r'1 \times ', '')
-            except ValueError:
-                ustr = ''
-        return ustr
-
     pname_to_unit: dict[ParamName, str] = {
-        pname: get_unit_latex(pid) for pid, pname in model_info.name.items()
+        pname: get_unit_latex(model_info.unit[pid], throw=False)
+        for pid, pname in model_info.name.items()
     }
     pname_to_comp_latex: dict[ParamName, str] = {
         pname: model_info.pid_to_comp_latex[pid]

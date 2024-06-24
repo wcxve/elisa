@@ -362,7 +362,7 @@ class MLEResult(FitResult):
         if energy:
             unit = u.Unit('erg cm^-2 s^-1')
         else:
-            unit = u.Unit('cm^-2 s^-1')
+            unit = u.Unit('ph cm^-2 s^-1')
 
         mle_params = {k: v[0] for k, v in self._mle.items()}
         if params is not None:
@@ -435,7 +435,7 @@ class MLEResult(FitResult):
             The default is 1.
         energy : bool, optional
             When True, calculate energy flux in units of erg cm⁻² s⁻¹;
-            otherwise calculate photon flux in units of cm⁻² s⁻¹.
+            otherwise calculate photon flux in units of ph cm⁻² s⁻¹.
             The default is True.
         ngrid : int, optional
             The energy grid number to use in integration. The default is 1000.
@@ -1088,7 +1088,7 @@ class PosteriorResult(FitResult):
         if energy:
             unit = u.Unit('erg cm^-2 s^-1')
         else:
-            unit = u.Unit('cm^-2 s^-1')
+            unit = u.Unit('ph cm^-2 s^-1')
 
         post = self._params_dist
         n = [i.size for i in post.values()][0]
@@ -1161,7 +1161,7 @@ class PosteriorResult(FitResult):
             credible interval. The default is 1.
         energy : bool, optional
             When True, calculate energy flux in units of erg cm⁻² s⁻¹;
-            otherwise calculate photon flux in units of cm⁻² s⁻¹.
+            otherwise calculate photon flux in units of ph cm⁻² s⁻¹.
             The default is True.
         ngrid : int, optional
             The energy grid number to use in integration. The default is 1000.

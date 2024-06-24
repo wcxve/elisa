@@ -67,7 +67,8 @@ class NormConvolution(ConvolutionComponent):
         Returns
         -------
         value : ndarray
-            The re-normalized model over `egrid`, in units of cm⁻² s⁻¹ keV⁻¹.
+            The re-normalized model over `egrid`, in units of
+            ph cm⁻² s⁻¹ keV⁻¹.
         """
         pass
 
@@ -164,7 +165,7 @@ class PhFlux(NormConvolution):
     emax : float or int
         Maximum energy of the band to calculate the flux, in units of keV.
     F : Parameter, optional
-        Photon flux :math:`\mathcal{F}_\mathrm{ph}`, in units of cm⁻² s⁻¹.
+        Photon flux :math:`\mathcal{F}_\mathrm{ph}`, in units of ph cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     ngrid : int, optional
@@ -176,7 +177,7 @@ class PhFlux(NormConvolution):
 
     _config = (
         ParamConfig(
-            'F', r'\mathcal{F}_\mathrm{ph}', 'cm^-2 s^-1', 1.0, 0.01, 1e10
+            'F', r'\mathcal{F}_\mathrm{ph}', 'ph cm^-2 s^-1', 1.0, 0.01, 1e10
         ),
     )
 
@@ -259,7 +260,7 @@ class ZAShift(ConvolutionComponent):
     r"""Redshifts an additive model.
 
     Consider a source with an emission area of radius :math:`R` at redshift
-    :math:`z`. Given the flux function :math:`N(E)` [s⁻¹ cm⁻² keV⁻¹] at the
+    :math:`z`. Given the flux function :math:`N(E)` [ph s⁻¹ cm⁻² keV⁻¹] at the
     radius :math:`R`, the observed number of photons :math:`n` between the
     energy range :math:`e_1` [keV] and :math:`e_2` [keV] during an exposure
     time of :math:`\Delta t` [s] is calculated as follows:
@@ -340,7 +341,7 @@ class VAShift(ConvolutionComponent):
 
     Consider a source with an emission area of radius :math:`R`, moving with
     speed :math:`v` along line of sight. Given the flux function :math:`N(E)`
-    [s⁻¹ cm⁻² keV⁻¹] at the radius :math:`R`, the observed number of photons
+    [ph s⁻¹ cm⁻² keV⁻¹] at the radius :math:`R`, the observed number of photons
     :math:`n` between the energy range :math:`e_1` [keV] and :math:`e_2` [keV]
     during an exposure time of :math:`\Delta t` [s] is calculated as follows:
 

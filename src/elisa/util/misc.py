@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
+from astropy.units import Unit
 from jax import lax, tree_util
 from jax.custom_derivatives import SymbolicZero
 from jax.experimental import host_callback
@@ -240,6 +241,56 @@ def define_fdjvp(
     fn.defjvp(fdjvp, symbolic_zeros=True)
 
     return fn
+
+
+def get_unit_latex(unit: str, throw: bool = True) -> str:
+    """Get latex string of a unit.
+
+    Parameters
+    ----------
+    unit : str
+        The unit string.
+    throw : bool, optional
+        If True, raise ValueError if the unit is invalid. The default is True.
+
+    Returns
+    -------
+    str
+        The latex string of the unit.
+    """
+    ustr = str(unit)
+    if ustr:
+        try:
+            unit = Unit(ustr)
+            max_index = len(ustr)
+            pattern = r'(?:[^a-zA-Z]*){}(?:[^a-zA-Z]*)'
+            index = [
+                min(
+                    r.start(0)
+                    if (r := re.search(pattern.format(s), ustr)) is not None
+                    else max_index
+                    for s in [b.name] + b.aliases
+                )
+                for b in unit.bases
+            ]
+            index = sorted(range(len(index)), key=index.__getitem__)
+            bases = [unit.bases[i].name for i in index]
+            powers = [unit.powers[i] for i in index]
+            ustr = r'\ '.join(
+                b + (f'^{{{p}}}' if p != 1 else '')
+                for b, p in zip(bases, powers)
+            )
+            scale = Unit(unit.scale).to_string('latex_inline')[9:-2]
+            if scale != '':
+                scale = scale.replace(r'1 \times ', '')
+                scale += r'\ '
+            ustr = rf'$\mathrm{{{scale}{ustr}}}$'
+        except ValueError as ve:
+            if throw:
+                raise ve
+            ustr = ''
+
+    return ustr
 
 
 def make_pretty_table(fields: Sequence[str], rows: Sequence) -> PrettyTable:
