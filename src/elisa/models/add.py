@@ -61,7 +61,7 @@ class Band(NumIntAdditive):
     Ec : Parameter, optional
         The characteristic energy :math:`E_\mathrm{c}`, in units of keV.
     K : Parameter, optional
-        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+        The amplitude :math:`K`, in units of ph cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
@@ -77,7 +77,7 @@ class Band(NumIntAdditive):
         ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 5.0),
         ParamConfig('beta', r'\beta', '', -2.0, -10.0, 10.0),
         ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 300.0, 10.0, 1e4),
-        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+        ParamConfig('K', 'K', 'ph cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
@@ -134,7 +134,7 @@ class BandEp(NumIntAdditive):
         The peak energy :math:`E_\mathrm{p}` of :math:`\nu F_\nu`,
         in units of keV.
     K : Parameter, optional
-        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+        The amplitude :math:`K`, in units of ph cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
@@ -150,7 +150,7 @@ class BandEp(NumIntAdditive):
         ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 5.0),
         ParamConfig('beta', r'\beta', '', -2.0, -10.0, 10.0),
         ParamConfig('Ep', r'E_\mathrm{p}', 'keV', 300.0, 10.0, 1e4),
-        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+        ParamConfig('K', 'K', 'ph cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
@@ -185,7 +185,7 @@ class Blackbody(NumIntAdditive):
     .. math::
         N(E) = \frac{C K E^2}{(kT)^4 [\exp(E/kT)-1]},
 
-    where :math:`C=8.0525`.
+    where :math:`C=8.0525` ph.
 
     Parameters
     ----------
@@ -236,7 +236,7 @@ class BlackbodyRad(NumIntAdditive):
     .. math::
         N(E) = \frac{C K E^2}{\exp(E/kT)-1},
 
-    where :math:`C=1.0344 \times 10^{-3}` cm⁻² s⁻¹ keV⁻³.
+    where :math:`C=1.0344 \times 10^{-3}` ph cm⁻² s⁻¹ keV⁻³.
 
     Parameters
     ----------
@@ -315,7 +315,7 @@ class CutoffPL(NumIntAdditive):
         The e-folding energy of exponential cutoff :math:`E_\mathrm{c}`,
         in units of keV.
     K : Parameter, optional
-        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+        The amplitude :math:`K`, in units of ph cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
@@ -325,7 +325,7 @@ class CutoffPL(NumIntAdditive):
     _config = (
         ParamConfig('alpha', r'\alpha', '', 1.0, -3.0, 10.0),
         ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 15.0, 0.01, 1e4),
-        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+        ParamConfig('K', 'K', 'ph cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
@@ -354,7 +354,7 @@ class Compt(NumIntAdditive):
         The peak energy :math:`E_\mathrm{p}` of :math:`\nu F_\nu`,
         in units of keV.
     K : Parameter, optional
-        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+        The amplitude :math:`K`, in units of ph cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
@@ -364,7 +364,7 @@ class Compt(NumIntAdditive):
     _config = (
         ParamConfig('alpha', r'\alpha', '', 1.0, -3.0, 10.0),
         ParamConfig('Ep', r'E_\mathrm{p}', 'keV', 15.0, 0.01, 1e4),
-        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+        ParamConfig('K', 'K', 'ph cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
@@ -392,7 +392,7 @@ class Gauss(NumIntAdditive):
     sigma : Parameter, optional
         The line width :math:`\sigma`, in units of keV.
     K : Parameter, optional
-        The total photon flux :math:`K` of the line, in units of cm⁻² s⁻¹.
+        The total photon flux :math:`K` of the line, in units of ph cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
@@ -402,7 +402,7 @@ class Gauss(NumIntAdditive):
     _config = (
         ParamConfig('El', r'E_\mathrm{l}', 'keV', 6.5, 0.0, 1e6),
         ParamConfig('sigma', r'\sigma', 'keV', 0.1, 0.0, 20),
-        ParamConfig('K', 'K', 'cm^-2 s^-1', 1.0, 1e-10, 1e10),
+        ParamConfig('K', 'K', 'ph cm^-2 s^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
@@ -435,7 +435,7 @@ class OTTB(NumIntAdditive):
     kT : Parameter, optional
         The electron energy :math:`kT`, in units of keV.
     K : Parameter, optional
-        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+        The amplitude :math:`K`, in units of ph cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
@@ -444,7 +444,7 @@ class OTTB(NumIntAdditive):
 
     _config = (
         ParamConfig('kT', 'kT', 'keV', 30.0, 0.1, 1e3),
-        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+        ParamConfig('K', 'K', 'ph cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
@@ -465,7 +465,7 @@ class OTTS(NumIntAdditive):
     Ec : Parameter, optional
         The energy scale :math:`E_\mathrm{c}`, in units of keV.
     K : Parameter, optional
-        The amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+        The amplitude :math:`K`, in units of ph cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     method : {'trapz', 'simpson'}, optional
@@ -479,7 +479,7 @@ class OTTS(NumIntAdditive):
 
     _config = (
         ParamConfig('Ec', r'E_\mathrm{c}', 'keV', 100.0, 1e-3, 1e3),
-        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+        ParamConfig('K', 'K', 'ph cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
@@ -502,14 +502,14 @@ class PowerLaw(AnaIntAdditive):
     alpha : Parameter, optional
         Power law photon index :math:`\alpha`, dimensionless.
     K : Parameter, optional
-        Amplitude :math:`K`, in units of cm⁻² s⁻¹ keV⁻¹.
+        Amplitude :math:`K`, in units of ph cm⁻² s⁻¹ keV⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     """
 
     _config = (
         ParamConfig('alpha', r'\alpha', '', 1.01, -3.0, 10.0),
-        ParamConfig('K', 'K', 'cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
+        ParamConfig('K', 'K', 'ph cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
     )
 
     @staticmethod
@@ -604,7 +604,7 @@ class PLPhFlux(PLFluxNorm):
     alpha : Parameter, optional
         Power law photon index :math:`\alpha`, dimensionless.
     F : Parameter, optional
-        Photon flux :math:`\mathcal{F}_\mathrm{ph}`, in units of cm⁻² s⁻¹.
+        Photon flux :math:`\mathcal{F}_\mathrm{ph}`, in units of ph cm⁻² s⁻¹.
     latex : str, optional
         :math:`\LaTeX` format of the component. Defaults to class name.
     """
@@ -613,7 +613,7 @@ class PLPhFlux(PLFluxNorm):
     _config = (
         ParamConfig('alpha', r'\alpha', '', 1.01, -3.0, 10.0),
         ParamConfig(
-            'F', r'\mathcal{F}_\mathrm{ph}', 'cm^-2 s^-1', 1.0, 0.01, 1e10
+            'F', r'\mathcal{F}_\mathrm{ph}', 'ph cm^-2 s^-1', 1.0, 0.01, 1e10
         ),
     )
 

@@ -233,12 +233,12 @@ class PlotConfig:
     """Plotting configuration."""
 
     _YLABLES = {
-        'ce': r'$C_E\ \mathrm{[s^{-1}\ keV^{-1}]}$',
-        'ne': r'$N_E\ \mathrm{[s^{-1}\ cm^{-2}\ keV^{-1}]}$',
-        'ene': r'$E N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
-        'Fv': r'$F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}\ keV^{-1}]}$',
-        'eene': r'$E^2 N_E\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
-        'vFv': r'$\nu F_{\nu}\ \mathrm{[erg\ s^{-1}\ cm^{-2}]}$',
+        'ce': r'$C_E\ \mathrm{[count\ s^{-1}\ keV^{-1}]}$',
+        'ne': r'$N_E\ \mathrm{[ph\ cm^{-2}\ s^{-1}\ keV^{-1}]}$',
+        'ene': r'$E N_E\ \mathrm{[erg\ cm^{-2}\ s^{-1}\ keV^{-1}]}$',
+        'Fv': r'$F_{\nu}\ \mathrm{[erg\ cm^{-2}\ s^{-1}\ keV^{-1}]}$',
+        'eene': r'$E^2 N_E\ \mathrm{[erg\ cm^{-2}\ s^{-1}]}$',
+        'vFv': r'$\nu F_{\nu}\ \mathrm{[erg\ cm^{-2}\ s^{-1}]}$',
         'rd': r'$r_D\ [\mathrm{\sigma}]$',
         'rp': r'$r_\mathrm{P}\ [\mathrm{\sigma}]$',
         'rq': r'$r_Q\ [\mathrm{\sigma}]$',

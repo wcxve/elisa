@@ -452,7 +452,7 @@ class CompiledModel:
         Returns
         -------
         jax.Array, or dict[str, jax.Array]
-            The differential photon flux in units of cm⁻² s⁻¹ keV⁻¹.
+            The differential photon flux in units of ph cm⁻² s⁻¹ keV⁻¹.
         """
         if self.type != 'add':
             msg = f'N(E) is undefined for {self.type} type model "{self}"'
@@ -585,7 +585,7 @@ class CompiledModel:
         Returns
         -------
         jax.Array, or dict[str, jax.Array]
-            The folded model in units of s⁻¹ keV⁻¹.
+            The folded model in units of count s⁻¹ keV⁻¹.
         """
         if self.type != 'add':
             msg = f'C(E) is undefined for {self.type} type model "{self}"'
@@ -634,7 +634,7 @@ class CompiledModel:
             Parameter sequence or mapping for the model.
         energy : bool, optional
             When True, calculate energy flux in units of erg cm⁻² s⁻¹;
-            otherwise calculate photon flux in units of cm⁻² s⁻¹.
+            otherwise calculate photon flux in units of ph cm⁻² s⁻¹.
             The default is True.
         comps : bool, optional
             Whether to return the result of each component. The default is
@@ -1779,7 +1779,7 @@ class AnaIntAdditive(AnalyticalIntegral, AdditiveComponent):
         Returns
         -------
         jax.Array
-            The photon flux integrated over `egrid`, in units of cm⁻² s⁻¹.
+            The photon flux integrated over `egrid`, in units of ph cm⁻² s⁻¹.
         """
         pass
 
@@ -1802,7 +1802,7 @@ class NumIntAdditive(NumericalIntegral, AdditiveComponent):
         Returns
         -------
         jax.Array
-            The photon flux at `egrid`, in units of cm⁻² s⁻¹ keV⁻¹.
+            The photon flux at `egrid`, in units of ph cm⁻² s⁻¹ keV⁻¹.
         """
         pass
 
