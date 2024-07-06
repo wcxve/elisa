@@ -51,27 +51,15 @@ exclude_patterns = ['_build']
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_book_theme'
+html_theme = 'pydata_sphinx_theme'
 html_theme_options = {
     'github_url': 'https://github.com/wcxve/elisa',
-    'repository_url': 'https://github.com/wcxve/elisa',
-    'repository_branch': 'main',
-    'path_to_docs': 'docs',
-    'launch_buttons': {
-        'binderhub_url': 'https://mybinder.org',
-        'colab_url': 'https://colab.research.google.com/',
-        'notebook_interface': 'jupyterlab',
-    },
-    'navigation_with_keys': False,
-    'use_edit_page_button': True,
-    'use_repository_button': True,
-    'use_download_button': True,
-    'use_issues_button': True,
+    'show_nav_level': 2,
 }
 html_title = 'ELISA'
 html_static_path = ['_static']
 html_css_files = ['custom.css']
-html_logo = '_static/logo2.png'
+html_logo = '_static/logo1.png'
 html_favicon = '_static/favicon.svg'
 html_baseurl = 'https://elisa-lib.readthedocs.io/en/latest/'
 html_show_sourcelink = False
