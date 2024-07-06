@@ -55,13 +55,13 @@ docs = [
     "jupyterlab_widgets",
     "sphinx",
     "sphinx-autodoc-typehints",
-    "sphinx-book-theme",
     "sphinx-codeautolink",
     "sphinx-copybutton",
     "sphinx-design",
     "myst-nb",
     "numba",
     "numpydoc",
+    "pydata-sphinx-theme",
     "widgetsnbextension",
 ]
 dev = ["pre-commit>=3.6.0", "ruff>=2.0"]
