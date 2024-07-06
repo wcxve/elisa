@@ -32,7 +32,6 @@ extensions = [
     'sphinx.ext.viewcode',
     'numpydoc',
     'sphinx_autodoc_typehints',
-    'sphinx_book_theme',
     'sphinx_codeautolink',
     'sphinx_copybutton',
     'sphinx_design',
