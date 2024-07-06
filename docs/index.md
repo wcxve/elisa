@@ -1,3 +1,7 @@
+---
+html_theme.sidebar_secondary.remove:
+---
+
 # ELISA: Efficient Library for Spectral Analysis in High-Energy Astrophysics
 
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-lib?color=blue&logo=Python&logoColor=white&style=for-the-badge)](https://pypi.org/project/elisa-lib)
@@ -15,9 +19,6 @@ The key features of ``ELISA`` include:
 - **Performance**: Efficient computation backend based on [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html)
 - ...
 
-**NOTE**: The documentations of ``ELISA`` is a work in progress. If you have any
-questions or suggestions, please feel free to open an issue on the [GitHub issues page](https://github.com/wcxve/elisa/issues).
-
 ```{admonition} How to find your way around?
 :class: tip
 
@@ -33,14 +34,14 @@ and tricks.
 stumble upon bugs, we’d love your input! Check out our {ref}`contributing`
 section and share your findings on the
 [GitHub issues page](https://github.com/wcxve/elisa/issues).
-
-👈 Take a peek at the sidebar for the full table of contents.
 ```
 
-## Table of contents
+**NOTE**: The documentations of ``ELISA`` is a work in progress. If you have any
+questions or suggestions, please feel free to open an issue on the [GitHub issues page](https://github.com/wcxve/elisa/issues).
 
 ```{toctree}
 :maxdepth: 2
+:hidden:
 
 guide
 tutorials
