@@ -392,7 +392,7 @@ class MLEResult(FitResult):
         ci_fn = lambda x: np.quantile(x, q)
         intervals = jax.tree_map(ci_fn, boot_flux)
         errors = jax.tree_map(
-            lambda x, y: (x - y[0], x - y[1]), mle_flux, intervals
+            lambda x, y: (y[0] - x, y[1] - x), mle_flux, intervals
         )
         add_unit = lambda x: x * unit
         return {
@@ -1117,7 +1117,7 @@ class PosteriorResult(FitResult):
         median = jax.tree_map(lambda x: np.median(x), flux)
         intervals = jax.tree_map(ci_fn, flux)
         errors = jax.tree_map(
-            lambda x, y: (x - y[0], x - y[1]), median, intervals
+            lambda x, y: (y[0] - x, y[1] - x), median, intervals
         )
         add_unit = lambda x: x * unit
         return {
