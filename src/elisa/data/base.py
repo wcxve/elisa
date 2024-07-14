@@ -464,7 +464,12 @@ class ObservationData:
 
         self.set_grouping(grouping)
 
-    def plot_spec(self, xlog: bool = True, ylog: bool = True):
+    def plot_spec(
+        self,
+        xlog: bool = True,
+        data_ylog: bool = True,
+        sig_ylog: bool = False,
+    ):
         """Plot the spectrum.
 
         .. warning::
@@ -475,8 +480,12 @@ class ObservationData:
         ----------
         xlog : bool, optional
             Whether to use log scale on x-axis. The default is True.
-        ylog : bool, optional
-            Whether to use log scale on y-axis. The default is True.
+        data_ylog : bool, optional
+            Whether to use log scale on y-axis in spectral plot.
+            The default is True.
+        sig_ylog : bool, optional
+            Whether to use log scale on y-axis in significance plot.
+            The default is False.
         """
         fig, axs = plt.subplots(
             nrows=2,
@@ -582,8 +591,9 @@ class ObservationData:
 
         if xlog:
             axs[0].set_xscale('log')
-        if ylog:
+        if data_ylog:
             axs[0].set_yscale('log')
+        if sig_ylog:
             axs[1].set_yscale('log')
 
         axs[0].legend()
