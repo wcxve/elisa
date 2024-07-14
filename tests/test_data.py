@@ -1,6 +1,6 @@
 import numpy as np
 
-from elisa.data.grouping import significance_lima
+from elisa.data.grouping import significance_gv, significance_lima
 from elisa.models import PowerLaw
 
 
@@ -115,4 +115,32 @@ def test_data_grouping():
     scale = 1
     data.group('optbsig', scale)
     sig = data.back_counts / data.back_errors
+    assert np.all(sig >= scale)
+
+    data = compiled_model.simulate(
+        photon_egrid=photon_egrid,
+        channel_emin=channel_emin,
+        channel_emax=channel_emax,
+        response_matrix=response_matrix,
+        spec_exposure=spec_exposure,
+        spec_poisson=True,
+        back_counts=np.full(nbins, 10),
+        back_errors=np.full(nbins, 2),
+        back_exposure=2.0,
+        back_poisson=False,
+        seed=seed,
+    )
+
+    scale = 1
+    data.group('sig', scale)
+    sig = significance_gv(
+        data.spec_counts, data.back_counts, data.back_errors, data.back_ratio
+    )
+    assert np.all(sig >= scale)
+
+    scale = 1
+    data.group('optbsig', scale)
+    sig = significance_gv(
+        data.spec_counts, data.back_counts, data.back_errors, data.back_ratio
+    )
     assert np.all(sig >= scale)

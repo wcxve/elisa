@@ -257,8 +257,8 @@ def significance_lima(
         term2[mask] = xlogy(
             n_off[mask], (1.0 + a) * n_off[mask] / (n_on[mask] + n_off[mask])
         )
-
-    return np.sqrt(2.0 * (term1 + term2))
+    sign = np.where(n_on >= a * n_off, 1.0, -1.0)
+    return sign * np.sqrt(2.0 * (term1 + term2))
 
 
 def significance_gv(
@@ -288,7 +288,8 @@ def significance_gv(
     term1 += b0_mle - n
 
     term2 = np.square(b - b0_mle) / (2 * s2)
-    return np.sqrt(2.0 * (term1 + term2))
+    sign = np.where(n >= b, 1.0, -1.0)
+    return sign * np.sqrt(2.0 * (term1 + term2))
 
 
 def group_optsig_normal(
