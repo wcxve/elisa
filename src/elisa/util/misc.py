@@ -375,45 +375,81 @@ def replace_string(value: T, mapping: dict[str, str]) -> T:
 
 
 def report_interval(
-    mid: float,
+    vmid: float,
     vmin: float,
     vmax: float,
     precision: int = 2,
     min_exponent: int = 1,
     max_exponent: int = 2,
 ) -> str:
-    """Report an interval."""
-    mid = float(mid)
+    r"""Report parameter interval in :math:`\LaTeX` format.
+
+    Parameters
+    ----------
+    vmid : float
+        The mid value.
+    vmin : float
+        The lower bound.
+    vmax : float
+        The upper bound.
+    precision : int, optional
+        The precision of the mid value. The default is 2.
+    min_exponent : int, optional
+        The minimum exponent to use scientific notation. The default is 1.
+    max_exponent : int, optional
+        The maximum exponent to use scientific notation. The default is 2.
+
+    Returns
+    -------
+    str
+        The interval in :math:`|LaTeX` format.
+    """
+    vmid = float(vmid)
     vmin = float(vmin)
     vmax = float(vmax)
-    p = int(precision)
+    precision = int(precision)
     min_exponent = int(min_exponent)
     max_exponent = int(max_exponent)
 
-    assert vmin <= mid <= vmax
+    # assert vmin <= vmid <= vmax
     assert precision > 0
     assert min_exponent > 0
     assert max_exponent > 0
 
-    lower = vmin - mid
-    upper = vmax - mid
-    exp = math.log10(math.fabs(mid))
-    if exp <= -min_exponent or exp >= max_exponent:
-        exp = math.floor(exp)
-        str_mid = f'{mid:.{p}e}'.split('e')[0]
-        str_lower = f'{lower / 10 ** exp:+.{p}e}'.split('e')[0]
-        str_upper = f'{upper / 10 ** exp:+.{p}e}'.split('e')[0]
+    def get_sci_notation_exponent(num: float) -> int:
+        """Get the exponent of a number in scientific notation."""
+        return math.floor(math.log10(abs(num)))
+
+    def get_sci_notation_significand(num: float, exp: int) -> str:
+        """Get the significand of a number in scientific notation."""
+        significand = num * 10**-exp
+        rounded = round(significand, precision)
+        if rounded < 10 ** (exp - precision):
+            p = abs(get_sci_notation_exponent(num) - exp)
+            return f'{significand:+.{p}f}'.rstrip('0')
+        else:
+            p = precision
+            return f'{significand:+.{p}f}'
+
+    lower = vmin - vmid
+    upper = vmax - vmid
+    exponent = math.log10(abs(vmid))
+    if exponent <= -min_exponent or exponent >= max_exponent:
+        base_exponent = math.floor(exponent)
+        str_mid, exp_mid = f'{vmid:.{precision}e}'.split('e')
+        str_lower = get_sci_notation_significand(lower, base_exponent)
+        str_upper = get_sci_notation_significand(upper, base_exponent)
         return (
             f'${str_mid}'
             f'_{{{str_lower}}}'
             f'^{{{str_upper}}}'
-            rf' \times 10^{{{exp}}}$'
+            rf' \times 10^{{{base_exponent}}}$'
         )
     else:
-        str_mid = f'{mid:.{p}f}'
-        str_lower = f'{lower:+.{p}f}'
-        str_upper = f'{upper:+.{p}f}'
-        return f'${str_mid}' f'_{{{str_lower}}}' f'^{{{str_upper}}}$'
+        str_mid = f'{vmid:.{precision}f}'
+        str_lower = get_sci_notation_significand(lower, 0)
+        str_upper = get_sci_notation_significand(upper, 0)
+        return f'${str_mid}_{{{str_lower}}}^{{{str_upper}}}$'
 
 
 def progress_bar_factory(
