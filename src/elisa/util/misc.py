@@ -418,7 +418,7 @@ def report_interval(
 
     def get_sci_notation_exponent(num: float) -> int:
         """Get the exponent of a number in scientific notation."""
-        return math.floor(math.log10(abs(round(num, precision))))
+        return int(f'{num:.{precision}e}'.split('e')[1])
 
     def get_sci_notation_significand(num: float, exp: int) -> str:
         """Get the significand of a number in scientific notation."""
