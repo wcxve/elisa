@@ -53,7 +53,7 @@ docs = [
     "ipywidgets",
     "jupyter",
     "jupyterlab_widgets",
-    "sphinx",
+    "sphinx>=7.4.0",
     "sphinx-autodoc-typehints",
     "sphinx-codeautolink",
     "sphinx-copybutton",
