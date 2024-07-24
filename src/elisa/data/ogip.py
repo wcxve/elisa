@@ -128,7 +128,7 @@ class Data(ObservationData):
         except PoissonFlagNotFoundError as err:
             raise PoissonFlagNotFoundError(
                 f'"POISSERR" is undefined in header of {specfile}, '
-                'spec_poisson be set manually, i.e., '
+                'spec_poisson must be set manually, i.e., '
                 'Data(..., spec_poisson=True/False)'
             ) from err
 
@@ -176,7 +176,7 @@ class Data(ObservationData):
         except PoissonFlagNotFoundError as err:
             raise PoissonFlagNotFoundError(
                 '"POISSERR" is undefined in header of background spectrum of '
-                f'{specfile}, back_poisson be set manually, i.e., '
+                f'{specfile}, back_poisson must be set manually, i.e., '
                 'Data(..., back_poisson=True/False)'
             ) from err
 
