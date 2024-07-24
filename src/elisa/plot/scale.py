@@ -140,7 +140,7 @@ class InvertedLinLogTransform(Transform):
         self.base = base
         self.lin_thresh = lin_thresh
         self.lin_scale = lin_scale
-        self._lin_scale_adj = lin_scale / (1.0 - self.base**-1)
+        self._lin_scale_adj = lin_scale / (1.0 - 1.0 / self.base)
         self.inv_lin_thresh = lin_thresh * self._lin_scale_adj
 
     def transform_non_affine(self, values: np.ndarray):
@@ -201,7 +201,9 @@ class _LinLogFormatter(LogFormatterSciNotation):
     def set_locs(self, locs=None):
         """Set the locations of the ticks."""
         super().set_locs(locs)
-        self._formatter_lin.set_locs(locs)
+        mask = np.less_equal(locs, self.__lin_thresh)
+        lin_locs = np.array(locs)[mask].tolist()
+        self._formatter_lin.set_locs(lin_locs)
 
 
 class LinLogLocator(Locator):
@@ -297,13 +299,11 @@ class LinLogLocator(Locator):
                 ticks_log = ticks_log[mask]
 
                 # ignore the first major tick of log range if too close to 0
-                if not self._is_minor:
-                    t0 = ticks_log[0]
-                    fx = np.log(t0) / self._log_base
-                    if np.isclose(fx, round(fx)):
-                        t0_ = self.transform_non_affine(np.asarray([t0]))
-                        if t0_ < self._lin_scale_adj:
-                            ticks_log = ticks_log[1:]
+                if (
+                    not self._is_minor
+                    and self._lin_thresh > ticks_log[0] * 0.8
+                ):
+                    ticks_log = ticks_log[1:]
 
                 ticks.append(ticks_log)
 
