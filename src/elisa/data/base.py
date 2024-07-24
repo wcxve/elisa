@@ -469,7 +469,7 @@ class ObservationData:
         xlog: bool = True,
         data_ylog: bool = True,
         sig_ylog: bool = False,
-    ):
+    ) -> plt.Figure:
         """Plot the spectrum.
 
         .. warning::
@@ -486,6 +486,11 @@ class ObservationData:
         sig_ylog : bool, optional
             Whether to use log scale on y-axis in significance plot.
             The default is False.
+
+        Returns
+        -------
+        plt.Figure
+            The figure object.
         """
         fig, axs = plt.subplots(
             nrows=2,
@@ -599,7 +604,11 @@ class ObservationData:
         axs[0].legend()
         axs[0].set_title(self.name)
 
-    def plot_effective_area(self, hatch: bool = True, ylog: bool = True):
+        return fig
+
+    def plot_effective_area(
+        self, hatch: bool = True, ylog: bool = True
+    ) -> plt.Figure:
         """Plot the effective area.
 
         Parameters
@@ -608,14 +617,19 @@ class ObservationData:
             Whether to add hatches in the ignored region. The default is True.
         ylog : bool, optional
             Whether to use log scale on y-axis. The default is True.
+
+        Returns
+        -------
+        plt.Figure
+            The figure object.
         """
-        self.resp_data.plot_effective_area(
+        return self.resp_data.plot_effective_area(
             noticed_range=self._erange if hatch else None,
             good_quality=self._good_quality,
             ylog=ylog,
         )
 
-    def plot_matrix(self, hatch: bool = True, norm: str = 'log') -> None:
+    def plot_matrix(self, hatch: bool = True, norm: str = 'log') -> plt.Figure:
         """Plot the response matrix.
 
         Parameters
@@ -624,8 +638,13 @@ class ObservationData:
             Whether to add hatches in the ignored region. The default is True.
         norm : str, optional
             Colorbar normalization method. The default is ``'log'``.
+
+        Returns
+        -------
+        plt.Figure
+            The figure object.
         """
-        self.resp_data.plot_matrix(
+        return self.resp_data.plot_matrix(
             noticed_range=self._erange if hatch else None,
             good_quality=self._good_quality,
             norm=norm,
@@ -1275,7 +1294,7 @@ class ResponseData:
         noticed_range: NDArray | None = None,
         good_quality: NDArray | None = None,
         ylog: bool = True,
-    ):
+    ) -> plt.Figure:
         """Plot the response matrix.
 
         Parameters
@@ -1287,6 +1306,11 @@ class ResponseData:
             It Must be the same length as the number of channels.
         ylog : bool, optional
             Whether to use log scale on y-axis. The default is True.
+
+        Returns
+        -------
+        fig : plt.Figure
+            The figure object.
         """
         if good_quality is None:
             eff_area = self.sparse_matrix.sum(axis=1)
@@ -1299,7 +1323,7 @@ class ResponseData:
             eff_area = (self.sparse_matrix * factor).sum(axis=1)
         eff_area = np.clip(eff_area, a_min=0.0, a_max=None)
 
-        plt.figure()
+        fig = plt.figure()
         plt.rcParams['axes.formatter.min_exponent'] = 3
         plt.step(self.photon_egrid, np.append(eff_area, eff_area[-1]))
         plt.xlim(self.photon_egrid[0], self.photon_egrid[-1])
@@ -1336,12 +1360,14 @@ class ResponseData:
                 )
             plt.ylim(ylim)
 
+        return fig
+
     def plot_matrix(
         self,
         noticed_range: NDArray | None = None,
         good_quality: NDArray | None = None,
         norm: str = 'log',
-    ):
+    ) -> plt.Figure:
         """Plot the response matrix.
 
         Parameters
@@ -1353,6 +1379,11 @@ class ResponseData:
             It Must be the same length as the number of channels.
         norm : str, optional
             Colorbar normalization method. The default is ``'log'``.
+
+        Returns
+        -------
+        fig : plt.Figure
+            The figure object.
         """
         channel_emin = self.channel_emin
         channel_emax = self.channel_emax
@@ -1386,7 +1417,7 @@ class ResponseData:
 
         channel_egrid = np.append(channel_emin, channel_emax[-1])
         ch, ph = np.meshgrid(channel_egrid, self.photon_egrid)
-        plt.figure()
+        fig = plt.figure()
         plt.rcParams['axes.formatter.min_exponent'] = 3
         plt.pcolormesh(ch, ph, matrix, cmap='magma', norm=norm)
         plt.xlabel('Measurement Energy [keV]')
@@ -1417,7 +1448,7 @@ class ResponseData:
             for i in ignored:
                 plt.fill_betweenx(y, *i, alpha=0.4, color='w', hatch='x')
 
-        plt.show()
+        return fig
 
     @property
     def photon_egrid(self) -> NDArray:
