@@ -6,7 +6,7 @@
 [![Coverage Status](https://img.shields.io/coverallsCoverage/github/wcxve/elisa?logo=Coveralls&logoColor=white&style=for-the-badge)](https://coveralls.io/github/wcxve/elisa)
 [![Documentation Status](https://img.shields.io/readthedocs/elisa-lib?logo=Read-the-Docs&logoColor=white&style=for-the-badge)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
 
-The aim of ``ELISA`` is to provide a modern and efficient tool to explore and
+``ELISA`` aims to provide a modern and efficient tool to explore and
 analyze the spectral data. It is designed to be user-friendly and flexible.
 The key features of ``ELISA`` include:
 
