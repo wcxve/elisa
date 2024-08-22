@@ -489,6 +489,19 @@ class OTTS(NumIntAdditive):
         return K * jnp.exp(-jnp.power(egrid / Ec, 1.0 / 3.0))
 
 
+def _powerlaw_integral(egrid: JAXArray, alpha: JAXArray) -> JAXArray:
+    cond = jnp.full(len(egrid), jnp.not_equal(alpha, 1.0))
+
+    one_minus_alpha = jnp.where(cond, 1.0 - alpha, 1.0)
+    f1 = jnp.power(egrid, one_minus_alpha) / one_minus_alpha
+    f1 = f1[1:] - f1[:-1]
+
+    f2 = jnp.log(egrid)
+    f2 = f2[1:] - f2[:-1]
+
+    return jnp.where(cond[:-1], f1, f2)
+
+
 class PowerLaw(AnaIntAdditive):
     r"""Power law function.
 
@@ -514,10 +527,7 @@ class PowerLaw(AnaIntAdditive):
 
     @staticmethod
     def integral(egrid: JAXArray, params: NameValMapping) -> JAXArray:
-        # ignore the case of alpha = 1.0
-        one_minus_alpha = 1.0 - params['alpha']
-        f = params['K'] / one_minus_alpha * jnp.power(egrid, one_minus_alpha)
-        return f[1:] - f[:-1]
+        return params['K'] * _powerlaw_integral(egrid, params['alpha'])
 
 
 class PLFluxNorm(AnaIntAdditive):
@@ -568,10 +578,7 @@ class PLFluxNorm(AnaIntAdditive):
 
     @staticmethod
     def integral(egrid: JAXArray, params: NameValMapping) -> JAXArray:
-        # ignore the case of alpha = 1.0
-        one_minus_alpha = 1.0 - params['alpha']
-        f = jnp.power(egrid, one_minus_alpha) / one_minus_alpha
-        return f[1:] - f[:-1]
+        return _powerlaw_integral(egrid, params['alpha'])
 
 
 class PLPhFlux(PLFluxNorm):
