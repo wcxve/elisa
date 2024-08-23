@@ -133,9 +133,19 @@ def plot_corner(
     plt.rcParams['axes.formatter.min_exponent'] = 3
     c1, c2 = get_contour_colors(color, len(levels), 0.8, 2.0)
 
+    vmin = {p: posterior[p].values.min() for p in params}
+    vmax = {p: posterior[p].values.max() for p in params}
+    if any(vmin[p] == vmax[p] for p in params):
+        plot_range = [
+            (vmin[p], vmax[p]) if vmin[p] != vmax[p] else 0.99 for p in params
+        ]
+    else:
+        plot_range = None
+
     fig = corner.corner(
         idata,
         bins=bins,
+        range=plot_range,
         axes_scale=axes_scale,
         color=color,
         hist_bin_factor=hist_bin_factor,
