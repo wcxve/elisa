@@ -1120,6 +1120,8 @@ class ResponseData:
         can be a sparse matrix.
     channel : array-like
         Measurement channel information.
+    channel_type : str, optional
+        Measurement channel type, e.g. `'PI'`. The default is 'Ch'.
     sparse : bool, optional
         Whether the response matrix is sparse. The default is False.
     """
