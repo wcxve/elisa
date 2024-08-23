@@ -433,22 +433,26 @@ def report_interval(
     lower = vmin - vmid
     upper = vmax - vmid
     exponent = math.log10(abs(vmid))
+
     if exponent <= -min_exponent or exponent >= max_exponent:
+        str_mid = f'{vmid:.{precision}e}'.split('e')[0]
         base_exponent = math.floor(exponent)
-        str_mid, exp_mid = f'{vmid:.{precision}e}'.split('e')
-        str_lower = get_sci_notation_significand(lower, base_exponent)
-        str_upper = get_sci_notation_significand(upper, base_exponent)
-        return (
-            f'${str_mid}'
-            f'_{{{str_lower}}}'
-            f'^{{{str_upper}}}'
-            rf' \times 10^{{{base_exponent}}}$'
-        )
+        suffix = rf' \times 10^{{{base_exponent}}}'
     else:
         str_mid = f'{vmid:.{precision}f}'
-        str_lower = get_sci_notation_significand(lower, 0)
-        str_upper = get_sci_notation_significand(upper, 0)
-        return f'${str_mid}_{{{str_lower}}}^{{{str_upper}}}$'
+        base_exponent = 0
+        suffix = ''
+
+    if lower != 0:
+        str_lower = get_sci_notation_significand(lower, base_exponent)
+    else:
+        str_lower = '-0'
+    if upper != 0:
+        str_upper = get_sci_notation_significand(upper, base_exponent)
+    else:
+        str_upper = '+0'
+
+    return f'${str_mid}_{{{str_lower}}}^{{{str_upper}}}{suffix}$'
 
 
 def progress_bar_factory(
