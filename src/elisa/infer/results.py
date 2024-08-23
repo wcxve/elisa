@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from importlib import metadata
 from typing import TYPE_CHECKING, NamedTuple
@@ -292,8 +293,14 @@ class MLEResult(FitResult):
             The confidence intervals.
         """
         if not self._minuit.valid:
-            msg = 'the fit must be valid to calculate confidence interval'
-            raise RuntimeError(msg)
+
+            class InvalidFitWarning(Warning):
+                pass
+
+            warnings.warn(
+                'the fit must be valid to calculate confidence interval',
+                InvalidFitWarning,
+            )
 
         if cl <= 0.0:
             raise ValueError('cl must be non-negative')
@@ -712,8 +719,25 @@ class MLEResult(FitResult):
         n = boot.n_valid - boot.n_valid % jax.local_device_count()
         return {k: v[:n] for k, v in boot.params.items()}
 
+    def _ci_invalid(self, names: Iterable[str]):
+        """Confidence interval of invalid fit."""
+        interval = {k: (float('nan'), float('nan')) for k in names}
+        status = {
+            k: {
+                'valid': (False, False),
+                'at_limit': (False, False),
+                'at_max_fcn': (False, False),
+                'new_min': (False, False),
+            }
+            for k in names
+        }
+        return interval, status
+
     def _ci_free(self, names: Iterable[str], cl: float | int):
         """Confidence interval of free parameters."""
+        if not self._minuit.valid:
+            return self._ci_invalid(names)
+
         self._minuit.minos(*names, cl=cl)
         mle_unconstr = self._minuit.values.to_dict()
         ci_unconstr = self._minuit.merrors
@@ -752,6 +776,8 @@ class MLEResult(FitResult):
         .. [1] Eq.24 of https://doi.org/10.1007/s11222-021-10012-y
         .. [2] https://github.com/vemomoto/vemomoto/blob/master/ci_rvm/ci_rvm/ci_rvm.py#L1455
         """
+        if not self._minuit.valid:
+            return self._ci_invalid(names)
 
         def loss_factory(name, mle):
             """Factory to create loss function for composite parameter."""
