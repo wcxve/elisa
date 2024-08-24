@@ -90,8 +90,10 @@ python = ["3.9", "3.10", "3.11"]
 [tool.ruff]
 line-length = 79
 target-version = "py39"
-extend-exclude = ["src/elisa/infer/nested_sampling.py"]
-#extend-include = ["*.ipynb"]
+extend-exclude = [
+    "*.ipynb",
+    "src/elisa/infer/nested_sampling.py",
+]
 format.quote-style = "single"
 lint.extend-select = ["Q"]
 lint.flake8-quotes.inline-quotes = "single"
