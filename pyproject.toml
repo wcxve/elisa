@@ -114,7 +114,7 @@ lint.select = [
 #lint.pydocstyle.convention = "numpy"
 
 [tool.ruff.lint.per-file-ignores]
-"docs/notebooks/model_building.ipynb" = ["F403", "F405"]
+"docs/notebooks/model-building.ipynb" = ["F403", "F405"]
 
 [tool.coverage.run]
 branch = true
