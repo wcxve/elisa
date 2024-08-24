@@ -90,10 +90,7 @@ python = ["3.9", "3.10", "3.11"]
 [tool.ruff]
 line-length = 79
 target-version = "py39"
-extend-exclude = [
-    "*.ipynb",
-    "src/elisa/infer/nested_sampling.py",
-]
+extend-exclude = ["src/elisa/infer/nested_sampling.py"]
 format.quote-style = "single"
 lint.extend-select = ["Q"]
 lint.flake8-quotes.inline-quotes = "single"
@@ -115,6 +112,9 @@ lint.select = [
     "UP",  # pyupgrade
 ]
 #lint.pydocstyle.convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"docs/notebooks/model_building.ipynb" = ["F403", "F405"]
 
 [tool.coverage.run]
 branch = true
