@@ -524,7 +524,7 @@ class BayesFit(Fit):
     def nuts(
         self,
         warmup=2000,
-        samples=20000,
+        steps=5000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
@@ -541,8 +541,8 @@ class BayesFit(Fit):
         ----------
         warmup : int, optional
             Number of warmup steps.
-        samples : int, optional
-            Number of samples to generate from each chain.
+        steps : int, optional
+            Number of steps to run for each chain.
         chains : int, optional
             Number of MCMC chains to run. If there are not enough devices
             available, chains will run in sequence. Defaults to the number of
@@ -573,11 +573,11 @@ class BayesFit(Fit):
         else:
             chains = int(chains)
 
-        samples = int(samples)
+        steps = int(steps)
 
         # the total samples number should be multiple of the device number
-        if chains * samples % device_count != 0:
-            samples += device_count - samples % device_count
+        if chains * steps % device_count != 0:
+            steps += device_count - steps % device_count
 
         # TODO: option to let sampler starting from MLE
         if init is None:
@@ -597,7 +597,7 @@ class BayesFit(Fit):
         sampler = MCMC(
             NUTS(**nuts_kwargs),
             num_warmup=warmup,
-            num_samples=samples,
+            num_samples=steps,
             num_chains=chains,
             chain_method=chain_method,
             progress_bar=progress,
@@ -704,7 +704,7 @@ class BayesFit(Fit):
 
     def ultranest(
         self,
-        ess: int = 10000,
+        ess: int = 3000,
         ignore_nan: bool = True,
         *,
         constructor_kwargs: dict | None = None,
@@ -814,7 +814,7 @@ class BayesFit(Fit):
 
     def nautilus(
         self,
-        ess: int = 10000,
+        ess: int = 3000,
         ignore_nan: bool = True,
         parallel: bool = True,
         n_batch: int = 5000,
@@ -923,7 +923,7 @@ class BayesFit(Fit):
     def aies(
         self,
         warmup=2000,
-        samples=20000,
+        steps=5000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
         chain_method: str = 'vectorized',
@@ -947,8 +947,8 @@ class BayesFit(Fit):
         ----------
         warmup : int, optional
             Number of warmup steps.
-        samples : int, optional
-            Number of samples to generate from each chain.
+        steps : int, optional
+            Number of steps to run for each chain.
         chains : int, optional
             Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
             the dimension of model parameters.
@@ -1005,7 +1005,7 @@ class BayesFit(Fit):
         sampler = MCMC(
             AIES(**aies_kwargs),
             num_warmup=warmup,
-            num_samples=samples,
+            num_samples=steps,
             num_chains=chains,
             chain_method=chain_method,
             progress_bar=progress,

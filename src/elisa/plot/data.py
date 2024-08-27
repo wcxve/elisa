@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import Any, Callable, Literal
 
+    from xarray import DataArray
+
     from elisa.infer.results import (
         BootstrapResult,
         FitResult,
@@ -621,7 +623,8 @@ class MLEPlotData(PlotData):
 
         lower = upper = False
 
-        if self.statistic == 'chi2':
+        stat = self.statistic
+        if stat == 'chi2':
             mask = (pit == 0.0) | (pit == 1.0)
             if np.any(mask):
                 on_data = self.net_counts[mask]
@@ -629,7 +632,7 @@ class MLEPlotData(PlotData):
                 error = self.net_errors[mask]
                 r[mask] = (on_data - on_model) / error
 
-        elif self.statistic in {'cstat', 'pstat'}:
+        elif stat in {'cstat', 'pstat'}:
             mask = (pit == 0.0) | (pit == 1.0)
             if np.any(mask):
                 on_data = self.spec_counts[mask]
@@ -642,7 +645,7 @@ class MLEPlotData(PlotData):
                     seed=seed,
                 )
 
-        elif self.statistic in {'pgstat', 'wstat'}:
+        elif stat in {'pgstat', 'wstat'}:
             upper_mask = pit == 0.0
             if np.any(upper_mask):
                 r[upper_mask] = stats.norm.ppf(1.0 / self._nsim)
@@ -689,13 +692,20 @@ class PosteriorPlotData(PlotData):
 
     @_to_cached_method
     def get_model_median(self, name: str) -> Array:
-        posterior = self.result._idata['posterior'][name]
+        posterior = self.result.idata['posterior'][name]
         return posterior.median(dim=('chain', 'draw')).values
 
     @_to_cached_method
-    def get_model_posterior(self, name: str) -> Array:
-        posterior = self.result._idata['posterior'][name].values
-        return np.concatenate(posterior)
+    def get_model_loo(self, name: str) -> Array:
+        posterior = self.result.idata['posterior'][name]
+        posterior = posterior.stack(__sample__=('chain', 'draw'))
+        return self.result._loo_expectation(posterior, self.name).values
+
+    @_to_cached_method
+    def get_model_posterior(self, name: str) -> DataArray:
+        posterior = self.result.idata['posterior'][name]
+        # return shape (n_samples, n_channel)
+        return posterior.stack(__sample__=('chain', 'draw')).T
 
     def get_model_ppc(self, name: str) -> Array | None:
         if self.ppc is None:
@@ -718,7 +728,7 @@ class PosteriorPlotData(PlotData):
     def ce_model_ci(self, cl: float = 0.683) -> Array:
         assert 0.0 < cl < 1.0
         return np.quantile(
-            self.get_model_posterior(self.name),
+            self.get_model_posterior(self.name).values,
             q=0.5 + cl * np.array([-0.5, 0.5]),
             axis=0,
         )
@@ -761,6 +771,7 @@ class PosteriorPlotData(PlotData):
         """Sign of the difference between the data and the fitted models."""
         return {
             'posterior': self._sign_posterior(),
+            'loo': self._sign_loo(),
             'median': self._sign_median(),
             'mle': self._sign_mle(),
             'ppc': self._sign_ppc(),
@@ -770,6 +781,11 @@ class PosteriorPlotData(PlotData):
     def _sign_posterior(self) -> Array:
         ce_posterior = self.get_model_posterior(self.name)
         return np.where(self.ce_data >= ce_posterior, 1.0, -1.0)
+
+    @_to_cached_method
+    def _sign_loo(self) -> Array:
+        ce_loo = self.get_model_loo(self.name)
+        return np.where(self.ce_data >= ce_loo, 1.0, -1.0)
 
     @_to_cached_method
     def _sign_median(self) -> Array:
@@ -797,6 +813,7 @@ class PosteriorPlotData(PlotData):
         on_name = f'{self.name}_Non_model'
         return {
             'posterior': self.get_model_posterior(on_name),
+            'loo': self.get_model_loo(on_name),
             'median': self.get_model_median(on_name),
             'mle': self.get_model_mle(on_name),
             'ppc': self.get_model_ppc(on_name),
@@ -807,6 +824,7 @@ class PosteriorPlotData(PlotData):
         if self.statistic not in _STATISTIC_WITH_BACK:
             return {
                 'posterior': None,
+                'loo': None,
                 'median': None,
                 'mle': None,
                 'ppc': None,
@@ -815,6 +833,7 @@ class PosteriorPlotData(PlotData):
         off_name = f'{self.name}_Noff_model'
         return {
             'posterior': self.get_model_posterior(off_name),
+            'loo': self.get_model_loo(off_name),
             'median': self.get_model_median(off_name),
             'mle': self.get_model_mle(off_name),
             'ppc': self.get_model_ppc(off_name),
@@ -823,8 +842,10 @@ class PosteriorPlotData(PlotData):
     @property
     def deviance(self) -> dict[str, Array | None]:
         """Median, MLE, and ppc deviance."""
-        loglike = self.result._idata['log_likelihood'][self.name].values
-        posterior = -2.0 * np.concatenate(loglike)
+        loglike = self.result.idata['log_likelihood'][self.name]
+        posterior = -2.0 * loglike.stack(__sample__=('chain', 'draw')).T
+
+        loo = self.result._loo_expectation(posterior, self.name)
 
         mle = self.result._mle
         if mle is not None:
@@ -834,7 +855,7 @@ class PosteriorPlotData(PlotData):
         if ppc is not None:
             ppc = ppc.deviance['point'][self.name]
 
-        return {'posterior': posterior, 'mle': mle, 'ppc': ppc}
+        return {'posterior': posterior, 'loo': loo, 'mle': mle, 'ppc': ppc}
 
     def pit(self) -> tuple:
         return self.result._loo_pit[self.name]
@@ -852,7 +873,7 @@ class PosteriorPlotData(PlotData):
             seed = self.seed if seed is None else int(seed)
             return self.quantile_residuals(seed, random_quantile)
         else:
-            point_type = 'mle' if mle else 'median'
+            point_type = 'mle' if mle else 'loo'
             rname = 'deviance' if rtype == 'rd' else 'pearson'
             return getattr(self, f'{rname}_residuals_{point_type}')()
 
@@ -895,6 +916,10 @@ class PosteriorPlotData(PlotData):
             return np.row_stack([-q, q])
 
     @_to_cached_method
+    def deviance_residuals_loo(self) -> Array:
+        return self._deviance_residuals('loo')
+
+    @_to_cached_method
     def deviance_residuals_median(self) -> Array:
         return np.median(self._deviance_residuals('posterior'), axis=0)
 
@@ -909,7 +934,7 @@ class PosteriorPlotData(PlotData):
         return self._deviance_residuals('ppc')
 
     def _deviance_residuals(
-        self, rtype: Literal['posterior', 'mle', 'ppc']
+        self, rtype: Literal['loo', 'posterior', 'mle', 'ppc']
     ) -> Array | None:
         if rtype in ['mle', 'ppc'] and self.ppc is None:
             return None
@@ -917,6 +942,10 @@ class PosteriorPlotData(PlotData):
         # NB: if background is present, then this assumes the background is
         #     being profiled out, so that each src & bkg data pair has ~1 dof
         return self.sign[rtype] * np.sqrt(self.deviance[rtype])
+
+    @_to_cached_method
+    def pearson_residuals_loo(self) -> Array:
+        return self._pearson_residuals('loo')
 
     @_to_cached_method
     def pearson_residuals_median(self) -> Array:
@@ -933,21 +962,22 @@ class PosteriorPlotData(PlotData):
         return self._pearson_residuals('ppc')
 
     def _pearson_residuals(
-        self, rtype: Literal['posterior', 'mle', 'ppc']
+        self, rtype: Literal['posterior', 'loo', 'mle', 'ppc']
     ) -> Array | None:
         if rtype in ['mle', 'ppc'] and self.ppc is None:
             return None
 
         stat = self.statistic
+        mtype = 'posterior' if rtype == 'loo' else rtype
 
-        if rtype in {'posterior', 'mle'}:
+        if rtype in {'posterior', 'loo', 'mle'}:
             if stat in _STATISTIC_SPEC_NORMAL:
                 on_data = self.net_counts
             else:
                 on_data = self.spec_counts
         else:
             on_data = self.ppc.data[f'{self.name}_Non']
-        on_model = self.on_models[rtype]
+        on_model = self.on_models[mtype]
 
         if stat in _STATISTIC_SPEC_NORMAL:
             std = self.net_errors
@@ -957,13 +987,13 @@ class PosteriorPlotData(PlotData):
         r = pearson_residuals(on_data, on_model, std)
 
         if stat in _STATISTIC_WITH_BACK:
-            if rtype in {'posterior', 'mle'}:
+            if rtype in {'posterior', 'loo', 'mle'}:
                 off_data = self.back_counts
             else:
                 off_data = self.ppc.data[f'{self.name}_Noff']
-            off_model = self.off_models[rtype]
+            off_model = self.off_models[mtype]
 
-            if self.statistic in _STATISTIC_BACK_NORMAL:
+            if stat in _STATISTIC_BACK_NORMAL:
                 std = self.back_errors
             else:
                 std = None
@@ -973,6 +1003,10 @@ class PosteriorPlotData(PlotData):
             # NB: this assumes the background is being profiled out,
             #     so that each src & bkg data pair has ~1 dof
             r = self.sign[rtype] * np.sqrt(r * r + r_b * r_b)
+
+        if rtype == 'loo':
+            r = self.result._loo_expectation(np.abs(r), self.name)
+            r *= self.sign[rtype]
 
         return r
 
@@ -985,8 +1019,8 @@ class PosteriorPlotData(PlotData):
         r = stats.norm.ppf(pit)
 
         # Assume the posterior prediction is nchan * ndraw times
-        nchain = len(self.result._idata['posterior']['chain'])
-        ndraw = len(self.result._idata['posterior']['draw'])
+        nchain = len(self.result.idata['posterior']['chain'])
+        ndraw = len(self.result.idata['posterior']['draw'])
         nsim = nchain * ndraw
 
         lower = upper = False
