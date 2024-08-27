@@ -872,7 +872,6 @@ class PosteriorResult(FitResult):
     _psislw_: DataArray | None = None
     _loo: az.stats.stats_utils.ELPDData | None = None
     _waic: az.stats.stats_utils.ELPDData | None = None
-    _mcse: dict[str, dict[str, float]] | None = None
     _rhat: dict[str, float] | None = None
     _divergence: int | None = None
     _pit: dict[str, tuple] | None = None
@@ -1744,39 +1743,6 @@ class PosteriorResult(FitResult):
     def reff(self) -> float:
         """Relative MCMC efficiency."""
         return self._reff
-
-    @property
-    def mcse(self) -> dict[str, dict[str, float]]:
-        """Monte Carlo standard error."""
-        if self._mcse is None:
-            params_names = self._helper.params_names['all']
-            posterior = self.idata['posterior'][params_names]
-
-            def mcse(method, prob=None):
-                return az.mcse(posterior, method=method, prob=prob)
-
-            mcse_mean = {
-                k: float(v.values) for k, v in mcse('mean').data_vars.items()
-            }
-            mcse_sd = {
-                k: float(v.values) for k, v in mcse('sd').data_vars.items()
-            }
-            mcse_median = {
-                k: float(v.values) for k, v in mcse('median').data_vars.items()
-            }
-            mcse_quantile = {
-                k: float(v.values)
-                for k, v in mcse('quantile', prob=0.683).data_vars.items()
-            }
-
-            self._mcse = {
-                'mean': mcse_mean,
-                'sd': mcse_sd,
-                'median': mcse_median,
-                '68.3% quantile': mcse_quantile,
-            }
-
-        return self._mcse
 
     @property
     def ess(self) -> dict[str, int]:
