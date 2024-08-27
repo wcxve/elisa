@@ -37,6 +37,7 @@ if TYPE_CHECKING:
     from astropy.cosmology.flrw.lambdacdm import LambdaCDM
     from astropy.units import Quantity as Q
     from iminuit.util import FMin
+    from xarray import DataArray
 
     from elisa.infer.fit import BayesFit
     from elisa.infer.helper import Helper
@@ -868,8 +869,10 @@ class PosteriorResult(FitResult):
     _deviance: dict | None = None
     _mle_result: dict | None = None
     _ppc: PPCResult | None = None
+    _psislw_: DataArray | None = None
     _loo: az.stats.stats_utils.ELPDData | None = None
     _waic: az.stats.stats_utils.ELPDData | None = None
+    _mcse: dict[str, dict[str, float]] | None = None
     _rhat: dict[str, float] | None = None
     _divergence: int | None = None
     _pit: dict[str, tuple] | None = None
@@ -942,10 +945,10 @@ class PosteriorResult(FitResult):
         rows = [
             [
                 k,
-                f'{mean[k]:.4g}',
-                f'{std[k]:.4g}',
-                f'{median[k]:.4g}',
-                f'[{ci[k][0]:.4g}, {ci[k][1]:.4g}]',
+                f'{mean[k]:.3g}',
+                f'{std[k]:.3g}',
+                f'{median[k]:.3g}',
+                f'[{ci[k][0]:.3g}, {ci[k][1]:.3g}]',
                 f'{ess[k]}',
                 f'{rhat[k]:.2f}' if not np.isnan(rhat[k]) else 'N/A',
             ]
@@ -954,9 +957,9 @@ class PosteriorResult(FitResult):
         names = [
             'Parameter',
             'Mean',
-            'Std',
+            'StdDev',
             'Median',
-            '68.3% Quantile CI',
+            '68.3% Quantile',
             'ESS',
             'Rhat',
         ]
@@ -1743,6 +1746,39 @@ class PosteriorResult(FitResult):
         return self._reff
 
     @property
+    def mcse(self) -> dict[str, dict[str, float]]:
+        """Monte Carlo standard error."""
+        if self._mcse is None:
+            params_names = self._helper.params_names['all']
+            posterior = self.idata['posterior'][params_names]
+
+            def mcse(method, prob=None):
+                return az.mcse(posterior, method=method, prob=prob)
+
+            mcse_mean = {
+                k: float(v.values) for k, v in mcse('mean').data_vars.items()
+            }
+            mcse_sd = {
+                k: float(v.values) for k, v in mcse('sd').data_vars.items()
+            }
+            mcse_median = {
+                k: float(v.values) for k, v in mcse('median').data_vars.items()
+            }
+            mcse_quantile = {
+                k: float(v.values)
+                for k, v in mcse('quantile', prob=0.683).data_vars.items()
+            }
+
+            self._mcse = {
+                'mean': mcse_mean,
+                'sd': mcse_sd,
+                'median': mcse_median,
+                '68.3% quantile': mcse_quantile,
+            }
+
+        return self._mcse
+
+    @property
     def ess(self) -> dict[str, int]:
         """Effective MCMC sample size."""
         return self._ess
@@ -1762,16 +1798,10 @@ class PosteriorResult(FitResult):
         if self._rhat is None:
             params_names = self._helper.params_names['all']
             posterior = self.idata['posterior'][params_names]
-
-            if len(posterior['chain']) == 1:
-                rhat = {k: float('nan') for k in posterior.data_vars.keys()}
-            else:
-                rhat = {
-                    k: float(v.values)
-                    for k, v in az.rhat(posterior).data_vars.items()
-                }
-
-            self._rhat = rhat
+            self._rhat = {
+                k: float(v.values)
+                for k, v in az.rhat(posterior).data_vars.items()
+            }
 
         return self._rhat
 
@@ -1839,23 +1869,61 @@ class PosteriorResult(FitResult):
         return self._lnZ
 
     @property
+    def _psislw(self) -> DataArray:
+        if self._psislw_ is None:
+            idata = self.idata
+            reff = self.reff
+            stack_kwargs = {'__sample__': ('chain', 'draw')}
+            log_weights, kss = az.psislw(
+                -idata['log_likelihood']['channels'].stack(**stack_kwargs),
+                reff,
+            )
+            self._psislw_ = log_weights
+        return self._psislw_
+
+    def _loo_expectation(self, values: DataArray, data: str) -> DataArray:
+        """Computes weighted expectations using the PSIS weights.
+
+        Notes
+        -----
+        The expectations estimated assume that the PSIS approximation is
+        working well. A small Pareto k estimate is necessary, but not
+        sufficient to give reliable estimates.
+
+        Parameters
+        ----------
+        values : DataArray
+            Values to compute the expectation.
+        data : str
+            The data name.
+
+        Returns
+        -------
+        DataArray
+            The expectation of the values.
+        """
+        assert data in self._helper.data_names
+        channel = self._helper.channels[f'{data}_channel']
+        log_weights = self._psislw.sel(channel=channel)
+        log_weights = log_weights.rename({'channel': f'{data}_channel'})
+        log_expectation = log_weights + np.log(np.abs(values))
+        weighted = np.sign(values) * np.exp(log_expectation)
+        return weighted.sum(dim='__sample__')
+
+    @property
     def _loo_pit(self) -> dict[str, tuple]:
         """Leave-one-out probability integral transform."""
         if self._pit is not None:
             return self._pit
 
         idata = self.idata
-        reff = self.reff
         helper = self._helper
         stack_kwargs = {'__sample__': ('chain', 'draw')}
-        log_weights, kss = az.psislw(
-            -idata['log_likelihood']['channels'].stack(**stack_kwargs), reff
-        )
         y_hat = idata['posterior_predictive']['channels'].stack(**stack_kwargs)
         loo_pit = az.loo_pit(
             y=idata['observed_data']['channels'],
             y_hat=y_hat,
-            log_weights=log_weights,
+            log_weights=self._psislw,
         )
 
         loo_pit = {
@@ -1892,7 +1960,7 @@ class PosteriorResult(FitResult):
             loo_pit_minus = az.loo_pit(
                 y=y_miuns,
                 y_hat=y_hat,
-                log_weights=log_weights,
+                log_weights=self._psislw,
             )
             loo_pit_minus = {
                 name: loo_pit_minus.sel(channel=data.channel).values
