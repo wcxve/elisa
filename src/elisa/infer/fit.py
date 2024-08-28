@@ -1010,8 +1010,8 @@ class BayesFit(Fit):
             def do_mcmc(rng_key):
                 mcmc = MCMC(
                     aies_kernel,
-                    num_warmup=0,
-                    num_samples=warmup,
+                    num_warmup=warmup,
+                    num_samples=steps,
                     num_chains=chains,
                     chain_method='vectorized',
                     progress_bar=False,
@@ -1020,7 +1020,7 @@ class BayesFit(Fit):
                     rng_key,
                     init_params=init,
                 )
-                return mcmc.get_samples(), mcmc.get_extra_fields()
+                return {**mcmc.get_samples()}
 
             #
             rng_keys = jax.random.split(
@@ -1033,7 +1033,7 @@ class BayesFit(Fit):
                 num_warmup=warmup,
                 num_samples=steps,
             )
-            sampler._states = {sampler._sample_field: traces[0]}
+            sampler._states = {sampler._sample_field: traces}
             return PosteriorResult(sampler, self._helper, self)
 
         else:
