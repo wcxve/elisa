@@ -1006,6 +1006,7 @@ class BayesFit(Fit):
 
         if chain_method == 'parallel':
             aies_kernel = AIES(**aies_kwargs)
+
             def do_mcmc(rng_key):
                 mcmc = MCMC(
                     aies_kernel,
@@ -1015,11 +1016,16 @@ class BayesFit(Fit):
                     chain_method='vectorized',
                     progress_bar=False,
                 )
-                mcmc.run(rng_key, init_params=init,)
+                mcmc.run(
+                    rng_key,
+                    init_params=init,
+                )
                 return mcmc.get_samples(), mcmc.get_extra_fields()
-            # 
-            rng_keys = jax.random.split(jax.random.PRNGKey(self._helper.seed['mcmc']), 
-                                        chains)
+
+            #
+            rng_keys = jax.random.split(
+                jax.random.PRNGKey(self._helper.seed['mcmc']), chains
+            )
             traces = jax.pmap(do_mcmc)(rng_keys)
 
             sampler = MCMC(
