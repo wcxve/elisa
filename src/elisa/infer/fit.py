@@ -956,6 +956,8 @@ class BayesFit(Fit):
             Initial parameter for sampler to start from.
         chain_method : str, optional
             The chain method passed to :class:`numpyro.inf.MCMC`.
+            Only 'vectorized' or 'parallel' could be set.
+            Make sure `n` host devices are same with chains, If set 'parallel'.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
         moves : dict, optional
@@ -1002,17 +1004,44 @@ class BayesFit(Fit):
         else:
             aies_kwargs['moves'] = moves
 
-        sampler = MCMC(
-            AIES(**aies_kwargs),
-            num_warmup=warmup,
-            num_samples=steps,
-            num_chains=chains,
-            chain_method=chain_method,
-            progress_bar=progress,
-        )
+        if chain_method == 'parallel':
+            aies_kernel = AIES(**aies_kwargs)
+            def do_mcmc(rng_key):
+                mcmc = MCMC(
+                    aies_kernel,
+                    num_warmup=0,
+                    num_samples=warmup,
+                    num_chains=chains,
+                    chain_method='vectorized',
+                    progress_bar=False,
+                )
+                mcmc.run(rng_key, init_params=init,)
+                return mcmc.get_samples(), mcmc.get_extra_fields()
+            # 
+            rng_keys = jax.random.split(jax.random.PRNGKey(self._helper.seed['mcmc']), 
+                                        chains)
+            traces = jax.pmap(do_mcmc)(rng_keys)
 
-        sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-            init_params=init,
-        )
+            sampler = MCMC(
+                aies_kernel,
+                num_warmup=warmup,
+                num_samples=steps,
+            )
+            sampler._states = {sampler._sample_field: traces[0]}
+            return PosteriorResult(sampler, self._helper, self)
+
+        else:
+            sampler = MCMC(
+                AIES(**aies_kwargs),
+                num_warmup=warmup,
+                num_samples=steps,
+                num_chains=chains,
+                chain_method=chain_method,
+                progress_bar=progress,
+            )
+
+            sampler.run(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                init_params=init,
+            )
         return PosteriorResult(sampler, self._helper, self)
