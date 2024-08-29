@@ -24,7 +24,11 @@ from elisa.infer.likelihood import (
     pstat,
     wstat,
 )
-from elisa.util.misc import get_unit_latex, progress_bar_factory
+from elisa.util.misc import (
+    get_parallel_number,
+    get_unit_latex,
+    progress_bar_factory,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -697,22 +701,23 @@ def get_helper(fit: Fit) -> Helper:
         run_str: str,
         progress: bool,
         update_rate: int,
+        n_parallel: int,
     ) -> dict:
         """Fit simulation data in parallel."""
         n = len(result['valid'])
-        cores = jax.local_device_count()
-        batch = n // cores
+        n_parallel = int(n_parallel)
+        batch = n // n_parallel
 
         if progress:
             pbar_factory = progress_bar_factory(
-                n, cores, run_str=run_str, update_rate=update_rate
+                n, n_parallel, run_str=run_str, update_rate=update_rate
             )
             fn = pbar_factory(fit_once)
         else:
             fn = fit_once
 
         fit_pmap = jax.pmap(lambda *args: lax.fori_loop(0, batch, fn, args)[1])
-        reshape = lambda x: x.reshape((cores, -1) + x.shape[1:])
+        reshape = lambda x: x.reshape((n_parallel, -1) + x.shape[1:])
         result = fit_pmap(
             jax.tree_map(reshape, sim_data),
             jax.tree_map(reshape, result),
@@ -727,6 +732,7 @@ def get_helper(fit: Fit) -> Helper:
         model_values: dict[str, JAXArray],
         n: int = 1,
         parallel: bool = True,
+        n_parallel: int | None = None,
         progress: bool = True,
         update_rate: int = 50,
         run_str: str = 'Fitting',
@@ -745,6 +751,9 @@ def get_helper(fit: Fit) -> Helper:
             The number of simulations of each model value, by default 1.
         parallel : bool, optional
             Whether to fit in parallel, by default True.
+        n_parallel : int, optional
+            The number of parallel processes when `parallel` is ``True``.
+            Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar, by default True.
         update_rate : int, optional
@@ -764,6 +773,7 @@ def get_helper(fit: Fit) -> Helper:
             f'{k}_model': model_values[f'{k}_model'] for k in simulators
         }
         n = int(n)
+        n_parallel = get_parallel_number(n_parallel)
 
         assert set(free_params) == set(free_names)
         assert n > 0
@@ -809,8 +819,20 @@ def get_helper(fit: Fit) -> Helper:
         }
 
         # fit simulation data
-        fit_fn = sim_parallel_fit if parallel else sim_sequence_fit
-        result = fit_fn(sim_data, result, init, run_str, progress, update_rate)
+        if parallel:
+            result = sim_parallel_fit(
+                sim_data,
+                result,
+                init,
+                run_str,
+                progress,
+                update_rate,
+                n_parallel,
+            )
+        else:
+            result = sim_sequence_fit(
+                sim_data, result, init, run_str, progress, update_rate
+            )
         result['data'] = sim_data
         return result
 
@@ -991,6 +1013,6 @@ class Helper(NamedTuple):
     """Function to simulate data."""
 
     simulate_and_fit: Callable[
-        [int, dict, dict, int, bool, bool, int, str], dict
+        [int, dict, dict, int, bool, int, bool, int, str], dict
     ]
     """Function to simulate data and then fit the simulation data."""

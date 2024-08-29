@@ -27,7 +27,7 @@ from elisa.__about__ import __version__
 from elisa.infer.helper import check_params
 from elisa.infer.nested_sampling import NestedSampler
 from elisa.plot.plotter import MLEResultPlotter, PosteriorResultPlotter
-from elisa.util.misc import make_pretty_table
+from elisa.util.misc import get_parallel_number, make_pretty_table
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
@@ -644,6 +644,7 @@ class MLEResult(FitResult):
         n: int = 10000,
         seed: int | None = None,
         parallel: bool = True,
+        n_parallel: int | None = None,
         progress: bool = True,
         update_rate: int = 50,
     ):
@@ -658,15 +659,18 @@ class MLEResult(FitResult):
             The seed of random number generator used in parametric bootstrap.
         parallel : bool, optional
             Whether to run simulation fit in parallel. The default is True.
+        n_parallel : int, optional
+            Number of parallel processes to use when `parallel` is ``True``.
+            Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to display progress bar. The default is True.
         update_rate : int, optional
             The update rate of progress bar. The default is 50.
         """
         n = int(n)
-        n_core = jax.local_device_count()
-        if parallel and (n % n_core):
-            n += n_core - n % n_core
+        n_parallel = get_parallel_number(n_parallel)
+        if parallel and (n % n_parallel):
+            n += n_parallel - n % n_parallel
 
         # reuse the previous result if all setup is the same
         if self._boot and self._boot.n == n and self._boot.seed == seed:
@@ -684,6 +688,7 @@ class MLEResult(FitResult):
             models,
             n,
             parallel,
+            n_parallel,
             progress,
             update_rate,
             'Bootstrap',
@@ -1401,6 +1406,7 @@ class PosteriorResult(FitResult):
         n: int = 10000,
         seed: int | None = None,
         parallel: bool = True,
+        n_parallel: int | None = None,
         progress: bool = True,
         update_rate: int = 50,
     ):
@@ -1414,15 +1420,18 @@ class PosteriorResult(FitResult):
             The seed of random number generator used in posterior predictions.
         parallel : bool, optional
             Whether to run simulation fit in parallel. The default is True.
+        n_parallel : int, optional
+            Number of parallel processes to use when `parallel` is ``True``.
+            Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to display progress bar. The default is True.
         update_rate : int, optional
             The update rate of progress bar. The default is 50.
         """
         n = int(n)
-        n_core = jax.local_device_count()
-        if parallel and (n % n_core):
-            n += n_core - n % n_core
+        n_parallel = get_parallel_number(n_parallel)
+        if parallel and (n % n_parallel):
+            n += n_parallel - n % n_parallel
 
         # reuse the previous result if all setup is the same
         if self._ppc and self._ppc.n == n and self._ppc.seed == seed:
@@ -1448,7 +1457,15 @@ class PosteriorResult(FitResult):
 
         # perform ppc
         result = helper.simulate_and_fit(
-            seed, params, models, 1, parallel, progress, update_rate, 'PPC'
+            seed,
+            params,
+            models,
+            1,
+            parallel,
+            n_parallel,
+            progress,
+            update_rate,
+            'PPC',
         )
         valid = result.pop('valid')
         result = jax.tree_map(lambda x: x[valid], result)

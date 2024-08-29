@@ -264,7 +264,9 @@ def get_parallel_number(n: int | None) -> int:
     else:
         n = int(n)
         if n <= 0:
-            raise ValueError('`n` must be positive')
+            raise ValueError(
+                f'number of parallel processes must be positive, got {n}'
+            )
 
     if n > n_max:
         warnings.warn(
