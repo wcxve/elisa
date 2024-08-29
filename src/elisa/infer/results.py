@@ -663,12 +663,16 @@ class MLEResult(FitResult):
         update_rate : int, optional
             The update rate of progress bar. The default is 50.
         """
+        n = int(n)
+        n_core = jax.local_device_count()
+        if parallel and (n % n_core):
+            n += n_core - n % n_core
+
         # reuse the previous result if all setup is the same
         if self._boot and self._boot.n == n and self._boot.seed == seed:
             return
 
         helper = self._helper
-        n = int(n)
         seed = helper.seed['pred'] if seed is None else int(seed)
         params = {i: self._mle[i][0] for i in helper.params_names['free']}
         models = self._model_values
@@ -1415,13 +1419,17 @@ class PosteriorResult(FitResult):
         update_rate : int, optional
             The update rate of progress bar. The default is 50.
         """
+        n = int(n)
+        n_core = jax.local_device_count()
+        if parallel and (n % n_core):
+            n += n_core - n % n_core
+
         # reuse the previous result if all setup is the same
         if self._ppc and self._ppc.n == n and self._ppc.seed == seed:
             return
 
         helper = self._helper
         free_params = helper.params_names['free']
-        n = int(n)
         seed = helper.seed['pred'] if seed is None else int(seed)
 
         # randomly select n samples from posterior
