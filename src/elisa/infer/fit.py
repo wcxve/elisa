@@ -968,7 +968,7 @@ class BayesFit(Fit):
             ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-            Would be False, if `chain_method` set to ``'parallel'``.
+            If `chain_method` is set to ``'parallel'``, this is always False.
         moves : dict, optional
             Moves for the sampler.
         **aies_kwargs : dict
