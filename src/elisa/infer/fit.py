@@ -962,11 +962,13 @@ class BayesFit(Fit):
             Initial parameter for sampler to start from.
         chain_method : str, optional
             Available options are ``'vectorized'`` and ``'parallel'``.
+            Defaults to ``'vectorized'``.
         n_parallel : int, optional
             Number of parallel chains to run when `chain_method` is
             ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
+            Would be False, if `chain_method` set to ``'parallel'``.
         moves : dict, optional
             Moves for the sampler.
         **aies_kwargs : dict
