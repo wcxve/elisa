@@ -96,31 +96,43 @@ def test_trivial_bayes_fit():
         seed=seed,
     )
 
-    # Get Bayesian fit result, i.e. posterior
-    result = BayesFit(data, model).nuts()
+    sampling_kwargs = {
+        'nuts': {},
+        'jaxns': {},
+        'aies': {
+            'chain_method': 'parallel',
+            'n_parallel': 4,
+        },
+        'ultranest': {},
+        'nautilus': {},
+    }
 
-    # check the true parameters values are within the 90% CI
-    ci = result.ci(cl=0.9).intervals
-    assert ci['PowerLaw.K'][0] < K < ci['PowerLaw.K'][1]
-    assert ci['PowerLaw.alpha'][0] < alpha < ci['PowerLaw.alpha'][1]
+    for method, kwargs in sampling_kwargs.items():
+        # Get Bayesian fit result, i.e. posterior
+        result = getattr(BayesFit(data, model), method)(**kwargs)
 
-    # Check various methods of posterior result
-    assert result.ndata['total'] == nbins
-    assert result.dof == nbins - 2
+        # check the true parameters values are within the 90% CI
+        ci = result.ci(cl=0.9).intervals
+        assert ci['PowerLaw.K'][0] < K < ci['PowerLaw.K'][1]
+        assert ci['PowerLaw.alpha'][0] < alpha < ci['PowerLaw.alpha'][1]
 
-    result.ppc(1009)
-    result.flux(1, 2)
-    result.lumin(1, 10000, z=1)
-    result.eiso(1, 10000, z=1, duration=spec_exposure)
-    result.summary()
-    result.plot()
-    result.plot('data ne ene eene Fv vFv rq pit corner khat')
-    _ = result.deviance
-    _ = result.loo
-    _ = result.waic
-    assert all(i > 0.05 for i in result.gof.values())
+        # Check various methods of posterior result
+        assert result.ndata['total'] == nbins
+        assert result.dof == nbins - 2
 
-    plotter = result.plot
-    plotter.plot_qq('rd')
-    plotter.plot_qq('rp')
-    plotter.plot_qq('rq')
+        result.ppc(1009)
+        result.flux(1, 2)
+        result.lumin(1, 10000, z=1)
+        result.eiso(1, 10000, z=1, duration=spec_exposure)
+        result.summary()
+        result.plot()
+        result.plot('data ne ene eene Fv vFv rq pit corner khat')
+        _ = result.deviance
+        _ = result.loo
+        _ = result.waic
+        assert all(i > 0.05 for i in result.gof.values())
+
+        plotter = result.plot
+        plotter.plot_qq('rd')
+        plotter.plot_qq('rp')
+        plotter.plot_qq('rq')
