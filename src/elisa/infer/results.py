@@ -1772,10 +1772,16 @@ class PosteriorResult(FitResult):
         if self._rhat is None:
             params_names = self._helper.params_names['all']
             posterior = self.idata['posterior'][params_names]
-            self._rhat = {
-                k: float(v.values)
-                for k, v in az.rhat(posterior).data_vars.items()
-            }
+
+            if len(posterior['chain']) == 1:
+                rhat = {k: float('nan') for k in posterior.data_vars.keys()}
+            else:
+                rhat = {
+                    k: float(v.values)
+                    for k, v in az.rhat(posterior).data_vars.items()
+                }
+
+            self._rhat = rhat
 
         return self._rhat
 
