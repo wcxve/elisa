@@ -49,7 +49,7 @@ def test_trivial_max_like_fit():
     assert result.dof == nbins - 1
 
     # Check various methods of mle result
-    result.boot(1000)
+    result.boot(1009)
     result.ci(method='boot')
     result.flux(1, 2)
     result.lumin(1, 10000, z=1)
@@ -108,7 +108,7 @@ def test_trivial_bayes_fit():
     assert result.ndata['total'] == nbins
     assert result.dof == nbins - 2
 
-    result.ppc(1000)
+    result.ppc(1009)
     result.flux(1, 2)
     result.lumin(1, 10000, z=1)
     result.eiso(1, 10000, z=1, duration=spec_exposure)
