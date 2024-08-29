@@ -25,7 +25,12 @@ from elisa.infer.likelihood import _STATISTIC_OPTIONS
 from elisa.infer.nested_sampling import NestedSampler, reparam_loglike
 from elisa.infer.results import MLEResult, PosteriorResult
 from elisa.models.model import Model, get_model_info
-from elisa.util.misc import add_suffix, build_namespace, make_pretty_table
+from elisa.util.misc import (
+    add_suffix,
+    build_namespace,
+    get_parallel_number,
+    make_pretty_table,
+)
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Literal
@@ -927,6 +932,7 @@ class BayesFit(Fit):
         chains: int | None = None,
         init: dict[str, float] | None = None,
         chain_method: str = 'vectorized',
+        n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
         **aies_kwargs: dict,
@@ -955,7 +961,10 @@ class BayesFit(Fit):
         init : dict, optional
             Initial parameter for sampler to start from.
         chain_method : str, optional
-            The chain method passed to :class:`numpyro.inf.MCMC`.
+            Available options are ``'vectorized'`` and ``'parallel'``.
+        n_parallel : int, optional
+            Number of parallel chains to run when `chain_method` is
+            ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
         moves : dict, optional
@@ -1002,17 +1011,50 @@ class BayesFit(Fit):
         else:
             aies_kwargs['moves'] = moves
 
-        sampler = MCMC(
-            AIES(**aies_kwargs),
-            num_warmup=warmup,
-            num_samples=steps,
-            num_chains=chains,
-            chain_method=chain_method,
-            progress_bar=progress,
-        )
+        if chain_method == 'parallel':
+            aies_kernel = AIES(**aies_kwargs)
 
-        sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-            init_params=init,
-        )
+            def do_mcmc(rng_key):
+                mcmc = MCMC(
+                    aies_kernel,
+                    num_warmup=warmup,
+                    num_samples=steps,
+                    num_chains=chains,
+                    chain_method='vectorized',
+                    progress_bar=False,
+                )
+                mcmc.run(
+                    rng_key,
+                    init_params=init,
+                )
+                return mcmc.get_samples(group_by_chain=True)
+
+            rng_keys = jax.random.split(
+                jax.random.PRNGKey(self._helper.seed['mcmc']),
+                get_parallel_number(n_parallel),
+            )
+            traces = jax.pmap(do_mcmc)(rng_keys)
+            trace = {k: np.concatenate(v) for k, v in traces.items()}
+
+            sampler = MCMC(
+                aies_kernel,
+                num_warmup=warmup,
+                num_samples=steps,
+            )
+            sampler._states = {sampler._sample_field: trace}
+
+        else:
+            sampler = MCMC(
+                AIES(**aies_kwargs),
+                num_warmup=warmup,
+                num_samples=steps,
+                num_chains=chains,
+                chain_method=chain_method,
+                progress_bar=progress,
+            )
+
+            sampler.run(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                init_params=init,
+            )
         return PosteriorResult(sampler, self._helper, self)
