@@ -124,6 +124,10 @@ class BandEp(NumIntAdditive):
 
     where :math:`E_0` is the pivot energy fixed at 100 keV.
 
+    .. warning::
+        This model requires the low-energy power law index :math:`\alpha`
+        to be greater than -2.0.
+
     Parameters
     ----------
     alpha : Parameter, optional
@@ -147,7 +151,7 @@ class BandEp(NumIntAdditive):
     """
 
     _config = (
-        ParamConfig('alpha', r'\alpha', '', -1.0, -10.0, 5.0),
+        ParamConfig('alpha', r'\alpha', '', -1.0, -1.99, 10.0),
         ParamConfig('beta', r'\beta', '', -2.0, -10.0, 10.0),
         ParamConfig('Ep', r'E_\mathrm{p}', 'keV', 300.0, 10.0, 1e4),
         ParamConfig('K', 'K', 'ph cm^-2 s^-1 keV^-1', 1.0, 1e-10, 1e10),
