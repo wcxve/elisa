@@ -428,15 +428,17 @@ class MLEPlotData(PlotData):
             'boot': self.get_model_boot(off_name),
         }
 
-    @property
-    def deviance(self) -> dict[str, Array | None]:
+    def deviance(self, rtype: Literal['mle', 'boot']) -> Array | None:
         """MLE and bootstrap deviance."""
-        mle = self.result._deviance['point'][self.name]
-        if self.boot is not None:
-            boot = self.boot.deviance['point'][self.name]
+        if rtype == 'mle':
+            return self.result._deviance['point'][self.name]
+        elif rtype == 'boot':
+            if self.boot is not None:
+                return self.boot.deviance['point'][self.name]
+            else:
+                return None
         else:
-            boot = None
-        return {'mle': mle, 'boot': boot}
+            raise ValueError(f'unknown deviance type: {rtype}')
 
     @property
     def _nsim(self) -> int:
@@ -560,7 +562,7 @@ class MLEPlotData(PlotData):
 
         # NB: if background is present, then this assumes the background is
         #     being profiled out, so that each src & bkg data pair has ~1 dof
-        return self.sign[rtype] * np.sqrt(self.deviance[rtype])
+        return self.sign[rtype] * np.sqrt(self.deviance(rtype))
 
     @_to_cached_method
     def pearson_residuals_mle(self) -> Array:
@@ -839,23 +841,30 @@ class PosteriorPlotData(PlotData):
             'ppc': self.get_model_ppc(off_name),
         }
 
-    @property
-    def deviance(self) -> dict[str, Array | None]:
+    def deviance(
+        self,
+        rtype: Literal['posterior', 'loo', 'mle', 'ppc'],
+    ) -> DataArray | None:
         """Median, MLE, and ppc deviance."""
-        loglike = self.result.idata['log_likelihood'][self.name]
-        posterior = -2.0 * loglike.stack(__sample__=('chain', 'draw')).T
-
-        loo = self.result._loo_expectation(posterior, self.name)
-
-        mle = self.result._mle
-        if mle is not None:
-            mle = mle['deviance']['point'][self.name]
-
-        ppc = self.result._ppc
-        if ppc is not None:
-            ppc = ppc.deviance['point'][self.name]
-
-        return {'posterior': posterior, 'loo': loo, 'mle': mle, 'ppc': ppc}
+        if rtype == 'posterior':
+            loglike = self.result.idata['log_likelihood'][self.name]
+            return -2.0 * loglike.stack(__sample__=('chain', 'draw')).T
+        elif rtype == 'loo':
+            loglike = self.result.idata['log_likelihood'][self.name]
+            deviance = -2.0 * loglike.stack(__sample__=('chain', 'draw')).T
+            return self.result._loo_expectation(deviance, self.name)
+        elif rtype == 'mle':
+            if self.result._mle is not None:
+                return self.result._mle['deviance']['point'][self.name]
+            else:
+                return None
+        elif rtype == 'ppc':
+            if self.ppc is not None:
+                return self.ppc.deviance['point'][self.name]
+            else:
+                return None
+        else:
+            raise ValueError(f'unknown deviance type: {rtype}')
 
     def pit(self) -> tuple:
         return self.result._loo_pit[self.name]
@@ -941,7 +950,7 @@ class PosteriorPlotData(PlotData):
 
         # NB: if background is present, then this assumes the background is
         #     being profiled out, so that each src & bkg data pair has ~1 dof
-        return self.sign[rtype] * np.sqrt(self.deviance[rtype])
+        return self.sign[rtype] * np.sqrt(self.deviance(rtype))
 
     @_to_cached_method
     def pearson_residuals_loo(self) -> Array:
