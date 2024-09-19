@@ -98,12 +98,7 @@ class PlotData(ABC):
 
     _cached_method: list[str]
     _cached_method_with_check: list[tuple[str, list[str]]]
-    _ne: Callable[[dict, bool, Array], dict | Array]
-    _ene: Callable[[dict, bool, Array], dict | Array]
-    _eene: Callable[[dict, bool, Array], dict | Array]
-    _ne_vmap: Callable[[dict, bool, Array], dict | Array]
-    _ene_vmap: Callable[[dict, bool, Array], dict | Array]
-    _eene_vmap: Callable[[dict, bool, Array], dict | Array]
+    _unfolded_model_fn: dict[str, Callable]
     _ph_egrid: NumPyArray | None = None
 
     def __init__(self, name: str, result: FitResult, seed: int):
@@ -122,9 +117,14 @@ class PlotData(ABC):
             setattr(self, f, _cache_method_with_check(self, method, fields))
 
         model = self.result._helper.model[self.name]
-        self._ne = jax.jit(model.ne, static_argnums=2)
-        self._ene = jax.jit(model.ene, static_argnums=2)
-        self._eene = jax.jit(model.eene, static_argnums=2)
+        self._unfolded_model_fn = {
+            'ne': jax.jit(lambda e, p: model.ne(e, p, comps=False)),
+            'ene': jax.jit(lambda e, p: model.ene(e, p, comps=False)),
+            'eene': jax.jit(lambda e, p: model.eene(e, p, comps=False)),
+            'ne_comps': jax.jit(lambda e, p: model.ne(e, p, comps=True)),
+            'ene_comps': jax.jit(lambda e, p: model.ene(e, p, comps=True)),
+            'eene_comps': jax.jit(lambda e, p: model.eene(e, p, comps=True)),
+        }
 
     @property
     def channel(self) -> NumPyArray:
@@ -233,7 +233,7 @@ class PlotData(ABC):
         comps: bool,
     ) -> Array | dict:
         assert mtype in {'ne', 'ene', 'eene'}
-        fn = getattr(self, f'_{mtype}')
+        fn = self._unfolded_model_fn[f'{mtype}_comps' if comps else mtype]
         if len(np.shape(list(params.values())[0])) != 0:
             devices = create_device_mesh((jax.local_device_count(),))
             mesh = Mesh(devices, axis_names=('i',))
@@ -242,11 +242,11 @@ class PlotData(ABC):
             fn = shard_map(
                 f=fn,
                 mesh=mesh,
-                in_specs=(p, pi, p),
+                in_specs=(p, pi),
                 out_specs=pi,
                 check_rep=False,
             )
-        return jax.device_get(fn(egrid, params, comps))
+        return jax.device_get(fn(egrid, params))
 
     @abstractmethod
     def unfolded_model(
