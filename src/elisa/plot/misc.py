@@ -22,6 +22,7 @@ def plot_corner(
     bins: int | Sequence[int] = 40,
     hist_bin_factor: float | Sequence[float] = 1.5,
     params: str | Sequence[str] | None = None,
+    plot_range: Sequence[float] | None = None,
     axes_scale: str | Sequence[str] = 'linear',
     levels: float | Sequence[float] | None = None,
     titles: str | Sequence[str] | None = None,
@@ -46,6 +47,9 @@ def plot_corner(
         plots to provide more resolution. The default is 1.5.
     params : str or list of str, optional
         One or more parameters to be plotted.
+    plot_range : float, or list of float, optional
+        A list where each parameter is either a length 2 tuple containing
+        lower and upper bounds.
     axes_scale : str, or list of str, optional
         Scale to use for each parameter dimension. If only one scale is given,
         use that for all dimensions. Scale must be ``'linear'`` or ``'log'``.
@@ -133,14 +137,14 @@ def plot_corner(
     plt.rcParams['axes.formatter.min_exponent'] = 3
     c1, c2 = get_contour_colors(color, len(levels), 0.8, 2.0)
 
-    vmin = {p: posterior[p].values.min() for p in params}
-    vmax = {p: posterior[p].values.max() for p in params}
-    if any(vmin[p] == vmax[p] for p in params):
-        plot_range = [
-            (vmin[p], vmax[p]) if vmin[p] != vmax[p] else 0.99 for p in params
-        ]
-    else:
-        plot_range = None
+    if plot_range is None:
+        vmin = {p: posterior[p].values.min() for p in params}
+        vmax = {p: posterior[p].values.max() for p in params}
+        if any(vmin[p] == vmax[p] for p in params):
+            plot_range = [
+                (vmin[p], vmax[p]) if vmin[p] != vmax[p] else 0.99
+                for p in params
+            ]
 
     fig = corner.corner(
         idata,
