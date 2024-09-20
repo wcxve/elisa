@@ -407,26 +407,20 @@ class MLEPlotData(PlotData):
             boot = np.where(self.get_data_boot(self.name) >= boot, 1.0, -1.0)
         return boot
 
-    @property
-    def on_models(self) -> dict[str, Array | None]:
-        """Point estimate and bootstrap sample of the on measurement model."""
-        on_name = f'{self.name}_Non_model'
-        return {
-            'mle': self.get_model_mle(on_name),
-            'boot': self.get_model_boot(on_name),
-        }
+    def model(
+        self,
+        on_off: Literal['on', 'off'],
+        mtype: Literal['mle', 'boot'],
+    ) -> Array | None:
+        """Point estimate or bootstrap models of the on/off measurement."""
+        assert on_off in {'on', 'off'}
+        assert mtype in {'mle', 'boot'}
 
-    @property
-    def off_models(self) -> dict[str, Array | None]:
-        """Point estimate and bootstrap sample of the off measurement model."""
-        if self.statistic not in _STATISTIC_WITH_BACK:
-            return {'mle': None, 'boot': None}
+        if (on_off == 'off') and (self.statistic not in _STATISTIC_WITH_BACK):
+            return None
 
-        off_name = f'{self.name}_Noff_model'
-        return {
-            'mle': self.get_model_mle(off_name),
-            'boot': self.get_model_boot(off_name),
-        }
+        name = f'{self.name}_N{on_off}_model'
+        return getattr(self, f'get_model_{mtype}')(name)
 
     def deviance(self, rtype: Literal['mle', 'boot']) -> Array | None:
         """MLE and bootstrap deviance."""
@@ -452,7 +446,7 @@ class MLEPlotData(PlotData):
             on_data = self.net_counts
         else:
             on_data = self.spec_counts
-        on_model = self.on_models['mle']
+        on_model = self.model('on', 'mle')
 
         if stat in _STATISTIC_SPEC_NORMAL:  # chi2
             pit = stats.norm.cdf((on_data - on_model) / self.net_errors)
@@ -460,7 +454,7 @@ class MLEPlotData(PlotData):
 
         if stat in _STATISTIC_WITH_BACK:
             off_data = self.back_counts
-            off_model = self.off_models['mle']
+            off_model = self.model('off', 'mle')
 
             if stat in _STATISTIC_BACK_NORMAL:  # pgstat
                 pit = pit_poisson_normal(
@@ -593,7 +587,7 @@ class MLEPlotData(PlotData):
         else:
             std = None
 
-        r = pearson_residuals(on_data, self.on_models[rtype], std)
+        r = pearson_residuals(on_data, self.model('on', rtype), std)
 
         if stat in _STATISTIC_WITH_BACK:
             if rtype == 'mle':
@@ -606,7 +600,7 @@ class MLEPlotData(PlotData):
             else:
                 std = None
 
-            r_b = pearson_residuals(off_data, self.off_models[rtype], std)
+            r_b = pearson_residuals(off_data, self.model('off', rtype), std)
 
             # NB: this assumes the background is being profiled out,
             #     so that each src & bkg data pair has ~1 dof
@@ -630,7 +624,7 @@ class MLEPlotData(PlotData):
             mask = (pit == 0.0) | (pit == 1.0)
             if np.any(mask):
                 on_data = self.net_counts[mask]
-                on_model = self.on_models['mle'][mask]
+                on_model = self.model('on', 'mle')[mask]
                 error = self.net_errors[mask]
                 r[mask] = (on_data - on_model) / error
 
@@ -638,7 +632,7 @@ class MLEPlotData(PlotData):
             mask = (pit == 0.0) | (pit == 1.0)
             if np.any(mask):
                 on_data = self.spec_counts[mask]
-                on_model = self.on_models['mle'][mask]
+                on_model = self.model('on', 'mle')[mask]
                 r[mask] = quantile_residuals_poisson(
                     on_data,
                     on_model,
@@ -810,36 +804,19 @@ class PosteriorPlotData(PlotData):
         ce_ppc = self.get_model_ppc(self.name)
         return np.where(self.ppc.data[self.name] >= ce_ppc, 1.0, -1.0)
 
-    @property
-    def on_models(self) -> dict[str, Array | None]:
-        on_name = f'{self.name}_Non_model'
-        return {
-            'posterior': self.get_model_posterior(on_name),
-            'loo': self.get_model_loo(on_name),
-            'median': self.get_model_median(on_name),
-            'mle': self.get_model_mle(on_name),
-            'ppc': self.get_model_ppc(on_name),
-        }
+    def model(
+        self,
+        on_off: Literal['on', 'off'],
+        mtype: Literal['posterior', 'loo', 'median', 'mle', 'ppc'],
+    ) -> Array | None:
+        assert on_off in {'on', 'off'}
+        assert mtype in {'posterior', 'loo', 'median', 'mle', 'ppc'}
 
-    @property
-    def off_models(self) -> dict[str, Array | None]:
-        if self.statistic not in _STATISTIC_WITH_BACK:
-            return {
-                'posterior': None,
-                'loo': None,
-                'median': None,
-                'mle': None,
-                'ppc': None,
-            }
+        if (on_off == 'off') and (self.statistic not in _STATISTIC_WITH_BACK):
+            return None
 
-        off_name = f'{self.name}_Noff_model'
-        return {
-            'posterior': self.get_model_posterior(off_name),
-            'loo': self.get_model_loo(off_name),
-            'median': self.get_model_median(off_name),
-            'mle': self.get_model_mle(off_name),
-            'ppc': self.get_model_ppc(off_name),
-        }
+        name = f'{self.name}_N{on_off}_model'
+        return getattr(self, f'get_model_{mtype}')(name)
 
     def deviance(
         self,
@@ -986,7 +963,7 @@ class PosteriorPlotData(PlotData):
                 on_data = self.spec_counts
         else:
             on_data = self.ppc.data[f'{self.name}_Non']
-        on_model = self.on_models[mtype]
+        on_model = self.model('on', mtype)
 
         if stat in _STATISTIC_SPEC_NORMAL:
             std = self.net_errors
@@ -1000,7 +977,7 @@ class PosteriorPlotData(PlotData):
                 off_data = self.back_counts
             else:
                 off_data = self.ppc.data[f'{self.name}_Noff']
-            off_model = self.off_models[mtype]
+            off_model = self.model('off', mtype)
 
             if stat in _STATISTIC_BACK_NORMAL:
                 std = self.back_errors
