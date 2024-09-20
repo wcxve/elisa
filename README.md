@@ -1,10 +1,10 @@
 # ELISA: Efficient Library for Spectral Analysis in High-Energy Astrophysics
 
-[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/elisa-lib?color=blue&logo=Python&logoColor=white&style=for-the-badge)](https://pypi.org/project/elisa-lib)
-[![PyPI - Version](https://img.shields.io/pypi/v/elisa-lib?color=blue&logo=PyPI&logoColor=white&style=for-the-badge)](https://pypi.org/project/elisa-lib)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/astro-elisa?color=blue&logo=Python&logoColor=white&style=for-the-badge)](https://pypi.org/project/astro-elisa)
+[![PyPI - Version](https://img.shields.io/pypi/v/astro-elisa?color=blue&logo=PyPI&logoColor=white&style=for-the-badge)](https://pypi.org/project/astro-elisa)
 [![License: GPL v3](https://img.shields.io/github/license/wcxve/elisa?color=blue&logo=open-source-initiative&logoColor=white&style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0)<br>
 [![Coverage Status](https://img.shields.io/coverallsCoverage/github/wcxve/elisa?logo=Coveralls&logoColor=white&style=for-the-badge)](https://coveralls.io/github/wcxve/elisa)
-[![Documentation Status](https://img.shields.io/readthedocs/elisa-lib?logo=Read-the-Docs&logoColor=white&style=for-the-badge)](https://elisa-lib.readthedocs.io/en/latest/?badge=latest)
+[![Documentation Status](https://img.shields.io/readthedocs/astro-elisa?logo=Read-the-Docs&logoColor=white&style=for-the-badge)](https://astro-elisa.readthedocs.io/en/latest/?badge=latest)
 
 ``ELISA`` aims to provide a modern and efficient tool to explore and
 analyze the spectral data. It is designed to be user-friendly and flexible.
@@ -52,7 +52,7 @@ environment as follows:
 3. Install ``ELISA`` using ``pip``:
 
     ```console
-    pip install elisa-lib
+    pip install astro-elisa
     ```
 
 
@@ -77,7 +77,7 @@ The latest version of ``ELISA`` can be installed by the following command:
 
 ## Documentation
 
-Read the documentation at: https://elisa-lib.readthedocs.io
+Read the documentation at: https://astro-elisa.readthedocs.io
 
 ## License
 

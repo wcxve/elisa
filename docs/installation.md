@@ -26,7 +26,7 @@ environment as follows:
 3. Install ``ELISA`` using ``pip``:
 
     ```console
-    pip install elisa-lib
+    pip install astro-elisa
     ```
 
 

@@ -61,7 +61,7 @@ html_static_path = ['_static']
 html_css_files = ['custom.css']
 html_logo = '_static/logo1.png'
 html_favicon = '_static/favicon.svg'
-html_baseurl = 'https://elisa-lib.readthedocs.io/en/latest/'
+html_baseurl = 'https://astro-elisa.readthedocs.io/en/latest/'
 html_show_sourcelink = False
 master_doc = 'index'
 

@@ -89,7 +89,7 @@ jobs:
   publish:
     environment:
       name: PyPI
-      url: https://pypi.org/p/elisa-lib
+      url: https://pypi.org/p/astro-elisa
     permissions:
       id-token: write
     needs: [tests, build]

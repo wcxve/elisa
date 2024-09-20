@@ -1,5 +1,5 @@
 [project]
-name = "elisa-lib"
+name = "astro-elisa"
 dynamic = ["version"]
 description = "Efficient library for spectral analysis in high-energy astrophysics."
 readme = "README.md"
