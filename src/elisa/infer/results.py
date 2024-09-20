@@ -387,13 +387,13 @@ class MLEResult(FitResult):
         p = PartitionSpec()
         pi = PartitionSpec('i')
         fn = shard_map(
-            f=self._flux_fn,
+            f=jax.jit(lambda e, p: self._flux_fn(e, p, energy, comps)),
             mesh=mesh,
-            in_specs=(p, pi, p, p),
+            in_specs=(p, pi),
             out_specs=pi,
             check_rep=False,
         )
-        boot_flux = jax.device_get(fn(egrid, boot_params, energy, comps))
+        boot_flux = jax.device_get(fn(egrid, boot_params))
 
         cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
         q = 0.5 + np.array([-0.5, 0.5]) * cl_
@@ -1138,13 +1138,13 @@ class PosteriorResult(FitResult):
         p = PartitionSpec()
         pi = PartitionSpec('i')
         fn = shard_map(
-            f=self._flux_fn,
+            f=jax.jit(lambda e, p: self._flux_fn(e, p, energy, comps)),
             mesh=mesh,
-            in_specs=(p, pi, p, p),
+            in_specs=(p, pi),
             out_specs=pi,
             check_rep=False,
         )
-        flux = jax.device_get(fn(egrid, post, energy, comps))
+        flux = jax.device_get(fn(egrid, post))
         cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
         if hdi:
             ci_fn = lambda x: az.hdi(x, cl_)
