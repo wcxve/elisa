@@ -23,7 +23,7 @@ def plot_corner(
     hist_bin_factor: float | Sequence[float] = 1.5,
     params: str | Sequence[str] | None = None,
     plot_range: Sequence[float] | None = None,
-    axes_scale: str | Sequence[str] = "linear",
+    axes_scale: str | Sequence[str] = 'linear',
     levels: float | Sequence[float] | None = None,
     titles: str | Sequence[str] | None = None,
     labels: str | Sequence[str] | None = None,
@@ -70,7 +70,7 @@ def plot_corner(
         The figure containing the corner plot.
 
     """
-    posterior = idata["posterior"]
+    posterior = idata['posterior']
 
     if params is None:
         params = list(posterior.data_vars.keys())
@@ -84,7 +84,7 @@ def plot_corner(
     all_params = posterior.data_vars.keys()
     not_found = set(params) - set(all_params)
     if not_found:
-        raise ValueError(f"parameter {not_found} not found in posterior")
+        raise ValueError(f'parameter {not_found} not found in posterior')
 
     if titles is None:
         titles = params
@@ -107,7 +107,7 @@ def plot_corner(
     median = {p: float(median[p].values) for p in params}
     quantile = {p: quantile[p].values.tolist() for p in params}
     titles = [
-        f"{t} = {report_interval(median[p], *quantile[p])}"
+        f'{t} = {report_interval(median[p], *quantile[p])}'
         for t, p in zip(titles, params)
     ]
 
@@ -130,11 +130,11 @@ def plot_corner(
     # colors1 = [scale_color(to_hex(c), 0.95) for c in colors2]
 
     if color is None:
-        color = "#205295"
+        color = '#205295'
     else:
         color = str(color)
 
-    plt.rcParams["axes.formatter.min_exponent"] = 3
+    plt.rcParams['axes.formatter.min_exponent'] = 3
     c1, c2 = get_contour_colors(color, len(levels), 0.8, 2.0)
 
     if plot_range is None:
@@ -142,7 +142,8 @@ def plot_corner(
         vmax = {p: posterior[p].values.max() for p in params}
         if any(vmin[p] == vmax[p] for p in params):
             plot_range = [
-                (vmin[p], vmax[p]) if vmin[p] != vmax[p] else 0.99 for p in params
+                (vmin[p], vmax[p]) if vmin[p] != vmax[p] else 0.99
+                for p in params
             ]
 
     fig = corner.corner(
@@ -160,7 +161,7 @@ def plot_corner(
         use_math_text=True,
         labelpad=-0.08,
         divergences=divergences,
-        divergences_kwargs={"color": "red", "alpha": 0.3, "ms": 1},
+        divergences_kwargs={'color': 'red', 'alpha': 0.3, 'ms': 1},
         var_names=params,
         # kwargs for corner.hist2d
         levels=levels,
@@ -169,12 +170,13 @@ def plot_corner(
         plot_contours=True,
         fill_contours=True,
         no_fill_contours=True,
-        contour_kwargs={"colors": c1},
-        contourf_kwargs={"colors": ["white"] + c2, "alpha": 0.75},
-        data_kwargs={"color": c2[0], "alpha": 0.75, "ms": 1.5},
+        contour_kwargs={'colors': c1},
+        contourf_kwargs={'colors': ['white'] + c2, 'alpha': 0.75},
+        data_kwargs={'color': c2[0], 'alpha': 0.75, 'ms': 1.5},
     )
 
     return fig
+
 
 def plot_trace(
     idata: az.InferenceData,
