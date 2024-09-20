@@ -56,9 +56,11 @@ class FitResult(ABC):
     _flux_fn: Callable
     _lumin_fn: Callable
     _eiso_fn: Callable
+    _n_parallel: int | None
 
     def __init__(self, helper: Helper):
         self._helper = helper
+        self._n_parallel = None
 
         models = helper.model
         ne = {name: model.ne for name, model in models.items()}
@@ -382,7 +384,12 @@ class MLEResult(FitResult):
             params = dict(params)
             params = {k: jnp.full(n, v) for k, v in params.items()}
             boot_params = boot_params | params
-        devices = create_device_mesh((jax.local_device_count(),))
+
+        n_parallel = get_parallel_number(self._n_parallel)
+        devices = create_device_mesh(
+            mesh_shape=(n_parallel,),
+            devices=jax.devices()[:n_parallel],
+        )
         mesh = Mesh(devices, axis_names=('i',))
         p = PartitionSpec()
         pi = PartitionSpec('i')
@@ -1133,7 +1140,12 @@ class PosteriorResult(FitResult):
             params = dict(params)
             params = {k: jnp.full(n, v) for k, v in params.items()}
             post = post | params
-        devices = create_device_mesh((jax.local_device_count(),))
+
+        n_parallel = get_parallel_number(self._n_parallel)
+        devices = create_device_mesh(
+            mesh_shape=(n_parallel,),
+            devices=jax.devices()[:n_parallel],
+        )
         mesh = Mesh(devices, axis_names=('i',))
         p = PartitionSpec()
         pi = PartitionSpec('i')
