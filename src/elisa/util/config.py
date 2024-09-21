@@ -117,10 +117,9 @@ def get_parallel_number(n: int | None) -> int:
         The available number of parallel processes.
     """
     n_max = jax.local_device_count()
-    n_default = 4
 
     if n is None:
-        return n_default
+        return n_max
     else:
         n = int(n)
         if n <= 0:
@@ -131,8 +130,7 @@ def get_parallel_number(n: int | None) -> int:
     if n > n_max:
         warnings.warn(
             f'number of parallel processes ({n}) is more than the number of '
-            f'available devices ({n_max}), reset to '
-            f'{n_max}',
+            f'available devices ({n_max}), reset to {n_max}',
             Warning,
         )
         n = n_max
