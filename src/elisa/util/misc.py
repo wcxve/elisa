@@ -24,18 +24,18 @@ if TYPE_CHECKING:
 
     from elisa.util.typing import CompEval
 
-    T = TypeVar('T')
+    T = TypeVar("T")
 
 _SUPERSCRIPT = dict(
     zip(
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()',
-        'ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁⱽᵂᕽʸᶻᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ᐟ⁼⁽⁾',
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()",
+        "ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁⱽᵂᕽʸᶻᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ᐟ⁼⁽⁾",
     )
 )
 _SUBSCRIPT = dict(
     zip(
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()',
-        'ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢₐᵦ𝒸𝒹ₑ𝒻𝓰ₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ𝓌ₓᵧ𝓏₀₁₂₃₄₅₆₇₈₉₊₋⸝₌₍₎',
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()",
+        "ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢₐᵦ𝒸𝒹ₑ𝒻𝓰ₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ𝓌ₓᵧ𝓏₀₁₂₃₄₅₆₇₈₉₊₋⸝₌₍₎",
     )
 )
 
@@ -86,31 +86,26 @@ def add_suffix(
         return_list = True
 
     if len(strings) != len(suffix):
-        raise ValueError('length of `strings` and `suffix` must be the same')
+        raise ValueError("length of `strings` and `suffix` must be the same")
 
     def to_unicode(string: str):
         """Replace suffix with unicode."""
         if subscript:
-            return ''.join(f'{_SUBSCRIPT.get(i, i)}' for i in string)
+            return "".join(f"{_SUBSCRIPT.get(i, i)}" for i in string)
         else:
-            return ''.join(f'{_SUPERSCRIPT.get(i, i)}' for i in string)
+            return "".join(f"{_SUPERSCRIPT.get(i, i)}" for i in string)
 
     if latex:
-        symbol = '_' if subscript else '^'
-        rm = r'\mathrm' if mathrm else ''
+        symbol = "_" if subscript else "^"
+        rm = r"\mathrm" if mathrm else ""
         strings = [
-            rf'{{{i}}}{symbol}{rm}{{{j}}}' if j else i
-            for i, j in zip(strings, suffix)
+            rf"{{{i}}}{symbol}{rm}{{{j}}}" if j else i for i, j in zip(strings, suffix)
         ]
     elif unicode:
-        strings = [
-            f'{i}{to_unicode(j)}' if j else i for i, j in zip(strings, suffix)
-        ]
+        strings = [f"{i}{to_unicode(j)}" if j else i for i, j in zip(strings, suffix)]
     else:
-        symbol = '_' if subscript else '^'
-        strings = [
-            f'{i}{symbol}{j}' if j else i for i, j in zip(strings, suffix)
-        ]
+        symbol = "_" if subscript else "^"
+        strings = [f"{i}{symbol}{j}" if j else i for i, j in zip(strings, suffix)]
 
     if return_list:
         return strings
@@ -153,7 +148,7 @@ def build_namespace(
             namespace.append(name)
         else:
             counter[name] += 1
-            namespace.append(f'{name}#{counter[name]}')
+            namespace.append(f"{name}#{counter[name]}")
 
         suffixes_n.append(counter[name])
 
@@ -164,24 +159,23 @@ def build_namespace(
         else:
             suffixes = ['"' * (n // 2) + "'" * (n % 2) for n in suffixes]
     else:
-        template = '_{%d}' if latex else '_%d'
-        suffixes = [template % n if n > 1 else '' for n in suffixes_n]
+        template = "_{%d}" if latex else "_%d"
+        suffixes = [template % n if n > 1 else "" for n in suffixes_n]
 
     return {
-        'namespace': list(map(''.join, zip(names_, suffixes))),
-        'suffix_num': [str(n) if n > 1 else '' for n in suffixes_n],
+        "namespace": list(map("".join, zip(names_, suffixes))),
+        "suffix_num": [str(n) if n > 1 else "" for n in suffixes_n],
     }
 
 
 def define_fdjvp(
     fn: CompEval,
-    method: Literal['central', 'forward'] = 'central',
+    method: Literal["central", "forward"] = "central",
 ) -> CompEval:
     """Define JVP using finite differences."""
-    if method not in {'central', 'forward'}:
+    if method not in {"central", "forward"}:
         raise ValueError(
-            f"supported methods are 'central' and 'forward', but got "
-            f"'{method}'"
+            f"supported methods are 'central' and 'forward', but got " f"'{method}'"
         )
 
     def fdjvp(primals, tangents):
@@ -189,15 +183,13 @@ def define_fdjvp(
         egrid_tangent, params_tangent = tangents
 
         if not isinstance(egrid_tangent, SymbolicZero):
-            raise NotImplementedError('JVP for energy grid is not implemented')
+            raise NotImplementedError("JVP for energy grid is not implemented")
 
         primals_out = fn(egrid, params)
 
         tvals, _ = tree_util.tree_flatten(params_tangent)
         if any(jnp.shape(v) != () for v in tvals):
-            raise NotImplementedError(
-                'JVP for non-scalar parameter is not implemented'
-            )
+            raise NotImplementedError("JVP for non-scalar parameter is not implemented")
 
         non_zero_tangents = [not isinstance(v, SymbolicZero) for v in tvals]
         idx = [i for i, v in enumerate(non_zero_tangents) if v]
@@ -221,7 +213,7 @@ def define_fdjvp(
         revert = jax.vmap(revert, in_axes=0, out_axes=0)
 
         # See Numerical Recipes Chapter 5.7
-        if method == 'central':
+        if method == "central":
             perturb = free_params_abs * eps ** (1.0 / 3.0)
             params_pos_perturb = revert(params_batch + perturb_idx * perturb)
             out_pos_perturb = f_vmap(egrid, params_pos_perturb)
@@ -244,43 +236,6 @@ def define_fdjvp(
     return fn
 
 
-def get_parallel_number(n: int | None) -> int:
-    """Check and return the available parallel number in JAX.
-
-    Parameters
-    ----------
-    n : int, optional
-        The desired number of parallel processes in JAX.
-
-    Returns
-    -------
-    int
-        The available number of parallel processes.
-    """
-    n_max = jax.local_device_count()
-    n_default = 4
-
-    if n is None:
-        return n_default
-    else:
-        n = int(n)
-        if n <= 0:
-            raise ValueError(
-                f'number of parallel processes must be positive, got {n}'
-            )
-
-    if n > n_max:
-        warnings.warn(
-            f'number of parallel processes ({n}) is more than the number of '
-            f'available devices ({n_max}), reset to '
-            f'{n_max}',
-            Warning,
-        )
-        n = n_max
-
-    return n
-
-
 def get_unit_latex(unit: str, throw: bool = True) -> str:
     """Get latex string of a unit.
 
@@ -301,12 +256,14 @@ def get_unit_latex(unit: str, throw: bool = True) -> str:
         try:
             unit = Unit(ustr)
             max_index = len(ustr)
-            pattern = r'(?:[^a-zA-Z]*){}(?:[^a-zA-Z]*)'
+            pattern = r"(?:[^a-zA-Z]*){}(?:[^a-zA-Z]*)"
             index = [
                 min(
-                    r.start(0)
-                    if (r := re.search(pattern.format(s), ustr)) is not None
-                    else max_index
+                    (
+                        r.start(0)
+                        if (r := re.search(pattern.format(s), ustr)) is not None
+                        else max_index
+                    )
                     for s in [b.name] + b.aliases
                 )
                 for b in unit.bases
@@ -314,19 +271,18 @@ def get_unit_latex(unit: str, throw: bool = True) -> str:
             index = sorted(range(len(index)), key=index.__getitem__)
             bases = [unit.bases[i].name for i in index]
             powers = [unit.powers[i] for i in index]
-            ustr = r'\ '.join(
-                b + (f'^{{{p}}}' if p != 1 else '')
-                for b, p in zip(bases, powers)
+            ustr = r"\ ".join(
+                b + (f"^{{{p}}}" if p != 1 else "") for b, p in zip(bases, powers)
             )
-            scale = Unit(unit.scale).to_string('latex_inline')[9:-2]
-            if scale != '':
-                scale = scale.replace(r'1 \times ', '')
-                scale += r'\ '
-            ustr = rf'$\mathrm{{{scale}{ustr}}}$'
+            scale = Unit(unit.scale).to_string("latex_inline")[9:-2]
+            if scale != "":
+                scale = scale.replace(r"1 \times ", "")
+                scale += r"\ "
+            ustr = rf"$\mathrm{{{scale}{ustr}}}$"
         except ValueError as ve:
             if throw:
                 raise ve
-            ustr = ''
+            ustr = ""
 
     return ustr
 
@@ -348,21 +304,21 @@ def make_pretty_table(fields: Sequence[str], rows: Sequence) -> PrettyTable:
     """
     table = PrettyTable(
         fields,
-        align='c',
+        align="c",
         hrules=1,  # 1 for all, 0 for frame
         vrules=1,
         padding_width=1,
-        vertical_char='│',
-        horizontal_char='─',
-        junction_char='┼',
-        top_junction_char='┬',
-        bottom_junction_char='┴',
-        right_junction_char='┤',
-        left_junction_char='├',
-        top_right_junction_char='╮',
-        top_left_junction_char='╭',
-        bottom_right_junction_char='╯',
-        bottom_left_junction_char='╰',
+        vertical_char="│",
+        horizontal_char="─",
+        junction_char="┼",
+        top_junction_char="┬",
+        bottom_junction_char="┴",
+        right_junction_char="┤",
+        left_junction_char="├",
+        top_right_junction_char="╮",
+        top_left_junction_char="╭",
+        bottom_right_junction_char="╯",
+        bottom_left_junction_char="╰",
     )
     table.add_rows(rows)
     return table
@@ -456,41 +412,41 @@ def report_interval(
 
     def get_sci_notation_exponent(num: float) -> int:
         """Get the exponent of a number in scientific notation."""
-        return int(f'{num:.{precision}e}'.split('e')[1])
+        return int(f"{num:.{precision}e}".split("e")[1])
 
     def get_sci_notation_significand(num: float, exp: int) -> str:
         """Get the significand of a number in scientific notation."""
         significand = num * 10**-exp
         if abs(num) < 10 ** (exp - precision):
             p = abs(get_sci_notation_exponent(num) - exp)
-            return f'{significand:+.{p}f}'.rstrip('0')
+            return f"{significand:+.{p}f}".rstrip("0")
         else:
             p = precision
-            return f'{significand:+.{p}f}'
+            return f"{significand:+.{p}f}"
 
     lower = vmin - vmid
     upper = vmax - vmid
     exponent = math.log10(abs(vmid))
 
     if exponent <= -min_exponent or exponent >= max_exponent:
-        str_mid = f'{vmid:.{precision}e}'.split('e')[0]
+        str_mid = f"{vmid:.{precision}e}".split("e")[0]
         base_exponent = math.floor(exponent)
-        suffix = rf' \times 10^{{{base_exponent}}}'
+        suffix = rf" \times 10^{{{base_exponent}}}"
     else:
-        str_mid = f'{vmid:.{precision}f}'
+        str_mid = f"{vmid:.{precision}f}"
         base_exponent = 0
-        suffix = ''
+        suffix = ""
 
     if lower != 0:
         str_lower = get_sci_notation_significand(lower, base_exponent)
     else:
-        str_lower = '-0'
+        str_lower = "-0"
     if upper != 0:
         str_upper = get_sci_notation_significand(upper, base_exponent)
     else:
-        str_upper = '+0'
+        str_upper = "+0"
 
-    return f'${str_mid}_{{{str_lower}}}^{{{str_upper}}}{suffix}$'
+    return f"${str_mid}_{{{str_lower}}}^{{{str_upper}}}{suffix}$"
 
 
 def progress_bar_factory(
@@ -530,19 +486,19 @@ def progress_bar_factory(
     neval_single = neval // ncores
 
     if neval % ncores != 0:
-        raise ValueError('neval must be multiple of ncores')
+        raise ValueError("neval must be multiple of ncores")
 
     if init_str is None:
-        init_str = 'Compiling... '
+        init_str = "Compiling... "
     else:
         init_str = str(init_str)
 
     if run_str is None:
-        run_str = 'Running'
+        run_str = "Running"
     else:
         run_str = str(run_str)
 
-    process_re = re.compile(r'\d+$')
+    process_re = re.compile(r"\d+$")
 
     if neval > update_rate:
         print_rate = int(neval_single / update_rate)
@@ -576,9 +532,7 @@ def progress_bar_factory(
         )
         _ = lax.cond(
             iter_num % print_rate == 0,
-            lambda _: host_callback.id_tap(
-                _update_tqdm, print_rate, result=iter_num
-            ),
+            lambda _: host_callback.id_tap(_update_tqdm, print_rate, result=iter_num),
             lambda _: iter_num,
             operand=None,
         )
