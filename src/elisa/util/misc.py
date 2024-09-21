@@ -265,13 +265,15 @@ def get_parallel_number(n: int | None) -> int:
     else:
         n = int(n)
         if n <= 0:
-            raise ValueError(f"number of parallel processes must be positive, got {n}")
+            raise ValueError(
+                f'number of parallel processes must be positive, got {n}'
+            )
 
     if n > n_max:
         warnings.warn(
-            f"number of parallel processes ({n}) is more than the number of "
-            f"available devices ({n_max}), reset to "
-            f"{n_max}",
+            f'number of parallel processes ({n}) is more than the number of '
+            f'available devices ({n_max}), reset to '
+            f'{n_max}',
             Warning,
         )
         n = n_max
