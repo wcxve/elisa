@@ -24,8 +24,8 @@ from elisa.infer.likelihood import (
     pstat,
     wstat,
 )
+from elisa.util.config import get_parallel_number
 from elisa.util.misc import (
-    get_parallel_number,
     get_unit_latex,
     progress_bar_factory,
 )

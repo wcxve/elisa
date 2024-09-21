@@ -25,10 +25,10 @@ from elisa.infer.likelihood import _STATISTIC_OPTIONS
 from elisa.infer.nested_sampling import NestedSampler, reparam_loglike
 from elisa.infer.results import MLEResult, PosteriorResult
 from elisa.models.model import Model, get_model_info
+from elisa.util.config import get_parallel_number
 from elisa.util.misc import (
     add_suffix,
     build_namespace,
-    get_parallel_number,
     make_pretty_table,
 )
 
@@ -94,9 +94,13 @@ class Fit(ABC):
         cid = list(cid_to_comp.keys())
         comps = list(cid_to_comp.values())
         cid_to_data_suffix = {
-            i: '+'.join(i for i in data_names if i not in names)  # keep order
-            if (names := [n for n in data_names if i not in data_to_cid[n]])
-            else ''
+            i: (
+                '+'.join(i for i in data_names if i not in names)  # keep order
+                if (
+                    names := [n for n in data_names if i not in data_to_cid[n]]
+                )
+                else ''
+            )
             for i in cid
         }
         data_suffix = list(cid_to_data_suffix.values())

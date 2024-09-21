@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import re
-import warnings
 from functools import reduce
 from typing import TYPE_CHECKING
 
@@ -244,42 +243,6 @@ def define_fdjvp(
     return fn
 
 
-def get_parallel_number(n: int | None) -> int:
-    """Check and return the available parallel number in JAX.
-
-    Parameters
-    ----------
-    n : int, optional
-        The desired number of parallel processes in JAX.
-
-    Returns
-    -------
-    int
-        The available number of parallel processes.
-    """
-    n_max = jax.local_device_count()
-
-    if n is None:
-        return n_max
-    else:
-        n = int(n)
-        if n <= 0:
-            raise ValueError(
-                f'number of parallel processes must be positive, got {n}'
-            )
-
-    if n > n_max:
-        warnings.warn(
-            f'number of parallel processes ({n}) is more than the number of '
-            f'available devices ({jax.local_device_count()}), reset to '
-            f'{jax.local_device_count()}',
-            Warning,
-        )
-        n = jax.local_device_count()
-
-    return n
-
-
 def get_unit_latex(unit: str, throw: bool = True) -> str:
     """Get latex string of a unit.
 
@@ -303,9 +266,12 @@ def get_unit_latex(unit: str, throw: bool = True) -> str:
             pattern = r'(?:[^a-zA-Z]*){}(?:[^a-zA-Z]*)'
             index = [
                 min(
-                    r.start(0)
-                    if (r := re.search(pattern.format(s), ustr)) is not None
-                    else max_index
+                    (
+                        r.start(0)
+                        if (r := re.search(pattern.format(s), ustr))
+                        is not None
+                        else max_index
+                    )
                     for s in [b.name] + b.aliases
                 )
                 for b in unit.bases

@@ -29,9 +29,8 @@ from .util import (
     jax_debug_nans as jax_debug_nans,
     jax_enable_x64,
     set_cpu_cores,
-    set_jax_platform,
+    set_jax_platform as set_jax_platform,
 )
 
 jax_enable_x64(True)
-set_jax_platform('cpu')
 set_cpu_cores(4)

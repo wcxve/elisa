@@ -101,3 +101,38 @@ def jax_debug_nans(flag: bool):
         When ``True``, raise an error when NaNs are detected in JAX.
     """
     jax.config.update('jax_debug_nans', bool(flag))
+
+
+def get_parallel_number(n: int | None) -> int:
+    """Check and return the available parallel number in JAX.
+
+    Parameters
+    ----------
+    n : int, optional
+        The desired number of parallel processes in JAX.
+
+    Returns
+    -------
+    int
+        The available number of parallel processes.
+    """
+    n_max = jax.local_device_count()
+
+    if n is None:
+        return n_max
+    else:
+        n = int(n)
+        if n <= 0:
+            raise ValueError(
+                f'number of parallel processes must be positive, got {n}'
+            )
+
+    if n > n_max:
+        warnings.warn(
+            f'number of parallel processes ({n}) is more than the number of '
+            f'available devices ({n_max}), reset to {n_max}',
+            Warning,
+        )
+        n = n_max
+
+    return n
