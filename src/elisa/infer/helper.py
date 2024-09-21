@@ -25,10 +25,10 @@ from elisa.infer.likelihood import (
     wstat,
 )
 from elisa.util.misc import (
-    get_parallel_number,
     get_unit_latex,
     progress_bar_factory,
 )
+from elisa.util.config import get_parallel_number
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -49,29 +49,25 @@ if TYPE_CHECKING:
     )
 
 
-def check_params(
-    params: str | Sequence[str] | None, helper: Helper
-) -> list[str]:
+def check_params(params: str | Sequence[str] | None, helper: Helper) -> list[str]:
     params_names = helper.params_names
 
-    all_params = set(params_names['all']) | set(helper.params_setup)
+    all_params = set(params_names["all"]) | set(helper.params_setup)
     forwarded = {
-        k: v[0]
-        for k, v in helper.params_setup.items()
-        if v[1].name == 'Forwarded'
+        k: v[0] for k, v in helper.params_setup.items() if v[1].name == "Forwarded"
     }
-    fixed = [k for k, v in helper.params_setup.items() if v[1].name == 'Fixed']
+    fixed = [k for k, v in helper.params_setup.items() if v[1].name == "Fixed"]
     integrated = [
-        k for k, v in helper.params_setup.items() if v[1].name == 'Integrated'
+        k for k, v in helper.params_setup.items() if v[1].name == "Integrated"
     ]
 
     if params is None:
-        params = set(params_names['interest'])
+        params = set(params_names["interest"])
 
     elif isinstance(params, str):
         # check if params exist
         if params not in all_params:
-            raise ValueError(f'parameter {params} is not exist')
+            raise ValueError(f"parameter {params} is not exist")
 
         params = {params}
 
@@ -79,29 +75,29 @@ def check_params(
         # check if params exist
         params = {str(i) for i in params}
         if not params.issubset(all_params):
-            params_err = params - set(params_names['all'])
-            raise ValueError(f'parameters: {params_err} are not exist')
+            params_err = params - set(params_names["all"])
+            raise ValueError(f"parameters: {params_err} are not exist")
 
     else:
-        raise ValueError('params must be str, or sequence of str')
+        raise ValueError("params must be str, or sequence of str")
 
     if params_err := params.intersection(forwarded):
         forwarded = {i: forwarded[i] for i in params_err}
-        info = ', '.join(f'{k} to {v}' for k, v in forwarded.items())
+        info = ", ".join(f"{k} to {v}" for k, v in forwarded.items())
         raise RuntimeError(
             f"parameters are linked: {info}; corresponding parameters' "
-            'name should be used'
+            "name should be used"
         )
 
     if params_err := params.intersection(fixed):
-        info = ', '.join(params_err)
-        raise RuntimeError(f'parameters are fixed: {info}')
+        info = ", ".join(params_err)
+        raise RuntimeError(f"parameters are fixed: {info}")
 
     if params_err := params.intersection(integrated):
-        info = ', '.join(params_err)
-        raise RuntimeError(f'parameters are integrated-out: {info}')
+        info = ", ".join(params_err)
+        raise RuntimeError(f"parameters are integrated-out: {info}")
 
-    return sorted(params, key=params_names['all'].index)
+    return sorted(params, key=params_names["all"].index)
 
 
 # def get_reparam(dist: Distribution) -> tuple[Reparam, Callable] | None:
@@ -140,36 +136,32 @@ def get_helper(fit: Fit) -> Helper:
     stat: dict[str, Statistic] = fit._stat
     seed0 = fit._seed
     rng_seed: dict[str, int] = {
-        'mcmc': seed0,  # for MCMC
-        'pred': seed0 + 1,  # for data simulation
-        'resd': seed0 + 2,  # for random quantile residuals
+        "mcmc": seed0,  # for MCMC
+        "pred": seed0 + 1,  # for data simulation
+        "resd": seed0 + 2,  # for random quantile residuals
     }
 
     # channel number of data
     ndata = {k: v.channel.size for k, v in data.items()}
-    ndata['total'] = sum(ndata.values())
+    ndata["total"] = sum(ndata.values())
 
     # channel information
-    channels = {f'{k}_channel': v.channel for k, v in data.items()}
-    channels['channel'] = np.hstack(list(channels.values()))
+    channels = {f"{k}_channel": v.channel for k, v in data.items()}
+    channels["channel"] = np.hstack(list(channels.values()))
 
     # number of free parameters
     nparam = len(model_info.sample)
 
     # degree of freedom
-    dof = ndata['total'] - nparam
+    dof = ndata["total"] - nparam
 
     # ======================== count data calculator ==========================
-    on_names = [f'{i}_Non' for i in data]
-    off_names = [f'{i}_Noff' for i in data if stat[i] in _STATISTIC_WITH_BACK]
+    on_names = [f"{i}_Non" for i in data]
+    off_names = [f"{i}_Noff" for i in data if stat[i] in _STATISTIC_WITH_BACK]
     back_ratio = {
-        k: v.back_ratio
-        for k, v in data.items()
-        if stat[k] in _STATISTIC_WITH_BACK
+        k: v.back_ratio for k, v in data.items() if stat[k] in _STATISTIC_WITH_BACK
     }
-    spec_unit = {
-        k: 1.0 / (v.spec_exposure * v.channel_width) for k, v in data.items()
-    }
+    spec_unit = {k: 1.0 / (v.spec_exposure * v.channel_width) for k, v in data.items()}
 
     @jax.jit
     def get_counts_data(counts: dict[str, JAXArray]) -> dict[str, JAXArray]:
@@ -185,8 +177,8 @@ def get_helper(fit: Fit) -> Helper:
 
         net_counts = {
             i: (
-                counts[f'{i}_Non']
-                - back_ratio.get(i, 0.0) * counts.get(f'{i}_Noff', 0.0)
+                counts[f"{i}_Non"]
+                - back_ratio.get(i, 0.0) * counts.get(f"{i}_Noff", 0.0)
             )
             for i in data
         }
@@ -195,13 +187,13 @@ def get_helper(fit: Fit) -> Helper:
         counts_data |= {i: net_counts[i] * spec_unit[i] for i in data.keys()}
 
         # stack net spectrum of all channels of all datasets
-        counts_data['channels'] = jnp.concatenate(
+        counts_data["channels"] = jnp.concatenate(
             [counts_data[i] for i in data.keys()],
             axis=-1,
         )
 
         # total net counts of datasets
-        counts_data['total'] = jnp.sum(
+        counts_data["total"] = jnp.sum(
             jnp.asarray([i.sum(axis=-1) for i in net_counts.values()]), axis=0
         )
 
@@ -210,22 +202,20 @@ def get_helper(fit: Fit) -> Helper:
     # ======================== count data calculator ==========================
 
     obs_counts = {
-        f'{k}_Non': (
-            v.net_counts
-            if stat[k] in _STATISTIC_SPEC_NORMAL
-            else v.spec_counts
+        f"{k}_Non": (
+            v.net_counts if stat[k] in _STATISTIC_SPEC_NORMAL else v.spec_counts
         )
         for k, v in data.items()
     }
     obs_counts |= {
-        f'{k}_Noff': v.back_counts
+        f"{k}_Noff": v.back_counts
         for k, v in data.items()
         if stat[k] in _STATISTIC_WITH_BACK
     }
     obs_data = get_counts_data(obs_counts)
 
     # ======================== count data simulator ===========================
-    def simulator_factory(data_dist: Literal['norm', 'poisson'], *dist_args):
+    def simulator_factory(data_dist: Literal["norm", "poisson"], *dist_args):
         """Factory to create data simulator."""
 
         def simulator(
@@ -239,37 +229,37 @@ def get_helper(fit: Fit) -> Helper:
             else:
                 shape = model_values.shape
 
-            if data_dist == 'norm':
+            if data_dist == "norm":
                 # TODO: fix the negative counts by setting them to zeros
                 return rng.normal(model_values, *dist_args, shape)
-            elif data_dist == 'poisson':
+            elif data_dist == "poisson":
                 return rng.poisson(model_values, shape)
             else:
-                raise NotImplementedError(f'{data_dist = }')
+                raise NotImplementedError(f"{data_dist = }")
 
         return simulator
 
     simulators = {}
-    sampling_dist: dict[str, tuple[Literal['norm', 'poisson'], tuple]] = {}
+    sampling_dist: dict[str, tuple[Literal["norm", "poisson"], tuple]] = {}
     for k, s in stat.items():
         d = data[k]
 
-        name = f'{k}_Non'
+        name = f"{k}_Non"
         if s in _STATISTIC_SPEC_NORMAL:
-            simulators[name] = simulator_factory('norm', d.spec_errors)
-            sampling_dist[name] = ('norm', (d.spec_errors,))
+            simulators[name] = simulator_factory("norm", d.spec_errors)
+            sampling_dist[name] = ("norm", (d.spec_errors,))
         else:
-            simulators[name] = simulator_factory('poisson')
-            sampling_dist[name] = ('poisson', ())
+            simulators[name] = simulator_factory("poisson")
+            sampling_dist[name] = ("poisson", ())
 
         if s in _STATISTIC_WITH_BACK:
-            name = f'{k}_Noff'
+            name = f"{k}_Noff"
             if s in _STATISTIC_BACK_NORMAL:
-                simulators[name] = simulator_factory('norm', d.back_errors)
-                sampling_dist[name] = ('norm', (d.spec_errors,))
+                simulators[name] = simulator_factory("norm", d.back_errors)
+                sampling_dist[name] = ("norm", (d.spec_errors,))
             else:
-                simulators[name] = simulator_factory('poisson')
-                sampling_dist[name] = ('poisson', ())
+                simulators[name] = simulator_factory("poisson")
+                sampling_dist[name] = ("poisson", ())
 
     def simulate(
         rng_seed: int,
@@ -279,7 +269,7 @@ def get_helper(fit: Fit) -> Helper:
         """Simulate data given model values.
         Use numpy.random instead of numpyro.infer.Predictive for performance.
         """
-        models = {i: model_values[f'{i}_model'] for i in simulators.keys()}
+        models = {i: model_values[f"{i}_model"] for i in simulators.keys()}
         rng = np.random.default_rng(int(rng_seed))
         sim = {k: v(rng, models[k], n) for k, v in simulators.items()}
         return get_counts_data(sim)
@@ -305,9 +295,7 @@ def get_helper(fit: Fit) -> Helper:
 
     # get model parameters priors
     pid_to_pname: dict[ParamID, ParamName] = model_info.name
-    pname_to_pid: dict[ParamName, ParamID] = {
-        v: k for k, v in pid_to_pname.items()
-    }
+    pname_to_pid: dict[ParamName, ParamID] = {v: k for k, v in pid_to_pname.items()}
     pid_to_prior: dict[ParamID, Distribution] = model_info.sample
     params_prior: dict[ParamName, Distribution] = {
         pid_to_pname[pid]: pid_to_prior[pid] for pid in pid_to_prior
@@ -318,15 +306,14 @@ def get_helper(fit: Fit) -> Helper:
 
     # get the likelihood function for each dataset
     likelihood_wrapper = {
-        'chi2': chi2,
-        'cstat': cstat,
-        'pstat': pstat,
-        'wstat': wstat,
-        'pgstat': pgstat,
+        "chi2": chi2,
+        "cstat": cstat,
+        "pstat": pstat,
+        "wstat": wstat,
+        "pgstat": pgstat,
     }
     likelihood: dict[str, Callable[[JAXArray], None]] = {
-        k: likelihood_wrapper[stat[k]](v, model[k].eval)
-        for k, v in data.items()
+        k: likelihood_wrapper[stat[k]](v, model[k].eval) for k, v in data.items()
     }
 
     # get default re-parameterization of each parameter
@@ -355,12 +342,10 @@ def get_helper(fit: Fit) -> Helper:
 
         # get parameter value from prior
         params_name_values = {
-            name: numpyro.sample(name, dist)
-            for name, dist in params_prior.items()
+            name: numpyro.sample(name, dist) for name, dist in params_prior.items()
         }
         params_id_values = {
-            pname_to_pid[name]: value
-            for name, value in params_name_values.items()
+            pname_to_pid[name]: value for name, value in params_name_values.items()
         }
 
         # store composite parameters into chains
@@ -376,10 +361,8 @@ def get_helper(fit: Fit) -> Helper:
     # ======================== create numpyro model ===========================
 
     # =================== functions used in optimization ======================
-    params_names = [
-        f'{i[1]}.{i[2]}' if i[1] else i[2] for i in model_info.info if i[0]
-    ]
-    interest_names = [f'{i[1]}.{i[2]}' for i in model_info.info if all(i[:2])]
+    params_names = [f"{i[1]}.{i[2]}" if i[1] else i[2] for i in model_info.info if i[0]]
+    interest_names = [f"{i[1]}.{i[2]}" for i in model_info.info if all(i[:2])]
     free_names = sorted(params_prior.keys(), key=params_names.index)
     deterministic_names = [pid_to_pname[i] for i in deterministic]
     deterministic_names = sorted(deterministic_names, key=params_names.index)
@@ -387,13 +370,11 @@ def get_helper(fit: Fit) -> Helper:
     # ensure if names are consistent
     if set(free_names + deterministic_names) != set(params_names):
         raise RuntimeError(
-            f'{params_names = }, {free_names = }, {deterministic_names = }'
+            f"{params_names = }, {free_names = }, {deterministic_names = }"
         )
 
     data_group = {
-        k: (f'{k}_Non', f'{k}_Noff')
-        if v in _STATISTIC_WITH_BACK
-        else (f'{k}_Non',)
+        k: (f"{k}_Non", f"{k}_Noff") if v in _STATISTIC_WITH_BACK else (f"{k}_Non",)
         for k, v in stat.items()
     }
 
@@ -449,23 +430,19 @@ def get_helper(fit: Fit) -> Helper:
         return constr_arr_to_unconstr_arr(constr_arr)
 
     # get default value of each parameter
-    default_constr_dic = {
-        pid_to_pname[k]: v for k, v in model_info.default.items()
-    }
+    default_constr_dic = {pid_to_pname[k]: v for k, v in model_info.default.items()}
     default_constr_dic = {k: default_constr_dic[k] for k in free_names}
     default_constr_arr = jnp.array([default_constr_dic[i] for i in free_names])
     default_unconstr_arr = constr_arr_to_unconstr_arr(default_constr_arr)
     free_default: dict[str, dict[ParamName, JAXFloat] | JAXArray] = {
-        'constr_dic': default_constr_dic,
-        'constr_arr': default_constr_arr,
-        'unconstr_arr': default_unconstr_arr,
+        "constr_dic": default_constr_dic,
+        "constr_arr": default_constr_arr,
+        "unconstr_arr": default_unconstr_arr,
     }
 
     def get_sites(
         unconstr_arr: JAXArray,
-    ) -> dict[
-        Literal['params', 'models', 'loglike'], dict[str, JAXFloat | JAXArray]
-    ]:
+    ) -> dict[Literal["params", "models", "loglike"], dict[str, JAXFloat | JAXArray]]:
         """Get parameters in constrained space, models values and log
         likelihood, given free parameters array in unconstrained space.
         """
@@ -479,7 +456,7 @@ def get_helper(fit: Fit) -> Helper:
         params = get_params(sites)
         models = get_models(sites)
         loglike = get_loglike(sites)
-        return {'params': params, 'models': models, 'loglike': loglike}
+        return {"params": params, "models": models, "loglike": loglike}
 
     def get_params(sites: Mapping) -> dict:
         """Get parameters' values in constrained space given numpyro model
@@ -492,29 +469,27 @@ def get_helper(fit: Fit) -> Helper:
         """Get model values given numpyro model sites."""
         models = {k: sites[k] for k in data_group.keys()}
         models |= {
-            f'{i}_model': sites[f'{i}_model']
-            for v in data_group.values()
-            for i in v
+            f"{i}_model": sites[f"{i}_model"] for v in data_group.values() for i in v
         }
         return models
 
     def get_loglike(sites: Mapping) -> dict:
         """Get log likelihood given numpyro model sites."""
         loglike_data = {
-            i: sites[f'{i}_loglike'] for v in data_group.values() for i in v
+            i: sites[f"{i}_loglike"] for v in data_group.values() for i in v
         }
-        loglike_point = {i: sites[f'{i}_loglike'] for i in data_group.keys()}
+        loglike_point = {i: sites[f"{i}_loglike"] for i in data_group.keys()}
         loglike_group = {k: v.sum(axis=-1) for k, v in loglike_point.items()}
         loglike_channels = jnp.concatenate(
             [loglike_point[i] for i in data_group.keys()], axis=-1
         )
         loglike_total = loglike_channels.sum(axis=-1)
         loglike = {
-            'data': loglike_data,
-            'point': loglike_point,
-            'group': loglike_group,
-            'channels': loglike_channels,
-            'total': loglike_total,
+            "data": loglike_data,
+            "point": loglike_point,
+            "group": loglike_group,
+            "channels": loglike_channels,
+            "total": loglike_total,
         }
         return loglike
 
@@ -525,7 +500,7 @@ def get_helper(fit: Fit) -> Helper:
         """Get parameters dict in constrained space,
         given a free parameters dict in unconstrained space.
         """
-        return jax.jit(get_sites)(dic_to_arr(dic))['params']
+        return jax.jit(get_sites)(dic_to_arr(dic))["params"]
 
     @jax.jit
     def unconstr_arr_to_params_array(arr: JAXArray) -> JAXArray:
@@ -573,7 +548,7 @@ def get_helper(fit: Fit) -> Helper:
         """Calculate log-likelihood given free parameters dict in constrained
         space.
         """
-        return get_sites(unconstr_arr)['loglike']
+        return get_sites(unconstr_arr)["loglike"]
 
     def deviance(unconstr_arr: JAXArray) -> dict:
         """Calculate total/group/point deviance given free parameters array in
@@ -581,23 +556,23 @@ def get_helper(fit: Fit) -> Helper:
         """
         loglike_dic = loglike(unconstr_arr)
         neg_double = jax.jit(lambda x: -2.0 * x)
-        point = jax.tree_map(neg_double, loglike_dic['point'])
-        group = jax.tree_map(neg_double, loglike_dic['group'])
-        total = jax.tree_map(neg_double, loglike_dic['total'])
-        return {'total': total, 'group': group, 'point': point}
+        point = jax.tree_map(neg_double, loglike_dic["point"])
+        group = jax.tree_map(neg_double, loglike_dic["group"])
+        total = jax.tree_map(neg_double, loglike_dic["total"])
+        return {"total": total, "group": group, "point": point}
 
     def deviance_total(unconstr_arr: JAXArray) -> JAXFloat:
         """Calculate total deviance given free parameters array in
         unconstrained space.
         """
-        return deviance(unconstr_arr)['total']
+        return deviance(unconstr_arr)["total"]
 
     def residual(unconstr_arr: JAXArray) -> JAXArray:
         """Calculate deviance residual (i.e. sqrt deviance) given free
         parameters array in unconstrained space.
         """
         loglike_dic = loglike(unconstr_arr)
-        loglike_arr = jnp.hstack(list(loglike_dic['point'].values()))
+        loglike_arr = jnp.hstack(list(loglike_dic["point"].values()))
         return jnp.sqrt(-2.0 * loglike_arr)
 
     # =================== functions used in optimization ======================
@@ -611,9 +586,7 @@ def get_helper(fit: Fit) -> Helper:
         sim_data, result, init = args
 
         # substitute observation data with simulation data
-        new_data = {
-            f'{j}_data': sim_data[j][i] for v in data_group.values() for j in v
-        }
+        new_data = {f"{j}_data": sim_data[j][i] for v in data_group.values() for j in v}
         new_residual = jax.jit(handlers.substitute(fn=residual, data=new_data))
         new_deviance = jax.jit(handlers.substitute(fn=deviance, data=new_data))
         new_sites = jax.jit(handlers.substitute(fn=get_sites, data=new_data))
@@ -632,42 +605,42 @@ def get_helper(fit: Fit) -> Helper:
         sites = new_sites(fitted_params)
 
         # update best fit params to result
-        params = sites['params']
-        result['params'] = jax.tree_map(
+        params = sites["params"]
+        result["params"] = jax.tree_map(
             lambda x, y: x.at[i].set(y),
-            result['params'],
+            result["params"],
             params,
         )
 
         # update the best fit model to result
-        models = sites['models']
-        result['models'] = jax.tree_map(
+        models = sites["models"]
+        result["models"] = jax.tree_map(
             lambda x, y: x.at[i].set(y),
-            result['models'],
-            {k: models[k] for k in result['models']},
+            result["models"],
+            {k: models[k] for k in result["models"]},
         )
 
         # update the deviance information to result
         dev = new_deviance(fitted_params)
-        res_dev = result['deviance']
-        res_dev['group'] = jax.tree_map(
+        res_dev = result["deviance"]
+        res_dev["group"] = jax.tree_map(
             lambda x, y: x.at[i].set(y),
-            res_dev['group'],
-            dev['group'],
+            res_dev["group"],
+            dev["group"],
         )
-        res_dev['point'] = jax.tree_map(
+        res_dev["point"] = jax.tree_map(
             lambda x, y: x.at[i].set(y),
-            res_dev['point'],
-            dev['point'],
+            res_dev["point"],
+            dev["point"],
         )
-        res_dev['total'] = res_dev['total'].at[i].set(dev['total'])
+        res_dev["total"] = res_dev["total"].at[i].set(dev["total"])
 
         valid = jnp.bitwise_not(
-            jnp.isnan(dev['total'])
+            jnp.isnan(dev["total"])
             | jnp.isnan(grad_norm)
             | jnp.greater(grad_norm, 1e-3)
         )
-        result['valid'] = result['valid'].at[i].set(valid)
+        result["valid"] = result["valid"].at[i].set(valid)
 
         return sim_data, result, init
 
@@ -680,7 +653,7 @@ def get_helper(fit: Fit) -> Helper:
         update_rate: int,
     ):
         """Fit simulation data in sequence."""
-        n = len(result['valid'])
+        n = len(result["valid"])
 
         if progress:
             pbar_factory = progress_bar_factory(
@@ -704,7 +677,7 @@ def get_helper(fit: Fit) -> Helper:
         n_parallel: int,
     ) -> dict:
         """Fit simulation data in parallel."""
-        n = len(result['valid'])
+        n = len(result["valid"])
         n_parallel = int(n_parallel)
         batch = n // n_parallel
 
@@ -735,7 +708,7 @@ def get_helper(fit: Fit) -> Helper:
         n_parallel: int | None = None,
         progress: bool = True,
         update_rate: int = 50,
-        run_str: str = 'Fitting',
+        run_str: str = "Fitting",
     ) -> dict:
         """Simulate data and then fit the simulation data.
 
@@ -769,9 +742,7 @@ def get_helper(fit: Fit) -> Helper:
         """
         seed = int(seed)
         free_params = jax.tree_map(jnp.array, free_params)
-        model_values = {
-            f'{k}_model': model_values[f'{k}_model'] for k in simulators
-        }
+        model_values = {f"{k}_model": model_values[f"{k}_model"] for k in simulators}
         n = int(n)
         n_parallel = get_parallel_number(n_parallel)
 
@@ -804,18 +775,18 @@ def get_helper(fit: Fit) -> Helper:
 
         # fit result container
         result = {
-            'params': {k: jnp.empty(nsim) for k in params_names},
-            'models': {
+            "params": {k: jnp.empty(nsim) for k in params_names},
+            "models": {
                 i: jnp.empty((nsim, ndata[k]))
                 for k, v in data_group.items()
-                for i in [k, *map('{}_model'.format, v)]
+                for i in [k, *map("{}_model".format, v)]
             },
-            'deviance': {
-                'total': jnp.empty(nsim),
-                'group': {k: jnp.empty(nsim) for k in data_group},
-                'point': {k: jnp.empty((nsim, ndata[k])) for k in data_group},
+            "deviance": {
+                "total": jnp.empty(nsim),
+                "group": {k: jnp.empty(nsim) for k in data_group},
+                "point": {k: jnp.empty((nsim, ndata[k])) for k in data_group},
             },
-            'valid': jnp.full(nsim, True, bool),
+            "valid": jnp.full(nsim, True, bool),
         }
 
         # fit simulation data
@@ -833,7 +804,7 @@ def get_helper(fit: Fit) -> Helper:
             result = sim_sequence_fit(
                 sim_data, result, init, run_str, progress, update_rate
             )
-        result['data'] = sim_data
+        result["data"] = sim_data
         return result
 
     # =============== functions used in simulation procedure ==================
@@ -852,10 +823,10 @@ def get_helper(fit: Fit) -> Helper:
         sampling_dist=sampling_dist,
         numpyro_model=numpyro_model,
         params_names={
-            'free': free_names,
-            'deterministic': deterministic_names,
-            'interest': interest_names,
-            'all': params_names,
+            "free": free_names,
+            "deterministic": deterministic_names,
+            "interest": interest_names,
+            "all": params_names,
         },
         params_setup=model_info.setup,
         params_latex=pname_to_latex,
@@ -916,7 +887,7 @@ class Helper(NamedTuple):
     seed: dict[str, int]
     """Random number generator seed."""
 
-    sampling_dist: dict[str, tuple[Literal['norm', 'poisson'], tuple]]
+    sampling_dist: dict[str, tuple[Literal["norm", "poisson"], tuple]]
     """Sampling distribution of observation data, this is used for probability
     integral transform calculation.
     """
@@ -948,7 +919,7 @@ class Helper(NamedTuple):
     get_sites: Callable[
         [JAXArray],
         dict[
-            Literal['params', 'models', 'loglike'],
+            Literal["params", "models", "loglike"],
             dict[str, JAXFloat | JAXArray],
         ],
     ]
@@ -1002,9 +973,7 @@ class Helper(NamedTuple):
     unconstrained space.
     """
 
-    unconstr_dic_to_params_dic: Callable[
-        [ParamNameValMapping], ParamNameValMapping
-    ]
+    unconstr_dic_to_params_dic: Callable[[ParamNameValMapping], ParamNameValMapping]
     """Get parameters dict in constrained space, given a free parameters dict
     in unconstrained space.
     """
@@ -1012,7 +981,5 @@ class Helper(NamedTuple):
     simulate: Callable[[int, dict[str, JAXArray], int], dict[str, JAXArray]]
     """Function to simulate data."""
 
-    simulate_and_fit: Callable[
-        [int, dict, dict, int, bool, int, bool, int, str], dict
-    ]
+    simulate_and_fit: Callable[[int, dict, dict, int, bool, int, bool, int, str], dict]
     """Function to simulate data and then fit the simulation data."""

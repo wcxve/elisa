@@ -27,7 +27,8 @@ from elisa.__about__ import __version__
 from elisa.infer.helper import check_params
 from elisa.infer.nested_sampling import NestedSampler
 from elisa.plot.plotter import MLEResultPlotter, PosteriorResultPlotter
-from elisa.util.misc import get_parallel_number, make_pretty_table
+from elisa.util.misc import make_pretty_table
+from elisa.util.config import get_parallel_number
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence

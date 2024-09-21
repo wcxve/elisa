@@ -28,9 +28,9 @@ from elisa.models.model import Model, get_model_info
 from elisa.util.misc import (
     add_suffix,
     build_namespace,
-    get_parallel_number,
     make_pretty_table,
 )
+from elisa.util.config import get_parallel_number
 
 if TYPE_CHECKING:
     from typing import Any, Callable, Literal
@@ -94,15 +94,17 @@ class Fit(ABC):
         cid = list(cid_to_comp.keys())
         comps = list(cid_to_comp.values())
         cid_to_data_suffix = {
-            i: '+'.join(i for i in data_names if i not in names)  # keep order
-            if (names := [n for n in data_names if i not in data_to_cid[n]])
-            else ''
+            i: (
+                "+".join(i for i in data_names if i not in names)  # keep order
+                if (names := [n for n in data_names if i not in data_to_cid[n]])
+                else ""
+            )
             for i in cid
         }
         data_suffix = list(cid_to_data_suffix.values())
         cname = [comp.name for comp in comps]
-        name_with_data_suffix = list(map(''.join, zip(cname, data_suffix)))
-        num_suffix = build_namespace(name_with_data_suffix)['suffix_num']
+        name_with_data_suffix = list(map("".join, zip(cname, data_suffix)))
+        num_suffix = build_namespace(name_with_data_suffix)["suffix_num"]
         cname = add_suffix(cname, num_suffix, True, True)
         cname = add_suffix(cname, data_suffix, False, True)
         cid_to_name = dict(zip(cid, cname))
@@ -112,9 +114,7 @@ class Fit(ABC):
         cid_to_latex = dict(zip(cid, latex))
 
         # get model info
-        self._model_info: ModelInfo = get_model_info(
-            comps, cid_to_name, cid_to_latex
-        )
+        self._model_info: ModelInfo = get_model_info(comps, cid_to_name, cid_to_latex)
 
         # first filter out duplicated models then compile the remaining models,
         # this is intended to avoid re-compilation of the same model
@@ -125,9 +125,7 @@ class Fit(ABC):
             for mid, m in mid_to_model.items()
         }
         data_to_mid = dict(zip(data_names, models_id))
-        self._model = {
-            name: compiled_model[mid] for name, mid in data_to_mid.items()
-        }
+        self._model = {name: compiled_model[mid] for name, mid in data_to_mid.items()}
 
         # store data, stat, seed
         self._data: dict[str, FixedData] = dict(zip(data_names, data))
@@ -149,14 +147,12 @@ class Fit(ABC):
         """Search MLE by Levenberg-Marquardt algorithm of :mod:`optimistix`."""
 
         if verbose:
-            verbose = frozenset({'step', 'loss'})
+            verbose = frozenset({"step", "loss"})
         else:
             verbose = frozenset()
 
         if self._lm is None:
-            lm_solver = optx.LevenbergMarquardt(
-                rtol=0.0, atol=1e-6, verbose=verbose
-            )
+            lm_solver = optx.LevenbergMarquardt(rtol=0.0, atol=1e-6, verbose=verbose)
             residual = jax.jit(lambda x, aux: self._helper.residual(x))
 
             def lm(init):
@@ -179,25 +175,23 @@ class Fit(ABC):
             self._ns = NestedSampler(
                 self._helper.numpyro_model,
                 constructor_kwargs={
-                    'max_samples': max_steps,
-                    'parameter_estimation': True,
-                    'verbose': verbose,
+                    "max_samples": max_steps,
+                    "parameter_estimation": True,
+                    "verbose": verbose,
                 },
             )
             t0 = time.time()
-            print('Start searching MLE...')
-            self._ns.run(rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']))
-            print(f'Search cost {time.time() - t0:.2f} s')
+            print("Start searching MLE...")
+            self._ns.run(rng_key=jax.random.PRNGKey(self._helper.seed["mcmc"]))
+            print(f"Search cost {time.time() - t0:.2f} s")
 
         ns = self._ns
 
         samples = ns._results.samples
-        loglike = [
-            samples[f'{i}_loglike'].sum(axis=-1) for i in self._data.keys()
-        ]
+        loglike = [samples[f"{i}_loglike"].sum(axis=-1) for i in self._data.keys()]
         mle_idx = np.sum(loglike, axis=0).argmax()
         mle = jax.tree_map(lambda s: s[mle_idx], samples)
-        mle = {i: mle[i] for i in self._helper.params_names['free']}
+        mle = {i: mle[i] for i in self._helper.params_names["free"]}
         return self._helper.constr_dic_to_unconstr_arr(mle)
 
     @property
@@ -226,22 +220,22 @@ class Fit(ABC):
 
     def __repr__(self) -> str:
         return (
-            f'\n{self._tab_config[0]}\n\n'
-            f'{self._tab_likelihood.get_string()}\n\n'
-            f'{self._tab_params.get_string()}\n'
+            f"\n{self._tab_config[0]}\n\n"
+            f"{self._tab_likelihood.get_string()}\n\n"
+            f"{self._tab_params.get_string()}\n"
         )
 
     def _repr_html_(self) -> str:
         """The repr in Jupyter notebook environment."""
         return (
-            f'<details open><summary><b>{self._tab_config[0]}</b></summary>'
-            f'<br/>{self._tab_likelihood.get_html_string(format=True)}'
-            f'<br/>{self._tab_params.get_html_string(format=True)}'
-            '</details>'
+            f"<details open><summary><b>{self._tab_config[0]}</b></summary>"
+            f"<br/>{self._tab_likelihood.get_html_string(format=True)}"
+            f"<br/>{self._tab_params.get_html_string(format=True)}"
+            "</details>"
         )
 
     def _make_info_table(self):
-        fields = ('Data', 'Model', 'Statistic')
+        fields = ("Data", "Model", "Statistic")
         rows = tuple(
             zip(
                 self._data,
@@ -251,7 +245,7 @@ class Fit(ABC):
         )
         self._tab_likelihood: PrettyTable = make_pretty_table(fields, rows)
 
-        fields = ('No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior')
+        fields = ("No.", "Component", "Parameter", "Value", "Bound", "Prior")
         mask = np.isin(fields, tuple(self._tab_config[1]))
         fields = np.array(fields)[~mask].tolist()
         rows = np.array(self._model_info.info)[:, ~mask].tolist()
@@ -266,20 +260,18 @@ class Fit(ABC):
         """Check if data, model, and stat are correct and return lists."""
 
         # ====================== some helper functions ========================
-        def get_list(
-            inputs: Any, name: str, expect_type, type_name: str
-        ) -> list:
+        def get_list(inputs: Any, name: str, expect_type, type_name: str) -> list:
             """Check the model/data/stat, and return a list."""
             if isinstance(inputs, expect_type):
                 input_list = [inputs]
             elif isinstance(inputs, Sequence):
                 if not inputs:
-                    raise ValueError(f'{name} list is empty')
+                    raise ValueError(f"{name} list is empty")
                 if not all(isinstance(i, expect_type) for i in inputs):
-                    raise ValueError(f'all {name} must be a valid {type_name}')
+                    raise ValueError(f"all {name} must be a valid {type_name}")
                 input_list = list(inputs)
             else:
-                raise ValueError(f'got wrong type {type(inputs)} for {name}')
+                raise ValueError(f"got wrong type {type(inputs)} for {name}")
             return input_list
 
         def get_stat(d: FixedData) -> Statistic:
@@ -288,77 +280,74 @@ class Fit(ABC):
             if d.spec_poisson:
                 if d.has_back:
                     if d.back_poisson:
-                        return 'wstat'
-                    return 'pgstat'
+                        return "wstat"
+                    return "pgstat"
                 else:
-                    return 'cstat'
+                    return "cstat"
             else:
-                return 'chi2'
+                return "chi2"
 
         def check_stat(d: FixedData, s: Statistic):
             """Check if data type and likelihood are matched."""
             name = d.name
-            if not d.spec_poisson and s != 'chi2':
+            if not d.spec_poisson and s != "chi2":
                 msg = f'{name} is Gaussian data, use stat "chi2" instead'
                 raise ValueError(msg)
 
-            if s == 'chi2' and np.any(d.net_errors == 0.0):
+            if s == "chi2" and np.any(d.net_errors == 0.0):
                 raise ValueError(
                     f'"chi2" is not valid for {name} data, which has zero '
-                    'uncertainties; grouping the data may fix this error'
+                    "uncertainties; grouping the data may fix this error"
                 )
 
-            elif s == 'cstat' and d.has_back:
-                back = 'Poisson' if d.back_poisson else 'Gaussian'
-                stat1 = 'W' if d.back_poisson else 'PG'
-                stat2 = 'w' if d.back_poisson else 'pg'
-                msg = 'C-statistic (cstat) is not valid for Poisson data '
-                msg += f'with {back} background, use {stat1}-statistic'
-                msg += f'({stat2}stat) for {name} instead'
+            elif s == "cstat" and d.has_back:
+                back = "Poisson" if d.back_poisson else "Gaussian"
+                stat1 = "W" if d.back_poisson else "PG"
+                stat2 = "w" if d.back_poisson else "pg"
+                msg = "C-statistic (cstat) is not valid for Poisson data "
+                msg += f"with {back} background, use {stat1}-statistic"
+                msg += f"({stat2}stat) for {name} instead"
                 raise ValueError(msg)
 
-            elif s == 'pstat' and not d.has_back:
-                msg = f'P-statistic (pstat) is not valid for {name}, which '
-                msg += 'requires background file, use C-statistic (cstat) '
-                msg += 'instead'
+            elif s == "pstat" and not d.has_back:
+                msg = f"P-statistic (pstat) is not valid for {name}, which "
+                msg += "requires background file, use C-statistic (cstat) "
+                msg += "instead"
                 raise ValueError(msg)
 
-            elif s == 'pgstat':
+            elif s == "pgstat":
                 if not d.has_back:
-                    msg = f'PG-statistic is not valid for {name}, which '
-                    msg += 'requires Gaussian background data, '
-                    msg += 'use C-statistic instead (cstat)'
+                    msg = f"PG-statistic is not valid for {name}, which "
+                    msg += "requires Gaussian background data, "
+                    msg += "use C-statistic instead (cstat)"
                     raise ValueError(msg)
 
                 if np.any(d.back_errors == 0.0):
                     raise ValueError(
-                        f'PG-statistic is not valid for {name} data, '
-                        'which has zero background uncertainties; '
-                        'grouping the data may fix this error'
+                        f"PG-statistic is not valid for {name} data, "
+                        "which has zero background uncertainties; "
+                        "grouping the data may fix this error"
                     )
 
-            elif s == 'wstat' and not (d.has_back and d.back_poisson):
-                msg = f'W-statistic is not valid for {name}, which requires '
-                msg += 'Poisson background data, use C-statistic (cstat) '
-                msg += 'instead'
+            elif s == "wstat" and not (d.has_back and d.back_poisson):
+                msg = f"W-statistic is not valid for {name}, which requires "
+                msg += "Poisson background data, use C-statistic (cstat) "
+                msg += "instead"
                 raise ValueError(msg)
 
         # ====================== some helper functions ========================
 
         # get data
         data_list: list[FixedData] = [
-            d.get_fixed_data()
-            for d in get_list(data, 'data', ObservationData, 'Data')
+            d.get_fixed_data() for d in get_list(data, "data", ObservationData, "Data")
         ]
 
         # check if data are used multiple times
         if len(list(map(id, data_list))) != len(data_list):
             count = {d: data_list.count(d) for d in set(data_list)}
             raise ValueError(
-                'data cannot be used multiple times: '
-                + ', '.join(
-                    f'{k.name} ({v})' for k, v in count.items() if v > 1
-                )
+                "data cannot be used multiple times: "
+                + ", ".join(f"{k.name} ({v})" for k, v in count.items() if v > 1)
             )
 
         # check if data name is unique
@@ -371,14 +360,14 @@ class Fit(ABC):
             )
 
         # get model
-        model_list: list[Model] = get_list(model, 'model', Model, 'Model')
+        model_list: list[Model] = get_list(model, "model", Model, "Model")
 
         # check if the model type is additive
-        flag = [i.type == 'add' for i in model_list]
+        flag = [i.type == "add" for i in model_list]
         if not all(flag):
             err = (j for i, j in enumerate(model_list) if not flag[i])
-            err = ', '.join(f"'{i}'" for i in err)
-            msg = f'got models which are not additive type: {err}'
+            err = ", ".join(f"'{i}'" for i in err)
+            msg = f"got models which are not additive type: {err}"
             raise TypeError(msg)
 
         # get stat
@@ -386,16 +375,16 @@ class Fit(ABC):
         if stat is None:
             stat_list: list[Statistic] = [get_stat(d) for d in data_list]
         else:
-            stat_list: list[Statistic] = get_list(stat, 'stat', str, 'str')
+            stat_list: list[Statistic] = get_list(stat, "stat", str, "str")
 
             # check the stat option
             flag = [i in _STATISTIC_OPTIONS for i in stat_list]
             if not all(flag):
-                err = ', '.join(
+                err = ", ".join(
                     f"'{j}'" for i, j in enumerate(stat_list) if not flag[i]
                 )
-                supported = ', '.join(f"'{i}'" for i in _STATISTIC_OPTIONS)
-                msg = f'unexpected stat: {err}; supported are {supported}'
+                supported = ", ".join(f"'{i}'" for i in _STATISTIC_OPTIONS)
+                msg = f"unexpected stat: {err}; supported are {supported}"
                 raise ValueError(msg)
 
         nd = len(data_list)
@@ -406,14 +395,14 @@ class Fit(ABC):
         if nm == 1:
             model_list *= nd
         elif nm != nd:
-            msg = f'number of model ({nm}) and data ({nd}) are not matched'
+            msg = f"number of model ({nm}) and data ({nd}) are not matched"
             raise ValueError(msg)
 
         # check stat number
         if ns == 1:
             stat_list *= nd
         elif ns != nd:
-            msg = f'number of data ({nd}) and stat ({ns}) are not matched'
+            msg = f"number of data ({nd}) and stat ({ns}) are not matched"
             raise ValueError(msg)
 
         # check if correctly using stat
@@ -424,7 +413,7 @@ class Fit(ABC):
 
 
 class MaxLikeFit(Fit):
-    _tab_config = ('Maximum Likelihood Fit', frozenset({'Prior'}))
+    _tab_config = ("Maximum Likelihood Fit", frozenset({"Prior"}))
 
     def _optimize_minuit(
         self,
@@ -435,12 +424,12 @@ class MaxLikeFit(Fit):
     ) -> Minuit:
         """Search MLE using Minuit algorithm of :mod:`iminuit`."""
         deviance = jax.jit(self._helper.deviance_total)
-        deviance.ndata = self._helper.ndata['total']
+        deviance.ndata = self._helper.ndata["total"]
         minuit = Minuit(
             deviance,
             np.array(unconstr_init),
             grad=jax.jit(jax.grad(deviance)),
-            name=self._helper.params_names['free'],
+            name=self._helper.params_names["free"],
         )
 
         if throw:
@@ -457,7 +446,7 @@ class MaxLikeFit(Fit):
     def mle(
         self,
         init: ArrayLike | dict | None = None,
-        method: Literal['minuit', 'lm', 'ns'] = 'minuit',
+        method: Literal["minuit", "lm", "ns"] = "minuit",
         max_steps: int = None,
         throw: bool = True,
         verbose: int | bool = False,
@@ -500,31 +489,29 @@ class MaxLikeFit(Fit):
         elif isinstance(init, dict):
             init_unconstr = self._helper.constr_dic_to_unconstr_arr(init)
         elif init is None:
-            init_unconstr = self._helper.free_default['unconstr_arr']
+            init_unconstr = self._helper.free_default["unconstr_arr"]
         else:
-            raise TypeError('params must be a array, sequence, or mapping')
+            raise TypeError("params must be a array, sequence, or mapping")
 
         max_steps = 131072 if max_steps is None else int(max_steps)
 
-        if method == 'lm':  # use Levenberg-Marquardt algorithm to find MLE
+        if method == "lm":  # use Levenberg-Marquardt algorithm to find MLE
             init_unconstr, _ = self._optimize_lm(
                 init_unconstr, max_steps, throw, bool(verbose)
             )
-        elif method == 'ns':  # use nested sampling to find MLE
+        elif method == "ns":  # use nested sampling to find MLE
             init_unconstr = self._optimize_ns(max_steps, verbose)
         else:
-            if method != 'minuit':
-                raise ValueError(f'unsupported optimization method {method}')
+            if method != "minuit":
+                raise ValueError(f"unsupported optimization method {method}")
 
-        minuit = self._optimize_minuit(
-            init_unconstr, max_steps, throw, verbose
-        )
+        minuit = self._optimize_minuit(init_unconstr, max_steps, throw, verbose)
 
         return MLEResult(minuit, self._helper)
 
 
 class BayesFit(Fit):
-    _tab_config = ('Bayesian Fit', frozenset({'Bound'}))
+    _tab_config = ("Bayesian Fit", frozenset({"Bound"}))
 
     def nuts(
         self,
@@ -532,7 +519,7 @@ class BayesFit(Fit):
         steps=5000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
-        chain_method: str = 'parallel',
+        chain_method: str = "parallel",
         progress: bool = True,
         **nuts_kwargs: dict,
     ) -> PosteriorResult:
@@ -586,18 +573,18 @@ class BayesFit(Fit):
 
         # TODO: option to let sampler starting from MLE
         if init is None:
-            init = self._helper.free_default['constr_dic']
+            init = self._helper.free_default["constr_dic"]
         else:
-            init = self._helper.free_default['constr_dic'] | dict(init)
+            init = self._helper.free_default["constr_dic"] | dict(init)
 
         default_nuts_kwargs = {
-            'dense_mass': True,
-            'target_accept_prob': 0.8,
-            'max_tree_depth': 10,
+            "dense_mass": True,
+            "target_accept_prob": 0.8,
+            "max_tree_depth": 10,
         }
         nuts_kwargs = default_nuts_kwargs | nuts_kwargs
-        nuts_kwargs['model'] = self._helper.numpyro_model
-        nuts_kwargs['init_strategy'] = init_to_value(values=init)
+        nuts_kwargs["model"] = self._helper.numpyro_model
+        nuts_kwargs["init_strategy"] = init_to_value(values=init)
 
         sampler = MCMC(
             NUTS(**nuts_kwargs),
@@ -609,8 +596,8 @@ class BayesFit(Fit):
         )
 
         sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-            extra_fields=('energy', 'num_steps'),
+            rng_key=jax.random.PRNGKey(self._helper.seed["mcmc"]),
+            extra_fields=("energy", "num_steps"),
         )
         return PosteriorResult(sampler, self._helper, self)
 
@@ -679,19 +666,19 @@ class BayesFit(Fit):
         num_parallel_workers = int(num_parallel_workers)
 
         constructor_kwargs = {
-            'max_samples': max_samples,
-            'num_live_points': num_live_points,
-            's': s,
-            'k': k,
-            'c': c,
-            'num_parallel_workers': num_parallel_workers,
-            'difficult_model': difficult_model,
-            'parameter_estimation': parameter_estimation,
-            'verbose': verbose,
+            "max_samples": max_samples,
+            "num_live_points": num_live_points,
+            "s": s,
+            "k": k,
+            "c": c,
+            "num_parallel_workers": num_parallel_workers,
+            "difficult_model": difficult_model,
+            "parameter_estimation": parameter_estimation,
+            "verbose": verbose,
         }
         constructor_kwargs |= ns_kwargs
 
-        termination_kwargs = {'dlogZ': 1e-4}
+        termination_kwargs = {"dlogZ": 1e-4}
         if term_cond is not None:
             termination_kwargs |= dict(term_cond)
 
@@ -701,10 +688,10 @@ class BayesFit(Fit):
             termination_kwargs=termination_kwargs,
         )
 
-        print('Start nested sampling...')
+        print("Start nested sampling...")
         t0 = time.time()
-        sampler.run(rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']))
-        print(f'Sampling cost {time.time() - t0:.2f} s')
+        sampler.run(rng_key=jax.random.PRNGKey(self._helper.seed["mcmc"]))
+        print(f"Sampling cost {time.time() - t0:.2f} s")
         return PosteriorResult(sampler, self._helper, self)
 
     def ultranest(
@@ -754,7 +741,7 @@ class BayesFit(Fit):
 
         log_prob, transform, param_names = reparam_loglike(
             self._helper.numpyro_model,
-            jax.random.PRNGKey(self._helper.seed['mcmc']),
+            jax.random.PRNGKey(self._helper.seed["mcmc"]),
         )
 
         @jax.jit
@@ -793,7 +780,7 @@ class BayesFit(Fit):
         @jax.vmap
         @jax.jit
         def transform_(samples):
-            base_names = [name + '_base' for name in param_names]
+            base_names = [name + "_base" for name in param_names]
             return transform(dict(zip(base_names, samples)))
 
         sampler = ultranest.ReactiveNestedSampler(
@@ -802,18 +789,16 @@ class BayesFit(Fit):
         sampler._transform_back = transform_
 
         if read_file is None:
-            print('Start nested sampling...')
+            print("Start nested sampling...")
             t0 = time.time()
             sampler.run(min_ess=int(ess), **termination_kwargs)
-            print(f'Sampling cost {time.time() - t0:.2f} s')
+            print(f"Sampling cost {time.time() - t0:.2f} s")
         else:
             read_file = dict(read_file)
-            log_dir = read_file['log_dir']
-            verbose = read_file.get('verbose', False)
+            log_dir = read_file["log_dir"]
+            verbose = read_file.get("verbose", False)
             x_dim = sampler.x_dim
-            sequence, final = ultranest.read_file(
-                log_dir, x_dim, verbose=verbose
-            )
+            sequence, final = ultranest.read_file(log_dir, x_dim, verbose=verbose)
             sampler.results = sequence | final
         return PosteriorResult(sampler, self._helper, self)
 
@@ -864,7 +849,7 @@ class BayesFit(Fit):
 
         log_prob, transform, param_names = reparam_loglike(
             self._helper.numpyro_model,
-            jax.random.PRNGKey(self._helper.seed['mcmc']),
+            jax.random.PRNGKey(self._helper.seed["mcmc"]),
         )
 
         @jax.jit
@@ -878,8 +863,8 @@ class BayesFit(Fit):
         if parallel:
             ncore = jax.local_device_count()
             devices = create_device_mesh((ncore,))
-            mesh = Mesh(devices, axis_names=('i',))
-            pi = PartitionSpec('i')
+            mesh = Mesh(devices, axis_names=("i",))
+            pi = PartitionSpec("i")
             log_prob_ = shard_map(
                 f=jax.jit(jax.vmap(log_prob_)),
                 mesh=mesh,
@@ -887,42 +872,42 @@ class BayesFit(Fit):
                 out_specs=pi,
                 check_rep=False,
             )
-            constructor_kwargs['n_batch'] = n_batch * ncore
+            constructor_kwargs["n_batch"] = n_batch * ncore
 
         @jax.vmap
         @jax.jit
         def transform_(samples):
-            base_names = [name + '_base' for name in param_names]
+            base_names = [name + "_base" for name in param_names]
             return transform(dict(zip(base_names, samples)))
 
         prior = nautilus.Prior()
         for param in param_names:
             prior.add_parameter(param)
 
-        constructor_kwargs['pass_dict'] = False
-        constructor_kwargs['seed'] = self._helper.seed['mcmc']
-        constructor_kwargs['vectorized'] = bool(parallel)
-        constructor_kwargs.setdefault('pool', (None, jax.local_device_count()))
+        constructor_kwargs["pass_dict"] = False
+        constructor_kwargs["seed"] = self._helper.seed["mcmc"]
+        constructor_kwargs["vectorized"] = bool(parallel)
+        constructor_kwargs.setdefault("pool", (None, jax.local_device_count()))
         sampler = nautilus.Sampler(
             prior=prior,
             likelihood=log_prob_,
             **constructor_kwargs,
         )
 
-        termination_kwargs['discard_exploration'] = True
-        termination_kwargs.setdefault('verbose', True)
-        print('Start nested sampling...')
+        termination_kwargs["discard_exploration"] = True
+        termination_kwargs.setdefault("verbose", True)
+        print("Start nested sampling...")
         t0 = time.time()
         success = sampler.run(n_eff=int(ess), **termination_kwargs)
         if success:
-            print(f'Sampling cost {time.time() - t0:.2f} s')
+            print(f"Sampling cost {time.time() - t0:.2f} s")
             sampler._transform_back = transform_
             return PosteriorResult(sampler, self._helper, self)
         else:
             raise RuntimeError(
-                'Sampling failed due to limits were reached, please set a '
-                'larger `n_like_max` or `timeout`. You can also resume the '
-                'sampler from previous one, providing `filepath` and `resume`.'
+                "Sampling failed due to limits were reached, please set a "
+                "larger `n_like_max` or `timeout`. You can also resume the "
+                "sampler from previous one, providing `filepath` and `resume`."
             )
 
     def aies(
@@ -931,7 +916,7 @@ class BayesFit(Fit):
         steps=5000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
-        chain_method: str = 'vectorized',
+        chain_method: str = "vectorized",
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
@@ -987,33 +972,33 @@ class BayesFit(Fit):
                and Jonathan Goodman.
         """
         if chains is None:
-            chains = 4 * len(self._helper.params_names['free'])
+            chains = 4 * len(self._helper.params_names["free"])
         else:
             chains = int(chains)
 
         # TODO: option to let sampler starting from MLE
         if init is None:
-            init = self._helper.free_default['constr_dic']
+            init = self._helper.free_default["constr_dic"]
         else:
-            init = self._helper.free_default['constr_dic'] | dict(init)
+            init = self._helper.free_default["constr_dic"] | dict(init)
         init = self._helper.constr_dic_to_unconstr_arr(init)
-        rng = np.random.default_rng(self._helper.seed['mcmc'])
+        rng = np.random.default_rng(self._helper.seed["mcmc"])
         jitter = 0.1 * np.abs(init)
         low = init - jitter
         high = init + jitter
         init = rng.uniform(low, high, size=(chains, len(init)))
-        init = dict(zip(self._helper.params_names['free'], init.T))
+        init = dict(zip(self._helper.params_names["free"], init.T))
 
-        aies_kwargs['model'] = self._helper.numpyro_model
+        aies_kwargs["model"] = self._helper.numpyro_model
         if moves is None:
-            aies_kwargs['moves'] = {
+            aies_kwargs["moves"] = {
                 AIES.DEMove(): 0.5,
                 AIES.StretchMove(): 0.5,
             }
         else:
-            aies_kwargs['moves'] = moves
+            aies_kwargs["moves"] = moves
 
-        if chain_method == 'parallel':
+        if chain_method == "parallel":
             aies_kernel = AIES(**aies_kwargs)
 
             def do_mcmc(rng_key):
@@ -1022,7 +1007,7 @@ class BayesFit(Fit):
                     num_warmup=warmup,
                     num_samples=steps,
                     num_chains=chains,
-                    chain_method='vectorized',
+                    chain_method="vectorized",
                     progress_bar=False,
                 )
                 mcmc.run(
@@ -1032,7 +1017,7 @@ class BayesFit(Fit):
                 return mcmc.get_samples(group_by_chain=True)
 
             rng_keys = jax.random.split(
-                jax.random.PRNGKey(self._helper.seed['mcmc']),
+                jax.random.PRNGKey(self._helper.seed["mcmc"]),
                 get_parallel_number(n_parallel),
             )
             traces = jax.pmap(do_mcmc)(rng_keys)
@@ -1056,7 +1041,7 @@ class BayesFit(Fit):
             )
 
             sampler.run(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                rng_key=jax.random.PRNGKey(self._helper.seed["mcmc"]),
                 init_params=init,
             )
         return PosteriorResult(sampler, self._helper, self)
