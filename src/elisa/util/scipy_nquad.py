@@ -12,14 +12,16 @@ try:
     import numba as nb
 except ImportError as e:
     raise ImportError(
-        "To use this module, please install `numba` package. It can be"
-        " installed with `pip install numba`"
+        'To use this module, please install `numba` package. It can be'
+        ' installed with `pip install numba`'
     ) from e
 
 
 class NQuadTransform:
     def __init__(self, fun):
-        self._c_sig = nb.types.double(nb.types.intc, nb.types.CPointer(nb.types.double))
+        self._c_sig = nb.types.double(
+            nb.types.intc, nb.types.CPointer(nb.types.double)
+        )
         self._fun = fun
 
     def _cfun(self):
@@ -46,7 +48,9 @@ class NQuadTransform:
                 )
                 return jnp.asarray([result, abserr])
 
-            result_shape_dtype = jax.ShapeDtypeStruct(shape=(2,), dtype=ranges.dtype)
+            result_shape_dtype = jax.ShapeDtypeStruct(
+                shape=(2,), dtype=ranges.dtype
+            )
             return jax.pure_callback(
                 _pcb, result_shape_dtype, ranges, args, vectorized=vectorized
             )
@@ -54,7 +58,7 @@ class NQuadTransform:
         return _nquad_scipy
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     """example 1"""
 
     @nb.njit
@@ -75,8 +79,8 @@ if __name__ == "__main__":
 
     """example 2"""
     from elisa.models.model import AnaIntAdditive, ParamConfig
-    from elisa.util.typing import JAXArray, NameValMapping
     from elisa.util.misc import define_fdjvp
+    from elisa.util.typing import JAXArray, NameValMapping
 
     # blackbody model
     @nb.njit
@@ -102,14 +106,14 @@ if __name__ == "__main__":
 
     class BB_test(AnaIntAdditive):
         _config = (
-            ParamConfig("kT", "kT", "keV", 3.0, 1e-4, 200.0),
-            ParamConfig("K", "K", "", 1.0, 1e-10, 1e10),
+            ParamConfig('kT', 'kT', 'keV', 3.0, 1e-4, 200.0),
+            ParamConfig('K', 'K', '', 1.0, 1e-10, 1e10),
         )
 
         @staticmethod
         def integral(egrid: JAXArray, params: NameValMapping) -> JAXArray:
-            kT = params["kT"]
-            K = params["K"]
+            kT = params['kT']
+            K = params['K']
 
             # integrate energy grids
             ranges = jnp.asarray([egrid[:-1], egrid[1:]], dtype=jnp.float64).T
@@ -119,4 +123,4 @@ if __name__ == "__main__":
             return jax.vmap(bboduyrad_flux, in_axes=(0, None))(ranges, args)
 
     # define numerical integration for model fit
-    BB_test.integral = define_fdjvp(BB_test.integral, method="forward")
+    BB_test.integral = define_fdjvp(BB_test.integral, method='forward')
