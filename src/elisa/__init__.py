@@ -33,5 +33,5 @@ from .util import (
 )
 
 jax_enable_x64(True)
-set_jax_platform('cpu')
+# set_jax_platform('cpu')
 set_cpu_cores(4)
