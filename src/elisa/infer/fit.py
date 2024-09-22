@@ -17,7 +17,7 @@ from iminuit import Minuit
 from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
-from numpyro.infer import AIES, MCMC, NUTS, init_to_value
+from numpyro.infer import AIES, MCMC, NUTS, SA, init_to_value
 
 from elisa.data.base import FixedData, ObservationData
 from elisa.infer.helper import Helper, get_helper
@@ -1064,3 +1064,80 @@ class BayesFit(Fit):
                 init_params=init,
             )
         return PosteriorResult(sampler, self._helper, self)
+
+    def sa(
+        self,
+        warmup=2e4,
+        steps=3e5,
+        chains: int | None = None,
+        init: dict[str, float] | None = None,
+        chain_method: str = "parallel",
+        progress: bool = True,
+        **sa_kwargs: dict,
+    ) -> PosteriorResult:
+        """Run the Sample Adaptive MCMC of :mod:`numpyro`.
+
+        Sample Adaptive MCMC, a gradient-free sampler. [1]_
+
+        Parameters
+        ----------
+        warmup : int, optional
+            Number of warmup steps.
+        steps : int, optional
+            Number of steps to run for each chain.
+        chains : int, optional
+            Number of MCMC chains to run. If there are not enough devices
+            available, chains will run in sequence. Defaults to the number of
+            ``jax.local_device_count()``.
+        init : dict, optional
+            Initial parameter for sampler to start from.
+        chain_method : str, optional
+            The chain method passed to :class:`numpyro.infer.MCMC`.
+        progress : bool, optional
+            Whether to show progress bar during sampling. The default is True.
+        **sa_kwargs : dict
+            Extra parameters passed to :class:`numpyro.infer.SA`.
+
+        Returns
+        -------
+        PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] Sample Adaptive MCMC by Michael Zhu
+               <https://papers.nips.cc/paper/9107-sample-adaptive-mcmc>`__
+        """
+        if chains is None:
+            chains = 4 * len(self._helper.params_names["free"])
+        else:
+            chains = int(chains)
+
+        # TODO: option to let sampler starting from MLE
+        if init is None:
+            init = self._helper.free_default["constr_dic"]
+        else:
+            init = self._helper.free_default["constr_dic"] | dict(init)
+
+        default_sa_kwargs = {
+            "dense_mass": True,
+            "adapt_state_size": None,
+        }
+        sa_kwargs = default_sa_kwargs | sa_kwargs
+        sa_kwargs["model"] = self._helper.numpyro_model
+        sa_kwargs["init_strategy"] = init_to_value(values=init)
+
+        sampler = MCMC(
+            SA(**sa_kwargs),
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method=chain_method,
+            progress_bar=progress,
+        )
+
+        sampler.run(
+            rng_key=jax.random.PRNGKey(self._helper.seed["mcmc"]),
+        )
+        return PosteriorResult(sampler, self._helper, self)
+
