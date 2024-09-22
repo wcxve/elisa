@@ -1067,8 +1067,8 @@ class BayesFit(Fit):
 
     def sa(
         self,
-        warmup=2e4,
-        steps=3e5,
+        warmup=20000,
+        steps=300000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
         chain_method: str = "parallel",
