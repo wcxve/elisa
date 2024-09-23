@@ -17,7 +17,7 @@ from iminuit import Minuit
 from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
-from numpyro.infer import AIES, MCMC, NUTS, SA, init_to_value
+from numpyro.infer import AIES, ESS, MCMC, NUTS, SA, init_to_value
 
 from elisa.data.base import FixedData, ObservationData
 from elisa.infer.helper import Helper, get_helper
@@ -1061,6 +1061,138 @@ class BayesFit(Fit):
 
             sampler.run(
                 rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                init_params=init,
+            )
+        return PosteriorResult(sampler, self._helper, self)
+
+    def ess(
+        self,
+        warmup=2000,
+        steps=5000,
+        chains: int | None = None,
+        init: dict[str, float] | None = None,
+        chain_method: str = "vectorized",
+        n_parallel: int | None = None,
+        progress: bool = True,
+        moves: dict | None = None,
+        **ess_kwargs: dict,
+    ) -> PosteriorResult:
+        """Ensemble Slice Sampling (ESS) of :mod:`numpyro`.
+
+        Ensemble Slice Sampling [1]_ is a gradient free method
+        that finds better slice sampling directions by sharing information
+        between chains. Suitable for low to moderate dimensional models.
+        Generally, num_chains should be at least twice the dimensionality of the model.
+
+        .. note::
+            This kernel must be used with even `num_chains` > 1 and
+            ``chain_method='vectorized'``.
+
+        Parameters
+        ----------
+        warmup : int, optional
+            Number of warmup steps.
+        steps : int, optional
+            Number of steps to run for each chain.
+        chains : int, optional
+            Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
+            the dimension of model parameters.
+        init : dict, optional
+            Initial parameter for sampler to start from.
+        chain_method : str, optional
+            Available options are ``'vectorized'`` and ``'parallel'``.
+            Defaults to ``'vectorized'``.
+        n_parallel : int, optional
+            Number of parallel chains to run when `chain_method` is
+            ``"parallel"``. Defaults to ``jax.local_device_count()``.
+        progress : bool, optional
+            Whether to show progress bar during sampling. The default is True.
+            If `chain_method` is set to ``'parallel'``, this is always False.
+        moves : dict, optional
+            Moves for the sampler.
+        **ess_kwargs : dict
+            Extra parameters passed to :class:`numpyro.infer.ESS`.
+
+        Returns
+        -------
+        PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] zeus: a PYTHON implementation of ensemble slice sampling
+                for efficient Bayesian parameter inference
+                (https://academic.oup.com/mnras/article/508/3/3589/6381726),
+                Minas Karamanis, Florian Beutler, and John A. Peacock.
+        """
+        if chains is None:
+            chains = 4 * len(self._helper.params_names["free"])
+        else:
+            chains = int(chains)
+
+        # TODO: option to let sampler starting from MLE
+        if init is None:
+            init = self._helper.free_default["constr_dic"]
+        else:
+            init = self._helper.free_default["constr_dic"] | dict(init)
+        init = self._helper.constr_dic_to_unconstr_arr(init)
+        rng = np.random.default_rng(self._helper.seed["mcmc"])
+        jitter = 0.1 * np.abs(init)
+        low = init - jitter
+        high = init + jitter
+        init = rng.uniform(low, high, size=(chains, len(init)))
+        init = dict(zip(self._helper.params_names["free"], init.T))
+
+        ess_kwargs["model"] = self._helper.numpyro_model
+        if moves is None:
+            ess_kwargs["moves"] = {ESS.DifferentialMove(): 1.0}
+        else:
+            ess_kwargs["moves"] = moves
+
+        if chain_method == "parallel":
+            ess_kernel = ESS(**ess_kwargs)
+
+            def do_mcmc(rng_key):
+                mcmc = MCMC(
+                    ess_kernel,
+                    num_warmup=warmup,
+                    num_samples=steps,
+                    num_chains=chains,
+                    chain_method="vectorized",
+                    progress_bar=False,
+                )
+                mcmc.run(
+                    rng_key,
+                    init_params=init,
+                )
+                return mcmc.get_samples(group_by_chain=True)
+
+            rng_keys = jax.random.split(
+                jax.random.PRNGKey(self._helper.seed["mcmc"]),
+                get_parallel_number(n_parallel),
+            )
+            traces = jax.pmap(do_mcmc)(rng_keys)
+            trace = {k: np.concatenate(v) for k, v in traces.items()}
+
+            sampler = MCMC(
+                ess_kernel,
+                num_warmup=warmup,
+                num_samples=steps,
+            )
+            sampler._states = {sampler._sample_field: trace}
+
+        else:
+            sampler = MCMC(
+                ESS(**ess_kwargs),
+                num_warmup=warmup,
+                num_samples=steps,
+                num_chains=chains,
+                chain_method=chain_method,
+                progress_bar=progress,
+            )
+
+            sampler.run(
+                rng_key=jax.random.PRNGKey(self._helper.seed["mcmc"]),
                 init_params=init,
             )
         return PosteriorResult(sampler, self._helper, self)
