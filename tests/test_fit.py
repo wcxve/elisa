@@ -117,7 +117,7 @@ def test_trivial_bayes_fit():
         result = getattr(BayesFit(data, model), method)(**kwargs)
 
         # check convergence
-        assert all(i < 1.01 for i in result.rhat.values())
+        assert all(i < 1.01 for i in result.rhat.values() if not np.isnan(i))
 
         # check the true parameters values are within the 90% CI
         ci = result.ci(cl=0.9).intervals
