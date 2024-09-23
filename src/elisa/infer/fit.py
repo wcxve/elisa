@@ -1082,7 +1082,8 @@ class BayesFit(Fit):
         Ensemble Slice Sampling [1]_ is a gradient free method
         that finds better slice sampling directions by sharing information
         between chains. Suitable for low to moderate dimensional models.
-        Generally, num_chains should be at least twice the dimensionality of the model.
+        Generally, num_chains should be at least twice the dimensionality of
+        the model.
 
         .. note::
             This kernel must be used with even `num_chains` > 1 and
