@@ -118,7 +118,7 @@ def test_trivial_bayes_fit():
 
         # check convergence
         assert all(i < 1.01 for i in result.values())
-        
+
         # check the true parameters values are within the 90% CI
         ci = result.ci(cl=0.9).intervals
         assert ci['PowerLaw.K'][0] < K < ci['PowerLaw.K'][1]
