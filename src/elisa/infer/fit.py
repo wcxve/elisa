@@ -1071,7 +1071,7 @@ class BayesFit(Fit):
         steps=5000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
-        chain_method: str = "vectorized",
+        chain_method: str = 'vectorized',
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
@@ -1126,30 +1126,30 @@ class BayesFit(Fit):
                 Minas Karamanis, Florian Beutler, and John A. Peacock.
         """
         if chains is None:
-            chains = 4 * len(self._helper.params_names["free"])
+            chains = 4 * len(self._helper.params_names['free'])
         else:
             chains = int(chains)
 
         # TODO: option to let sampler starting from MLE
         if init is None:
-            init = self._helper.free_default["constr_dic"]
+            init = self._helper.free_default['constr_dic']
         else:
-            init = self._helper.free_default["constr_dic"] | dict(init)
+            init = self._helper.free_default['constr_dic'] | dict(init)
         init = self._helper.constr_dic_to_unconstr_arr(init)
-        rng = np.random.default_rng(self._helper.seed["mcmc"])
+        rng = np.random.default_rng(self._helper.seed['mcmc'])
         jitter = 0.1 * np.abs(init)
         low = init - jitter
         high = init + jitter
         init = rng.uniform(low, high, size=(chains, len(init)))
-        init = dict(zip(self._helper.params_names["free"], init.T))
+        init = dict(zip(self._helper.params_names['free'], init.T))
 
-        ess_kwargs["model"] = self._helper.numpyro_model
+        ess_kwargs['model'] = self._helper.numpyro_model
         if moves is None:
-            ess_kwargs["moves"] = {ESS.DifferentialMove(): 1.0}
+            ess_kwargs['moves'] = {ESS.DifferentialMove(): 1.0}
         else:
-            ess_kwargs["moves"] = moves
+            ess_kwargs['moves'] = moves
 
-        if chain_method == "parallel":
+        if chain_method == 'parallel':
             ess_kernel = ESS(**ess_kwargs)
 
             def do_mcmc(rng_key):
@@ -1158,7 +1158,7 @@ class BayesFit(Fit):
                     num_warmup=warmup,
                     num_samples=steps,
                     num_chains=chains,
-                    chain_method="vectorized",
+                    chain_method='vectorized',
                     progress_bar=False,
                 )
                 mcmc.run(
@@ -1168,7 +1168,7 @@ class BayesFit(Fit):
                 return mcmc.get_samples(group_by_chain=True)
 
             rng_keys = jax.random.split(
-                jax.random.PRNGKey(self._helper.seed["mcmc"]),
+                jax.random.PRNGKey(self._helper.seed['mcmc']),
                 get_parallel_number(n_parallel),
             )
             traces = jax.pmap(do_mcmc)(rng_keys)
@@ -1192,7 +1192,7 @@ class BayesFit(Fit):
             )
 
             sampler.run(
-                rng_key=jax.random.PRNGKey(self._helper.seed["mcmc"]),
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
                 init_params=init,
             )
         return PosteriorResult(sampler, self._helper, self)
@@ -1203,7 +1203,7 @@ class BayesFit(Fit):
         steps=300000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
-        chain_method: str = "parallel",
+        chain_method: str = 'parallel',
         progress: bool = True,
         **sa_kwargs: dict,
     ) -> PosteriorResult:
@@ -1241,23 +1241,23 @@ class BayesFit(Fit):
                <https://papers.nips.cc/paper/9107-sample-adaptive-mcmc>`__
         """
         if chains is None:
-            chains = 4 * len(self._helper.params_names["free"])
+            chains = 4 * len(self._helper.params_names['free'])
         else:
             chains = int(chains)
 
         # TODO: option to let sampler starting from MLE
         if init is None:
-            init = self._helper.free_default["constr_dic"]
+            init = self._helper.free_default['constr_dic']
         else:
-            init = self._helper.free_default["constr_dic"] | dict(init)
+            init = self._helper.free_default['constr_dic'] | dict(init)
 
         default_sa_kwargs = {
-            "dense_mass": True,
-            "adapt_state_size": None,
+            'dense_mass': True,
+            'adapt_state_size': None,
         }
         sa_kwargs = default_sa_kwargs | sa_kwargs
-        sa_kwargs["model"] = self._helper.numpyro_model
-        sa_kwargs["init_strategy"] = init_to_value(values=init)
+        sa_kwargs['model'] = self._helper.numpyro_model
+        sa_kwargs['init_strategy'] = init_to_value(values=init)
 
         sampler = MCMC(
             SA(**sa_kwargs),
@@ -1269,7 +1269,6 @@ class BayesFit(Fit):
         )
 
         sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed["mcmc"]),
+            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
         )
         return PosteriorResult(sampler, self._helper, self)
-
