@@ -103,6 +103,11 @@ def test_trivial_bayes_fit():
             'chain_method': 'parallel',
             'n_parallel': 4,
         },
+        'ess': {
+            'chain_method': 'parallel',
+            'n_parallel': 4,
+        },
+        # 'sa': {},
         'ultranest': {},
         'nautilus': {},
     }
@@ -110,6 +115,9 @@ def test_trivial_bayes_fit():
     for method, kwargs in sampling_kwargs.items():
         # Get Bayesian fit result, i.e. posterior
         result = getattr(BayesFit(data, model), method)(**kwargs)
+
+        # check convergence
+        assert all(i < 1.01 for i in result.rhat.values() if not np.isnan(i))
 
         # check the true parameters values are within the 90% CI
         ci = result.ci(cl=0.9).intervals
