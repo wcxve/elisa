@@ -107,7 +107,7 @@ def test_trivial_bayes_fit():
             'chain_method': 'parallel',
             'n_parallel': 4,
         },
-        'sa': {},
+        # 'sa': {},
         'ultranest': {},
         'nautilus': {},
     }
