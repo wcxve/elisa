@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import gzip
-import os
 import warnings
 from abc import ABC, abstractmethod
 from importlib import metadata
@@ -159,69 +158,46 @@ class FitResult(ABC):
     def _params_dist(self) -> dict[str, JAXArray]:
         pass
 
-    def save(self, directory: str, filename: str, compress: bool = True):
+    def save(self, file_path: str):
         """
-        Save `FitResult` a file.
+        Save `FitResult` a file using `dill` and `gzip` package.
 
-        Parameters:
+        Parameters
         ----------
-        directory : str
-            The directory where the file will be saved.
-        filename : str
-            The name of the file to be saved.
-        compress : bool, optional
-            Whether to compress the file using gzip. The default is True.
+        file_path : str
+            The path to the file from which to load the object.
 
         Returns:
         -------
         None
 
-        The function saves the current instance of the class to a file in the specified directory.
-        If `compress` is True, the file will be saved with a '.pkl.gz' extension and compressed using gzip.
-        If `compress` is False, the file will be saved with a '.pkl' extension.
         """
-        if compress:
-            full_path = os.path.join(directory, filename + '.pkl.gz')
-            serialized_data = dill.dumps(self)
-            compressed_data = gzip.compress(serialized_data)
-            with gzip.open(full_path, 'wb') as gzipfile:
-                gzipfile.write(compressed_data)
-            print(f'result save to {full_path}')
-        else:
-            full_path = os.path.join(directory, filename, '.pkl')
-            with open(full_path, 'wb') as f:
-                dill.dump(self, f)
-            print(f'result save to {full_path}')
+
+        serialized_data = dill.dumps(self)
+        compressed_data = gzip.compress(serialized_data)
+        with gzip.open(file_path, "wb") as gzipfile:
+            gzipfile.write(compressed_data)
 
     @classmethod
     def open(cls, file_path: str):
         """
         Open a saved `FitResult` from a file.
 
-        The function can handle both compressed and uncompressed files.
-        It uses the Dill library for serialization and deserialization.
-
         Parameters
         ----------
         file_path : str
             The path to the file from which to load the object.
-            The file can be either compressed (with '.gz' extension) or uncompressed.
 
         Returns
         -------
         obj : `FitResult` object
             The loaded `FitResult` object.
         """
-        if file_path[-3:] == '.gz':
-            with gzip.open(file_path, 'rb') as gzipfile:
-                compressed_data = gzipfile.read()
-                serialized_data = gzip.decompress(compressed_data)
-                obj = dill.loads(serialized_data)
-        elif file_path[-4:] == '.pkl':
-            with open(file_path, 'rb') as f:
-                obj = dill.load(f)
-        else:
-            raise ValueError(f'Unsupported file format: {file_path}')
+
+        with gzip.open(file_path, "rb") as gzipfile:
+            compressed_data = gzipfile.read()
+            serialized_data = gzip.decompress(compressed_data)
+            obj = dill.loads(serialized_data)
         return obj
 
 
