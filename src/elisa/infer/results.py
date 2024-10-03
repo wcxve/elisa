@@ -175,7 +175,7 @@ class FitResult(ABC):
 
         serialized_data = dill.dumps(self)
         compressed_data = gzip.compress(serialized_data)
-        with gzip.open(file_path, "wb") as gzipfile:
+        with gzip.open(file_path, 'wb') as gzipfile:
             gzipfile.write(compressed_data)
 
     @classmethod
@@ -194,7 +194,7 @@ class FitResult(ABC):
             The loaded `FitResult` object.
         """
 
-        with gzip.open(file_path, "rb") as gzipfile:
+        with gzip.open(file_path, 'rb') as gzipfile:
             compressed_data = gzipfile.read()
             serialized_data = gzip.decompress(compressed_data)
             obj = dill.loads(serialized_data)
