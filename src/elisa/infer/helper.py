@@ -627,7 +627,7 @@ def get_helper(fit: Fit) -> Helper:
             throw=False,
         )
         fitted_params = res.value
-        grad_norm = jnp.linalg.norm(res.state.f_info.grad)
+        grad_norm = jnp.linalg.norm(res.state.f_info.compute_grad())
 
         sites = new_sites(fitted_params)
 
