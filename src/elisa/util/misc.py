@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 import re
 from functools import reduce
+from threading import Lock
 from typing import TYPE_CHECKING
 
 import jax
@@ -12,7 +13,7 @@ import jax.numpy as jnp
 from astropy.units import Unit
 from jax import lax, tree_util
 from jax.custom_derivatives import SymbolicZero
-from jax.experimental import host_callback
+from jax.experimental import io_callback
 from jax.flatten_util import ravel_pytree
 from prettytable import PrettyTable
 from tqdm.auto import tqdm
@@ -507,52 +508,50 @@ def progress_bar_factory(
     else:
         run_str = str(run_str)
 
-    process_re = re.compile(r'\d+$')
-
     if neval > update_rate:
         print_rate = int(neval_single / update_rate)
     else:
         print_rate = 1
 
+    # lock serializes access to idx_counter since callbacks are multithreaded
+    lock = Lock()
+    idx_counter = 0  # resource counter
     remainder = neval_single % print_rate
-    finished = [False] * ncores
     bar = tqdm(range(neval))
     bar.set_description(init_str, refresh=True)
 
-    def _update_tqdm(arg, transform):
+    def _update_tqdm(increment):
         bar.set_description(run_str, refresh=False)
-        bar.update(arg)
+        bar.update(int(increment))
 
-    def _close_tqdm(arg, transform, device):
-        match = process_re.search(str(device))
-        assert match
-        i = int(match.group())
-        bar.update(arg)
-        finished[i] = True
-        if all(finished):
+    def _close_tqdm():
+        nonlocal idx_counter
+
+        bar.update(remainder)
+
+        with lock:
+            idx_counter += 1
+
+        if idx_counter == ncores:
             bar.close()
 
     def _update_progress_bar(iter_num):
         _ = lax.cond(
             iter_num == 1,
-            lambda _: host_callback.id_tap(_update_tqdm, 0, result=iter_num),
-            lambda _: iter_num,
+            lambda _: io_callback(_update_tqdm, None, 0),
+            lambda _: None,
             operand=None,
         )
         _ = lax.cond(
             iter_num % print_rate == 0,
-            lambda _: host_callback.id_tap(
-                _update_tqdm, print_rate, result=iter_num
-            ),
-            lambda _: iter_num,
+            lambda _: io_callback(_update_tqdm, None, print_rate),
+            lambda _: None,
             operand=None,
         )
         _ = lax.cond(
             iter_num == neval_single,
-            lambda _: host_callback.id_tap(
-                _close_tqdm, remainder, result=iter_num, tap_with_device=True
-            ),
-            lambda _: iter_num,
+            lambda _: io_callback(_close_tqdm, None),
+            lambda _: None,
             operand=None,
         )
 
