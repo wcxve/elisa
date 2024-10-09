@@ -67,6 +67,13 @@ def test_trivial_max_like_fit():
     plotter.plot_qq('rp')
     plotter.plot_qq('rq')
 
+    result.save('mle.pkl.gz', 'gzip')
+    result.load('mle.pkl.gz', 'gzip')
+    result.save('mle.pkl.bz2', 'bz2')
+    result.load('mle.pkl.bz2', 'bz2')
+    result.save('mle.pkl.xz', 'lzma')
+    result.load('mle.pkl.xz', 'lzma')
+
 
 def test_trivial_bayes_fit():
     # Setup simulation configuration
