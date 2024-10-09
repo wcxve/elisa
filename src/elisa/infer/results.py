@@ -168,7 +168,7 @@ class FitResult(ABC):
         """
         serialized_data = dill.dumps(self)
         compressed_data = gzip.compress(serialized_data)
-        with gzip.open(file_path, 'wb') as gzipfile:
+        with gzip.open(path, 'wb') as gzipfile:
             gzipfile.write(compressed_data)
 
     @staticmethod
