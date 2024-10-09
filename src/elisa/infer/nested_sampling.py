@@ -184,7 +184,8 @@ class NestedSampler:
         :param args: The arguments needed by the `model`.
         :param kwargs: The keyword arguments needed by the `model`.
         """
-        from jaxns import DefaultNestedSampler, Model, Prior, TerminationCondition
+        from jaxns import Model, Prior, TerminationCondition
+        from jaxns.public import DefaultNestedSampler
 
         rng_sampling, rng_predictive = random.split(rng_key)
         # reparam the model so that latent sites have Uniform(0, 1) priors

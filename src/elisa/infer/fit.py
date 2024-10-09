@@ -171,7 +171,8 @@ class Fit(ABC):
                     max_steps=max_steps,
                     throw=throw,
                 )
-                return res.value, jnp.linalg.norm(res.state.f_info.grad)
+                grad_norm = jnp.linalg.norm(res.state.f_info.compute_grad())
+                return res.value, grad_norm
 
             self._lm = jax.jit(lm)
 
