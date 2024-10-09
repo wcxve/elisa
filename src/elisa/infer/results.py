@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import bz2
 import gzip
+import lzma
 import warnings
 from abc import ABC, abstractmethod
 from importlib import metadata
@@ -158,37 +160,64 @@ class FitResult(ABC):
     def _params_dist(self) -> dict[str, JAXArray]:
         pass
 
-    def save(self, path: str) -> None:
+    def save(
+        self,
+        path: str,
+        compress: Literal['gzip', 'bz2', 'lzma'] = 'gzip',
+    ) -> None:
         """Save the fit result to a file.
 
         Parameters
         ----------
         path : str
             The file path to save fit result.
+        compress : {'gzip', 'bz2', 'lzma'}
+            The compression algorithm to use.
         """
-        serialized_data = dill.dumps(self)
-        compressed_data = gzip.compress(serialized_data)
-        with gzip.open(path, 'wb') as gzipfile:
-            gzipfile.write(compressed_data)
+        if compress == 'gzip':
+            open_ = gzip.open
+        elif compress == 'bz2':
+            open_ = bz2.open
+        elif compress == 'lzma':
+            open_ = lzma.open
+        else:
+            raise ValueError(f'unsupported compression algorithm {compress}')
+
+        with open_(path, 'wb') as f:
+            dill.dump(self, f)
 
     @staticmethod
-    def load(path: str) -> FitResult:
+    def load(
+        path: str,
+        decompress: Literal['gzip', 'bz2', 'lzma'] = 'gzip',
+    ) -> FitResult:
         """Load a previously saved fit result.
 
         Parameters
         ----------
         path : str
             The file path of previously saved fit result.
+        decompress : {'gzip', 'bz2', 'lzma'}
+            The decompression algorithm used to load the fit result.
 
         Returns
         -------
         FitResult
             The loaded fit result.
         """
-        with gzip.open(path, 'rb') as gzipfile:
-            compressed_data = gzipfile.read()
-            serialized_data = gzip.decompress(compressed_data)
-        return dill.loads(serialized_data)
+        if decompress == 'gzip':
+            open_ = gzip.open
+        elif decompress == 'bz2':
+            open_ = bz2.open
+        elif decompress == 'lzma':
+            open_ = lzma.open
+        else:
+            raise ValueError(
+                f'unsupported decompression algorithm {decompress}'
+            )
+
+        with open_(path, 'rb') as f:
+            return dill.load(f)
 
 
 class MLEResult(FitResult):
