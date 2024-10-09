@@ -158,47 +158,37 @@ class FitResult(ABC):
     def _params_dist(self) -> dict[str, JAXArray]:
         pass
 
-    def save(self, file_path: str):
-        """
-        Save `FitResult` a file using `dill` and `gzip` package.
+    def save(self, path: str) -> None:
+        """Save the fit result to a file.
 
         Parameters
         ----------
-        file_path : str
-            The path to the file from which to load the object.
-
-        Returns:
-        -------
-        None
-
+        path : str
+            The file path to save fit result.
         """
-
         serialized_data = dill.dumps(self)
         compressed_data = gzip.compress(serialized_data)
         with gzip.open(file_path, 'wb') as gzipfile:
             gzipfile.write(compressed_data)
 
-    @classmethod
-    def open(cls, file_path: str):
-        """
-        Open a saved `FitResult` from a file.
+    @staticmethod
+    def load(path: str) -> FitResult:
+        """Load a previously saved fit result.
 
         Parameters
         ----------
-        file_path : str
-            The path to the file from which to load the object.
+        path : str
+            The file path of previously saved fit result.
 
         Returns
         -------
-        obj : `FitResult` object
-            The loaded `FitResult` object.
+        FitResult
+            The loaded fit result.
         """
-
-        with gzip.open(file_path, 'rb') as gzipfile:
+        with gzip.open(path, 'rb') as gzipfile:
             compressed_data = gzipfile.read()
             serialized_data = gzip.decompress(compressed_data)
-            obj = dill.loads(serialized_data)
-        return obj
+        return dill.loads(serialized_data)
 
 
 class MLEResult(FitResult):
