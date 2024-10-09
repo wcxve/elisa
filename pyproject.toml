@@ -25,6 +25,7 @@ dependencies = [
     "arviz>=0.18.0; python_version >= '3.10'",
     "astropy>=5.3",
     "corner>=2.2.2",
+    "dill",
     "h5py",
     "iminuit",
     "jax>=0.4.28",
