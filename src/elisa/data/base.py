@@ -1305,7 +1305,7 @@ class ResponseData:
             Energy range to show. Other energy ranges will be hatched.
         good_quality : ndarray, optional
             Flags indicating which measurement channel to be used in plotting.
-            It Must be the same length as the number of channels.
+            It must be the same length as the number of channels.
         ylog : bool, optional
             Whether to use log scale on y-axis. The default is True.
 
@@ -1378,7 +1378,7 @@ class ResponseData:
             Energy range to show. Other energy ranges will be hatched.
         good_quality : ndarray, optional
             Flags indicating which measurement channel to be used in plotting.
-            It Must be the same length as the number of channels.
+            It must be the same length as the number of channels.
         norm : str, optional
             Colorbar normalization method. The default is ``'log'``.
 
