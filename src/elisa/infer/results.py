@@ -242,7 +242,7 @@ class MLEResult(FitResult):
         else:
             pos_def = False
 
-        if not pos_def:
+        if not pos_def and minuit.covariance is not None:
             cov_unconstr = jnp.array(minuit.covariance, float)
             cov = helper.params_covar(self._mle_unconstr, cov_unconstr)
 
