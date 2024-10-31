@@ -233,7 +233,16 @@ class MLEResult(FitResult):
         self._mle_unconstr = jnp.array(minuit.values, float)
         mle, cov = helper.get_mle(self._mle_unconstr)
 
-        if np.isnan(cov).any() and minuit.covariance is not None:
+        if np.array_equal(cov, cov.T):
+            try:
+                np.linalg.cholesky(cov)
+                pos_def = True
+            except np.linalg.LinAlgError:
+                pos_def = False
+        else:
+            pos_def = False
+
+        if not pos_def and minuit.covariance is not None:
             cov_unconstr = jnp.array(minuit.covariance, float)
             cov = helper.params_covar(self._mle_unconstr, cov_unconstr)
 
