@@ -400,11 +400,7 @@ class MLEResult(FitResult):
             intervals, status = (r1 | r2 for r1, r2 in zip(res1, res2))
 
         elif method == 'boot':
-            if self._boot is None:
-                raise RuntimeError(
-                    'before using the bootstrap method to calculate confidence'
-                    ' intervals, MLEResult.boot(...) must be called'
-                )
+            self._check_boot()
             intervals, status = self._ci_boot(params, cl)
 
         else:
@@ -425,6 +421,13 @@ class MLEResult(FitResult):
             method=method,
             status=status,
         )
+
+    def _check_boot(self):
+        if self._boot is None:
+            raise RuntimeError(
+                'before using the bootstrap method to calculate confidence'
+                ' intervals, MLEResult.boot(...) must be called'
+            )
 
     def _calc_flux(
         self,
@@ -896,7 +899,7 @@ class MLEResult(FitResult):
             init = np.array([mle_i, *self._minuit.values], float)
             grad = jax.jit(jax.grad(loss))
             minuit = Minuit(loss, init, grad=grad)
-            minuit.strategy = 1
+            minuit.strategy = 2
             minuit.migrad()
             minuit.minos(0, cl=cl)
             ci = minuit.merrors[0]
