@@ -538,7 +538,7 @@ class TBAbs(PhotonAbsorption):
             * ``'lpgp'`` [8]_ (Photospheric, using Table 4)
             * ``'lpgs'`` [8]_ (Proto-solar, using Table 10)
 
-        The default is ``'wilm'``.
+        The default is ``'angr'``.
     xsect : str, optional
         Always use cross-section ``'vern'`` [9]_ as baseline.
     method : {'trapz', 'simpson'}, optional
