@@ -561,6 +561,14 @@ class Response(ResponseData):
         photon_egrid = np.append(photon_emin, photon_emax[-1])
         photon_egrid = np.asarray(photon_egrid, dtype=np.float64, order='C')
 
+        if photon_egrid[0] <= 0.0:
+            photon_egrid[0] = max(1e-30, 0.001 * photon_egrid[1])
+            warnings.warn(
+                f'non-positive photon energy bin detected in "{respfile}"; '
+                'a small finite value will be used instead',
+                Warning,
+            )
+
         # check and read response matrix
         channel_number = response_header.get('DETCHANS', None)
         if channel_number is None:
