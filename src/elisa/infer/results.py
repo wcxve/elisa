@@ -233,7 +233,7 @@ class MLEResult(FitResult):
         self._mle_unconstr = jnp.array(minuit.values, float)
         mle, cov = helper.get_mle(self._mle_unconstr)
 
-        if np.array_equal(cov, cov.T):
+        if np.allclose(cov, cov.T):
             try:
                 np.linalg.cholesky(cov)
                 pos_def = True
