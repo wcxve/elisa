@@ -318,7 +318,7 @@ class Fit(ABC):
                 stat1 = 'W' if d.back_poisson else 'PG'
                 stat2 = 'w' if d.back_poisson else 'pg'
                 msg = 'C-statistic (cstat) is not valid for Poisson data '
-                msg += f'with {back} background, use {stat1}-statistic'
+                msg += f'with {back} background, use {stat1}-statistic '
                 msg += f'({stat2}stat) for {name} instead'
                 raise ValueError(msg)
 
