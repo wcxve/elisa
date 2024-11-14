@@ -509,7 +509,7 @@ def progress_bar_factory(
         run_str = str(run_str)
 
     if neval > update_rate:
-        print_rate = int(neval_single / update_rate)
+        print_rate = max(1, int(neval_single / update_rate))
     else:
         print_rate = 1
 
