@@ -304,49 +304,67 @@ class Fit(ABC):
             """Check if data type and likelihood are matched."""
             name = d.name
             if not d.spec_poisson and s != 'chi2':
-                msg = f'{name} is Gaussian data, use stat "chi2" instead'
-                raise ValueError(msg)
-
-            if s == 'chi2' and np.any(d.net_errors == 0.0):
                 raise ValueError(
-                    f'"chi2" is not valid for {name} data, which has zero '
-                    'uncertainties; grouping the data may fix this error'
+                    f'{name} data has Gaussian uncertainties, '
+                    'use Gaussian statistic (chi2) instead'
                 )
 
-            elif s == 'cstat' and d.has_back:
-                back = 'Poisson' if d.back_poisson else 'Gaussian'
-                stat1 = 'W' if d.back_poisson else 'PG'
-                stat2 = 'w' if d.back_poisson else 'pg'
-                msg = 'C-statistic (cstat) is not valid for Poisson data '
-                msg += f'with {back} background, use {stat1}-statistic '
-                msg += f'({stat2}stat) for {name} instead'
-                raise ValueError(msg)
+            if s == 'chi2':
+                if np.any(d.net_errors == 0.0):
+                    raise ValueError(
+                        f'{name} data has zero uncertainties, '
+                        'and Gaussian statistic (chi2) will be invalid; '
+                        'grouping the data may fix this error'
+                    )
 
-            elif s == 'pstat' and not d.has_back:
-                msg = f'P-statistic (pstat) is not valid for {name}, which '
-                msg += 'requires background file, use C-statistic (cstat) '
-                msg += 'instead'
-                raise ValueError(msg)
+            elif s == 'cstat':
+                if d.has_back:
+                    back = 'Poisson' if d.back_poisson else 'Gaussian'
+                    stat1 = 'W' if d.back_poisson else 'PG'
+                    stat2 = 'w' if d.back_poisson else 'pg'
+                    raise ValueError(
+                        f'{name} data has {back} background, '
+                        'and using C-statistic (cstat) is invalid; '
+                        f'use {stat1}-statistic ({stat2}stat) instead'
+                    )
+
+            elif s == 'pstat':
+                if not d.has_back:
+                    raise ValueError(
+                        f'{name} data has no background, '
+                        'and using P-statistic (pstat) is invalid; '
+                        'use C-statistic (cstat) instead'
+                    )
 
             elif s == 'pgstat':
                 if not d.has_back:
-                    msg = f'PG-statistic is not valid for {name}, which '
-                    msg += 'requires Gaussian background data, '
-                    msg += 'use C-statistic instead (cstat)'
-                    raise ValueError(msg)
+                    raise ValueError(
+                        f'{name} data has no background, '
+                        'and using PG-statistic (pgstat) is invalid; '
+                        'use C-statistic (cstat) instead'
+                    )
 
                 if np.any(d.back_errors == 0.0):
                     raise ValueError(
-                        f'PG-statistic is not valid for {name} data, '
-                        'which has zero background uncertainties; '
+                        f'{name} data has zero background uncertainties, '
+                        'and PG-statistic (pgstat) will be invalid; '
                         'grouping the data may fix this error'
                     )
 
             elif s == 'wstat' and not (d.has_back and d.back_poisson):
-                msg = f'W-statistic is not valid for {name}, which requires '
-                msg += 'Poisson background data, use C-statistic (cstat) '
-                msg += 'instead'
-                raise ValueError(msg)
+                if not d.has_back:
+                    raise ValueError(
+                        f'{name} data has no background, '
+                        'and using W-statistic (wstat) is invalid; '
+                        'use C-statistic (cstat) instead'
+                    )
+
+                if not d.back_poisson:
+                    raise ValueError(
+                        f'{name} data has Gaussian background, '
+                        'and using W-statistic (wstat) is invalid; '
+                        'use PG-statistic (pgstat) instead'
+                    )
 
         # ====================== some helper functions ========================
 

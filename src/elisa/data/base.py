@@ -985,7 +985,7 @@ class SpectrumData:
             raise ValueError('errors must be non-negative')
 
         if np.any(sys_errors < 0):
-            raise ValueError('sys_errors must be non-negative')
+            raise ValueError('systematic errors must be non-negative')
 
         if exposure <= 0:
             raise ValueError('exposure must be positive')
