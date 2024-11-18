@@ -857,6 +857,9 @@ def get_helper(fit: Fit) -> Helper:
             'interest': interest_names,
             'all': params_names,
         },
+        params_default=unconstr_dic_to_params_dic(
+            dict(zip(free_names, default_unconstr_arr))
+        ),
         params_setup=model_info.setup,
         params_latex=pname_to_latex,
         params_unit=pname_to_unit,
@@ -926,6 +929,9 @@ class Helper(NamedTuple):
 
     params_names: dict
     """The names of parameters in the model."""
+
+    params_default: dict[str, JAXFloat]
+    """The default values of parameters."""
 
     free_default: dict[str, dict[ParamName, JAXFloat] | JAXArray]
     """The default values of free parameters."""

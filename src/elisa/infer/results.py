@@ -22,6 +22,7 @@ import scipy.stats as stats
 import ultranest
 from astropy.cosmology import Planck18
 from iminuit import Minuit
+from iminuit.util import Matrix as CovarMatrix
 from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
@@ -95,6 +96,16 @@ class FitResult(ABC):
             return flux
 
         self._flux_fn = jax.jit(_flux, static_argnums=(2, 3))
+
+        # some data has the same model, record the unique models to
+        # avoid redundant computation in flux, lumin, and eiso
+        mapping = {}
+        for data_name, model in models.items():
+            if model not in mapping:
+                mapping[model] = [data_name]
+            else:
+                mapping[model].append(data_name)
+        self._model_mapping = {d: v[0] for v in mapping.values() for d in v}
 
     @abstractmethod
     def __repr__(self):
@@ -219,6 +230,53 @@ class FitResult(ABC):
         with open_(path, 'rb') as f:
             return dill.load(f)
 
+    def _to_unit_cl(self, cl: int | float):
+        """Convert cl into unit."""
+        if cl <= 0:
+            raise ValueError('cl must be positve')
+        elif cl < 1:
+            return cl
+        else:
+            return 1.0 - 2.0 * stats.norm.sf(cl)
+
+    def _check_fn(self, fn: dict[str, Callable] | None, jit: bool):
+        """Check user provided function."""
+        if fn is None:
+            return {}
+        else:
+            helper = self._helper
+            fn = {str(k): v for k, v in fn.items()}
+
+            if fn.keys() & helper.params_default.keys():
+                raise ValueError(
+                    'names of fn must not overlap with model parameters'
+                )
+
+            fn_checked = {}
+            if not isinstance(fn, dict):
+                raise TypeError('fn must be dict of functions')
+            for k, v in fn.items():
+                msg = (
+                    f"fn['{k}'] must be a function of these parameters: "
+                    f"{', '.join(helper.params_names['all'])}"
+                )
+                if not callable(v):
+                    raise TypeError(msg)
+                else:
+                    try:
+                        jitted = jax.jit(v) if jit else v
+                        fn_result = jitted(helper.params_default)
+                        fn_checked[str(k)] = jitted
+                    except Exception as e:
+                        raise ValueError(msg) from e
+
+                    if np.shape(fn_result) != ():
+                        raise ValueError(
+                            f"fn['{k}'] must return a scalar value"
+                        )
+
+            return fn_checked
+
 
 class MLEResult(FitResult):
     """Result of maximum likelihood fit."""
@@ -231,11 +289,11 @@ class MLEResult(FitResult):
         self._minuit = minuit
 
         self._mle_unconstr = jnp.array(minuit.values, float)
-        mle, cov = helper.get_mle(self._mle_unconstr)
+        mle, covar = helper.get_mle(self._mle_unconstr)
 
-        if np.allclose(cov, cov.T):
+        if np.allclose(covar, covar.T):
             try:
-                np.linalg.cholesky(cov)
+                np.linalg.cholesky(covar)
                 pos_def = True
             except np.linalg.LinAlgError:
                 pos_def = False
@@ -243,10 +301,14 @@ class MLEResult(FitResult):
             pos_def = False
 
         if not pos_def and minuit.covariance is not None:
-            cov_unconstr = jnp.array(minuit.covariance, float)
-            cov = helper.params_covar(self._mle_unconstr, cov_unconstr)
+            covar_unconstr = jnp.array(minuit.covariance, float)
+            covar = helper.params_covar(self._mle_unconstr, covar_unconstr)
 
-        err = jnp.sqrt(jnp.diagonal(cov))
+        var2pos = dict(zip(helper.params_names['all'], range(len(mle))))
+        self._covar = CovarMatrix(var2pos)
+        self._covar[:] = covar
+
+        err = jnp.sqrt(jnp.diagonal(covar))
 
         # MLE of model params in constrained space
         self._mle = dict(zip(helper.params_names['all'], zip(mle, err)))
@@ -333,395 +395,6 @@ class MLEResult(FitResult):
             self._plotter = MLEResultPlotter(self)
         return self._plotter
 
-    def ci(
-        self,
-        params: str | Iterable[str] | None = None,
-        cl: float | int = 1,
-        method: Literal['profile', 'boot'] = 'profile',
-    ) -> ConfidenceInterval:
-        """Calculate confidence intervals.
-
-        Parameters
-        ----------
-        params : str or sequence of str, optional
-            Parameters to calculate confidence intervals. If not specified,
-            calculate for parameters of interest.
-        cl : float or int, optional
-            Confidence level for the confidence interval. If 0 < `cl` < 1, the
-            value is interpreted as the confidence level. If `cl` >= 1, it is
-            interpreted as the number of standard deviations. For example,
-            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
-            The default is 1.
-        method : {'profile', 'boot'}, optional
-            Method used to calculate confidence. Available options are:
-
-                * ``'profile'``: use Minos algorithm of Minuit to find the
-                  confidence intervals based on the profile likelihood
-                * ``'boot'``: use parametric bootstrap method to calculate
-                  the confidence intervals. :meth:`MLEResult.boot` must be
-                  called before using this method.
-
-            The default is ``'profile'``.
-
-        Returns
-        -------
-        ConfidenceInterval
-            The confidence intervals.
-        """
-        if not self._minuit.valid:
-
-            class InvalidFitWarning(Warning):
-                pass
-
-            warnings.warn(
-                'the fit must be valid to calculate confidence interval',
-                InvalidFitWarning,
-            )
-
-        if cl <= 0.0:
-            raise ValueError('cl must be non-negative')
-
-        if method not in {'profile', 'boot'}:
-            raise ValueError(f'unsupported method: {method}')
-
-        params_names = self._helper.params_names
-
-        params = check_params(params, self._helper)
-
-        params_set = set(params)
-        free = params_set.intersection(params_names['free'])
-        composite = params_set.intersection(params_names['deterministic'])
-        assert free | composite == params_set
-
-        if method == 'profile':
-            empty = ({}, {})
-            res1 = self._ci_free(free, cl) if free else empty
-            res2 = self._ci_composite(composite, cl) if composite else empty
-            intervals, status = (r1 | r2 for r1, r2 in zip(res1, res2))
-
-        elif method == 'boot':
-            self._check_boot()
-            intervals, status = self._ci_boot(params, cl)
-
-        else:
-            raise ValueError("method must be either 'profile' or 'boot'")
-
-        mle = {k: v[0] for k, v in self.mle.items()}
-        intervals = _format_result(intervals, params)
-        errors = {
-            k: (intervals[k][0] - mle[k], intervals[k][1] - mle[k])
-            for k in params
-        }
-
-        return ConfidenceInterval(
-            mle=mle,
-            intervals=intervals,
-            errors=errors,
-            cl=1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl,
-            method=method,
-            status=status,
-        )
-
-    def _check_boot(self):
-        if self._boot is None:
-            raise RuntimeError(
-                'before using the bootstrap method to calculate confidence'
-                ' intervals, MLEResult.boot(...) must be called'
-            )
-
-    def _calc_flux(
-        self,
-        egrid: JAXArray,
-        cl: float | int,
-        energy: bool,
-        comps: bool,
-        params: dict[str, JAXArray] | None,
-    ) -> dict[str, Q | float]:
-        """Calculate flux."""
-        boot_params = self._params_dist
-
-        if boot_params is None:
-            raise RuntimeError(
-                'MLEResult.boot(...) must be called before calculating flux'
-            )
-
-        if energy:
-            unit = u.Unit('erg cm^-2 s^-1')
-        else:
-            unit = u.Unit('ph cm^-2 s^-1')
-
-        mle_params = {k: v[0] for k, v in self._mle.items()}
-        if params is not None:
-            mle_params |= params
-        mle_flux = self._flux_fn(egrid, mle_params, energy, comps)
-
-        n = [i.size for i in boot_params.values()][0]
-        if params is not None:
-            params = dict(params)
-            params = {k: jnp.full(n, v) for k, v in params.items()}
-            boot_params = boot_params | params
-
-        n_parallel = get_parallel_number(self._n_parallel)
-        devices = create_device_mesh(
-            mesh_shape=(n_parallel,),
-            devices=jax.devices()[:n_parallel],
-        )
-        mesh = Mesh(devices, axis_names=('i',))
-        p = PartitionSpec()
-        pi = PartitionSpec('i')
-        fn = shard_map(
-            f=jax.jit(lambda e, p: self._flux_fn(e, p, energy, comps)),
-            mesh=mesh,
-            in_specs=(p, pi),
-            out_specs=pi,
-            check_rep=False,
-        )
-        boot_flux = jax.device_get(fn(egrid, boot_params))
-
-        cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
-        q = 0.5 + np.array([-0.5, 0.5]) * cl_
-        ci_fn = lambda x: np.quantile(x, q)
-        intervals = jax.tree_map(ci_fn, boot_flux)
-        errors = jax.tree_map(
-            lambda x, y: (y[0] - x, y[1] - x), mle_flux, intervals
-        )
-        add_unit = lambda x: x * unit
-        return {
-            'mle': jax.tree_map(add_unit, mle_flux),
-            'intervals': jax.tree_map(add_unit, intervals),
-            'errors': jax.tree_map(add_unit, errors),
-            'cl': cl_,
-            'dist': jax.tree_map(add_unit, boot_flux),
-            'n': n,
-        }
-
-    def flux(
-        self,
-        emin: float | int,
-        emax: float | int,
-        cl: float | int = 1,
-        energy: bool = True,
-        ngrid: int = 1000,
-        comps: bool = False,
-        log: bool = True,
-        params: dict[str, float | int] | None = None,
-    ) -> MLEFlux:
-        r"""Calculate the flux of model.
-
-        .. warning::
-            The flux is calculated by trapezoidal rule, and is accurate only
-            if enough numbers of energy grids are used.
-
-        Parameters
-        ----------
-        emin : float or int
-            Minimum value of energy range, in units of keV.
-        emax : float or int
-            Maximum value of energy range, in units of keV.
-        cl : float or int, optional
-            Confidence level for the confidence interval. If 0 < `cl` < 1, the
-            value is interpreted as the confidence level. If `cl` >= 1, it is
-            interpreted as the number of standard deviations. For example,
-            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
-            The default is 1.
-        energy : bool, optional
-            When True, calculate energy flux in units of erg cm⁻² s⁻¹;
-            otherwise calculate photon flux in units of ph cm⁻² s⁻¹.
-            The default is True.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
-
-        Other Parameters
-        ----------------
-        comps : bool, optional
-            Whether to return the result of each component. The default is
-            False.
-        log : bool, optional
-            Whether to use logarithmically regular energy grid. The default is
-            True.
-        params : dict, optional
-            Parameters dict to overwrite the fitted parameters.
-
-        Returns
-        -------
-        MLEFlux
-            The flux of the model.
-        """
-        if self._boot is None:
-            raise RuntimeError(
-                'MLEResult.boot(...) must be called before calculating flux'
-            )
-
-        if log:
-            egrid = jnp.geomspace(emin, emax, ngrid)
-        else:
-            egrid = jnp.linspace(emin, emax, ngrid)
-
-        flux = self._calc_flux(egrid, cl, energy, comps, params)
-
-        return MLEFlux(
-            mle=flux['mle'],
-            intervals=flux['intervals'],
-            errors=flux['errors'],
-            cl=flux['cl'],
-            dist=flux['dist'],
-            energy=bool(energy),
-            n=flux['n'],
-        )
-
-    def lumin(
-        self,
-        emin_rest: float | int,
-        emax_rest: float | int,
-        z: float | int,
-        cl: float | int = 1,
-        ngrid: int = 1000,
-        comps: bool = False,
-        log: bool = True,
-        params: dict[str, float | int] | None = None,
-        cosmo: LambdaCDM = Planck18,
-    ) -> MLELumin:
-        """Calculate the luminosity of model.
-
-        .. warning::
-            The luminosity is calculated by trapezoidal rule, and is accurate
-            only if enough numbers of energy grids are used.
-
-        Parameters
-        ----------
-        emin_rest : float or int
-            Minimum value of rest-frame energy range, in units of keV.
-        emax_rest : float or int
-            Maximum value of rest-frame energy range, in units of keV.
-        z : float or int
-            Redshift of the source.
-        cl : float or int, optional
-            Confidence level for the confidence interval. If 0 < `cl` < 1, the
-            value is interpreted as the confidence level. If `cl` >= 1, it is
-            interpreted as the number of standard deviations. For example,
-            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
-            The default is 1.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is 1000.
-
-        Other Parameters
-        ----------------
-        comps : bool, optional
-            Whether to return the result of each component. The default is
-            False.
-        log : bool, optional
-            Whether to use logarithmically regular energy grid. The default is
-            True.
-        params : dict, optional
-            Parameters dict to overwrite the fitted parameters.
-        cosmo : LambdaCDM, optional
-            Cosmology model used to calculate luminosity. The default is
-            Planck18.
-
-        Returns
-        -------
-        MLELumin
-            The luminosity of the model.
-        """
-        if log:
-            egrid = jnp.geomspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
-        else:
-            egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
-
-        flux = self._calc_flux(egrid, cl, True, comps, params)
-
-        factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
-        to_lumin = lambda x: (x * factor).to('erg s^-1')
-
-        return MLELumin(
-            mle=jax.tree_map(to_lumin, flux['mle']),
-            intervals=jax.tree_map(to_lumin, flux['intervals']),
-            errors=jax.tree_map(to_lumin, flux['errors']),
-            cl=flux['cl'],
-            dist=jax.tree_map(to_lumin, flux['dist']),
-            n=flux['n'],
-            z=float(z),
-            cosmo=cosmo,
-        )
-
-    def eiso(
-        self,
-        emin_rest: float | int,
-        emax_rest: float | int,
-        z: float | int,
-        duration: float | int,
-        cl: float | int = 1,
-        ngrid: int = 1000,
-        comps: bool = False,
-        log: bool = True,
-        params: dict[str, float | int] | None = None,
-        cosmo: LambdaCDM = Planck18,
-    ) -> MLEEIso:
-        r"""Calculate the isotropic emission energy of model.
-
-        .. warning::
-            The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule,
-            and is accurate only if enough numbers of energy grids are used.
-
-        Parameters
-        ----------
-        emin_rest : float or int
-            Minimum value of rest-frame energy range, in units of keV.
-        emax_rest : float or int
-            Maximum value of rest-frame energy range, in units of keV.
-        z : float or int
-            Redshift of the source.
-        duration : float or int
-            Observed duration of the source, in units of seconds.
-        cl : float or int, optional
-            Confidence level for the confidence interval. If 0 < `cl` < 1,
-            the value is interpreted as the confidence level. If `cl` >= 1,
-            it is interpreted as the number of standard deviations.
-            For example, ``cl=1`` produces a 1-sigma or 68.3% confidence
-            interval. The default is 1.
-        ngrid : int, optional
-            The energy grid number to use in integration. The default is
-            1000.
-
-        Other Parameters
-        ----------------
-        comps : bool, optional
-            Whether to return the result of each component. The default is
-            False.
-        log : bool, optional
-            Whether to use logarithmically regular energy grid. The default
-            is True.
-        params : dict, optional
-            Parameters dict to overwrite the fitted parameters.
-        cosmo : LambdaCDM, optional
-            Cosmology model used to calculate luminosity. The default is
-            Planck18.
-
-        Returns
-        -------
-        MLEEIso
-            The isotropic emission energy of the model.
-        """
-        lumin = self.lumin(
-            emin_rest, emax_rest, z, cl, ngrid, comps, log, params, cosmo
-        )
-
-        # This includes correction for energy redshift and time dilation.
-        factor = duration / (1 + z) * u.s
-        to_eiso = lambda x: (x * factor).to('erg')
-
-        return MLEEIso(
-            mle=jax.tree_map(to_eiso, lumin.mle),
-            intervals=jax.tree_map(to_eiso, lumin.intervals),
-            errors=jax.tree_map(to_eiso, lumin.errors),
-            cl=lumin.cl,
-            dist=jax.tree_map(to_eiso, lumin.dist),
-            n=lumin.n,
-            z=lumin.z,
-            duration=float(duration),
-            cosmo=lumin.cosmo,
-        )
-
     def boot(
         self,
         n: int = 10000,
@@ -796,14 +469,6 @@ class MLEResult(FitResult):
         )
 
     @property
-    def gof(self) -> dict[str, float]:
-        if self._boot is None:
-            raise RuntimeError('MLEResult.boot() must be called to assess gof')
-        p_value = self._boot.p_value
-        p_value = p_value['group'] | {'total': p_value['total']}
-        return {k: float(p_value[k]) for k in self.ndata.keys()}
-
-    @property
     def _params_dist(self) -> dict[str, jax.Array] | None:
         """Bootstrapped parameter distribution."""
         boot = self._boot
@@ -811,6 +476,219 @@ class MLEResult(FitResult):
             return None
         n = boot.n_valid - boot.n_valid % jax.local_device_count()
         return {k: v[:n] for k, v in boot.params.items()}
+
+    def covar(
+        self,
+        params: str | Sequence[str] | None = None,
+        fn: dict[str, Callable] | None = None,
+        method: Literal['hess', 'boot'] = 'hess',
+        jit: bool = True,
+        parallel: bool = True,
+    ) -> ParamsCovar:
+        """Calculate covariance matrix.
+
+        Parameters
+        ----------
+        params : str or sequence of str, optional
+            Parameters to calculate covariance matrix. If not specified,
+            calculate for parameters of interest.
+        fn : dict
+            A dict containing functions to calculate the covariance matrix.
+            The keys are the names of the function results, and the values are
+            the functions whose input is a dict of model parameters.
+        method : {'hess', 'boot'}, optional
+            Method used to calculate covariance. Available options are:
+
+                * ``'hess'``: inverse of Hessian matrix from Minuit
+                * ``'boot'``: calculate covariance based on bootstrap samples,
+                  :meth:`MLEResult.boot` must be called before using this
+                  method.
+
+            The default is ``'hess'``.
+        jit : bool, optional
+            Whether to use JAX JIT compilation for `fn`. The default is True.
+        parallel : bool, optional
+            Whether to evaluate `fn` in parallel. The default is True.
+            This option is only effective when `method` is ``'boot'`` and
+            `jit` is ``True``.
+
+        Returns
+        -------
+        ParamsCovar
+            The covariance matrix.
+        """
+        params_mle = {k: v[0] for k, v in self.mle.items()}
+        params = check_params(params, self._helper)
+        fn = self._check_fn(fn, jit)
+        jit_if = jax.jit if jit else lambda f: f
+
+        if method == 'hess':
+            if not fn:
+                covar = np.array(self._covar)
+            else:
+
+                @jit_if
+                @jax.jacobian
+                @jit_if
+                def jacobian(params_arr):
+                    params_dic = dict(zip(params_mle.keys(), params_arr))
+                    fn_arr = jnp.array([f(params_dic) for f in fn.values()])
+                    return jnp.hstack([params_arr, fn_arr])
+
+                jac = np.array(jacobian(jnp.array(list(params_mle.values()))))
+                old_covar = np.array(self._covar)
+                covar = jac @ old_covar @ jac.T
+
+        elif method == 'boot':
+            self._raise_if_no_boot()
+
+            @jit_if
+            def eval_fn(params):
+                params_arr = jnp.array([params[k] for k in params_mle])
+                fn_arr = jnp.array([f(params) for f in fn.values()])
+                return jnp.hstack([params_arr, fn_arr])
+
+            if parallel:
+                n_parallel = get_parallel_number(self._n_parallel)
+                devices = create_device_mesh(
+                    mesh_shape=(n_parallel,),
+                    devices=jax.devices()[:n_parallel],
+                )
+                mesh = Mesh(devices, axis_names=('i',))
+                pi = PartitionSpec('i')
+                eval_fn = shard_map(
+                    f=eval_fn,
+                    mesh=mesh,
+                    in_specs=(pi,),
+                    out_specs=pi,
+                    check_rep=False,
+                )
+            else:
+                eval_fn = jit_if(jax.vmap(eval_fn))
+
+            samples = eval_fn(self._boot.params)
+            covar = np.cov(samples, rowvar=False)
+
+        else:
+            raise ValueError("method must be either 'hess' or 'boot'")
+
+        names = tuple(params) + tuple(fn.keys())
+        var2pos = dict(zip(names, range(len(names))))
+        matrix = CovarMatrix(var2pos)
+        mask = np.array(
+            [p in params for p in params_mle] + [True] * len(fn),
+            dtype=bool,
+        )
+        matrix[:] = np.array(covar)[:, mask][mask]
+        return ParamsCovar(names=names, matrix=matrix)
+
+    def ci(
+        self,
+        cl: float | int = 1,
+        params: str | Iterable[str] | None = None,
+        fn: dict[str, Callable] | None = None,
+        method: Literal['profile', 'boot'] = 'profile',
+        jit: bool = True,
+        parallel: bool = True,
+    ) -> ConfidenceInterval:
+        """Calculate confidence intervals.
+
+        Parameters
+        ----------
+        cl : float or int, optional
+            Confidence level for the confidence interval. If 0 < `cl` < 1, the
+            value is interpreted as the confidence level. If `cl` >= 1, it is
+            interpreted as the number of standard deviations. For example,
+            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
+            The default is 1.
+        params : str or sequence of str, optional
+            Parameters to calculate confidence intervals. If not specified,
+            calculate for parameters of interest.
+        fn : dict, optional
+            A dict containing functions to calculate the confidence intervals.
+            The keys are the names of the function results, and the values are
+            the functions whose input is a dict of model parameters.
+        method : {'profile', 'boot'}, optional
+            Method used to calculate confidence. Available options are:
+
+                * ``'profile'``: use Minos algorithm of Minuit to find the
+                  confidence intervals based on the profile likelihood
+                * ``'boot'``: use parametric bootstrap method to calculate
+                  the confidence intervals. :meth:`MLEResult.boot` must be
+                  called before using this method.
+
+            The default is ``'profile'``.
+        jit : bool, optional
+            Whether to use JAX JIT compilation for `fn`. The default is True.
+        parallel : bool, optional
+            Whether to evaluate `fn` in parallel. The default is True.
+            This option is only effective when `method` is ``'boot'`` and
+            `jit` is ``True``.
+
+        Returns
+        -------
+        ConfidenceInterval
+            The confidence intervals.
+        """
+        cl = self._to_unit_cl(cl)
+        params = check_params(params, self._helper)
+        params_set = set(params)
+        free = params_set.intersection(self._helper.params_names['free'])
+        composite = params_set.intersection(
+            self._helper.params_names['deterministic']
+        )
+        assert free | composite == params_set
+
+        fn = self._check_fn(fn, jit)
+
+        if method == 'profile':
+            self._warn_invalid_fit()
+            if not self._minuit.valid:
+                intervals, status = self._ci_invalid(params_set | fn.keys())
+            else:
+                res1 = self._ci_free(free, cl) if free else ({}, {})
+
+                if composite:
+
+                    def factory(k):
+                        def _(p):
+                            return p[k]
+
+                        return _
+
+                    fn_composite = {k: factory(k) for k in composite}
+                    res2 = self._ci_fn(fn_composite, cl, True)
+                else:
+                    res2 = ({}, {})
+
+                res3 = self._ci_fn(fn, cl, jit) if fn else ({}, {})
+
+                intervals = res1[0] | res2[0] | res3[0]
+                status = res1[1] | res2[1] | res3[1]
+
+        elif method == 'boot':
+            intervals, status = self._ci_boot(cl, params, fn, jit and parallel)
+
+        else:
+            raise ValueError("method must be either 'profile' or 'boot'")
+
+        params_mle = {k: v[0] for k, v in self._mle.items()}
+        vars_names = params + list(fn.keys())
+        vars_mle = {k: v for k, v in params_mle.items() if k in vars_names}
+        vars_mle |= {k: v(params_mle) for k, v in fn.items()}
+        errors = {
+            k: (intervals[k][0] - vars_mle[k], intervals[k][1] - vars_mle[k])
+            for k in vars_names
+        }
+
+        return ConfidenceInterval(
+            mle=vars_mle,
+            intervals=_format_result(intervals, vars_names),
+            errors=_format_result(errors, vars_names),
+            cl=1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl,
+            method=method,
+            status=status,
+        )
 
     def _ci_invalid(self, names: Iterable[str]):
         """Confidence interval of invalid fit."""
@@ -828,9 +706,6 @@ class MLEResult(FitResult):
 
     def _ci_free(self, names: Iterable[str], cl: float | int):
         """Confidence interval of free parameters."""
-        if not self._minuit.valid:
-            return self._ci_invalid(names)
-
         self._minuit.minos(*names, cl=cl)
         mle_unconstr = self._minuit.values.to_dict()
         ci_unconstr = self._minuit.merrors
@@ -861,50 +736,26 @@ class MLEResult(FitResult):
         }
         return interval, status
 
-    def _ci_composite(self, names: Iterable[str], cl: float | int):
-        """Confidence intervals of function of free parameters.
-
-        References
-        ----------
-        .. [1] Eq.24 of https://doi.org/10.1007/s11222-021-10012-y
-        .. [2] https://github.com/vemomoto/vemomoto/blob/master/ci_rvm/ci_rvm/ci_rvm.py#L1455
-        """
-        if not self._minuit.valid:
-            return self._ci_invalid(names)
-
-        def loss_factory(name, mle):
-            """Factory to create loss function for composite parameter."""
-            rtol = 1e-3
-            atol = mle * rtol
-            atol_inv = 1.0 / atol
-
-            @jax.jit
-            def _(x: np.ndarray):
-                assert len(x) - 1 == len(free_params)
-                unconstr_dic = dict(zip(free_params, x[1:]))
-                value = helper.unconstr_dic_to_params_dic(unconstr_dic)[name]
-                s = (value - x[0]) * atol_inv
-                return helper.deviance_total(x[1:]) + s * s
-
-            return _
-
-        helper = self._helper
-        free_params = helper.params_names['free']
+    def _ci_fn(self, fn: dict[str, Callable], cl: float | int, jit: bool):
+        """Confidence intervals of function of free parameters."""
+        rtol = 1e-3
+        params_mle = {k: v[0] for k, v in self._mle.items()}
+        fn_mle = {k: v(params_mle) for k, v in fn.items()}
 
         interval = {}
         status = {}
-        for i in names:
-            mle_i = self._mle[i][0]
-            loss = loss_factory(i, mle_i)
-            init = np.array([mle_i, *self._minuit.values], float)
-            grad = jax.jit(jax.grad(loss))
+        for name, mle in fn_mle.items():
+            loss = self._loss_factory(fn[name], rtol * mle)
+            loss = jax.jit(loss) if jit else loss
+            grad = jax.jit(jax.grad(loss)) if jit else None
+            init = np.hstack([mle, self._minuit.values])
             minuit = Minuit(loss, init, grad=grad)
             minuit.strategy = 2
             minuit.migrad()
             minuit.minos(0, cl=cl)
             ci = minuit.merrors[0]
-            interval[i] = (mle_i + ci.lower, mle_i + ci.upper)
-            status[i] = {
+            interval[name] = (mle + ci.lower, mle + ci.upper)
+            status[name] = {
                 'valid': (ci.lower_valid, ci.upper_valid),
                 'at_limit': (ci.at_lower_limit, ci.at_upper_limit),
                 'at_max_fcn': (ci.at_lower_max_fcn, ci.at_upper_max_fcn),
@@ -913,17 +764,478 @@ class MLEResult(FitResult):
 
         return interval, status
 
-    def _ci_boot(self, names: Iterable[str], cl: float | int):
+    def _loss_factory(self, fn: Callable, atol: float):
+        """Factory method to create joint loss of params and func of params.
+
+        Parameters
+        ----------
+        fn : Callable
+            Function accepts model parameters and outputs a single value.
+        atol : float
+            Absolute tolerance of the function value.
+
+        References
+        ----------
+        .. [1] Eq.24 of https://doi.org/10.1007/s11222-021-10012-y
+        .. [2] https://github.com/vemomoto/vemomoto/blob/master/ci_rvm/ci_rvm/ci_rvm.py#L1455
+        """
+        helper = self._helper
+        params_free = helper.params_names['free']
+        atol_inv = 1.0 / atol
+
+        def loss(x: np.ndarray):
+            """Joint loss of params and func of params."""
+            unconstr_dic = dict(zip(params_free, x[1:]))
+            params = helper.unconstr_dic_to_params_dic(unconstr_dic)
+            fn_value = fn(params)
+            s = (fn_value - x[0]) * atol_inv
+            return helper.deviance_total(x[1:]) + s * s
+
+        return loss
+
+    def _ci_boot(
+        self,
+        cl: float | int,
+        params: Iterable[str],
+        fn: dict[str, Callable] | None = None,
+        parallel: bool = True,
+        params_setting: dict[str, JAXArray] | None = None,
+    ):
         """Bootstrap confidence interval."""
-        cl = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
+        self._raise_if_no_boot()
+
+        if params_setting is not None:
+            params_setting = dict(params_setting)
+        else:
+            params_setting = {}
         boot = self._boot
+        boot_params = self._params_dist
+        nboot = len(list(boot_params.values())[0])
+
+        cl = self._to_unit_cl(cl)
+        q = (0.5 - 0.5 * cl, 0.5 + 0.5 * cl)
+
         interval = {
-            k: np.quantile(v, q=(0.5 - 0.5 * cl, 0.5 + 0.5 * cl)).tolist()
-            for k, v in boot.params.items()
-            if k in names
+            k: np.quantile(v, q=q).tolist()
+            for k, v in boot_params.items()
+            if k in params
         }
-        status = {'nboot': boot.n_valid, 'seed': boot.seed}
+        status = {
+            'nboot': nboot,
+            'seed': int(boot.seed),
+            'dist': jax.tree.map(  # get a copy of the distribution
+                lambda x: x.copy(), jax.device_get(boot_params)
+            ),
+            'params_setting': params_setting,
+        }
+
+        if fn is not None and fn:
+            eval_fn = jax.jit(lambda p: jax.tree.map(lambda f: f(p), fn))
+
+            if parallel:
+                n_parallel = get_parallel_number(self._n_parallel)
+                devices = create_device_mesh(
+                    mesh_shape=(n_parallel,),
+                    devices=jax.devices()[:n_parallel],
+                )
+                mesh = Mesh(devices, axis_names=('i',))
+                pi = PartitionSpec('i')
+                eval_fn = shard_map(
+                    f=eval_fn,
+                    mesh=mesh,
+                    in_specs=(pi,),
+                    out_specs=pi,
+                    check_rep=False,
+                )
+
+            if params_setting:
+                params_setting = {
+                    k: jnp.full(nboot, v) for k, v in params_setting.items()
+                }
+
+            fn_values = jax.device_get(eval_fn(boot_params | params_setting))
+            status['dist'] |= fn_values
+
+            interval |= {
+                k: np.quantile(v, q).tolist() for k, v in fn_values.items()
+            }
+
         return interval, status
+
+    def _warn_invalid_fit(self):
+        if not self._minuit.valid:
+            warnings.warn('fit must be valid to calculate confidence interval')
+
+    def _raise_if_no_boot(self):
+        if self._boot is None:
+            raise RuntimeError(
+                'before using the bootstrap method, '
+                'MLEResult.boot(...) must be called'
+            )
+
+    def _intensity_ci(
+        self,
+        egrid: JAXArray,
+        energy: bool,
+        cl: float | int,
+        converter: Callable,
+        method: Literal['profile', 'boot'],
+        comps: bool,
+        params: dict[str, JAXArray] | None,
+    ) -> dict[str, Q | float]:
+        """Calculate confidence interval of flux.
+
+        Parameters
+        ----------
+        egrid : array-like
+            Energy grid used in trapezoidal rule.
+        energy : bool
+            Whether the intensity is based on energy flux.
+        cl : float or int
+            Confidence level.
+        converter : callable
+            Function to convert the flux into desired intensity.
+        method : {'profile', 'boot'}
+            Method used to calculate confidence interval.
+        comps : bool
+            Whether to return the result of each component.
+        params : dict, optional
+            Parameters dict to overwrite the bootstrap parameters.
+
+        Returns
+        -------
+        dict
+            The confidence interval of intensity.
+        """
+        cl = self._to_unit_cl(cl)
+
+        mle_params = {k: v[0] for k, v in self._mle.items()}
+        if params is not None:
+            mle_params |= params
+        mle_flux = self._flux_fn(egrid, mle_params, energy, comps)
+
+        mapping = self._model_mapping
+        fn = jax.jit(lambda p: self._flux_fn(egrid, p, energy, comps))
+        if comps:
+
+            def factory(d, c):
+                def _(p):
+                    return fn(p)[d][c]
+
+                return _
+
+            fn_dic = {
+                f'{d}_{c}': factory(d, c)
+                for d in mapping.values()
+                for c in mle_flux[d].keys()
+            }
+        else:
+
+            def factory(d):
+                def _(p):
+                    return fn(p)[d]
+
+                return _
+
+            fn_dic = {d: factory(d) for d in mapping.values()}
+
+        if method == 'profile':
+            intervals, status = self._ci_fn(fn_dic, cl, True)
+        elif method == 'boot':
+            intervals, status = self._ci_boot(cl, [], fn_dic, True, params)
+        else:
+            raise ValueError("method must be either 'profile' or 'boot'")
+
+        if comps:
+            intervals = {
+                k: {c: intervals[f'{k}_{c}'] for c in mle_flux[k].keys()}
+                for k in mapping.values()
+            }
+
+            if method == 'profile':
+                status = {
+                    k: {c: status[f'{k}_{c}'] for c in mle_flux[k].keys()}
+                    for k in mapping.values()
+                }
+            else:
+                dist = status['dist']
+                status['dist'] = {
+                    k: {c: dist[f'{k}_{c}'] for c in mle_flux[k].keys()}
+                    for k in mapping.values()
+                }
+
+        if energy:
+            unit = u.Unit('erg cm^-2 s^-1')
+        else:
+            unit = u.Unit('ph cm^-2 s^-1')
+        convert = lambda x: (x if x is None else converter(x * unit))
+
+        intervals = {k: intervals[v] for k, v in mapping.items()}
+        errors = jax.tree.map(
+            lambda x, y: (y[0] - x, y[1] - x), mle_flux, intervals
+        )
+
+        if method == 'profile':
+            status = {k: status[v] for k, v in mapping.items()}
+        else:
+            dist = status['dist']
+            status['dist'] = convert({k: dist[v] for k, v in mapping.items()})
+
+        return {
+            'mle': jax.tree.map(convert, mle_flux),
+            'intervals': jax.tree.map(convert, intervals),
+            'errors': jax.tree.map(convert, errors),
+            'cl': cl,
+            'status': status,
+        }
+
+    def flux(
+        self,
+        emin: float | int,
+        emax: float | int,
+        energy: bool = True,
+        cl: float | int = 1,
+        method: Literal['profile', 'boot'] = 'profile',
+        ngrid: int = 1000,
+        comps: bool = False,
+        log: bool = True,
+        params: dict[str, float | int] | None = None,
+    ) -> MLEFlux:
+        r"""Calculate the flux of model.
+
+        .. warning::
+            The flux is calculated by trapezoidal rule, and is accurate only
+            if enough numbers of energy grids are used.
+
+        Parameters
+        ----------
+        emin : float or int
+            Minimum value of energy range, in units of keV.
+        emax : float or int
+            Maximum value of energy range, in units of keV.
+        energy : bool, optional
+            When True, calculate energy flux in units of erg cm⁻² s⁻¹;
+            otherwise calculate photon flux in units of ph cm⁻² s⁻¹.
+            The default is True.
+        cl : float or int, optional
+            Confidence level for the confidence interval. If 0 < `cl` < 1, the
+            value is interpreted as the confidence level. If `cl` >= 1, it is
+            interpreted as the number of standard deviations. For example,
+            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
+            The default is 1.
+        method : {'profile', 'boot'}, optional
+            Method used to calculate confidence. Available options are:
+
+                * ``'profile'``: use Minos algorithm of Minuit to find the
+                  confidence intervals based on the profile likelihood
+                * ``'boot'``: use parametric bootstrap method to calculate the
+                  confidence intervals. :meth:`MLEResult.boot` must be called
+                  before using this method.
+
+            The default is ``'profile'``.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+
+        Other Parameters
+        ----------------
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+
+        Returns
+        -------
+        MLEFlux
+            The flux of the model.
+        """
+        if log:
+            egrid = jnp.geomspace(emin, emax, ngrid)
+        else:
+            egrid = jnp.linspace(emin, emax, ngrid)
+
+        converter = lambda x: x
+        flux = self._intensity_ci(
+            egrid, energy, cl, converter, method, comps, params
+        )
+
+        return MLEFlux(emin, emax, bool(energy), **flux, method=method)
+
+    def lumin(
+        self,
+        emin_rest: float | int,
+        emax_rest: float | int,
+        z: float | int,
+        cl: float | int = 1,
+        method: Literal['profile', 'boot'] = 'profile',
+        ngrid: int = 1000,
+        comps: bool = False,
+        log: bool = True,
+        params: dict[str, float | int] | None = None,
+        cosmo: LambdaCDM = Planck18,
+    ) -> MLELumin:
+        """Calculate the luminosity of model.
+
+        .. warning::
+            The luminosity is calculated by trapezoidal rule, and is accurate
+            only if enough numbers of energy grids are used.
+
+        Parameters
+        ----------
+        emin_rest : float or int
+            Minimum value of rest-frame energy range, in units of keV.
+        emax_rest : float or int
+            Maximum value of rest-frame energy range, in units of keV.
+        z : float or int
+            Redshift of the source.
+        cl : float or int, optional
+            Confidence level for the confidence interval. If 0 < `cl` < 1, the
+            value is interpreted as the confidence level. If `cl` >= 1, it is
+            interpreted as the number of standard deviations. For example,
+            ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
+            The default is 1.
+        method : {'profile', 'boot'}, optional
+            Method used to calculate confidence. Available options are:
+
+                * ``'profile'``: use Minos algorithm of Minuit to find the
+                  confidence intervals based on the profile likelihood
+                * ``'boot'``: use parametric bootstrap method to calculate the
+                  confidence intervals. :meth:`MLEResult.boot` must be called
+                  before using this method.
+
+            The default is ``'profile'``.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is 1000.
+
+        Other Parameters
+        ----------------
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default is
+            True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+        cosmo : LambdaCDM, optional
+            Cosmology model used to calculate luminosity. The default is
+            Planck18.
+
+        Returns
+        -------
+        MLELumin
+            The luminosity of the model.
+        """
+        if log:
+            egrid = jnp.geomspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
+        else:
+            egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
+
+        factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
+        to_lumin = lambda x: (x * factor).to('erg s^-1')
+        lumin = self._intensity_ci(
+            egrid, True, cl, to_lumin, method, comps, params
+        )
+
+        return MLELumin(emin_rest, emax_rest, z, cosmo, **lumin, method=method)
+
+    def eiso(
+        self,
+        emin_rest: float | int,
+        emax_rest: float | int,
+        z: float | int,
+        duration: float | int,
+        cl: float | int = 1,
+        method: Literal['profile', 'boot'] = 'profile',
+        ngrid: int = 1000,
+        comps: bool = False,
+        log: bool = True,
+        params: dict[str, float | int] | None = None,
+        cosmo: LambdaCDM = Planck18,
+    ) -> MLEEIso:
+        r"""Calculate the isotropic emission energy of model.
+
+        .. warning::
+            The :math:`E_\mathrm{iso}` is calculated by trapezoidal rule,
+            and is accurate only if enough numbers of energy grids are used.
+
+        Parameters
+        ----------
+        emin_rest : float or int
+            Minimum value of rest-frame energy range, in units of keV.
+        emax_rest : float or int
+            Maximum value of rest-frame energy range, in units of keV.
+        z : float or int
+            Redshift of the source.
+        duration : float or int
+            Observed duration of the source, in units of seconds.
+        cl : float or int, optional
+            Confidence level for the confidence interval. If 0 < `cl` < 1,
+            the value is interpreted as the confidence level. If `cl` >= 1,
+            it is interpreted as the number of standard deviations.
+            For example, ``cl=1`` produces a 1-sigma or 68.3% confidence
+            interval. The default is 1.
+        method : {'profile', 'boot'}, optional
+            Method used to calculate confidence. Available options are:
+
+                * ``'profile'``: use Minos algorithm of Minuit to find the
+                confidence intervals based on the profile likelihood
+                * ``'boot'``: use parametric bootstrap method to calculate the
+                confidence intervals. :meth:`MLEResult.boot` must be called
+                before using this method.
+
+            The default is ``'profile'``.
+        ngrid : int, optional
+            The energy grid number to use in integration. The default is
+            1000.
+
+        Other Parameters
+        ----------------
+        comps : bool, optional
+            Whether to return the result of each component. The default is
+            False.
+        log : bool, optional
+            Whether to use logarithmically regular energy grid. The default
+            is True.
+        params : dict, optional
+            Parameters dict to overwrite the fitted parameters.
+        cosmo : LambdaCDM, optional
+            Cosmology model used to calculate luminosity. The default is
+            Planck18.
+
+        Returns
+        -------
+        MLEEIso
+            The isotropic emission energy of the model.
+        """
+        if log:
+            egrid = jnp.geomspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
+        else:
+            egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
+
+        # This includes correction for energy redshift and time dilation.
+        factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
+        factor *= duration / (1 + z) * u.s
+        to_eiso = lambda x: (x * factor).to('erg')
+
+        eiso = self._intensity_ci(
+            egrid, True, cl, to_eiso, method, comps, params
+        )
+
+        return MLEEIso(
+            emin_rest, emax_rest, z, duration, cosmo, **eiso, method=method
+        )
+
+    @property
+    def gof(self) -> dict[str, float]:
+        if self._boot is None:
+            raise RuntimeError('MLEResult.boot() must be called to assess gof')
+        p_value = self._boot.p_value
+        p_value = p_value['group'] | {'total': p_value['total']}
+        return {k: float(p_value[k]) for k in self.ndata.keys()}
 
     @property
     def mle(self) -> dict[str, tuple[float, float]]:
@@ -1127,53 +1439,136 @@ class PosteriorResult(FitResult):
             self._plotter = PosteriorResultPlotter(self)
         return self._plotter
 
-    def ci(
+    def covar(
         self,
         params: str | Iterable[str] | None = None,
+        fn: dict[str, Callable] | None = None,
+        jit: bool = True,
+        parallel: bool = True,
+    ) -> ParamsCovar:
+        """Calculate the covariance matrix.
+
+        Parameters
+        ----------
+        params : str or sequence of str, optional
+            Parameters to calculate covariance matrix. If not specified,
+            calculate for all parameters.
+        fn : dict, optional
+            A dict containing functions to calculate the covariance matrix.
+            The keys are the names of the function results, and the values are
+            the functions whose input is a dict of model parameters.
+        jit : bool, optional
+            Whether to use JAX JIT compilation for `fn`. The default is True.
+        parallel : bool, optional
+            Whether to use parallel computation for `fn`. The default is True.
+            This option is only effective when `jit` is True.
+
+        Returns
+        -------
+        ParamsCovar
+            The covariance matrix.
+        """
+        params = check_params(params, self._helper)
+        fn = self._check_fn(fn, jit)
+
+        params_dist = self._params_dist
+        jit_if = jax.jit if jit else lambda f: f
+
+        @jit_if
+        @jax.vmap
+        @jit_if
+        def eval_fn(params):
+            params_arr = jnp.array([params[k] for k in params_dist])
+            fn_arr = jnp.array([f(params) for f in fn.values()])
+            return jnp.hstack([params_arr, fn_arr])
+
+        if parallel:
+            n_parallel = get_parallel_number(self._n_parallel)
+            devices = create_device_mesh(
+                mesh_shape=(n_parallel,),
+                devices=jax.devices()[:n_parallel],
+            )
+            mesh = Mesh(devices, axis_names=('i',))
+            pi = PartitionSpec('i')
+            eval_fn = shard_map(
+                f=eval_fn,
+                mesh=mesh,
+                in_specs=(pi,),
+                out_specs=pi,
+                check_rep=False,
+            )
+        else:
+            eval_fn = jit_if(jax.vmap(eval_fn))
+
+        samples = eval_fn(params_dist)
+        covar = np.cov(samples, rowvar=False)
+
+        names = tuple(params) + tuple(fn.keys())
+        var2pos = dict(zip(names, range(len(names))))
+        matrix = CovarMatrix(var2pos)
+        mask = np.array(
+            [p in params for p in params_dist] + [True] * len(fn),
+            dtype=bool,
+        )
+        matrix[:] = np.array(covar)[:, mask][mask]
+        return ParamsCovar(names=names, matrix=matrix)
+
+    def ci(
+        self,
         cl: float | int = 1,
+        params: str | Iterable[str] | None = None,
+        fn: dict[str, Callable] | None = None,
         hdi: bool = False,
+        jit: bool = True,
+        parallel: bool = True,
     ) -> CredibleInterval:
         """Calculate credible intervals.
 
         Parameters
         ----------
-        params : str or sequence of str, optional
-            Parameters to calculate confidence intervals. If not specified,
-            calculate for parameters of interest.
         cl : float or int, optional
             The credible level of samples within the credible interval. If
             0 < `cl` < 1, the value is interpreted as the probability mass.
             If `cl` >= 1, it is interpreted as the number of standard
             deviations. For example, ``cl=1`` produces a 1-sigma or 68.3%
             credible interval. The default is 1.
+        params : str or sequence of str, optional
+            Parameters to calculate confidence intervals. If not specified,
+            calculate for parameters of interest.
+        fn : dict, optional
+            A dict containing functions to calculate the confidence intervals.
+            The keys are the names of the function results, and the values are
+            the functions whose input is a dict of model parameters.
         hdi : bool, optional
             Whether to return the highest density interval. The default is
             False, which means an equal tailed interval is returned.
+        jit : bool, optional
+            Whether to use JAX JIT compilation for `fn`. The default is True.
+        parallel : bool, optional
+            Whether to use parallel computation for `fn`. The default is True.
+            This option is only effective when `jit` is True.
 
         Returns
         -------
         CredibleInterval
             The credible interval.
         """
-        if cl <= 0.0:
-            raise ValueError('cl must be non-negative')
-
+        cl = self._to_unit_cl(cl)
+        fn = self._check_fn(fn, jit)
         params = check_params(params, self._helper)
-
-        cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
 
         if hdi:
             median = self.idata['posterior'].median()
             median = {
                 k: float(v) for k, v in median.data_vars.items() if k in params
             }
-            interval = az.hdi(self.idata, cl_, var_names=params)
+            interval = az.hdi(self.idata, cl, var_names=params)
             interval = {
                 k: (float(v[0]), float(v[1]))
                 for k, v in interval.data_vars.items()
             }
         else:
-            q = [0.5, 0.5 - cl_ / 2.0, 0.5 + cl_ / 2.0]
+            q = [0.5, 0.5 - cl / 2.0, 0.5 + cl / 2.0]
             quantile = self.idata['posterior'].quantile(q)
             quantile = {
                 k: v for k, v in quantile.data_vars.items() if k in params
@@ -1182,6 +1577,17 @@ class PosteriorResult(FitResult):
             interval = {
                 k: (float(v[1]), float(v[2])) for k, v in quantile.items()
             }
+
+        dist = {
+            k: v.data
+            for k, v in self.idata['posterior'][params].data_vars.items()
+        }
+
+        if fn:
+            median_, interval_, dist_ = self._ci_fn(fn, cl, hdi, parallel)
+            median |= median_
+            interval |= interval_
+            dist |= dist_
 
         error = {
             k: (interval[k][0] - median[k], interval[k][1] - median[k])
@@ -1192,66 +1598,132 @@ class PosteriorResult(FitResult):
             median=_format_result(median, params),
             intervals=_format_result(interval, params),
             errors=_format_result(error, params),
-            cl=cl_,
+            cl=cl,
             method='HDI' if hdi else 'ETI',
+            dist=dist,
         )
 
-    def _calc_flux(
+    def _ci_fn(
         self,
-        egrid: JAXArray,
+        fn: dict[str, Callable],
         cl: float | int,
         hdi: bool,
+        parallel: bool = True,
+        params_setting: dict[str, JAXArray] | None = None,
+    ):
+        if params_setting is not None:
+            params_setting = dict(params_setting)
+        else:
+            params_setting = {}
+
+        params = self._params_dist
+
+        cl = self._to_unit_cl(cl)
+
+        eval_fn = jax.jit(lambda p: jax.tree.map(lambda f: f(p), fn))
+
+        if parallel:
+            n_parallel = get_parallel_number(self._n_parallel)
+            devices = create_device_mesh(
+                mesh_shape=(n_parallel,),
+                devices=jax.devices()[:n_parallel],
+            )
+            mesh = Mesh(devices, axis_names=('i',))
+            pi = PartitionSpec('i')
+            eval_fn = shard_map(
+                f=eval_fn,
+                mesh=mesh,
+                in_specs=(pi,),
+                out_specs=pi,
+                check_rep=False,
+            )
+
+        if params_setting:
+            n = len(list(params.values())[0])
+            params_setting = {
+                k: jnp.full(n, v) for k, v in params_setting.items()
+            }
+
+        dist = jax.device_get(eval_fn(params | params_setting))
+
+        if hdi:
+            median = jax.tree.map(np.median, dist)
+            interval = az.hdi(dist, cl)
+            interval = jax.tree.map(
+                lambda x: (float(x[0]), float(x[1])),
+                interval.data_vars,
+            )
+        else:
+            q = [0.5, 0.5 - cl / 2.0, 0.5 + cl / 2.0]
+            quantile = jax.tree.map(lambda x: np.quantile(x, q), dist)
+            median = jax.tree.map(lambda x: float(x[0]), quantile)
+            interval = jax.tree.map(
+                lambda x: (float(x[1]), float(x[2])), quantile
+            )
+
+        return median, interval, dist
+
+    def _intensity_ci(
+        self,
+        egrid: JAXArray,
         energy: bool,
+        cl: float | int,
+        converter: Callable,
+        hdi: bool,
         comps: bool,
         params: dict[str, JAXArray] | None,
     ) -> dict[str, Q | float]:
+        """Calculate confidence interval of flux.
+
+        Parameters
+        ----------
+        egrid : array-like
+            Energy grid used in trapezoidal rule.
+        energy : bool
+            Whether the intensity is based on energy flux.
+        cl : float or int
+            Credible level.
+        converter : callable
+            Function to convert the flux into desired intensity.
+        hdi : bool
+            Whether to return the highest density interval.
+        comps : bool
+            Whether to return the result of each component.
+        params : dict, optional
+            Parameters dict to overwrite the posterior parameters.
+
+        Returns
+        -------
+        dict
+            The credible interval of intensity.
+        """
+        cl = self._to_unit_cl(cl)
+
+        fn = jax.jit(lambda p: self._flux_fn(egrid, p, energy, comps))
+
+        median, intervals, dist = self._ci_fn(
+            {'intensity': fn}, cl, hdi, True, params
+        )
+        median = median['intensity']
+        intervals = intervals['intensity']
+        dist = dist['intensity']
+
         if energy:
             unit = u.Unit('erg cm^-2 s^-1')
         else:
             unit = u.Unit('ph cm^-2 s^-1')
+        convert = lambda x: (x if x is None else converter(x * unit))
 
-        post = self._params_dist
-        n = [i.size for i in post.values()][0]
-        if params is not None:
-            params = dict(params)
-            params = {k: jnp.full(n, v) for k, v in params.items()}
-            post = post | params
-
-        n_parallel = get_parallel_number(self._n_parallel)
-        devices = create_device_mesh(
-            mesh_shape=(n_parallel,),
-            devices=jax.devices()[:n_parallel],
-        )
-        mesh = Mesh(devices, axis_names=('i',))
-        p = PartitionSpec()
-        pi = PartitionSpec('i')
-        fn = shard_map(
-            f=jax.jit(lambda e, p: self._flux_fn(e, p, energy, comps)),
-            mesh=mesh,
-            in_specs=(p, pi),
-            out_specs=pi,
-            check_rep=False,
-        )
-        flux = jax.device_get(fn(egrid, post))
-        cl_ = 1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl
-        if hdi:
-            ci_fn = lambda x: az.hdi(x, cl_)
-        else:
-            q = 0.5 + np.array([-0.5, 0.5]) * cl_
-            ci_fn = lambda x: np.quantile(x, q)
-        median = jax.tree_map(lambda x: np.median(x), flux)
-        intervals = jax.tree_map(ci_fn, flux)
-        errors = jax.tree_map(
+        errors = jax.tree.map(
             lambda x, y: (y[0] - x, y[1] - x), median, intervals
         )
-        add_unit = lambda x: x * unit
+
         return {
-            'median': jax.tree_map(add_unit, median),
-            'intervals': jax.tree_map(add_unit, intervals),
-            'errors': jax.tree_map(add_unit, errors),
-            'cl': cl_,
-            'dist': jax.tree_map(add_unit, flux),
-            'n': n,
+            'median': jax.tree.map(convert, median),
+            'intervals': jax.tree.map(convert, intervals),
+            'errors': jax.tree.map(convert, errors),
+            'cl': cl,
+            'dist': jax.tree.map(convert, dist),
         }
 
     def flux(
@@ -1315,16 +1787,12 @@ class PosteriorResult(FitResult):
         else:
             egrid = jnp.linspace(emin, emax, ngrid)
 
-        flux = self._calc_flux(egrid, cl, hdi, energy, comps, params)
+        flux = self._intensity_ci(
+            egrid, energy, cl, lambda x: x, hdi, comps, params
+        )
 
         return PosteriorFlux(
-            median=flux['median'],
-            intervals=flux['intervals'],
-            errors=flux['errors'],
-            cl=flux['cl'],
-            dist=flux['dist'],
-            energy=bool(energy),
-            n=flux['n'],
+            emin, emax, bool(energy), **flux, method='HDI' if hdi else 'ETI'
         )
 
     def lumin(
@@ -1391,20 +1859,20 @@ class PosteriorResult(FitResult):
             egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
 
         z = float(z)
-        flux = self._calc_flux(egrid, cl, hdi, True, comps, params)
-
         factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
         to_lumin = lambda x: (x * factor).to('erg s^-1')
 
+        lumin = self._intensity_ci(
+            egrid, True, cl, to_lumin, hdi, comps, params
+        )
+
         return PosteriorLumin(
-            median=jax.tree_map(to_lumin, flux['median']),
-            intervals=jax.tree_map(to_lumin, flux['intervals']),
-            errors=jax.tree_map(to_lumin, flux['errors']),
-            cl=flux['cl'],
-            dist=jax.tree_map(to_lumin, flux['dist']),
-            n=flux['n'],
-            z=z,
-            cosmo=cosmo,
+            emin_rest,
+            emax_rest,
+            z,
+            cosmo,
+            **lumin,
+            method='HDI' if hdi else 'ETI',
         )
 
     def eiso(
@@ -1420,7 +1888,7 @@ class PosteriorResult(FitResult):
         log: bool = True,
         params: dict[str, float | int] | None = None,
         cosmo: LambdaCDM = Planck18,
-    ) -> PosteriorEIso:
+    ) -> PosteriorEiso:
         r"""Calculate the isotropic emission energy of model.
 
         .. warning::
@@ -1466,27 +1934,30 @@ class PosteriorResult(FitResult):
 
         Returns
         -------
-        PosteriorEIso
+        PosteriorEiso
             The isotropic emission energy of the model.
         """
-        lumin = self.lumin(
-            emin_rest, emax_rest, z, cl, ngrid, hdi, comps, log, params, cosmo
-        )
+        if log:
+            egrid = jnp.geomspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
+        else:
+            egrid = jnp.linspace(emin_rest, emax_rest, ngrid) / (1.0 + z)
 
         # This includes correction for energy redshift and time dilation.
-        factor = duration / (1 + z) * u.s
+        z = float(z)
+        factor = 4.0 * np.pi * cosmo.luminosity_distance(z) ** 2
+        factor *= duration / (1 + z) * u.s
         to_eiso = lambda x: (x * factor).to('erg')
 
-        return PosteriorEIso(
-            median=jax.tree_map(to_eiso, lumin.median),
-            intervals=jax.tree_map(to_eiso, lumin.intervals),
-            errors=jax.tree_map(to_eiso, lumin.errors),
-            cl=lumin.cl,
-            dist=jax.tree_map(to_eiso, lumin.dist),
-            n=lumin.n,
-            z=lumin.z,
-            duration=float(duration),
-            cosmo=lumin.cosmo,
+        eiso = self._intensity_ci(egrid, True, cl, to_eiso, hdi, comps, params)
+
+        return PosteriorEiso(
+            emin_rest,
+            emax_rest,
+            z,
+            duration,
+            cosmo,
+            **eiso,
+            method='HDI' if hdi else 'ETI',
         )
 
     def ppc(
@@ -2061,11 +2532,21 @@ class PosteriorResult(FitResult):
         return self._pit
 
 
+class ParamsCovar(NamedTuple):
+    """Covariance matrix of the model parameters."""
+
+    names: tuple[str, ...]
+    """Parameter names."""
+
+    matrix: CovarMatrix
+    """Covariance matrix."""
+
+
 class ConfidenceInterval(NamedTuple):
     """Confidence interval result."""
 
     mle: dict[str, float]
-    """MLE of the model parameters."""
+    """MLE of the parameters."""
 
     intervals: dict[str, tuple[float, float]]
     """The confidence intervals."""
@@ -2086,6 +2567,15 @@ class ConfidenceInterval(NamedTuple):
 class MLEFlux(NamedTuple):
     """The flux of the MLE model."""
 
+    emin: float
+    """Minimum value of energy range."""
+
+    emax: float
+    """Maximum value of energy range."""
+
+    energy: bool
+    """Whether the flux is in energy flux. False for photon flux."""
+
     mle: dict[str, Q] | dict[str, dict[str, Q]]
     """The model flux at MLE."""
 
@@ -2095,21 +2585,30 @@ class MLEFlux(NamedTuple):
     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model flux in error form."""
 
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Bootstrap flux distribution."""
-
     cl: float
     """The confidence level."""
 
-    energy: bool
-    """Whether the flux is in energy flux. False for photon flux."""
+    method: str
+    """Method used to calculate the confidence interval."""
 
-    n: int
-    """Numbers of bootstrap samples."""
+    status: dict
+    """Status of the calculation progress."""
 
 
 class MLELumin(NamedTuple):
     """The luminosity of the MLE model."""
+
+    emin_rest: float
+    """Minimum value of rest-frame energy range."""
+
+    emax_rest: float
+    """Maximum value of rest-frame energy range."""
+
+    z: float
+    """Redshift of the source."""
+
+    cosmo: LambdaCDM
+    """Cosmology model used to calculate luminosity."""
 
     mle: dict[str, Q] | dict[str, dict[str, Q]]
     """The model luminosity at MLE."""
@@ -2120,24 +2619,33 @@ class MLELumin(NamedTuple):
     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model luminosity in error form."""
 
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Bootstrap luminosity distribution."""
-
     cl: float
     """The confidence level."""
 
-    n: int
-    """Numbers of bootstrap samples."""
+    method: str
+    """Method used to calculate the confidence interval."""
 
-    z: float
-    """Redshift of the source."""
-
-    cosmo: LambdaCDM
-    """Cosmology model used to calculate luminosity."""
+    status: str
+    """Status of the calculation progress."""
 
 
 class MLEEIso(NamedTuple):
     """The isotropic emission energy of the MLE model."""
+
+    emin_rest: float
+    """Minimum value of rest-frame energy range."""
+
+    emax_rest: float
+    """Maximum value of rest-frame energy range."""
+
+    z: float
+    """Redshift of the source."""
+
+    duration: float
+    """Observed duration of the source."""
+
+    cosmo: LambdaCDM
+    """Cosmology model used to calculate Eiso."""
 
     mle: dict[str, Q] | dict[str, dict[str, Q]]
     r"""The model Eiso at MLE."""
@@ -2148,23 +2656,14 @@ class MLEEIso(NamedTuple):
     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model Eiso in error form."""
 
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Bootstrap Eiso distribution."""
-
     cl: float
     """The confidence level."""
 
-    n: int
-    """Numbers of bootstrap samples."""
+    method: str
+    """Method used to calculate the confidence interval."""
 
-    z: float
-    """Redshift of the source."""
-
-    duration: float
-    """Observed duration of the source."""
-
-    cosmo: LambdaCDM
-    """Cosmology model used to calculate Eiso."""
+    status: str
+    """Status of the calculation progress."""
 
 
 class BootstrapResult(NamedTuple):
@@ -2202,7 +2701,7 @@ class CredibleInterval(NamedTuple):
     """Credible interval result."""
 
     median: dict[str, float]
-    """Median of the model parameters."""
+    """Median of the parameters."""
 
     intervals: dict[str, tuple[float, float]]
     """The credible intervals."""
@@ -2216,9 +2715,21 @@ class CredibleInterval(NamedTuple):
     method: str
     """Highest Density Interval (HDI), or equal tailed interval (ETI)."""
 
+    dist: dict[str, JAXArray]
+    """Posterior distribution."""
+
 
 class PosteriorFlux(NamedTuple):
     """Posterior flux."""
+
+    emin: float
+    """Minimum value of energy range."""
+
+    emax: float
+    """Maximum value of energy range."""
+
+    energy: bool
+    """Whether the flux is in energy flux. False for photon flux."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median flux."""
@@ -2229,21 +2740,30 @@ class PosteriorFlux(NamedTuple):
     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The credible intervals of the model flux in error form."""
 
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Posterior flux distribution."""
-
     cl: float
     """The credible level."""
 
-    energy: bool
-    """Whether the flux is in energy flux. False for photon flux."""
+    method: str
+    """Highest Density Interval (HDI), or equal tailed interval (ETI)."""
 
-    n: int
-    """Numbers of posterior samples."""
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Posterior flux distribution."""
 
 
 class PosteriorLumin(NamedTuple):
     """Posterior luminosity."""
+
+    emin_rest: float
+    """Minimum value of rest-frame energy range."""
+
+    emax_rest: float
+    """Maximum value of rest-frame energy range."""
+
+    z: float
+    """Redshift of the source."""
+
+    cosmo: LambdaCDM
+    """Cosmology model used to calculate luminosity."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median luminosity."""
@@ -2254,24 +2774,33 @@ class PosteriorLumin(NamedTuple):
     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The credible intervals of the model luminosity in error form."""
 
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Posterior distribution of luminosity."""
-
     cl: float
     """The credible level."""
 
-    n: int
-    """Numbers of posterior samples."""
+    method: str
+    """Highest Density Interval (HDI), or equal tailed interval (ETI)."""
+
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Posterior distribution of luminosity."""
+
+
+class PosteriorEiso(NamedTuple):
+    """Posterior isotropic emission energy."""
+
+    emin_rest: float
+    """Minimum value of rest-frame energy range."""
+
+    emax_rest: float
+    """Maximum value of rest-frame energy range."""
 
     z: float
     """Redshift of the source."""
 
+    duration: float
+    """Observed duration of the source."""
+
     cosmo: LambdaCDM
-    """Cosmology model used to calculate luminosity."""
-
-
-class PosteriorEIso(NamedTuple):
-    """Posterior isotropic emission energy."""
+    """Cosmology model used to calculate Eiso."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
     r"""The median Eiso."""
@@ -2282,23 +2811,14 @@ class PosteriorEIso(NamedTuple):
     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The credible intervals of the model Eiso in error form."""
 
-    dist: dict[str, Q] | dict[str, dict[str, Q]]
-    """Posterior distribution of Eiso."""
-
     cl: float
     """The credible level."""
 
-    n: int
-    """Numbers of posterior samples."""
+    method: str
+    """Highest Density Interval (HDI), or equal tailed interval (ETI)."""
 
-    z: float
-    """Redshift of the source."""
-
-    duration: float
-    """Observed duration of the source."""
-
-    cosmo: LambdaCDM
-    """Cosmology model used to calculate Eiso."""
+    dist: dict[str, Q] | dict[str, dict[str, Q]]
+    """Posterior distribution of Eiso."""
 
 
 class PPCResult(NamedTuple):
