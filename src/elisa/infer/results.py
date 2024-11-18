@@ -239,7 +239,7 @@ class FitResult(ABC):
         else:
             return 1.0 - 2.0 * stats.norm.sf(cl)
 
-    def _check_fn(self, fn: dict[str, Callable] | None, jit: bool):
+    def _check_fn(self, fn: dict[str, Callable] | None):
         """Check user provided function."""
         if fn is None:
             return {}
@@ -264,7 +264,7 @@ class FitResult(ABC):
                     raise TypeError(msg)
                 else:
                     try:
-                        jitted = jax.jit(v) if jit else v
+                        jitted = jax.jit(v)
                         fn_result = jitted(helper.params_default)
                         fn_checked[str(k)] = jitted
                     except Exception as e:
@@ -482,7 +482,6 @@ class MLEResult(FitResult):
         params: str | Sequence[str] | None = None,
         fn: dict[str, Callable] | None = None,
         method: Literal['hess', 'boot'] = 'hess',
-        jit: bool = True,
         parallel: bool = True,
     ) -> ParamsCovar:
         """Calculate covariance matrix.
@@ -505,12 +504,9 @@ class MLEResult(FitResult):
                   method.
 
             The default is ``'hess'``.
-        jit : bool, optional
-            Whether to use JAX JIT compilation for `fn`. The default is True.
         parallel : bool, optional
-            Whether to evaluate `fn` in parallel. The default is True.
-            This option is only effective when `method` is ``'boot'`` and
-            `jit` is ``True``.
+            Whether to evaluate `fn` in parallel when `method` is ``'boot'``.
+            The default is True.
 
         Returns
         -------
@@ -519,17 +515,16 @@ class MLEResult(FitResult):
         """
         params_mle = {k: v[0] for k, v in self.mle.items()}
         params = check_params(params, self._helper)
-        fn = self._check_fn(fn, jit)
-        jit_if = jax.jit if jit else lambda f: f
+        fn = self._check_fn(fn)
 
         if method == 'hess':
             if not fn:
                 covar = np.array(self._covar)
             else:
 
-                @jit_if
+                @jax.jit
                 @jax.jacobian
-                @jit_if
+                @jax.jit
                 def jacobian(params_arr):
                     params_dic = dict(zip(params_mle.keys(), params_arr))
                     fn_arr = jnp.array([f(params_dic) for f in fn.values()])
@@ -542,7 +537,9 @@ class MLEResult(FitResult):
         elif method == 'boot':
             self._raise_if_no_boot()
 
-            @jit_if
+            @jax.jit
+            @jax.vmap
+            @jax.jit
             def eval_fn(params):
                 params_arr = jnp.array([params[k] for k in params_mle])
                 fn_arr = jnp.array([f(params) for f in fn.values()])
@@ -563,10 +560,8 @@ class MLEResult(FitResult):
                     out_specs=pi,
                     check_rep=False,
                 )
-            else:
-                eval_fn = jit_if(jax.vmap(eval_fn))
 
-            samples = eval_fn(self._boot.params)
+            samples = eval_fn(self._params_dist)
             covar = np.cov(samples, rowvar=False)
 
         else:
@@ -588,7 +583,6 @@ class MLEResult(FitResult):
         params: str | Iterable[str] | None = None,
         fn: dict[str, Callable] | None = None,
         method: Literal['profile', 'boot'] = 'profile',
-        jit: bool = True,
         parallel: bool = True,
     ) -> ConfidenceInterval:
         """Calculate confidence intervals.
@@ -618,12 +612,9 @@ class MLEResult(FitResult):
                   called before using this method.
 
             The default is ``'profile'``.
-        jit : bool, optional
-            Whether to use JAX JIT compilation for `fn`. The default is True.
         parallel : bool, optional
-            Whether to evaluate `fn` in parallel. The default is True.
-            This option is only effective when `method` is ``'boot'`` and
-            `jit` is ``True``.
+            Whether to evaluate `fn` in parallel when `method` is ``'boot'``.
+            The default is True.
 
         Returns
         -------
@@ -639,7 +630,7 @@ class MLEResult(FitResult):
         )
         assert free | composite == params_set
 
-        fn = self._check_fn(fn, jit)
+        fn = self._check_fn(fn)
 
         if method == 'profile':
             self._warn_invalid_fit()
@@ -661,13 +652,13 @@ class MLEResult(FitResult):
                 else:
                     res2 = ({}, {})
 
-                res3 = self._ci_fn(fn, cl, jit) if fn else ({}, {})
+                res3 = self._ci_fn(fn, cl) if fn else ({}, {})
 
                 intervals = res1[0] | res2[0] | res3[0]
                 status = res1[1] | res2[1] | res3[1]
 
         elif method == 'boot':
-            intervals, status = self._ci_boot(cl, params, fn, jit and parallel)
+            intervals, status = self._ci_boot(cl, params, fn, parallel)
 
         else:
             raise ValueError("method must be either 'profile' or 'boot'")
@@ -736,7 +727,7 @@ class MLEResult(FitResult):
         }
         return interval, status
 
-    def _ci_fn(self, fn: dict[str, Callable], cl: float | int, jit: bool):
+    def _ci_fn(self, fn: dict[str, Callable], cl: float | int):
         """Confidence intervals of function of free parameters."""
         rtol = 1e-3
         params_mle = {k: v[0] for k, v in self._mle.items()}
@@ -746,8 +737,7 @@ class MLEResult(FitResult):
         status = {}
         for name, mle in fn_mle.items():
             loss = self._loss_factory(fn[name], rtol * mle)
-            loss = jax.jit(loss) if jit else loss
-            grad = jax.jit(jax.grad(loss)) if jit else None
+            grad = jax.jit(jax.grad(loss))
             init = np.hstack([mle, self._minuit.values])
             minuit = Minuit(loss, init, grad=grad)
             minuit.strategy = 2
@@ -783,6 +773,7 @@ class MLEResult(FitResult):
         params_free = helper.params_names['free']
         atol_inv = 1.0 / atol
 
+        @jax.jit
         def loss(x: np.ndarray):
             """Joint loss of params and func of params."""
             unconstr_dic = dict(zip(params_free, x[1:]))
@@ -830,7 +821,9 @@ class MLEResult(FitResult):
         }
 
         if fn is not None and fn:
-            eval_fn = jax.jit(lambda p: jax.tree.map(lambda f: f(p), fn))
+            eval_fn = jax.jit(
+                jax.vmap(lambda p: jax.tree.map(lambda f: f(p), fn))
+            )
 
             if parallel:
                 n_parallel = get_parallel_number(self._n_parallel)
@@ -940,7 +933,7 @@ class MLEResult(FitResult):
             fn_dic = {d: factory(d) for d in mapping.values()}
 
         if method == 'profile':
-            intervals, status = self._ci_fn(fn_dic, cl, True)
+            intervals, status = self._ci_fn(fn_dic, cl)
         elif method == 'boot':
             intervals, status = self._ci_boot(cl, [], fn_dic, True, params)
         else:
@@ -978,8 +971,7 @@ class MLEResult(FitResult):
         if method == 'profile':
             status = {k: status[v] for k, v in mapping.items()}
         else:
-            dist = status['dist']
-            status['dist'] = convert({k: dist[v] for k, v in mapping.items()})
+            status['dist'] = jax.tree.map(convert, status['dist'])
 
         return {
             'mle': jax.tree.map(convert, mle_flux),
@@ -1443,7 +1435,6 @@ class PosteriorResult(FitResult):
         self,
         params: str | Iterable[str] | None = None,
         fn: dict[str, Callable] | None = None,
-        jit: bool = True,
         parallel: bool = True,
     ) -> ParamsCovar:
         """Calculate the covariance matrix.
@@ -1457,11 +1448,8 @@ class PosteriorResult(FitResult):
             A dict containing functions to calculate the covariance matrix.
             The keys are the names of the function results, and the values are
             the functions whose input is a dict of model parameters.
-        jit : bool, optional
-            Whether to use JAX JIT compilation for `fn`. The default is True.
         parallel : bool, optional
             Whether to use parallel computation for `fn`. The default is True.
-            This option is only effective when `jit` is True.
 
         Returns
         -------
@@ -1469,14 +1457,13 @@ class PosteriorResult(FitResult):
             The covariance matrix.
         """
         params = check_params(params, self._helper)
-        fn = self._check_fn(fn, jit)
+        fn = self._check_fn(fn)
 
         params_dist = self._params_dist
-        jit_if = jax.jit if jit else lambda f: f
 
-        @jit_if
+        @jax.jit
         @jax.vmap
-        @jit_if
+        @jax.jit
         def eval_fn(params):
             params_arr = jnp.array([params[k] for k in params_dist])
             fn_arr = jnp.array([f(params) for f in fn.values()])
@@ -1497,8 +1484,6 @@ class PosteriorResult(FitResult):
                 out_specs=pi,
                 check_rep=False,
             )
-        else:
-            eval_fn = jit_if(jax.vmap(eval_fn))
 
         samples = eval_fn(params_dist)
         covar = np.cov(samples, rowvar=False)
@@ -1519,7 +1504,6 @@ class PosteriorResult(FitResult):
         params: str | Iterable[str] | None = None,
         fn: dict[str, Callable] | None = None,
         hdi: bool = False,
-        jit: bool = True,
         parallel: bool = True,
     ) -> CredibleInterval:
         """Calculate credible intervals.
@@ -1542,11 +1526,8 @@ class PosteriorResult(FitResult):
         hdi : bool, optional
             Whether to return the highest density interval. The default is
             False, which means an equal tailed interval is returned.
-        jit : bool, optional
-            Whether to use JAX JIT compilation for `fn`. The default is True.
         parallel : bool, optional
             Whether to use parallel computation for `fn`. The default is True.
-            This option is only effective when `jit` is True.
 
         Returns
         -------
@@ -1554,7 +1535,7 @@ class PosteriorResult(FitResult):
             The credible interval.
         """
         cl = self._to_unit_cl(cl)
-        fn = self._check_fn(fn, jit)
+        fn = self._check_fn(fn)
         params = check_params(params, self._helper)
 
         if hdi:
@@ -1589,15 +1570,17 @@ class PosteriorResult(FitResult):
             interval |= interval_
             dist |= dist_
 
+        vars_names = tuple(params) + tuple(fn.keys())
+
         error = {
             k: (interval[k][0] - median[k], interval[k][1] - median[k])
-            for k in params
+            for k in vars_names
         }
 
         return CredibleInterval(
-            median=_format_result(median, params),
-            intervals=_format_result(interval, params),
-            errors=_format_result(error, params),
+            median=_format_result(median, vars_names),
+            intervals=_format_result(interval, vars_names),
+            errors=_format_result(error, vars_names),
             cl=cl,
             method='HDI' if hdi else 'ETI',
             dist=dist,
@@ -1620,7 +1603,7 @@ class PosteriorResult(FitResult):
 
         cl = self._to_unit_cl(cl)
 
-        eval_fn = jax.jit(lambda p: jax.tree.map(lambda f: f(p), fn))
+        eval_fn = jax.jit(jax.vmap(lambda p: jax.tree.map(lambda f: f(p), fn)))
 
         if parallel:
             n_parallel = get_parallel_number(self._n_parallel)
