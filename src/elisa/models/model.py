@@ -458,7 +458,7 @@ class CompiledModel:
             msg = f'N(E) is undefined for {self.type} type model "{self}"'
             raise TypeError(msg)
 
-        if self._additive_fn is None and comps:
+        if comps and not self.has_comps:
             raise RuntimeError(f'{self} has no sub-models with additive type')
 
         egrid = jnp.asarray(egrid, float)
@@ -499,7 +499,7 @@ class CompiledModel:
             msg = f'EN(E) is undefined for {self.type} type model "{self}"'
             raise TypeError(msg)
 
-        if self._additive_fn is None and comps:
+        if comps and not self.has_comps:
             raise RuntimeError(f'{self} has no sub-models with additive type')
 
         keV_to_erg = 1.602176634e-9
@@ -591,7 +591,7 @@ class CompiledModel:
             msg = f'C(E) is undefined for {self.type} type model "{self}"'
             raise TypeError(msg)
 
-        if self._additive_fn is None and comps:
+        if comps and not self.has_comps:
             raise RuntimeError(f'{self} has no sub-models with additive type')
 
         egrid = jnp.asarray(egrid, float)
