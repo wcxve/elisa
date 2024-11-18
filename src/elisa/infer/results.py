@@ -1182,10 +1182,10 @@ class MLEResult(FitResult):
             Method used to calculate confidence. Available options are:
 
                 * ``'profile'``: use Minos algorithm of Minuit to find the
-                confidence intervals based on the profile likelihood
+                  confidence intervals based on the profile likelihood
                 * ``'boot'``: use parametric bootstrap method to calculate the
                   confidence intervals. :meth:`MLEResult.boot` must be called
-                  before using this method.
+                  before using this method
 
             The default is ``'profile'``.
         ngrid : int, optional
