@@ -49,7 +49,7 @@ dependencies = [
 
 [project.optional-dependencies]
 xspec = ["xspex"]
-test = ["pytest", "pytest-cov", "coverage[toml]"]
+test = ["coverage[toml]", "jaxtyping==0.2.34", "pytest", "pytest-cov"]
 docs = [
     "ipywidgets",
     "jupyter",
