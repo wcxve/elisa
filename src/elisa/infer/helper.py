@@ -368,7 +368,7 @@ def get_helper(fit: Fit) -> Helper:
             numpyro.deterministic(pid_to_pname[pid], fn(params_id_values))
 
         # the likelihood between observation and model for each dataset
-        jax.tree_map(
+        jax.tree.map(
             lambda f: f(params_name_values, predictive=predictive),
             likelihood,
         )
@@ -581,9 +581,9 @@ def get_helper(fit: Fit) -> Helper:
         """
         loglike_dic = loglike(unconstr_arr)
         neg_double = jax.jit(lambda x: -2.0 * x)
-        point = jax.tree_map(neg_double, loglike_dic['point'])
-        group = jax.tree_map(neg_double, loglike_dic['group'])
-        total = jax.tree_map(neg_double, loglike_dic['total'])
+        point = jax.tree.map(neg_double, loglike_dic['point'])
+        group = jax.tree.map(neg_double, loglike_dic['group'])
+        total = jax.tree.map(neg_double, loglike_dic['total'])
         return {'total': total, 'group': group, 'point': point}
 
     def deviance_total(unconstr_arr: JAXArray) -> JAXFloat:
@@ -633,7 +633,7 @@ def get_helper(fit: Fit) -> Helper:
 
         # update best fit params to result
         params = sites['params']
-        result['params'] = jax.tree_map(
+        result['params'] = jax.tree.map(
             lambda x, y: x.at[i].set(y),
             result['params'],
             params,
@@ -641,7 +641,7 @@ def get_helper(fit: Fit) -> Helper:
 
         # update the best fit model to result
         models = sites['models']
-        result['models'] = jax.tree_map(
+        result['models'] = jax.tree.map(
             lambda x, y: x.at[i].set(y),
             result['models'],
             {k: models[k] for k in result['models']},
@@ -650,12 +650,12 @@ def get_helper(fit: Fit) -> Helper:
         # update the deviance information to result
         dev = new_deviance(fitted_params)
         res_dev = result['deviance']
-        res_dev['group'] = jax.tree_map(
+        res_dev['group'] = jax.tree.map(
             lambda x, y: x.at[i].set(y),
             res_dev['group'],
             dev['group'],
         )
-        res_dev['point'] = jax.tree_map(
+        res_dev['point'] = jax.tree.map(
             lambda x, y: x.at[i].set(y),
             res_dev['point'],
             dev['point'],
@@ -719,12 +719,12 @@ def get_helper(fit: Fit) -> Helper:
         fit_pmap = jax.pmap(lambda *args: lax.fori_loop(0, batch, fn, args)[1])
         reshape = lambda x: x.reshape((n_parallel, -1) + x.shape[1:])
         result = fit_pmap(
-            jax.tree_map(reshape, sim_data),
-            jax.tree_map(reshape, result),
-            jax.tree_map(reshape, init),
+            jax.tree.map(reshape, sim_data),
+            jax.tree.map(reshape, result),
+            jax.tree.map(reshape, init),
         )
 
-        return jax.tree_map(jnp.concatenate, result)
+        return jax.tree.map(jnp.concatenate, result)
 
     def simulate_and_fit(
         seed: int,
@@ -768,7 +768,7 @@ def get_helper(fit: Fit) -> Helper:
             The simulation and fitting result.
         """
         seed = int(seed)
-        free_params = jax.tree_map(jnp.array, free_params)
+        free_params = jax.tree.map(jnp.array, free_params)
         model_values = {
             f'{k}_model': model_values[f'{k}_model'] for k in simulators
         }
@@ -779,7 +779,7 @@ def get_helper(fit: Fit) -> Helper:
         assert n > 0
 
         # check if all params shapes are the same
-        shapes = list(jax.tree_map(jnp.shape, free_params).values())
+        shapes = list(jax.tree.map(jnp.shape, free_params).values())
         assert all(i == shapes[0] for i in shapes)
 
         # TODO: support posterior prediction with n > 1
@@ -857,6 +857,9 @@ def get_helper(fit: Fit) -> Helper:
             'interest': interest_names,
             'all': params_names,
         },
+        params_default=unconstr_dic_to_params_dic(
+            dict(zip(free_names, default_unconstr_arr))
+        ),
         params_setup=model_info.setup,
         params_latex=pname_to_latex,
         params_unit=pname_to_unit,
@@ -926,6 +929,9 @@ class Helper(NamedTuple):
 
     params_names: dict
     """The names of parameters in the model."""
+
+    params_default: dict[str, JAXFloat]
+    """The default values of parameters."""
 
     free_default: dict[str, dict[ParamName, JAXFloat] | JAXArray]
     """The default values of free parameters."""

@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 from astropy.units import Unit
-from jax import lax, tree_util
+from jax import lax
 from jax.custom_derivatives import SymbolicZero
 from jax.experimental import io_callback
 from jax.flatten_util import ravel_pytree
@@ -193,7 +193,7 @@ def define_fdjvp(
 
         primals_out = fn(egrid, params)
 
-        tvals, _ = tree_util.tree_flatten(params_tangent)
+        tvals, _ = jax.tree.flatten(params_tangent)
         if any(jnp.shape(v) != () for v in tvals):
             raise NotImplementedError(
                 'JVP for non-scalar parameter is not implemented'
@@ -509,7 +509,7 @@ def progress_bar_factory(
         run_str = str(run_str)
 
     if neval > update_rate:
-        print_rate = int(neval_single / update_rate)
+        print_rate = max(1, int(neval_single / update_rate))
     else:
         print_rate = 1
 
