@@ -1155,7 +1155,7 @@ class MLEResult(FitResult):
         log: bool = True,
         params: dict[str, float | int] | None = None,
         cosmo: LambdaCDM = Planck18,
-    ) -> MLEEIso:
+    ) -> MLEEiso:
         r"""Calculate the isotropic emission energy of model.
 
         .. warning::
@@ -1184,8 +1184,8 @@ class MLEResult(FitResult):
                 * ``'profile'``: use Minos algorithm of Minuit to find the
                 confidence intervals based on the profile likelihood
                 * ``'boot'``: use parametric bootstrap method to calculate the
-                confidence intervals. :meth:`MLEResult.boot` must be called
-                before using this method.
+                  confidence intervals. :meth:`MLEResult.boot` must be called
+                  before using this method.
 
             The default is ``'profile'``.
         ngrid : int, optional
@@ -1208,7 +1208,7 @@ class MLEResult(FitResult):
 
         Returns
         -------
-        MLEEIso
+        MLEEiso
             The isotropic emission energy of the model.
         """
         if log:
@@ -1225,7 +1225,7 @@ class MLEResult(FitResult):
             egrid, True, cl, to_eiso, method, comps, params
         )
 
-        return MLEEIso(
+        return MLEEiso(
             emin_rest, emax_rest, z, duration, cosmo, **eiso, method=method
         )
 
@@ -2629,7 +2629,7 @@ class MLELumin(NamedTuple):
     """Status of the calculation progress."""
 
 
-class MLEEIso(NamedTuple):
+class MLEEiso(NamedTuple):
     """The isotropic emission energy of the MLE model."""
 
     emin_rest: float
