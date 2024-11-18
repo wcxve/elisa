@@ -88,7 +88,7 @@ class FitResult(ABC):
             for name, fn in fns.items():
                 f = fn(egrid, params, comps)
                 if comps:
-                    flux[name] = jax.tree_map(
+                    flux[name] = jax.tree.map(
                         lambda v: jnp.sum(v * de, axis=-1), f
                     )
                 else:
@@ -450,7 +450,7 @@ class MLEResult(FitResult):
             'Bootstrap',
         )
         valid = result.pop('valid')
-        result = jax.tree_map(lambda x: x[valid], result)
+        result = jax.tree.map(lambda x: x[valid], result)
 
         self._boot = BootstrapResult(
             mle={k: v[0] for k, v in self.mle.items()},
@@ -458,7 +458,7 @@ class MLEResult(FitResult):
             models=result['models'],
             params=result['params'],
             deviance=result['deviance'],
-            p_value=jax.tree_map(
+            p_value=jax.tree.map(
                 lambda obs, sim: np.sum(sim >= obs, axis=0) / len(sim),
                 self._deviance,
                 result['deviance'],
@@ -2027,7 +2027,7 @@ class PosteriorResult(FitResult):
             'PPC',
         )
         valid = result.pop('valid')
-        result = jax.tree_map(lambda x: x[valid], result)
+        result = jax.tree.map(lambda x: x[valid], result)
 
         self._ppc = PPCResult(
             params_rep=params,
@@ -2036,7 +2036,7 @@ class PosteriorResult(FitResult):
             params_fit=result['params'],
             models_fit=result['models'],
             deviance=result['deviance'],
-            p_value=jax.tree_map(
+            p_value=jax.tree.map(
                 lambda obs, sim: np.sum(sim >= obs, axis=0) / len(sim),
                 self._mle['deviance'],
                 result['deviance'],
@@ -2084,7 +2084,7 @@ class PosteriorResult(FitResult):
             # drop unnecessary terms
             loglike.pop('data')
             loglike.pop('channels')
-            mle_result['deviance'] = jax.tree_map(lambda x: -2.0 * x, loglike)
+            mle_result['deviance'] = jax.tree.map(lambda x: -2.0 * x, loglike)
 
             # model values at MLE
             mle_result['models'] = sites['models']
@@ -2173,7 +2173,7 @@ class PosteriorResult(FitResult):
         # get posterior samples
         total = result.total_num_samples
         rng_key = jax.random.PRNGKey(helper.seed['mcmc'])
-        samples = jax.tree_map(
+        samples = jax.tree.map(
             lambda x: x[None, ...],
             sampler.get_samples(rng_key, total),
         )
@@ -2202,7 +2202,7 @@ class PosteriorResult(FitResult):
         ndrop = nsamples % ncores
 
         # get posterior samples
-        samples = jax.tree_map(lambda x: x[None, : nsamples - ndrop], result)
+        samples = jax.tree.map(lambda x: x[None, : nsamples - ndrop], result)
 
         # attrs for each group of arviz.InferenceData
         attrs = {
@@ -2230,7 +2230,7 @@ class PosteriorResult(FitResult):
         ncores = jax.local_device_count()
 
         # get posterior samples
-        samples = jax.tree_map(
+        samples = jax.tree.map(
             lambda x: x[None, : len(x) - len(x) % ncores],
             result,
         )
@@ -2254,7 +2254,7 @@ class PosteriorResult(FitResult):
         self._lnZ = (float(sampler.log_z), None)
 
     def _generate_idata(self, samples, attrs, sample_stats=None):
-        samples = jax.tree_map(jax.device_get, samples)
+        samples = jax.tree.map(jax.device_get, samples)
         helper = self._helper
 
         params = helper.get_params(samples)
@@ -2857,5 +2857,5 @@ class PPCResult(NamedTuple):
 
 def _format_result(result: dict, order: Sequence[str]) -> dict:
     """Sort the result and use float type."""
-    formatted = jax.tree_map(float, result)
+    formatted = jax.tree.map(float, result)
     return {k: formatted[k] for k in order}

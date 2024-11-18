@@ -209,7 +209,7 @@ class Model(ABC):
         @jax.jit
         def fn(egrid: JAXArray, params: ParamIDValMapping) -> JAXArray:
             """The model evaluation function"""
-            comps_params = jax.tree_map(lambda f: f(params), pid_to_value)
+            comps_params = jax.tree.map(lambda f: f(params), pid_to_value)
             return eval_fn(egrid, comps_params)
 
         for integrate in model_info.integrate.values():
@@ -374,7 +374,7 @@ class CompiledModel:
             #     missing = set(self.params_name) - set(params)
             #     raise ValueError(f'missing parameters: {", ".join(missing)}')
 
-            params = jax.tree_map(jnp.asarray, params)
+            params = jax.tree.map(jnp.asarray, params)
             params = self._value_mapping_to_params(params)
 
         elif params is None:
@@ -385,8 +385,8 @@ class CompiledModel:
 
         fn = self._fn
         add_fn = self._additive_fn
-        shapes = jax.tree_util.tree_flatten(
-            tree=jax.tree_map(jnp.shape, params),
+        shapes = jax.tree.flatten(
+            tree=jax.tree.map(jnp.shape, params),
             is_leaf=lambda i: isinstance(i, tuple),
         )[0]
 
@@ -467,7 +467,7 @@ class CompiledModel:
         if comps:
             _, additive_fn, params = self._prepare_eval(params)
             comps_value = additive_fn(egrid, params)
-            ne = jax.tree_map(lambda v: v / de, comps_value)
+            ne = jax.tree.map(lambda v: v / de, comps_value)
         else:
             ne = self.eval(egrid, params) / de
 
@@ -510,7 +510,7 @@ class CompiledModel:
         ne = self.ne(egrid, params, comps)
 
         if comps:
-            ene = jax.tree_map(lambda v: factor * v, ne)
+            ene = jax.tree.map(lambda v: factor * v, ne)
         else:
             ene = factor * ne
 
@@ -553,7 +553,7 @@ class CompiledModel:
         ne = self.ne(egrid, params, comps)
 
         if comps:
-            eene = jax.tree_map(lambda v: factor * v, ne)
+            eene = jax.tree.map(lambda v: factor * v, ne)
         else:
             eene = factor * ne
 
@@ -603,7 +603,7 @@ class CompiledModel:
         fn = jax.jit(lambda v: (v * de) @ resp_matrix / channel_width)
 
         if comps:
-            return jax.tree_map(fn, ne)
+            return jax.tree.map(fn, ne)
         else:
             return fn(ne)
 
@@ -668,7 +668,7 @@ class CompiledModel:
         fn = jax.jit(lambda v: jnp.sum(v * de, axis=-1))
 
         if comps:
-            return jax.tree_map(fn, f)
+            return jax.tree.map(fn, f)
         else:
             return fn(f)
 
@@ -736,7 +736,7 @@ class CompiledModel:
         to_lumin = lambda x: (x * flux_unit * factor).to('erg s^-1')
 
         if comps:
-            return jax.tree_map(to_lumin, flux)
+            return jax.tree.map(to_lumin, flux)
         else:
             return to_lumin(flux)
 
@@ -801,7 +801,7 @@ class CompiledModel:
         to_eiso = lambda x: (x * factor).to('erg')
 
         if comps:
-            return jax.tree_map(to_eiso, lumin)
+            return jax.tree.map(to_eiso, lumin)
         else:
             return to_eiso(lumin)
 

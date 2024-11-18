@@ -201,7 +201,7 @@ class Fit(ABC):
             samples[f'{i}_loglike'].sum(axis=-1) for i in self._data.keys()
         ]
         mle_idx = np.sum(loglike, axis=0).argmax()
-        mle = jax.tree_map(lambda s: s[mle_idx], samples)
+        mle = jax.tree.map(lambda s: s[mle_idx], samples)
         mle = {i: mle[i] for i in self._helper.params_names['free']}
         return self._helper.constr_dic_to_unconstr_arr(mle)
 
