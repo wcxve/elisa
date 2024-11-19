@@ -583,6 +583,7 @@ class MLEResult(FitResult):
         params: str | Iterable[str] | None = None,
         fn: dict[str, Callable] | None = None,
         method: Literal['profile', 'boot'] = 'profile',
+        rtol: float = 1e-3,
         parallel: bool = True,
     ) -> ConfidenceInterval:
         """Calculate confidence intervals.
@@ -612,6 +613,9 @@ class MLEResult(FitResult):
                   called before using this method.
 
             The default is ``'profile'``.
+        rtol : float
+            The relative tolerance in determine the function value when
+            `method` is ``'profile'``. The default is 1e-3.
         parallel : bool, optional
             Whether to evaluate `fn` in parallel when `method` is ``'boot'``.
             The default is True.
@@ -621,6 +625,9 @@ class MLEResult(FitResult):
         ConfidenceInterval
             The confidence intervals.
         """
+        if rtol > 0.1:
+            raise ValueError('rtol must be less than 0.1')
+
         cl = self._to_unit_cl(cl)
         params = check_params(params, self._helper)
         params_set = set(params)
@@ -648,11 +655,11 @@ class MLEResult(FitResult):
                         return _
 
                     fn_composite = {k: factory(k) for k in composite}
-                    res2 = self._ci_fn(fn_composite, cl, True)
+                    res2 = self._ci_fn(fn_composite, cl, rtol)
                 else:
                     res2 = ({}, {})
 
-                res3 = self._ci_fn(fn, cl) if fn else ({}, {})
+                res3 = self._ci_fn(fn, cl, rtol) if fn else ({}, {})
 
                 intervals = res1[0] | res2[0] | res3[0]
                 status = res1[1] | res2[1] | res3[1]
@@ -727,9 +734,8 @@ class MLEResult(FitResult):
         }
         return interval, status
 
-    def _ci_fn(self, fn: dict[str, Callable], cl: float | int):
+    def _ci_fn(self, fn: dict[str, Callable], cl: float | int, rtol=1e-3):
         """Confidence intervals of function of free parameters."""
-        rtol = 1e-3
         params_mle = {k: v[0] for k, v in self._mle.items()}
         fn_mle = {k: v(params_mle) for k, v in fn.items()}
 
@@ -933,7 +939,16 @@ class MLEResult(FitResult):
             fn_dic = {d: factory(d) for d in mapping.values()}
 
         if method == 'profile':
-            intervals, status = self._ci_fn(fn_dic, cl)
+            # use log transform to stabilize the profile likelihood
+            def transform(f):
+                def _(p):
+                    return jnp.log(f(p))
+
+                return _
+
+            fn_dic = jax.tree.map(transform, fn_dic)
+            intervals, status = self._ci_fn(fn_dic, cl, rtol=1e-4)
+            intervals = jax.tree.map(jnp.exp, intervals)
         elif method == 'boot':
             intervals, status = self._ci_boot(cl, [], fn_dic, True, params)
         else:
