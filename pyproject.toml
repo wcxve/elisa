@@ -31,7 +31,6 @@ dependencies = [
     "jax>=0.4.28",
     "jaxlib>=0.4.28",
     "jaxns==2.6.3",
-    "jaxtyping==0.2.34",
     "matplotlib",
     "nautilus-sampler",
     "numpy",
@@ -50,10 +49,9 @@ dependencies = [
 
 [project.optional-dependencies]
 xspec = ["xspex"]
-test = ["coverage[toml]", "jaxtyping==0.2.34", "pytest", "pytest-cov"]
+test = ["coverage[toml]", "pytest", "pytest-cov"]
 docs = [
     "ipywidgets",
-    "jaxtyping==0.2.34",
     "jupyter",
     "jupyterlab_widgets",
     "sphinx>=7.4.0",
