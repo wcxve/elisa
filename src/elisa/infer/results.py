@@ -680,7 +680,7 @@ class MLEResult(FitResult):
         }
 
         return ConfidenceInterval(
-            mle=vars_mle,
+            mle=_format_result(vars_mle, vars_names),
             intervals=_format_result(intervals, vars_names),
             errors=_format_result(errors, vars_names),
             cl=1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl,
