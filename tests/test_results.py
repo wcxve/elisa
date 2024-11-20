@@ -94,10 +94,12 @@ def test_mle_ci_fn(mle_result2, powerlaw_flux):
         params['PowerLaw.alpha'], params['PowerLaw.K'], emin, emax
     )
 
+    ci0 = result.ci(params=[], fn={'fn': fn}, rtol={'fn': 5e-4})
     ci1 = result.ci(params=[], fn={'fn': fn})
     ci2 = result.ci(params=[], fn={'fn': fn}, method='boot')
     ci3 = result.ci(params=[], fn={'fn': fn}, method='boot', parallel=False)
     assert np.allclose(ci1.mle['fn'], fn_mle)
+    assert np.allclose(ci1.errors['fn'], ci0.errors['fn'])
     assert np.allclose(ci1.errors['fn'], ci2.errors['fn'], rtol=5e-2, atol=0.0)
     assert np.allclose(ci2.errors['fn'], ci3.errors['fn'])
 

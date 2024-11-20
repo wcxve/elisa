@@ -642,7 +642,7 @@ class MLEResult(FitResult):
         else:
             rtol = jax.tree.map(float, dict(rtol))
             for k in rtol_keys:
-                rtol.set_default[k] = 1e-3
+                rtol.setdefault(k, 1e-3)
         if np.any([i > 0.1 for i in rtol.values()]):
             raise ValueError('rtol must be less than 0.1')
 
