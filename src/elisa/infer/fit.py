@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
+import gzip
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import bz2
-import gzip
-import lzma
 import dill
 import jax
 import jax.numpy as jnp
