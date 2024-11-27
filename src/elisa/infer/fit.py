@@ -7,6 +7,10 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import bz2
+import gzip
+import lzma
+import dill
 import jax
 import jax.numpy as jnp
 import nautilus
@@ -557,6 +561,8 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
+        save_warmup: str | None = None,
+        load_warmup: str | None = None,
         **nuts_kwargs: dict,
     ) -> PosteriorResult:
         """Run the No-U-Turn Sampler of :mod:`numpyro`.
@@ -581,6 +587,10 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
+        save_warmup : str, optional
+            Path to save the warmup file. The default is None.
+        load_warmup : str, optional
+            Path to load the warmup file. The default is None.
         **nuts_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.NUTS`.
 
@@ -631,10 +641,28 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
-        sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-            extra_fields=('energy', 'num_steps'),
-        )
+        if load_warmup is not None:
+            with gzip.open(load_warmup, 'rb') as f:
+                last_state = dill.load(f)
+            sampler.post_warmup_state = last_state
+            sampler.run(sampler.post_warmup_state.rng_key)
+
+        elif warmup > 0:
+            sampler.warmup(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                extra_fields=('energy', 'num_steps'),
+            )
+            sampler.run(sampler.post_warmup_state.rng_key)
+        else:
+            sampler.run(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                extra_fields=('energy', 'num_steps'),
+            )
+
+        if save_warmup is not None:
+            with gzip.open(save_warmup, 'wb') as f:
+                dill.dump(sampler.last_state, f)
+
         return PosteriorResult(sampler, self._helper, self)
 
     def jaxns(
@@ -1225,6 +1253,8 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
+        save_warmup: str | None = None,
+        load_warmup: str | None = None,
         **sa_kwargs: dict,
     ) -> PosteriorResult:
         """Run the Sample Adaptive MCMC of :mod:`numpyro`.
@@ -1247,6 +1277,10 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
+        save_warmup : str, optional
+            Path to save the warmup file. The default is None.
+        load_warmup : str, optional
+            Path to load the warmup file. The default is None.
         **sa_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.SA`.
 
@@ -1288,7 +1322,24 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
-        sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-        )
+        if load_warmup is not None:
+            with gzip.open(load_warmup, 'rb') as f:
+                last_state = dill.load(f)
+            sampler.post_warmup_state = last_state
+            sampler.run(sampler.post_warmup_state.rng_key)
+
+        elif warmup > 0:
+            sampler.warmup(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+            )
+            sampler.run(sampler.post_warmup_state.rng_key)
+        else:
+            sampler.run(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+            )
+
+        if save_warmup is not None:
+            with gzip.open(save_warmup, 'wb') as f:
+                dill.dump(sampler.last_state, f)
+
         return PosteriorResult(sampler, self._helper, self)
