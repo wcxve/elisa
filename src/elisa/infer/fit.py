@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import os
 import dill
 import jax
 import jax.numpy as jnp
@@ -646,7 +646,7 @@ class BayesFit(Fit):
                 sampler.post_warmup_state = last_state
                 sampler.run(sampler.post_warmup_state.rng_key)
             else:
-                print(f"{load_warmup} not found!\nRunning sampling...")
+                print(f'{load_warmup} not found!\nRunning sampling...')
                 sampler.run(
                     rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
                 )
@@ -1333,7 +1333,7 @@ class BayesFit(Fit):
                 sampler.post_warmup_state = last_state
                 sampler.run(sampler.post_warmup_state.rng_key)
             else:
-                print(f"{load_warmup} not found!\nRunning sampling...")
+                print(f'{load_warmup} not found!\nRunning sampling...')
                 sampler.run(
                     rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
                 )
