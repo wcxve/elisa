@@ -991,7 +991,7 @@ class BayesFit(Fit):
             ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-            If `chain_method` is set to ``'parallel'``, this is 
+            If `chain_method` is set to ``'parallel'``, this is
             always False after warmup.
         moves : dict, optional
             Moves for the sampler.
@@ -1047,24 +1047,26 @@ class BayesFit(Fit):
         )
 
         sampler.warmup(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
-            )
+            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+            init_params=init,
+        )
 
         if chain_method == 'parallel':
-            print("Sampling parallel!")
+            print('Sampling parallel!')
             paral_mcmc = MCMC(
-                    AIES(**aies_kwargs),
-                    num_warmup=warmup,
-                    num_samples=steps,
-                    num_chains=chains,
-                    chain_method='vectorized',
-                    progress_bar=False,
-                )
+                AIES(**aies_kwargs),
+                num_warmup=warmup,
+                num_samples=steps,
+                num_chains=chains,
+                chain_method='vectorized',
+                progress_bar=False,
+            )
             paral_mcmc.post_warmup_state = sampler.last_state
 
             def do_mcmc(rng_key):
-                paral_mcmc.run(rng_key,)
+                paral_mcmc.run(
+                    rng_key,
+                )
                 return paral_mcmc.get_samples(group_by_chain=True)
 
             rng_keys = jax.random.split(
@@ -1124,7 +1126,7 @@ class BayesFit(Fit):
             ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-            If `chain_method` is set to ``'parallel'``, this is 
+            If `chain_method` is set to ``'parallel'``, this is
             always False after warmup.
         moves : dict, optional
             Moves for the sampler.
@@ -1177,24 +1179,26 @@ class BayesFit(Fit):
         )
 
         sampler.warmup(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
-            )
+            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+            init_params=init,
+        )
 
         if chain_method == 'parallel':
-            print("Sampling parallel!")
+            print('Sampling parallel!')
             paral_mcmc = MCMC(
-                    ESS(**ess_kwargs),
-                    num_warmup=warmup,
-                    num_samples=steps,
-                    num_chains=chains,
-                    chain_method='vectorized',
-                    progress_bar=False,
-                )
+                ESS(**ess_kwargs),
+                num_warmup=warmup,
+                num_samples=steps,
+                num_chains=chains,
+                chain_method='vectorized',
+                progress_bar=False,
+            )
             paral_mcmc.post_warmup_state = sampler.last_state
 
             def do_mcmc(rng_key):
-                paral_mcmc.run(rng_key,)
+                paral_mcmc.run(
+                    rng_key,
+                )
                 return paral_mcmc.get_samples(group_by_chain=True)
 
             rng_keys = jax.random.split(
