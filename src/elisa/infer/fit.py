@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import gzip
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -640,7 +639,7 @@ class BayesFit(Fit):
         )
 
         if load_warmup is not None:
-            with gzip.open(load_warmup, 'rb') as f:
+            with open(load_warmup, 'rb') as f:
                 last_state = dill.load(f)
             sampler.post_warmup_state = last_state
             sampler.run(sampler.post_warmup_state.rng_key)
@@ -658,7 +657,7 @@ class BayesFit(Fit):
             )
 
         if save_warmup is not None:
-            with gzip.open(save_warmup, 'wb') as f:
+            with open(save_warmup, 'wb') as f:
                 dill.dump(sampler.last_state, f)
 
         return PosteriorResult(sampler, self._helper, self)
@@ -1321,7 +1320,7 @@ class BayesFit(Fit):
         )
 
         if load_warmup is not None:
-            with gzip.open(load_warmup, 'rb') as f:
+            with open(load_warmup, 'rb') as f:
                 last_state = dill.load(f)
             sampler.post_warmup_state = last_state
             sampler.run(sampler.post_warmup_state.rng_key)
@@ -1337,7 +1336,7 @@ class BayesFit(Fit):
             )
 
         if save_warmup is not None:
-            with gzip.open(save_warmup, 'wb') as f:
+            with open(save_warmup, 'wb') as f:
                 dill.dump(sampler.last_state, f)
 
         return PosteriorResult(sampler, self._helper, self)
