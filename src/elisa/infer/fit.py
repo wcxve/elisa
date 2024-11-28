@@ -991,7 +991,8 @@ class BayesFit(Fit):
             ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-            If `chain_method` is set to ``'parallel'``, this is always False.
+            If `chain_method` is set to ``'parallel'``, this is 
+            always False after warmup.
         moves : dict, optional
             Moves for the sampler.
         **aies_kwargs : dict
@@ -1036,23 +1037,35 @@ class BayesFit(Fit):
         else:
             aies_kwargs['moves'] = moves
 
-        if chain_method == 'parallel':
-            aies_kernel = AIES(**aies_kwargs)
+        sampler = MCMC(
+            AIES(**aies_kwargs),
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method='vectorized',
+            progress_bar=progress,
+        )
 
-            def do_mcmc(rng_key):
-                mcmc = MCMC(
-                    aies_kernel,
+        sampler.warmup(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                init_params=init,
+            )
+
+        if chain_method == 'parallel':
+            print("Sampling parallel!")
+            paral_mcmc = MCMC(
+                    AIES(**aies_kwargs),
                     num_warmup=warmup,
                     num_samples=steps,
                     num_chains=chains,
                     chain_method='vectorized',
                     progress_bar=False,
                 )
-                mcmc.run(
-                    rng_key,
-                    init_params=init,
-                )
-                return mcmc.get_samples(group_by_chain=True)
+            paral_mcmc.post_warmup_state = sampler.last_state
+
+            def do_mcmc(rng_key):
+                paral_mcmc.run(rng_key,)
+                return paral_mcmc.get_samples(group_by_chain=True)
 
             rng_keys = jax.random.split(
                 jax.random.PRNGKey(self._helper.seed['mcmc']),
@@ -1060,27 +1073,11 @@ class BayesFit(Fit):
             )
             traces = jax.pmap(do_mcmc)(rng_keys)
             trace = {k: np.concatenate(v) for k, v in traces.items()}
-
-            sampler = MCMC(
-                aies_kernel,
-                num_warmup=warmup,
-                num_samples=steps,
-            )
             sampler._states = {sampler._sample_field: trace}
 
         else:
-            sampler = MCMC(
-                AIES(**aies_kwargs),
-                num_warmup=warmup,
-                num_samples=steps,
-                num_chains=chains,
-                chain_method=chain_method,
-                progress_bar=progress,
-            )
-
             sampler.run(
                 rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
             )
         return PosteriorResult(sampler, self._helper, self)
 
@@ -1127,7 +1124,8 @@ class BayesFit(Fit):
             ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-            If `chain_method` is set to ``'parallel'``, this is always False.
+            If `chain_method` is set to ``'parallel'``, this is 
+            always False after warmup.
         moves : dict, optional
             Moves for the sampler.
         **ess_kwargs : dict
@@ -1169,23 +1167,35 @@ class BayesFit(Fit):
         else:
             ess_kwargs['moves'] = moves
 
-        if chain_method == 'parallel':
-            ess_kernel = ESS(**ess_kwargs)
+        sampler = MCMC(
+            ESS(**ess_kwargs),
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method='vectorized',
+            progress_bar=progress,
+        )
 
-            def do_mcmc(rng_key):
-                mcmc = MCMC(
-                    ess_kernel,
+        sampler.warmup(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                init_params=init,
+            )
+
+        if chain_method == 'parallel':
+            print("Sampling parallel!")
+            paral_mcmc = MCMC(
+                    ESS(**ess_kwargs),
                     num_warmup=warmup,
                     num_samples=steps,
                     num_chains=chains,
                     chain_method='vectorized',
                     progress_bar=False,
                 )
-                mcmc.run(
-                    rng_key,
-                    init_params=init,
-                )
-                return mcmc.get_samples(group_by_chain=True)
+            paral_mcmc.post_warmup_state = sampler.last_state
+
+            def do_mcmc(rng_key):
+                paral_mcmc.run(rng_key,)
+                return paral_mcmc.get_samples(group_by_chain=True)
 
             rng_keys = jax.random.split(
                 jax.random.PRNGKey(self._helper.seed['mcmc']),
@@ -1193,27 +1203,11 @@ class BayesFit(Fit):
             )
             traces = jax.pmap(do_mcmc)(rng_keys)
             trace = {k: np.concatenate(v) for k, v in traces.items()}
-
-            sampler = MCMC(
-                ess_kernel,
-                num_warmup=warmup,
-                num_samples=steps,
-            )
             sampler._states = {sampler._sample_field: trace}
 
         else:
-            sampler = MCMC(
-                ESS(**ess_kwargs),
-                num_warmup=warmup,
-                num_samples=steps,
-                num_chains=chains,
-                chain_method=chain_method,
-                progress_bar=progress,
-            )
-
             sampler.run(
                 rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
             )
         return PosteriorResult(sampler, self._helper, self)
 
