@@ -1066,6 +1066,7 @@ class BayesFit(Fit):
             def do_mcmc(rng_key):
                 paral_mcmc.run(
                     rng_key,
+                    init_params=init,
                 )
                 return paral_mcmc.get_samples(group_by_chain=True)
 
@@ -1080,6 +1081,7 @@ class BayesFit(Fit):
         else:
             sampler.run(
                 rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                init_params=init,
             )
         return PosteriorResult(sampler, self._helper, self)
 
@@ -1198,6 +1200,7 @@ class BayesFit(Fit):
             def do_mcmc(rng_key):
                 paral_mcmc.run(
                     rng_key,
+                    init_params=init,
                 )
                 return paral_mcmc.get_samples(group_by_chain=True)
 
@@ -1212,6 +1215,7 @@ class BayesFit(Fit):
         else:
             sampler.run(
                 rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                init_params=init,
             )
         return PosteriorResult(sampler, self._helper, self)
 
