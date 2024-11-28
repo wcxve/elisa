@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import os
 import dill
 import jax
 import jax.numpy as jnp
@@ -639,10 +640,16 @@ class BayesFit(Fit):
         )
 
         if load_warmup is not None:
-            with open(load_warmup, 'rb') as f:
-                last_state = dill.load(f)
-            sampler.post_warmup_state = last_state
-            sampler.run(sampler.post_warmup_state.rng_key)
+            if os.path.exists(load_warmup):
+                with open(load_warmup, 'rb') as f:
+                    last_state = dill.load(f)
+                sampler.post_warmup_state = last_state
+                sampler.run(sampler.post_warmup_state.rng_key)
+            else:
+                print(f"{load_warmup} not found!\nRunning sampling...")
+                sampler.run(
+                    rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                )
 
         elif warmup > 0:
             sampler.warmup(
@@ -1320,10 +1327,16 @@ class BayesFit(Fit):
         )
 
         if load_warmup is not None:
-            with open(load_warmup, 'rb') as f:
-                last_state = dill.load(f)
-            sampler.post_warmup_state = last_state
-            sampler.run(sampler.post_warmup_state.rng_key)
+            if os.path.exists(load_warmup):
+                with open(load_warmup, 'rb') as f:
+                    last_state = dill.load(f)
+                sampler.post_warmup_state = last_state
+                sampler.run(sampler.post_warmup_state.rng_key)
+            else:
+                print(f"{load_warmup} not found!\nRunning sampling...")
+                sampler.run(
+                    rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                )
 
         elif warmup > 0:
             sampler.warmup(
