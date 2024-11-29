@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
@@ -559,8 +558,6 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
-        save_warmup: str | None = None,
-        load_warmup: str | None = None,
         **nuts_kwargs: dict,
     ) -> PosteriorResult:
         """Run the No-U-Turn Sampler of :mod:`numpyro`.
@@ -585,10 +582,6 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-        save_warmup : str, optional
-            Path to save the warmup file. The default is None.
-        load_warmup : str, optional
-            Path to load the warmup file. The default is None.
         **nuts_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.NUTS`.
 
@@ -639,34 +632,10 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
-        if load_warmup is not None:
-            if os.path.exists(load_warmup):
-                with open(load_warmup, 'rb') as f:
-                    last_state = dill.load(f)
-                sampler.post_warmup_state = last_state
-                sampler.run(sampler.post_warmup_state.rng_key)
-            else:
-                print(f'{load_warmup} not found!\nRunning sampling...')
-                sampler.run(
-                    rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                )
-
-        elif warmup > 0:
-            sampler.warmup(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                extra_fields=('energy', 'num_steps'),
-            )
-            sampler.run(sampler.post_warmup_state.rng_key)
-        else:
-            sampler.run(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                extra_fields=('energy', 'num_steps'),
-            )
-
-        if save_warmup is not None:
-            with open(save_warmup, 'wb') as f:
-                dill.dump(sampler.last_state, f)
-
+        sampler.run(
+            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+            extra_fields=('energy', 'num_steps'),
+        )
         return PosteriorResult(sampler, self._helper, self)
 
     def jaxns(
@@ -989,6 +958,7 @@ class BayesFit(Fit):
         chain_method: str = 'vectorized',
         n_parallel: int | None = None,
         progress: bool = True,
+        resume_sample: str | None = None,
         moves: dict | None = None,
         **aies_kwargs: dict,
     ) -> PosteriorResult:
@@ -1023,7 +993,12 @@ class BayesFit(Fit):
             ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-            If `chain_method` is set to ``'parallel'``, this is always False.
+            If `chain_method` is set to ``'parallel'``, this is
+            always False after warmup.
+        resume_sample : str, optional
+            Read the last_state file from a previous run, and then, sampling 
+            will skip the warmup adaptation phase. Finally, it saves last_state, 
+            whether there is a last_state file or not.
         moves : dict, optional
             Moves for the sampler.
         **aies_kwargs : dict
@@ -1068,23 +1043,52 @@ class BayesFit(Fit):
         else:
             aies_kwargs['moves'] = moves
 
+        # warmup at least 10
+        warmup = 10 if warmup<10 else warmup
+
+        sampler = MCMC(
+            AIES(**aies_kwargs),
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method='vectorized',
+            progress_bar=progress,
+        )
+
+        if resume_sample is not None:
+            try:
+                with open(resume_sample, 'rb') as f:
+                    last_state = dill.load(f)
+                sampler.post_warmup_state = last_state
+            except:
+                sampler.warmup(
+                    rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                    init_params=init,
+                )
+        else:
+            sampler.warmup(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                init_params=init,
+            )
+
         if chain_method == 'parallel':
-            aies_kernel = AIES(**aies_kwargs)
+            print('Parallel sampling...')
+            paral_mcmc = MCMC(
+                AIES(**aies_kwargs),
+                num_warmup=warmup,
+                num_samples=steps,
+                num_chains=chains,
+                chain_method='vectorized',
+                progress_bar=False,
+            )
+            paral_mcmc.post_warmup_state = sampler.last_state
 
             def do_mcmc(rng_key):
-                mcmc = MCMC(
-                    aies_kernel,
-                    num_warmup=warmup,
-                    num_samples=steps,
-                    num_chains=chains,
-                    chain_method='vectorized',
-                    progress_bar=False,
-                )
-                mcmc.run(
+                paral_mcmc.run(
                     rng_key,
                     init_params=init,
                 )
-                return mcmc.get_samples(group_by_chain=True)
+                return paral_mcmc.get_samples(group_by_chain=True)
 
             rng_keys = jax.random.split(
                 jax.random.PRNGKey(self._helper.seed['mcmc']),
@@ -1092,28 +1096,18 @@ class BayesFit(Fit):
             )
             traces = jax.pmap(do_mcmc)(rng_keys)
             trace = {k: np.concatenate(v) for k, v in traces.items()}
-
-            sampler = MCMC(
-                aies_kernel,
-                num_warmup=warmup,
-                num_samples=steps,
-            )
             sampler._states = {sampler._sample_field: trace}
 
         else:
-            sampler = MCMC(
-                AIES(**aies_kwargs),
-                num_warmup=warmup,
-                num_samples=steps,
-                num_chains=chains,
-                chain_method=chain_method,
-                progress_bar=progress,
-            )
-
             sampler.run(
                 rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
                 init_params=init,
             )
+
+        if resume_sample is not None:
+            with open(resume_sample, 'wb') as f:
+                dill.dump(sampler.last_state, f)
+                
         return PosteriorResult(sampler, self._helper, self)
 
     def ess(
@@ -1126,6 +1120,7 @@ class BayesFit(Fit):
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
+        resume_sample: str | None = None,
         **ess_kwargs: dict,
     ) -> PosteriorResult:
         """Ensemble Slice Sampling (ESS) of :mod:`numpyro`.
@@ -1159,7 +1154,12 @@ class BayesFit(Fit):
             ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-            If `chain_method` is set to ``'parallel'``, this is always False.
+            If `chain_method` is set to ``'parallel'``, this is
+            always False after warmup.
+        resume_sample : str, optional
+            Read the last_state file from a previous run, and then, sampling 
+            will skip the warmup adaptation phase. Finally, it saves last_state, 
+            whether there is a last_state file or not.
         moves : dict, optional
             Moves for the sampler.
         **ess_kwargs : dict
@@ -1201,23 +1201,52 @@ class BayesFit(Fit):
         else:
             ess_kwargs['moves'] = moves
 
+        # warmup at least 10
+        warmup = 10 if warmup<10 else warmup
+
+        sampler = MCMC(
+            ESS(**ess_kwargs),
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method='vectorized',
+            progress_bar=progress,
+        )
+
+        if resume_sample is not None:
+            try:
+                with open(resume_sample, 'rb') as f:
+                    last_state = dill.load(f)
+                sampler.post_warmup_state = last_state
+            except:
+                sampler.warmup(
+                    rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                    init_params=init,
+                )
+        else:
+            sampler.warmup(
+                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+                init_params=init,
+            )
+
         if chain_method == 'parallel':
-            ess_kernel = ESS(**ess_kwargs)
+            print('Parallel sampling...')
+            paral_mcmc = MCMC(
+                ESS(**ess_kwargs),
+                num_warmup=warmup,
+                num_samples=steps,
+                num_chains=chains,
+                chain_method='vectorized',
+                progress_bar=False,
+            )
+            paral_mcmc.post_warmup_state = sampler.last_state
 
             def do_mcmc(rng_key):
-                mcmc = MCMC(
-                    ess_kernel,
-                    num_warmup=warmup,
-                    num_samples=steps,
-                    num_chains=chains,
-                    chain_method='vectorized',
-                    progress_bar=False,
-                )
-                mcmc.run(
+                paral_mcmc.run(
                     rng_key,
                     init_params=init,
                 )
-                return mcmc.get_samples(group_by_chain=True)
+                return paral_mcmc.get_samples(group_by_chain=True)
 
             rng_keys = jax.random.split(
                 jax.random.PRNGKey(self._helper.seed['mcmc']),
@@ -1225,28 +1254,18 @@ class BayesFit(Fit):
             )
             traces = jax.pmap(do_mcmc)(rng_keys)
             trace = {k: np.concatenate(v) for k, v in traces.items()}
-
-            sampler = MCMC(
-                ess_kernel,
-                num_warmup=warmup,
-                num_samples=steps,
-            )
             sampler._states = {sampler._sample_field: trace}
 
         else:
-            sampler = MCMC(
-                ESS(**ess_kwargs),
-                num_warmup=warmup,
-                num_samples=steps,
-                num_chains=chains,
-                chain_method=chain_method,
-                progress_bar=progress,
-            )
-
             sampler.run(
                 rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
                 init_params=init,
             )
+
+        if resume_sample is not None:
+            with open(resume_sample, 'wb') as f:
+                dill.dump(sampler.last_state, f)
+
         return PosteriorResult(sampler, self._helper, self)
 
     def sa(
@@ -1257,8 +1276,7 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
-        save_warmup: str | None = None,
-        load_warmup: str | None = None,
+        resume_sample: str | None = None,
         **sa_kwargs: dict,
     ) -> PosteriorResult:
         """Run the Sample Adaptive MCMC of :mod:`numpyro`.
@@ -1281,10 +1299,10 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-        save_warmup : str, optional
-            Path to save the warmup file. The default is None.
-        load_warmup : str, optional
-            Path to load the warmup file. The default is None.
+        resume_sample : str, optional
+            Read the last_state file from a previous run, and then, sampling 
+            will skip the warmup adaptation phase. Finally, it saves last_state, 
+            whether there is a last_state file or not.
         **sa_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.SA`.
 
@@ -1326,14 +1344,13 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
-        if load_warmup is not None:
-            if os.path.exists(load_warmup):
-                with open(load_warmup, 'rb') as f:
+        if resume_sample is not None:
+            try:
+                with open(resume_sample, 'rb') as f:
                     last_state = dill.load(f)
                 sampler.post_warmup_state = last_state
                 sampler.run(sampler.post_warmup_state.rng_key)
-            else:
-                print(f'{load_warmup} not found!\nRunning sampling...')
+            except:
                 sampler.run(
                     rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
                 )
@@ -1348,8 +1365,8 @@ class BayesFit(Fit):
                 rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
             )
 
-        if save_warmup is not None:
-            with open(save_warmup, 'wb') as f:
+        if resume_sample is not None:
+            with open(resume_sample, 'wb') as f:
                 dill.dump(sampler.last_state, f)
 
         return PosteriorResult(sampler, self._helper, self)
