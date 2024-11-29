@@ -996,8 +996,8 @@ class BayesFit(Fit):
             If `chain_method` is set to ``'parallel'``, this is
             always False after warmup.
         resume_sample : str, optional
-            Read the last_state file from a previous run, and then, sampling 
-            will skip the warmup adaptation phase. Finally, it saves last_state, 
+            Read the last_state file from a previous run, and then, sampling
+            will skip the warmup adaptation phase. Finally, it saves last_state,
             whether there is a last_state file or not.
         moves : dict, optional
             Moves for the sampler.
@@ -1044,7 +1044,7 @@ class BayesFit(Fit):
             aies_kwargs['moves'] = moves
 
         # warmup at least 10
-        warmup = 10 if warmup<10 else warmup
+        warmup = 10 if warmup < 10 else warmup
 
         sampler = MCMC(
             AIES(**aies_kwargs),
@@ -1107,7 +1107,7 @@ class BayesFit(Fit):
         if resume_sample is not None:
             with open(resume_sample, 'wb') as f:
                 dill.dump(sampler.last_state, f)
-                
+
         return PosteriorResult(sampler, self._helper, self)
 
     def ess(
@@ -1157,8 +1157,8 @@ class BayesFit(Fit):
             If `chain_method` is set to ``'parallel'``, this is
             always False after warmup.
         resume_sample : str, optional
-            Read the last_state file from a previous run, and then, sampling 
-            will skip the warmup adaptation phase. Finally, it saves last_state, 
+            Read the last_state file from a previous run, and then, sampling
+            will skip the warmup adaptation phase. Finally, it saves last_state,
             whether there is a last_state file or not.
         moves : dict, optional
             Moves for the sampler.
@@ -1202,7 +1202,7 @@ class BayesFit(Fit):
             ess_kwargs['moves'] = moves
 
         # warmup at least 10
-        warmup = 10 if warmup<10 else warmup
+        warmup = 10 if warmup < 10 else warmup
 
         sampler = MCMC(
             ESS(**ess_kwargs),
@@ -1300,8 +1300,8 @@ class BayesFit(Fit):
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
         resume_sample : str, optional
-            Read the last_state file from a previous run, and then, sampling 
-            will skip the warmup adaptation phase. Finally, it saves last_state, 
+            Read the last_state file from a previous run, and then, sampling
+            will skip the warmup adaptation phase. Finally, it saves last_state,
             whether there is a last_state file or not.
         **sa_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.SA`.
