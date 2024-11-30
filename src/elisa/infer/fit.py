@@ -1059,20 +1059,62 @@ class BayesFit(Fit):
                 with open(resume_sample, 'rb') as f:
                     last_state = dill.load(f)
                 sampler.post_warmup_state = last_state
-                run_ensemble(sampler, AIES(**aies_kwargs), rng_key, warmup, steps, chains, 
-                             init, chain_method, n_parallel)
+                run_ensemble(
+                    sampler,
+                    AIES(**aies_kwargs),
+                    rng_key,
+                    warmup,
+                    steps,
+                    chains,
+                    init,
+                    chain_method,
+                    n_parallel,
+                )
             except:
-                if warmup>0:
-                    sampler.warmup(rng_key=rng_key, init_params=init,)
-                run_ensemble(sampler, AIES(**aies_kwargs), rng_key, warmup, steps, chains, 
-                             init, chain_method, n_parallel)
+                if warmup > 0:
+                    sampler.warmup(
+                        rng_key=rng_key,
+                        init_params=init,
+                    )
+                run_ensemble(
+                    sampler,
+                    AIES(**aies_kwargs),
+                    rng_key,
+                    warmup,
+                    steps,
+                    chains,
+                    init,
+                    chain_method,
+                    n_parallel,
+                )
         elif warmup > 0:
-            sampler.warmup(rng_key=rng_key, init_params=init,)
-            run_ensemble(sampler, AIES(**aies_kwargs), rng_key, warmup, steps, chains, 
-                         init, chain_method, n_parallel)
+            sampler.warmup(
+                rng_key=rng_key,
+                init_params=init,
+            )
+            run_ensemble(
+                sampler,
+                AIES(**aies_kwargs),
+                rng_key,
+                warmup,
+                steps,
+                chains,
+                init,
+                chain_method,
+                n_parallel,
+            )
         else:
-            run_ensemble(sampler, AIES(**aies_kwargs), rng_key, warmup, steps, chains, 
-                         init, chain_method, n_parallel)
+            run_ensemble(
+                sampler,
+                AIES(**aies_kwargs),
+                rng_key,
+                warmup,
+                steps,
+                chains,
+                init,
+                chain_method,
+                n_parallel,
+            )
 
         if resume_sample is not None:
             with open(resume_sample, 'wb') as f:
@@ -1170,7 +1212,7 @@ class BayesFit(Fit):
             ess_kwargs['moves'] = {ESS.DifferentialMove(): 1.0}
         else:
             ess_kwargs['moves'] = moves
-        
+
         rng_key = jax.random.PRNGKey(self._helper.seed['mcmc'])
 
         sampler = MCMC(
@@ -1187,20 +1229,62 @@ class BayesFit(Fit):
                 with open(resume_sample, 'rb') as f:
                     last_state = dill.load(f)
                 sampler.post_warmup_state = last_state
-                run_ensemble(sampler, ESS(**ess_kwargs), rng_key, warmup, steps, chains, 
-                             init, chain_method, n_parallel)
+                run_ensemble(
+                    sampler,
+                    ESS(**ess_kwargs),
+                    rng_key,
+                    warmup,
+                    steps,
+                    chains,
+                    init,
+                    chain_method,
+                    n_parallel,
+                )
             except:
-                if warmup>0:
-                    sampler.warmup(rng_key=rng_key, init_params=init,)
-                run_ensemble(sampler, ESS(**ess_kwargs), rng_key, warmup, steps, chains, 
-                             init, chain_method, n_parallel)
+                if warmup > 0:
+                    sampler.warmup(
+                        rng_key=rng_key,
+                        init_params=init,
+                    )
+                run_ensemble(
+                    sampler,
+                    ESS(**ess_kwargs),
+                    rng_key,
+                    warmup,
+                    steps,
+                    chains,
+                    init,
+                    chain_method,
+                    n_parallel,
+                )
         elif warmup > 0:
-            sampler.warmup(rng_key=rng_key, init_params=init,)
-            run_ensemble(sampler, ESS(**ess_kwargs), rng_key, warmup, steps, chains, 
-                         init, chain_method, n_parallel)
+            sampler.warmup(
+                rng_key=rng_key,
+                init_params=init,
+            )
+            run_ensemble(
+                sampler,
+                ESS(**ess_kwargs),
+                rng_key,
+                warmup,
+                steps,
+                chains,
+                init,
+                chain_method,
+                n_parallel,
+            )
         else:
-            run_ensemble(sampler, ESS(**ess_kwargs), rng_key, warmup, steps, chains, 
-                         init, chain_method, n_parallel)
+            run_ensemble(
+                sampler,
+                ESS(**ess_kwargs),
+                rng_key,
+                warmup,
+                steps,
+                chains,
+                init,
+                chain_method,
+                n_parallel,
+            )
 
         if resume_sample is not None:
             with open(resume_sample, 'wb') as f:
@@ -1313,8 +1397,17 @@ class BayesFit(Fit):
 
 
 # temporarily for ensemble parallelled run
-def run_ensemble(sampler, kernel, rng_key, warmup, steps, chains, init_params,
-                 chain_method = 'vectorized', n_parallel=None):
+def run_ensemble(
+    sampler,
+    kernel,
+    rng_key,
+    warmup,
+    steps,
+    chains,
+    init_params,
+    chain_method='vectorized',
+    n_parallel=None,
+):
     if chain_method == 'parallel':
         print('Parallel sampling...')
         paral_mcmc = MCMC(
@@ -1349,4 +1442,3 @@ def run_ensemble(sampler, kernel, rng_key, warmup, steps, chains, init_params,
             rng_key=rng_key,
             init_params=init_params,
         )
-
