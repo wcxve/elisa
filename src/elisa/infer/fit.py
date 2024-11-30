@@ -1043,8 +1043,7 @@ class BayesFit(Fit):
         else:
             aies_kwargs['moves'] = moves
 
-        # warmup at least 10
-        warmup = 10 if warmup < 10 else warmup
+        rng_key = jax.random.PRNGKey(self._helper.seed['mcmc'])
 
         sampler = MCMC(
             AIES(**aies_kwargs),
@@ -1060,49 +1059,20 @@ class BayesFit(Fit):
                 with open(resume_sample, 'rb') as f:
                     last_state = dill.load(f)
                 sampler.post_warmup_state = last_state
+                run_ensemble(sampler, AIES(**aies_kwargs), rng_key, warmup, steps, chains, 
+                             init, chain_method, n_parallel)
             except:
-                sampler.warmup(
-                    rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                    init_params=init,
-                )
+                if warmup>0:
+                    sampler.warmup(rng_key=rng_key, init_params=init,)
+                run_ensemble(sampler, AIES(**aies_kwargs), rng_key, warmup, steps, chains, 
+                             init, chain_method, n_parallel)
+        elif warmup > 0:
+            sampler.warmup(rng_key=rng_key, init_params=init,)
+            run_ensemble(sampler, AIES(**aies_kwargs), rng_key, warmup, steps, chains, 
+                         init, chain_method, n_parallel)
         else:
-            sampler.warmup(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
-            )
-
-        if chain_method == 'parallel':
-            print('Parallel sampling...')
-            paral_mcmc = MCMC(
-                AIES(**aies_kwargs),
-                num_warmup=warmup,
-                num_samples=steps,
-                num_chains=chains,
-                chain_method='vectorized',
-                progress_bar=False,
-            )
-            paral_mcmc.post_warmup_state = sampler.last_state
-
-            def do_mcmc(rng_key):
-                paral_mcmc.run(
-                    rng_key,
-                    init_params=init,
-                )
-                return paral_mcmc.get_samples(group_by_chain=True)
-
-            rng_keys = jax.random.split(
-                jax.random.PRNGKey(self._helper.seed['mcmc']),
-                get_parallel_number(n_parallel),
-            )
-            traces = jax.pmap(do_mcmc)(rng_keys)
-            trace = {k: np.concatenate(v) for k, v in traces.items()}
-            sampler._states = {sampler._sample_field: trace}
-
-        else:
-            sampler.run(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
-            )
+            run_ensemble(sampler, AIES(**aies_kwargs), rng_key, warmup, steps, chains, 
+                         init, chain_method, n_parallel)
 
         if resume_sample is not None:
             with open(resume_sample, 'wb') as f:
@@ -1200,9 +1170,8 @@ class BayesFit(Fit):
             ess_kwargs['moves'] = {ESS.DifferentialMove(): 1.0}
         else:
             ess_kwargs['moves'] = moves
-
-        # warmup at least 10
-        warmup = 10 if warmup < 10 else warmup
+        
+        rng_key = jax.random.PRNGKey(self._helper.seed['mcmc'])
 
         sampler = MCMC(
             ESS(**ess_kwargs),
@@ -1218,49 +1187,20 @@ class BayesFit(Fit):
                 with open(resume_sample, 'rb') as f:
                     last_state = dill.load(f)
                 sampler.post_warmup_state = last_state
+                run_ensemble(sampler, ESS(**ess_kwargs), rng_key, warmup, steps, chains, 
+                             init, chain_method, n_parallel)
             except:
-                sampler.warmup(
-                    rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                    init_params=init,
-                )
+                if warmup>0:
+                    sampler.warmup(rng_key=rng_key, init_params=init,)
+                run_ensemble(sampler, ESS(**ess_kwargs), rng_key, warmup, steps, chains, 
+                             init, chain_method, n_parallel)
+        elif warmup > 0:
+            sampler.warmup(rng_key=rng_key, init_params=init,)
+            run_ensemble(sampler, ESS(**ess_kwargs), rng_key, warmup, steps, chains, 
+                         init, chain_method, n_parallel)
         else:
-            sampler.warmup(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
-            )
-
-        if chain_method == 'parallel':
-            print('Parallel sampling...')
-            paral_mcmc = MCMC(
-                ESS(**ess_kwargs),
-                num_warmup=warmup,
-                num_samples=steps,
-                num_chains=chains,
-                chain_method='vectorized',
-                progress_bar=False,
-            )
-            paral_mcmc.post_warmup_state = sampler.last_state
-
-            def do_mcmc(rng_key):
-                paral_mcmc.run(
-                    rng_key,
-                    init_params=init,
-                )
-                return paral_mcmc.get_samples(group_by_chain=True)
-
-            rng_keys = jax.random.split(
-                jax.random.PRNGKey(self._helper.seed['mcmc']),
-                get_parallel_number(n_parallel),
-            )
-            traces = jax.pmap(do_mcmc)(rng_keys)
-            trace = {k: np.concatenate(v) for k, v in traces.items()}
-            sampler._states = {sampler._sample_field: trace}
-
-        else:
-            sampler.run(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
-            )
+            run_ensemble(sampler, ESS(**ess_kwargs), rng_key, warmup, steps, chains, 
+                         init, chain_method, n_parallel)
 
         if resume_sample is not None:
             with open(resume_sample, 'wb') as f:
@@ -1370,3 +1310,43 @@ class BayesFit(Fit):
                 dill.dump(sampler.last_state, f)
 
         return PosteriorResult(sampler, self._helper, self)
+
+
+# temporarily for ensemble parallelled run
+def run_ensemble(sampler, kernel, rng_key, warmup, steps, chains, init_params,
+                 chain_method = 'vectorized', n_parallel=None):
+    if chain_method == 'parallel':
+        print('Parallel sampling...')
+        paral_mcmc = MCMC(
+            kernel,
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method='vectorized',
+            progress_bar=False,
+        )
+
+        if sampler.last_state is not None:
+            paral_mcmc.post_warmup_state = sampler.last_state
+
+        def do_mcmc(rng_key):
+            paral_mcmc.run(
+                rng_key,
+                init_params=init_params,
+            )
+            return paral_mcmc.get_samples(group_by_chain=True)
+
+        rng_keys = jax.random.split(
+            rng_key,
+            get_parallel_number(n_parallel),
+        )
+        traces = jax.pmap(do_mcmc)(rng_keys)
+        trace = {k: np.concatenate(v) for k, v in traces.items()}
+        sampler._states = {sampler._sample_field: trace}
+
+    else:
+        sampler.run(
+            rng_key=rng_key,
+            init_params=init_params,
+        )
+
