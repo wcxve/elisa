@@ -958,7 +958,8 @@ class BayesFit(Fit):
         chain_method: str = 'vectorized',
         n_parallel: int | None = None,
         progress: bool = True,
-        resume_sample: str | None = None,
+        filepath: str | None = None,
+        resume: bool = False,
         moves: dict | None = None,
         **aies_kwargs: dict,
     ) -> PosteriorResult:
@@ -995,10 +996,12 @@ class BayesFit(Fit):
             Whether to show progress bar during sampling. The default is True.
             If `chain_method` is set to ``'parallel'``, this is
             always False after warmup.
-        resume_sample : str, optional
-            Read the last_state file from a previous run, and then, sampling
-            will skip the warmup adaptation phase. Finally, it saves last_state,
-            whether there is a last_state file or not.
+        filepath : str, optional
+            Path to the file where last_state are saved. Must have `.pkl` extension.
+            If None, no file are written. Default is None.
+        resume : bool, optional
+            If True, read the last_state file from a previous run, and then,
+            sampling will skip the warmup adaptation phase. Default is True.
         moves : dict, optional
             Moves for the sampler.
         **aies_kwargs : dict
@@ -1054,9 +1057,9 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
-        if resume_sample is not None:
+        if resume:
             try:
-                with open(resume_sample, 'rb') as f:
+                with open(filepath, 'rb') as f:
                     last_state = dill.load(f)
                 sampler.post_warmup_state = last_state
                 run_ensemble(
@@ -1071,6 +1074,7 @@ class BayesFit(Fit):
                     n_parallel,
                 )
             except:
+                print("No last_state file found. Sampling...")
                 if warmup > 0:
                     sampler.warmup(
                         rng_key=rng_key,
@@ -1116,8 +1120,8 @@ class BayesFit(Fit):
                 n_parallel,
             )
 
-        if resume_sample is not None:
-            with open(resume_sample, 'wb') as f:
+        if filepath is not None:
+            with open(filepath, 'wb') as f:
                 dill.dump(sampler.last_state, f)
 
         return PosteriorResult(sampler, self._helper, self)
@@ -1132,7 +1136,8 @@ class BayesFit(Fit):
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
-        resume_sample: str | None = None,
+        filepath: str | None = None,
+        resume: bool = False,
         **ess_kwargs: dict,
     ) -> PosteriorResult:
         """Ensemble Slice Sampling (ESS) of :mod:`numpyro`.
@@ -1168,10 +1173,12 @@ class BayesFit(Fit):
             Whether to show progress bar during sampling. The default is True.
             If `chain_method` is set to ``'parallel'``, this is
             always False after warmup.
-        resume_sample : str, optional
-            Read the last_state file from a previous run, and then, sampling
-            will skip the warmup adaptation phase. Finally, it saves last_state,
-            whether there is a last_state file or not.
+        filepath : str, optional
+            Path to the file where last_state are saved. Must have `.pkl` extension.
+            If None, no file are written. Default is None.
+        resume : bool, optional
+            If True, read the last_state file from a previous run, and then,
+            sampling will skip the warmup adaptation phase. Default is True.
         moves : dict, optional
             Moves for the sampler.
         **ess_kwargs : dict
@@ -1224,9 +1231,9 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
-        if resume_sample is not None:
+        if resume:
             try:
-                with open(resume_sample, 'rb') as f:
+                with open(filepath, 'rb') as f:
                     last_state = dill.load(f)
                 sampler.post_warmup_state = last_state
                 run_ensemble(
@@ -1241,6 +1248,7 @@ class BayesFit(Fit):
                     n_parallel,
                 )
             except:
+                print("No last_state file found. Sampling...")
                 if warmup > 0:
                     sampler.warmup(
                         rng_key=rng_key,
@@ -1286,8 +1294,8 @@ class BayesFit(Fit):
                 n_parallel,
             )
 
-        if resume_sample is not None:
-            with open(resume_sample, 'wb') as f:
+        if filepath is not None:
+            with open(filepath, 'wb') as f:
                 dill.dump(sampler.last_state, f)
 
         return PosteriorResult(sampler, self._helper, self)
@@ -1300,7 +1308,8 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
-        resume_sample: str | None = None,
+        filepath: str | None = None,
+        resume: bool = False,
         **sa_kwargs: dict,
     ) -> PosteriorResult:
         """Run the Sample Adaptive MCMC of :mod:`numpyro`.
@@ -1323,10 +1332,12 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-        resume_sample : str, optional
-            Read the last_state file from a previous run, and then, sampling
-            will skip the warmup adaptation phase. Finally, it saves last_state,
-            whether there is a last_state file or not.
+        filepath : str, optional
+            Path to the file where last_state are saved. Must have `.pkl` extension.
+            If None, no file are written. Default is None.
+        resume : bool, optional
+            If True, read the last_state file from a previous run, and then,
+            sampling will skip the warmup adaptation phase. Default is True.
         **sa_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.SA`.
 
@@ -1368,13 +1379,14 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
-        if resume_sample is not None:
+        if resume:
             try:
-                with open(resume_sample, 'rb') as f:
+                with open(filepath, 'rb') as f:
                     last_state = dill.load(f)
                 sampler.post_warmup_state = last_state
                 sampler.run(sampler.post_warmup_state.rng_key)
             except:
+                print("No last_state file found. Sampling...")
                 sampler.run(
                     rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
                 )
@@ -1389,8 +1401,8 @@ class BayesFit(Fit):
                 rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
             )
 
-        if resume_sample is not None:
-            with open(resume_sample, 'wb') as f:
+        if filepath is not None:
+            with open(filepath, 'wb') as f:
                 dill.dump(sampler.last_state, f)
 
         return PosteriorResult(sampler, self._helper, self)
