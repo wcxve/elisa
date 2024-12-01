@@ -1074,7 +1074,7 @@ class BayesFit(Fit):
                     n_parallel,
                 )
             except:
-                print("No last_state file found. Sampling...")
+                print('No last_state file found. Sampling...')
                 if warmup > 0:
                     sampler.warmup(
                         rng_key=rng_key,
@@ -1248,7 +1248,7 @@ class BayesFit(Fit):
                     n_parallel,
                 )
             except:
-                print("No last_state file found. Sampling...")
+                print('No last_state file found. Sampling...')
                 if warmup > 0:
                     sampler.warmup(
                         rng_key=rng_key,
@@ -1386,7 +1386,7 @@ class BayesFit(Fit):
                 sampler.post_warmup_state = last_state
                 sampler.run(sampler.post_warmup_state.rng_key)
             except:
-                print("No last_state file found. Sampling...")
+                print('No last_state file found. Sampling...')
                 sampler.run(
                     rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
                 )
