@@ -647,8 +647,10 @@ class BayesFit(Fit):
                 print('Load last state file...')
                 sampler.post_warmup_state = last_state
                 print('Sampling...')
-                sampler.run(rng_key=sampler.post_warmup_state.rng_key,
-                            extra_fields=('energy', 'num_steps'),)
+                sampler.run(
+                    rng_key=sampler.post_warmup_state.rng_key,
+                    extra_fields=('energy', 'num_steps'),
+                )
             except:
                 print('Failed to load last state file.')
                 sampler.run(
@@ -663,8 +665,10 @@ class BayesFit(Fit):
                 extra_fields=('energy', 'num_steps'),
             )
             print('Sampling...')
-            sampler.run(rng_key=sampler.post_warmup_state.rng_key,
-                        extra_fields=('energy', 'num_steps'),)
+            sampler.run(
+                rng_key=sampler.post_warmup_state.rng_key,
+                extra_fields=('energy', 'num_steps'),
+            )
         else:
             print('Sampling...')
             sampler.run(
