@@ -3,7 +3,7 @@ name = "astro-elisa"
 dynamic = ["version"]
 description = "Efficient library for spectral analysis in high-energy astrophysics."
 readme = "README.md"
-requires-python = ">=3.9, <3.12"
+requires-python = ">=3.9, <3.13"
 license = "GPL-3.0-or-later"
 keywords = []
 authors = [
@@ -19,6 +19,7 @@ classifiers = [
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
     "arviz>=0.17.1; python_version < '3.10'",
@@ -86,7 +87,7 @@ build.targets.sdist.only-include = ["src", "tests"]
 build.targets.wheel.packages = ["src/elisa"]
 
 [[tool.hatch.envs.all.matrix]]
-python = ["3.9", "3.10", "3.11"]
+python = ["3.9", "3.10", "3.11", "3.12"]
 
 [tool.ruff]
 line-length = 79
