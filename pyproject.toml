@@ -34,7 +34,7 @@ dependencies = [
     "matplotlib",
     "nautilus-sampler",
     "numpy",
-    "numpyro>=0.14.0",
+    "numpyro>=0.16.1",
     "optimistix>=0.0.8",
     "prettytable",
     "quadax>=0.2.1",
