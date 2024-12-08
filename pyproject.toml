@@ -31,7 +31,7 @@ dependencies = [
     "iminuit",
     "jax>=0.4.28",
     "jaxlib>=0.4.28",
-    "jaxns==2.6.6",
+    "jaxns==2.6.7",
     "matplotlib",
     "nautilus-sampler",
     "numpy",
