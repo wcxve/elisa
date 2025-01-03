@@ -973,6 +973,9 @@ class MLEResult(FitResult):
             fn_dic = {d: factory(d) for d in mapping.values()}
 
         if method == 'profile':
+            if params is not None:
+                warnings.warn('params is ignored when using profile method')
+
             # use log transform to stabilize the profile likelihood
             def transform(f):
                 def _(p):
@@ -1808,7 +1811,8 @@ class PosteriorResult(FitResult):
             Whether to use logarithmically regular energy grid. The default is
             True.
         params : dict, optional
-            Parameters dict to overwrite the fitted parameters.
+            Parameters dict to overwrite the fitted parameters. Ignored when
+            `method` is ``'profile'``.
 
         Returns
         -------
@@ -1876,7 +1880,8 @@ class PosteriorResult(FitResult):
             Whether to use logarithmically regular energy grid. The default is
             True.
         params : dict, optional
-            Parameters dict to overwrite the fitted parameters.
+            Parameters dict to overwrite the fitted parameters. Ignored when
+            `method` is ``'profile'``.
         cosmo : LambdaCDM, optional
             Cosmology model used to calculate luminosity. The default is
             Planck18.
@@ -1960,7 +1965,8 @@ class PosteriorResult(FitResult):
             Whether to use logarithmically regular energy grid. The default
             is True.
         params : dict, optional
-            Parameters dict to overwrite the fitted parameters.
+            Parameters dict to overwrite the fitted parameters. Ignored when
+            `method` is ``'profile'``.
         cosmo : LambdaCDM, optional
             Cosmology model used to calculate luminosity. The default is
             Planck18.
