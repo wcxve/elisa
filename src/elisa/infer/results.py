@@ -258,7 +258,7 @@ class FitResult(ABC):
             for k, v in fn.items():
                 msg = (
                     f"fn['{k}'] must be a function of these parameters: "
-                    f"{', '.join(helper.params_names['all'])}"
+                    f'{", ".join(helper.params_names["all"])}'
                 )
                 if not callable(v):
                     raise TypeError(msg)

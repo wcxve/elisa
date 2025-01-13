@@ -252,9 +252,7 @@ class Model(ABC):
             self._comps, self._cid_to_cname, self._cid_to_clatex
         ).info
         tab_params = make_pretty_table(fields, info)
-        return (
-            f'Model: {self.name} [{self.type}]\n' f'{tab_params.get_string()}'
-        )
+        return f'Model: {self.name} [{self.type}]\n{tab_params.get_string()}'
 
     def _repr_html_(self) -> str:
         fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
@@ -1129,9 +1127,7 @@ class CompiledModel:
         fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
         info = self._model_info.info
         tab_params = make_pretty_table(fields, info)
-        return (
-            f'Model: {self.name} [{self.type}]\n' f'{tab_params.get_string()}'
-        )
+        return f'Model: {self.name} [{self.type}]\n{tab_params.get_string()}'
 
     def _repr_html_(self) -> str:
         fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
