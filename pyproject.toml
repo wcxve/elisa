@@ -57,7 +57,7 @@ docs = [
     "jupyterlab_widgets",
     "sphinx>=7.4.0",
     "sphinx-autodoc-typehints",
-    "sphinx-codeautolink==0.16.2",
+    "sphinx-codeautolink",
     "sphinx-copybutton",
     "sphinx-design",
     "myst-nb",
