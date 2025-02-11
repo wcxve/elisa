@@ -1501,7 +1501,7 @@ def run_ensemble(
                 rng_key,
                 init_params=init_params,
             )
-            return paral_mcmc.get_samples(group_by_chain=True)
+            return paral_mcmc.get_samples(group_by_chain=False)
 
         rng_keys = jax.random.split(
             rng_key,
