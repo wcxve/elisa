@@ -1508,8 +1508,8 @@ def run_ensemble(
             get_parallel_number(n_parallel),
         )
         traces = jax.pmap(do_mcmc)(rng_keys)
-        trace = {k: np.concatenate(v) for k, v in traces.items()}
-        sampler._states = {sampler._sample_field: trace}
+        # trace = {k: np.concatenate(v) for k, v in traces.items()}
+        sampler._states = {sampler._sample_field: traces}
 
     else:
         sampler.run(
