@@ -252,8 +252,14 @@ class Spectrum(SpectrumData):
             data = data[spec_id : spec_id + 1]  # set data to the specified row
 
         # check if COUNTS or RATE exists
-        if 'COUNTS' not in data.names and 'RATE' not in data.names:
-            raise ValueError(f'"COUNTS" or "RATE" not found in {specfile}')
+        if (
+            'COUNTS' not in data.names
+            and 'RATE' not in data.names
+            and 'RATES' not in data.names
+        ):
+            raise ValueError(
+                f'"COUNTS", "RATE" or "RATES" not found in {specfile}'
+            )
 
         # get poisson flag
         poisson = header.get('POISSERR', poisson)
@@ -289,7 +295,10 @@ class Spectrum(SpectrumData):
             counts = get_field('COUNTS')
             counts = np.array(counts, dtype=np.float64, order='C')
         else:  # calculate counts using 'RATE' and 'EXPOSURE'
-            rate = get_field('RATE')
+            if 'RATE' in data.names:
+                rate = get_field('RATE')
+            else:
+                rate = get_field('RATES')
             rate = np.array(rate, dtype=np.float64, order='C')
             counts = rate * exposure
 
@@ -299,7 +308,7 @@ class Spectrum(SpectrumData):
         else:
             stat_err = get_field('STAT_ERR')
             stat_err = np.array(stat_err, dtype=np.float64, order='C')
-            if 'RATE' in data.names:
+            if 'RATE' in data.names or 'RATES' in data.names:
                 stat_err *= exposure
 
                 if 'COUNTS' in data.names:
