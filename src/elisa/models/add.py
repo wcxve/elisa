@@ -336,7 +336,7 @@ class BrokenPL(AnaIntAdditive):
             &\text{if } E \le E_\mathrm{b},
         \\\\
         \left(\frac{E}{E_\mathrm{b}}\right)^{-\alpha_2},
-            &\text{otherwise},
+            &\text{otherwise}.
         \end{cases}
 
     Parameters
@@ -813,7 +813,7 @@ class SmoothlyBrokenPL(NumIntAdditive):
                     1 + \left(\frac{E}{E_\mathrm{b}}
                         \right)^{\left( \alpha_2 - \alpha_1 \right) / \rho}
                 \right]
-            \right\}^{-\rho}
+            \right\}^{-\rho},
 
     where :math:`E_0` is the pivot energy fixed at 1 keV.
 
