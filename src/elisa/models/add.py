@@ -20,16 +20,20 @@ if TYPE_CHECKING:
 __all__ = [
     'Band',
     'BandEp',
+    'BentPL',
     'Blackbody',
     'BlackbodyRad',
+    'BrokenPL',
     'Compt',
     'CutoffPL',
     'Gauss',
+    'Lorentz',
     'OTTB',
     'OTTS',
     'PLEnFlux',
     'PLPhFlux',
     'PowerLaw',
+    'SmoothlyBrokenPL',
 ]
 
 
