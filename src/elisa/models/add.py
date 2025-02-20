@@ -191,7 +191,9 @@ class BentPL(NumIntAdditive):
     r"""Bent power law.
 
     .. math::
-        N(E) = 2K \left[1 + \left(\frac{E}{E_\mathrm{b}}\right)^\alpha \right]
+        N(E) = 2K \left[
+            1 + \left(\frac{E}{E_\mathrm{b}}\right)^\alpha
+        \right]^{-1}
 
     Parameters
     ----------
@@ -511,8 +513,11 @@ class Lorentz(AnaIntAdditive):
     .. math::
         N(E) = \frac{K/\mathcal{F}}{(E - E_\mathrm{l})^2 + (\sigma/2)^2},
 
-    where :math:`\mathcal{F}=\int_0^{+\infty}
-        \frac{1}{(E - E_\mathrm{l})^2 + (\sigma/2)^2}`.
+    where
+
+    .. math::
+        \mathcal{F}=\int_0^{+\infty}
+        \frac{1}{(E - E_\mathrm{l})^2 + (\sigma/2)^2} \ \mathrm{d}E.
 
     Parameters
     ----------
