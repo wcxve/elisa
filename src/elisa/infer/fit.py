@@ -304,6 +304,15 @@ class Fit(ABC):
         def check_stat(d: FixedData, s: Statistic):
             """Check if data type and likelihood are matched."""
             name = d.name
+
+            if s == 'whittle':
+                if d.spec_poisson:
+                    raise ValueError(
+                        f'{name} data has Poisson uncertainties, '
+                        'and using Whittle likelihood (whittle) is invalid'
+                    )
+                return
+
             if not d.spec_poisson and s != 'chi2':
                 raise ValueError(
                     f'{name} data has Gaussian uncertainties, '
