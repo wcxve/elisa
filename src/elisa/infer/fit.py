@@ -962,7 +962,8 @@ class BayesFit(Fit):
         steps=5000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
-        n_parallel: int = 0,
+        chain_method: str = 'vectorized',
+        n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
         **aies_kwargs: dict,
@@ -972,11 +973,12 @@ class BayesFit(Fit):
         Affine-invariant ensemble sampling [1]_ is a gradient-free method
         that informs Metropolis-Hastings proposals by sharing information
         between chains. Suitable for low to moderate dimensional models.
-        Generally, `chains` should be at least twice the dimensionality
+        Generally, num_chains should be at least twice the dimensionality
         of the model.
 
         .. note::
-            This sampler must be used with even `chains` > 1.
+            This kernel must be used with even `num_chains` > 1 and
+            ``chain_method='vectorized'``.
 
         Parameters
         ----------
@@ -989,12 +991,15 @@ class BayesFit(Fit):
             the dimension of model parameters.
         init : dict, optional
             Initial parameter for sampler to start from.
+        chain_method : str, optional
+            Available options are ``'vectorized'`` and ``'parallel'``.
+            Defaults to ``'vectorized'``.
         n_parallel : int, optional
-            Number of parallel samplers to run.
-            The default is ``jax.local_device_count()``.
+            Number of parallel chains to run when `chain_method` is
+            ``"parallel"``. Defaults to ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-            This is always False if `n_parallel` is larger than zero.
+            If `chain_method` is set to ``'parallel'``, this is always False.
         moves : dict, optional
             Moves for the sampler.
         **aies_kwargs : dict
@@ -1017,10 +1022,6 @@ class BayesFit(Fit):
         else:
             chains = int(chains)
 
-        n_parallel = int(n_parallel)
-        if n_parallel < 0:
-            raise ValueError('n_parallel must be a non-negative integer')
-
         # TODO: option to let sampler starting from MLE
         if init is None:
             init = self._helper.free_default['constr_dic']
@@ -1036,11 +1037,14 @@ class BayesFit(Fit):
 
         aies_kwargs['model'] = self._helper.numpyro_model
         if moves is None:
-            aies_kwargs['moves'] = {AIES.StretchMove(): 1.0}
+            aies_kwargs['moves'] = {
+                AIES.DEMove(): 0.5,
+                AIES.StretchMove(): 0.5,
+            }
         else:
             aies_kwargs['moves'] = moves
 
-        if n_parallel:
+        if chain_method == 'parallel':
             aies_kernel = AIES(**aies_kwargs)
 
             def do_mcmc(rng_key):
@@ -1056,21 +1060,21 @@ class BayesFit(Fit):
                     rng_key,
                     init_params=init,
                 )
-                return mcmc.get_samples(group_by_chain=False)
+                return mcmc.get_samples(group_by_chain=True)
 
             rng_keys = jax.random.split(
                 jax.random.PRNGKey(self._helper.seed['mcmc']),
                 get_parallel_number(n_parallel),
             )
             traces = jax.pmap(do_mcmc)(rng_keys)
-            # trace = {k: np.concatenate(v) for k, v in traces.items()}
+            trace = {k: np.concatenate(v) for k, v in traces.items()}
 
             sampler = MCMC(
                 aies_kernel,
                 num_warmup=warmup,
                 num_samples=steps,
             )
-            sampler._states = {sampler._sample_field: traces}
+            sampler._states = {sampler._sample_field: trace}
 
         else:
             sampler = MCMC(
@@ -1078,7 +1082,7 @@ class BayesFit(Fit):
                 num_warmup=warmup,
                 num_samples=steps,
                 num_chains=chains,
-                chain_method='vectorized',
+                chain_method=chain_method,
                 progress_bar=progress,
             )
 
