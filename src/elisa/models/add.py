@@ -37,6 +37,19 @@ __all__ = [
 ]
 
 
+def _powerlaw_integral(egrid: JAXArray, alpha: JAXArray) -> JAXArray:
+    cond = jnp.full(len(egrid), jnp.not_equal(alpha, 1.0))
+
+    one_minus_alpha = jnp.where(cond, 1.0 - alpha, 1.0)
+    f1 = jnp.power(egrid, one_minus_alpha) / one_minus_alpha
+    f1 = f1[1:] - f1[:-1]
+
+    f2 = jnp.log(egrid)
+    f2 = f2[1:] - f2[:-1]
+
+    return jnp.where(cond[:-1], f1, f2)
+
+
 class Band(NumIntAdditive):
     r"""Gamma-ray burst continuum developed by Band et al. (1993) [1]_.
 
@@ -376,7 +389,7 @@ class BrokenPL(AnaIntAdditive):
         idx = jnp.flatnonzero(mask, size=egrid.size - 1)[-1]
         pb1 = _powerlaw_integral(jnp.hstack([egrid_[idx], Eb]), alpha1)
         pb2 = _powerlaw_integral(jnp.hstack([Eb, egrid_[idx + 1]]), alpha2)
-        f.at[idx].set(sum(pb1 + pb2))
+        f.at[idx].set(pb1[0] + pb2[0])
         return K * f
 
 
@@ -614,19 +627,6 @@ class OTTS(NumIntAdditive):
         Ec = params['Ec']
         K = params['K']
         return K * jnp.exp(-jnp.power(egrid / Ec, 1.0 / 3.0))
-
-
-def _powerlaw_integral(egrid: JAXArray, alpha: JAXArray) -> JAXArray:
-    cond = jnp.full(len(egrid), jnp.not_equal(alpha, 1.0))
-
-    one_minus_alpha = jnp.where(cond, 1.0 - alpha, 1.0)
-    f1 = jnp.power(egrid, one_minus_alpha) / one_minus_alpha
-    f1 = f1[1:] - f1[:-1]
-
-    f2 = jnp.log(egrid)
-    f2 = f2[1:] - f2[:-1]
-
-    return jnp.where(cond[:-1], f1, f2)
 
 
 class PowerLaw(AnaIntAdditive):
