@@ -190,4 +190,6 @@ def test_simulation():
 )
 def test_model_eval(model, kwargs):
     egrid = np.geomspace(1e-4, 1e9, 1301)
-    assert not np.any(np.isnan(model(**kwargs).compile().eval(egrid)))
+    values = model(**kwargs).compile().eval(egrid)
+    assert not np.any(np.isnan(values))
+    assert not np.any(np.isinf(values))
