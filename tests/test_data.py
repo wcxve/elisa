@@ -134,8 +134,11 @@ def test_load_response(file):
     # test Response against big-endian files
     rsp = Response(file)
     # test if the response matrix can be converted to a BCSR matrix in JAX
-    BCSR.from_scipy_sparse(rsp.matrix)
     assert np.all(rsp.channel_fwhm > 0)
+    assert np.array_equal(
+        rsp.matrix,
+        BCSR.from_scipy_sparse(rsp.sparse_matrix).todense(),
+    )
 
 
 def test_response():
@@ -149,7 +152,9 @@ def test_response():
     r1 = ResponseData(photon_egrid, channel_emin, channel_emax, mat1, channel)
     r2 = ResponseData(photon_egrid, channel_emin, channel_emax, mat2, channel)
     # test if the response matrix can be converted to a BCSR matrix in JAX
-    BCSR.from_scipy_sparse(r1.matrix)
-    BCSR.from_scipy_sparse(r2.matrix)
-    assert np.all(r1.matrix == r2.matrix)
+    for r in [r1, r2]:
+        assert np.array_equal(
+            r.matrix, BCSR.from_scipy_sparse(r.sparse_matrix).todense()
+        )
+    assert np.all(r1.channel == r2.channel)
     assert np.all(r1.channel_fwhm == r2.channel_fwhm)
