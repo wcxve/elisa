@@ -1,9 +1,10 @@
 import jax
 import numpy as np
+import pytest
 from astropy.cosmology import Planck18
 from astropy.units import Unit
 
-from elisa import ConstantValue, ParamConfig, PyAnaInt, PyNumInt
+from elisa import ConstantValue, ParamConfig, PyAnaInt, PyNumInt, models
 from elisa.models import PhAbs, PLPhFlux, PowerLaw, ZAShift
 
 
@@ -172,3 +173,21 @@ def test_simulation():
 
     assert np.all(data.spec_counts == total_counts)
     assert np.all(data.back_counts == back_counts)
+
+
+@pytest.mark.parametrize(
+    'model, kwargs',
+    [
+        pytest.param(
+            getattr(models, name),
+            {}
+            if name not in ['PLPhFlux', 'PLEnFlux']
+            else {'emin': 1e-3, 'emax': 1e3},
+            id=name,
+        )
+        for name in models.add.__all__ + models.mul.__all__
+    ],
+)
+def test_model_eval(model, kwargs):
+    egrid = np.geomspace(1e-4, 1e9, 1301)
+    assert not np.any(np.isnan(model(**kwargs).compile().eval(egrid)))
