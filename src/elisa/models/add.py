@@ -67,7 +67,7 @@ class Band(NumIntAdditive):
             &\text{otherwise,}
         \end{cases}
 
-    where :math:`E_0` is the pivot energy fixed at 100 keV.
+    where :math:`E_0` is the reference energy fixed at 100 keV.
 
     Parameters
     ----------
@@ -139,7 +139,7 @@ class BandEp(NumIntAdditive):
             &\text{otherwise},
         \end{cases}
 
-    where :math:`E_0` is the pivot energy fixed at 100 keV.
+    where :math:`E_0` is the reference energy fixed at 100 keV.
 
     .. warning::
         This model requires the low-energy power law index :math:`\alpha`
@@ -408,7 +408,7 @@ class CutoffPL(NumIntAdditive):
         N(E) = K \left(\frac{E}{E_0}\right)^{-\alpha}
                 \exp \left(-\frac{E}{E_\mathrm{c}}\right),
 
-    where :math:`E_0` is the pivot energy fixed at 1 keV.
+    where :math:`E_0` is the reference energy fixed at 1 keV.
 
     Parameters
     ----------
@@ -447,7 +447,7 @@ class Compt(NumIntAdditive):
         N(E) = K \left(\frac{E}{E_0}\right)^{-\alpha}
                 \exp \left[-\frac{(2-\alpha)E}{E_\mathrm{p}}\right],
 
-    where :math:`E_0` is the pivot energy fixed at 1 keV.
+    where :math:`E_0` is the reference energy fixed at 1 keV.
 
     Parameters
     ----------
@@ -568,7 +568,7 @@ class OTTB(NumIntAdditive):
         N(E) = K \left(\frac{E}{E_0}\right)^{-1} \exp\left(-\frac{E}{kT}\right)
                 \exp\left(\frac{E_0}{kT}\right),
 
-    where :math:`E_0` is the pivot energy fixed at 1 keV.
+    where :math:`E_0` is the reference energy fixed at 1 keV.
 
     Parameters
     ----------
@@ -635,7 +635,7 @@ class PowerLaw(AnaIntAdditive):
     .. math::
         N(E) = K \left(\frac{E}{E_0}\right)^{-\alpha},
 
-    where :math:`E_0` is the pivot energy fixed at 1 keV.
+    where :math:`E_0` is the reference energy fixed at 1 keV.
 
     Parameters
     ----------
@@ -727,7 +727,7 @@ class PLPhFlux(PLFluxNorm):
             \right]^{-1}
             \left(\frac{E}{E_0}\right)^{-\alpha},
 
-    where :math:`E_0` is the pivot energy fixed at 1 keV.
+    where :math:`E_0` is the reference energy fixed at 1 keV.
 
     Parameters
     ----------
@@ -771,7 +771,7 @@ class PLEnFlux(PLFluxNorm):
             \right]^{-1}
             \left(\frac{E}{E_0}\right)^{-\alpha},
 
-    where :math:`E_0` is the pivot energy fixed at 1 keV.
+    where :math:`E_0` is the reference energy fixed at 1 keV.
 
     Parameters
     ----------
@@ -815,7 +815,7 @@ class SmoothlyBrokenPL(NumIntAdditive):
                 \right]
             \right\}^{-\rho},
 
-    where :math:`E_0` is the pivot energy fixed at 1 keV.
+    where :math:`E_0` is the reference energy fixed at 1 keV.
 
     Parameters
     ----------
