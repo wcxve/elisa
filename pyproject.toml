@@ -41,7 +41,7 @@ dependencies = [
     "prettytable<=3.14.0",
     "quadax>=0.2.1,<=0.2.6",
     "scipy>=1.11.0; python_version < '3.10'",
-    "scipy>=1.11.0,<=0.15.2; python_version >= '3.10'",
+    "scipy>=1.11.0,<=1.15.2; python_version >= '3.10'",
     "seaborn<=0.13.2",
     "tinygp<=0.3.0",
     "tqdm",
