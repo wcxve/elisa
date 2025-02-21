@@ -21,6 +21,7 @@ from elisa.data.grouping import (
     significance_lima,
 )
 from elisa.plot.misc import get_colors
+from elisa.util.misc import to_native_byteorder
 
 if TYPE_CHECKING:
     NDArray = np.ndarray
@@ -1138,8 +1139,11 @@ class ResponseData:
         photon_egrid = np.array(photon_egrid, dtype=np.float64, order='C')
         channel_emin = np.array(channel_emin, dtype=np.float64, order='C')
         channel_emax = np.array(channel_emax, dtype=np.float64, order='C')
-        response_matrix = coo_array(response_matrix)
-        response_matrix.eliminate_zeros()
+        if not isinstance(response_matrix, sparray):
+            # convert to native byteorder to be compatible with scipy.sparse
+            response_matrix = to_native_byteorder(response_matrix)
+            response_matrix = coo_array(response_matrix)
+            response_matrix.eliminate_zeros()
         channel = np.array(channel, dtype=str, order='C')
 
         photon_egrid_shape = np.shape(photon_egrid)

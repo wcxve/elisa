@@ -9,6 +9,7 @@ from astropy.io import fits
 from scipy.sparse import coo_array
 
 from elisa.data.base import ObservationData, ResponseData, SpectrumData
+from elisa.util.misc import to_native_byteorder
 
 if TYPE_CHECKING:
     NDArray = np.ndarray
@@ -628,6 +629,9 @@ class Response(ResponseData):
             reduced_matrix = matrix
         else:
             reduced_matrix = np.hstack(matrix)
+
+        # convert to native byteorder to be compatible with scipy.sparse
+        reduced_matrix = to_native_byteorder(reduced_matrix)
 
         sparse_matrix = coo_array(
             (reduced_matrix, (rows, cols)),

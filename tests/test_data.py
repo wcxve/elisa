@@ -1,6 +1,9 @@
 import numpy as np
+import pytest
+from jax.experimental.sparse import BCSR
 
 from elisa.data.grouping import significance_gv, significance_lima
+from elisa.data.ogip import Response, ResponseData
 from elisa.models import PowerLaw
 
 
@@ -117,3 +120,41 @@ def test_data_grouping():
         data.spec_counts, data.back_counts, data.back_errors, data.back_ratio
     )
     assert np.all(sig >= scale)
+
+
+@pytest.mark.parametrize(
+    'file',
+    [
+        'docs/notebooks/data/P011160500104_LE.rsp',
+        'docs/notebooks/data/P011160500104_ME.rsp',
+        'docs/notebooks/data/P011160500104_HE.rsp',
+    ],
+)
+def test_load_response(file):
+    # test Response against big-endian files
+    rsp = Response(file)
+    # test if the response matrix can be converted to a BCSR matrix in JAX
+    assert np.all(rsp.channel_fwhm > 0)
+    assert np.array_equal(
+        rsp.matrix,
+        BCSR.from_scipy_sparse(rsp.sparse_matrix).todense(),
+    )
+
+
+def test_response():
+    # test ResponseData against different endianness
+    photon_egrid = np.linspace(1.0, 100.0, 101)
+    channel = np.arange(100)
+    channel_emin = photon_egrid[:-1]
+    channel_emax = photon_egrid[1:]
+    mat1 = np.eye(100).astype('<f4')
+    mat2 = np.eye(100).astype('>f4')
+    r1 = ResponseData(photon_egrid, channel_emin, channel_emax, mat1, channel)
+    r2 = ResponseData(photon_egrid, channel_emin, channel_emax, mat2, channel)
+    # test if the response matrix can be converted to a BCSR matrix in JAX
+    for r in [r1, r2]:
+        assert np.array_equal(
+            r.matrix, BCSR.from_scipy_sparse(r.sparse_matrix).todense()
+        )
+    assert np.all(r1.channel == r2.channel)
+    assert np.all(r1.channel_fwhm == r2.channel_fwhm)
