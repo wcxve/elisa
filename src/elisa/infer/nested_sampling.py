@@ -247,7 +247,7 @@ class NestedSampler:
 
         default_constructor_kwargs = dict(
             num_live_points=model.U_ndims * 25,
-            num_parallel_workers=1,
+            devices=jax.devices(),
             max_samples=1e4,
         )
         default_termination_kwargs = dict(dlogZ=1e-4)
@@ -272,8 +272,8 @@ class NestedSampler:
         )
 
         # TODO: check if this is necessary
-        # jit when num_parallel_workers is 1
-        if self.constructor_kwargs['num_parallel_workers'] == 1:
+        # jit when running on single device
+        if len(default_ns.nested_sampler.devices) == 1:
             run_default_ns = jax.jit(default_ns)
         else:
             run_default_ns = default_ns

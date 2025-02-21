@@ -573,7 +573,6 @@ class ObservationData:
                         self.back_errors,
                         self.back_ratio,
                     )
-                sig *= np.sign(self.net_counts)
             else:
                 sig = np.zeros_like(self.net_counts, dtype=np.float64)
                 mask = self.net_counts > 0

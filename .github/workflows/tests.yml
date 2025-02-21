@@ -13,14 +13,11 @@ on:
 
 jobs:
   tests:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     strategy:
       matrix:
-        os: ["ubuntu-latest"]
-        python-version: ["3.9", "3.10", "3.11"]
-        #include:
-        #  - os: "macos-latest"
-        #    python-version: "3.9"
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        nox-session: ["test"]
 
     steps:
       - name: Checkout
@@ -46,7 +43,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COVERALLS_PARALLEL: true
-          COVERALLS_FLAG_NAME: ${{ matrix.python-version }}-${{ matrix.os }}
+          COVERALLS_FLAG_NAME: ${{ matrix.python-version }}
 
   coverage:
     needs: tests
@@ -100,4 +97,4 @@ jobs:
         with:
           name: artifact
           path: dist
-      - uses: pypa/gh-action-pypi-publish@v1.12.2
+      - uses: pypa/gh-action-pypi-publish@v1.12.4

@@ -34,14 +34,14 @@ It is recommended to install ``ELISA`` in a new [``conda``](https://docs.conda.i
 environment as follows:
 
 1. Create a new ``conda`` environment. The following command creates a new
-   environment named "elisa" with ``Python`` 3.9:
+   environment named "elisa" with ``Python`` 3.11:
 
     ```console
-    conda create -n elisa python=3.9
+    conda create -n elisa python=3.11
     ```
 
    Note that you can customize the environment name to your preference,
-   and the ``Python`` version should range from 3.9 to 3.11.
+   and the ``Python`` version should range from 3.9 to 3.12.
 
 2. Activate the environment we just created:
 

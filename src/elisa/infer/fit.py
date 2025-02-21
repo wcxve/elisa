@@ -36,6 +36,7 @@ from elisa.util.misc import (
 if TYPE_CHECKING:
     from typing import Any, Callable, Literal
 
+    from jaxlib.xla_client import Device
     from prettytable import PrettyTable
 
     from elisa.infer.likelihood import Statistic
@@ -689,7 +690,7 @@ class BayesFit(Fit):
         s: int | None = None,
         k: int | None = None,
         c: int | None = None,
-        num_parallel_workers: int = 1,
+        devices: list[Device] | None = None,
         difficult_model: bool = False,
         parameter_estimation: bool = False,
         verbose: bool = False,
@@ -716,8 +717,8 @@ class BayesFit(Fit):
             Number of parallel Markov chains. The default is 30 * `D`, where
             `D` is the dimension of model parameters. It takes effect only
             for num_live_points=None.
-        num_parallel_workers : int, optional
-            Parallel workers number. The default is 1.
+        devices : list, optional
+            Devices to use. Defaults to all available devices.
         difficult_model : bool, optional
             If True, uses more robust default settings (`s` = 10 and
             `c` = 50 * `D`). It takes effect only for `num_live_points` = None,
@@ -744,15 +745,13 @@ class BayesFit(Fit):
         .. [1] `Phantom-Powered Nested Sampling <https://arxiv.org/abs/2312.11330>`__
         .. [2] `JAXNS API doc <https://jaxns.readthedocs.io/en/latest/api/jaxns/index.html#jaxns.DefaultNestedSampler>`__
         """
-        num_parallel_workers = int(num_parallel_workers)
-
         constructor_kwargs = {
             'max_samples': max_samples,
             'num_live_points': num_live_points,
             's': s,
             'k': k,
             'c': c,
-            'num_parallel_workers': num_parallel_workers,
+            'devices': devices,
             'difficult_model': difficult_model,
             'parameter_estimation': parameter_estimation,
             'verbose': verbose,

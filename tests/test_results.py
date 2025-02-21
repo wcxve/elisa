@@ -94,7 +94,7 @@ def test_mle_ci_fn(mle_result2, powerlaw_flux):
         params['PowerLaw.alpha'], params['PowerLaw.K'], emin, emax
     )
 
-    ci0 = result.ci(params=[], fn={'fn': fn}, rtol={'fn': 5e-4})
+    ci0 = result.ci(params=[], fn={'fn': fn}, rtol={'fn': 1e-10})
     ci1 = result.ci(params=[], fn={'fn': fn})
     ci2 = result.ci(params=[], fn={'fn': fn}, method='boot')
     ci3 = result.ci(params=[], fn={'fn': fn}, method='boot', parallel=False)
