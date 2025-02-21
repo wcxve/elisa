@@ -125,9 +125,9 @@ def test_data_grouping():
 @pytest.mark.parametrize(
     'file',
     [
-        '../docs/notebooks/data/P011160500104_LE.rsp',
-        '../docs/notebooks/data/P011160500104_ME.rsp',
-        '../docs/notebooks/data/P011160500104_HE.rsp',
+        'docs/notebooks/data/P011160500104_LE.rsp',
+        'docs/notebooks/data/P011160500104_ME.rsp',
+        'docs/notebooks/data/P011160500104_HE.rsp',
     ],
 )
 def test_load_response(file):
