@@ -22,6 +22,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from typing import Callable, Literal, TypeVar
 
+    from numpy import ndarray as NDArray
+
     from elisa.util.typing import CompEval
 
     T = TypeVar('T')
@@ -571,3 +573,11 @@ def progress_bar_factory(
         return _wrapper_progress_bar
 
     return progress_bar_fori_loop
+
+
+def to_native_byteorder(arr: NDArray) -> NDArray:
+    """Convert an array to native byte order."""
+    if arr.dtype.byteorder != '=':
+        return arr.astype(arr.dtype.newbyteorder('='))
+    else:
+        return arr
