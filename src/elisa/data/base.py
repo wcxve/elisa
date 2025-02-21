@@ -1138,8 +1138,14 @@ class ResponseData:
         photon_egrid = np.array(photon_egrid, dtype=np.float64, order='C')
         channel_emin = np.array(channel_emin, dtype=np.float64, order='C')
         channel_emax = np.array(channel_emax, dtype=np.float64, order='C')
-        response_matrix = coo_array(response_matrix)
-        response_matrix.eliminate_zeros()
+        # if the byte order is not native,
+        # then convert it to be compatible with scipy.sparse
+        if not isinstance(response_matrix, sparray):
+            if response_matrix.dtype.byteorder != '=':
+                order = response_matrix.dtype.newbyteorder()
+                response_matrix = response_matrix.astype(order)
+            response_matrix = coo_array(response_matrix)
+            response_matrix.eliminate_zeros()
         channel = np.array(channel, dtype=str, order='C')
 
         photon_egrid_shape = np.shape(photon_egrid)

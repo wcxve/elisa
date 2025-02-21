@@ -1,6 +1,8 @@
 import numpy as np
+import pytest
 
 from elisa.data.grouping import significance_gv, significance_lima
+from elisa.data.ogip import Response, ResponseData
 from elisa.models import PowerLaw
 
 
@@ -117,3 +119,28 @@ def test_data_grouping():
         data.spec_counts, data.back_counts, data.back_errors, data.back_ratio
     )
     assert np.all(sig >= scale)
+
+
+@pytest.mark.parametrize(
+    'file',
+    [
+        '../docs/notebooks/data/P011160500104_LE.rsp',
+        '../docs/notebooks/data/P011160500104_ME.rsp',
+        '../docs/notebooks/data/P011160500104_HE.rsp',
+    ],
+)
+def test_load_response(file):
+    # Test Response against big-endian files
+    assert np.all(Response(file).channel_fwhm > 0)
+
+
+def test_response():
+    # Test ResponseData against different endianness
+    photon_egrid = np.linspace(1.0, 100.0, 101)
+    channel = np.arange(100)
+    channel_emin = photon_egrid[:-1]
+    channel_emax = photon_egrid[1:]
+    matrix1 = np.eye(100).astype('<f4')
+    matrix2 = np.eye(100).astype('>f4')
+    ResponseData(photon_egrid, channel_emin, channel_emax, matrix1, channel)
+    ResponseData(photon_egrid, channel_emin, channel_emax, matrix2, channel)

@@ -629,6 +629,12 @@ class Response(ResponseData):
         else:
             reduced_matrix = np.hstack(matrix)
 
+        # if the byte order is not native,
+        # then convert it to be compatible with scipy.sparse
+        if reduced_matrix.dtype.byteorder != '=':
+            order = reduced_matrix.dtype.newbyteorder()
+            reduced_matrix = reduced_matrix.astype(order)
+
         sparse_matrix = coo_array(
             (reduced_matrix, (rows, cols)),
             shape=(len(response_data), channel_number),
