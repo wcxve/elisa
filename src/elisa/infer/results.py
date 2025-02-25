@@ -2624,7 +2624,7 @@ class MLEFlux(NamedTuple):
     """The model flux at MLE."""
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The standard deviation of the model flux."""
+    """The errors of the model flux, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model flux."""
@@ -2661,7 +2661,7 @@ class MLELumin(NamedTuple):
     """The model luminosity at MLE."""
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The standard deviation of the model luminosity."""
+    """The errors of the model luminosity, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model luminosity."""
@@ -2701,7 +2701,7 @@ class MLEEiso(NamedTuple):
     """The model Eiso at MLE."""
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The standard deviation of the model Eiso."""
+    """The errors of the model Eiso, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model Eiso."""
