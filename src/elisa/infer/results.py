@@ -973,8 +973,7 @@ class MLEResult(FitResult):
             fn_dic = {d: factory(d) for d in mapping.values()}
 
         cov = self.covar(params=(), fn=fn_dic, method='hess')
-        std = {k: np.sqrt(cov.matrix[k, k]) for k in mapping.values()}
-        std = {k: std[v] for k, v in mapping.items()}
+        std = {k: np.sqrt(cov.matrix[k, k]) for k in fn_dic.keys()}
 
         if method == 'profile':
             if params is not None:
@@ -997,6 +996,10 @@ class MLEResult(FitResult):
             raise ValueError("method must be either 'profile' or 'boot'")
 
         if comps:
+            std = {
+                k: {c: std[f'{k}_{c}'] for c in mle_flux[k].keys()}
+                for k in mapping.values()
+            }
             intervals = {
                 k: {c: intervals[f'{k}_{c}'] for c in mle_flux[k].keys()}
                 for k in mapping.values()
@@ -1021,6 +1024,7 @@ class MLEResult(FitResult):
         convert = lambda x: (x if x is None else converter(x * unit))
 
         intervals = {k: intervals[v] for k, v in mapping.items()}
+        std = {k: std[v] for k, v in mapping.items()}
         errors = jax.tree.map(
             lambda x, y: (y[0] - x, y[1] - x), mle_flux, intervals
         )
