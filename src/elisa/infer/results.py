@@ -972,6 +972,9 @@ class MLEResult(FitResult):
 
             fn_dic = {d: factory(d) for d in mapping.values()}
 
+        cov = self.covar(params=(), fn=fn_dic, method='hess')
+        std = {k: np.sqrt(cov.matrix[k, k]) for k in fn_dic.keys()}
+
         if method == 'profile':
             if params is not None:
                 warnings.warn('params is ignored when using profile method')
@@ -993,6 +996,10 @@ class MLEResult(FitResult):
             raise ValueError("method must be either 'profile' or 'boot'")
 
         if comps:
+            std = {
+                k: {c: std[f'{k}_{c}'] for c in mle_flux[k].keys()}
+                for k in mapping.values()
+            }
             intervals = {
                 k: {c: intervals[f'{k}_{c}'] for c in mle_flux[k].keys()}
                 for k in mapping.values()
@@ -1017,6 +1024,7 @@ class MLEResult(FitResult):
         convert = lambda x: (x if x is None else converter(x * unit))
 
         intervals = {k: intervals[v] for k, v in mapping.items()}
+        std = {k: std[v] for k, v in mapping.items()}
         errors = jax.tree.map(
             lambda x, y: (y[0] - x, y[1] - x), mle_flux, intervals
         )
@@ -1028,6 +1036,7 @@ class MLEResult(FitResult):
 
         return {
             'mle': jax.tree.map(convert, mle_flux),
+            'std': jax.tree.map(convert, std),
             'intervals': jax.tree.map(convert, intervals),
             'errors': jax.tree.map(convert, errors),
             'cl': cl,
@@ -2618,6 +2627,9 @@ class MLEFlux(NamedTuple):
     mle: dict[str, Q] | dict[str, dict[str, Q]]
     """The model flux at MLE."""
 
+    std: dict[str, Q] | dict[str, dict[str, Q]]
+    """The errors of the model flux, calculated from Hessian matrix."""
+
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model flux."""
 
@@ -2651,6 +2663,9 @@ class MLELumin(NamedTuple):
 
     mle: dict[str, Q] | dict[str, dict[str, Q]]
     """The model luminosity at MLE."""
+
+    std: dict[str, Q] | dict[str, dict[str, Q]]
+    """The errors of the model luminosity, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model luminosity."""
@@ -2687,7 +2702,10 @@ class MLEEiso(NamedTuple):
     """Cosmology model used to calculate Eiso."""
 
     mle: dict[str, Q] | dict[str, dict[str, Q]]
-    r"""The model Eiso at MLE."""
+    """The model Eiso at MLE."""
+
+    std: dict[str, Q] | dict[str, dict[str, Q]]
+    """The errors of the model Eiso, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model Eiso."""
