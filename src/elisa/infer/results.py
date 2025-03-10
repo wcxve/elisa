@@ -1324,9 +1324,6 @@ class PosteriorResult(FitResult):
 
     _plotter: PosteriorResultPlotter | None = None
     _idata: az.InferenceData
-    _mean: dict | None = None
-    _std: dict | None = None
-    _median: dict | None = None
     _deviance: dict | None = None
     _mle_result: dict | None = None
     _ppc: PPCResult | None = None
@@ -1623,6 +1620,9 @@ class PosteriorResult(FitResult):
             interval = {
                 k: (float(v[1]), float(v[2])) for k, v in quantile.items()
             }
+
+        mean = {p: self.mean[p] for p in params}
+        std = {p: self.std[p] for p in params}
 
         dist = {
             k: v.data
@@ -2164,38 +2164,30 @@ class PosteriorResult(FitResult):
         """ArviZ InferenceData."""
         return self._idata
 
+    def _compute_stat(
+        self,
+        cache_attr: str,
+        stat_fn: Callable
+    ) -> dict[str, float]:
+        stat = getattr(self, cache_attr, None)
+        if stat is None:
+            params_name = self._helper.params_names['all']
+            stat = stat_fn(self.idata['posterior'][params_name])
+            stat = {k: float(v) for k, v in stat.items()}
+            setattr(self, cache_attr, stat)
+        return stat
+
     @property
     def mean(self) -> dict:
-        if self._mean is None:
-            params_name = self._helper.params_names['all']
-            params = self.idata['posterior'][params_name]
-            self._mean = {
-                pn: float(params.mean()[pn].item()) for pn in params_name
-            }
-
-        return self._mean
+        return self._compute_stat('_mean', lambda x: x.mean())
 
     @property
     def std(self) -> dict:
-        if self._std is None:
-            params_name = self._helper.params_names['all']
-            params = self.idata['posterior'][params_name]
-            self._std = {
-                pn: float(params.std(ddof=1)[pn].item()) for pn in params_name
-            }
-
-        return self._std
+        return self._compute_stat('_std', lambda x: x.std(ddof=1))
 
     @property
     def median(self) -> dict:
-        if self._median is None:
-            params_name = self._helper.params_names['all']
-            params = self.idata['posterior'][params_name]
-            self._median = {
-                pn: float(params.median()[pn].item()) for pn in params_name
-            }
-
-        return self._median
+        return self._compute_stat('_median', lambda x: x.median())
 
     @property
     def _params_dist(self) -> dict[str, JAXArray]:
@@ -2839,7 +2831,7 @@ class PosteriorFlux(NamedTuple):
     """The mean flux."""
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The std flux."""
+    """The standard deviation of flux."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median flux."""
@@ -2876,10 +2868,10 @@ class PosteriorLumin(NamedTuple):
     """Cosmology model used to calculate luminosity."""
 
     mean: dict[str, Q] | dict[str, dict[str, Q]]
-    """The mean flux."""
+    """The mean luminosity."""
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The std flux."""
+    """The standard deviation of luminosity."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median luminosity."""
@@ -2919,10 +2911,10 @@ class PosteriorEiso(NamedTuple):
     """Cosmology model used to calculate Eiso."""
 
     mean: dict[str, Q] | dict[str, dict[str, Q]]
-    """The mean flux."""
+    """The mean Eiso."""
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The std flux."""
+    """The standard deviation of Eiso."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
     r"""The median Eiso."""
