@@ -1621,13 +1621,20 @@ class PosteriorResult(FitResult):
                 k: (float(v[1]), float(v[2])) for k, v in quantile.items()
             }
 
+        mean = {p: self.mean[p] for p in params}
+        std = {p: self.std[p] for p in params}
+
         dist = {
             k: v.data
             for k, v in self.idata['posterior'][params].data_vars.items()
         }
 
         if fn:
-            median_, interval_, dist_ = self._ci_fn(fn, cl, hdi, parallel)
+            mean_, std_, median_, interval_, dist_ = self._ci_fn(
+                fn, cl, hdi, parallel
+            )
+            mean |= mean_
+            std |= std_
             median |= median_
             interval |= interval_
             dist |= dist_
@@ -1706,7 +1713,10 @@ class PosteriorResult(FitResult):
                 lambda x: (float(x[1]), float(x[2])), quantile
             )
 
-        return median, interval, dist
+        mean = jax.tree.map(np.mean, dist)
+        std = jax.tree.map(np.std, dist)
+
+        return mean, std, median, interval, dist
 
     def _intensity_ci(
         self,
@@ -1746,9 +1756,11 @@ class PosteriorResult(FitResult):
 
         fn = jax.jit(lambda p: self._flux_fn(egrid, p, energy, comps))
 
-        median, intervals, dist = self._ci_fn(
+        mean, std, median, intervals, dist = self._ci_fn(
             {'intensity': fn}, cl, hdi, True, params
         )
+        mean = mean['intensity']
+        std = std['intensity']
         median = median['intensity']
         intervals = intervals['intensity']
         dist = dist['intensity']
@@ -1764,6 +1776,8 @@ class PosteriorResult(FitResult):
         )
 
         return {
+            'mean': jax.tree.map(convert, mean),
+            'std': jax.tree.map(convert, std),
             'median': jax.tree.map(convert, median),
             'intervals': jax.tree.map(convert, intervals),
             'errors': jax.tree.map(convert, errors),
@@ -2149,6 +2163,32 @@ class PosteriorResult(FitResult):
     def idata(self) -> az.InferenceData:
         """ArviZ InferenceData."""
         return self._idata
+
+    def _compute_stat(
+        self, cache_attr: str, stat_fn: Callable
+    ) -> dict[str, float]:
+        stat = getattr(self, cache_attr, None)
+        if stat is None:
+            params_name = self._helper.params_names['all']
+            stat = stat_fn(self.idata['posterior'][params_name])
+            stat = {k: float(v) for k, v in stat.items()}
+            setattr(self, cache_attr, stat)
+        return stat
+
+    @property
+    def mean(self) -> dict[str, float]:
+        """Mean of parameter samples."""
+        return self._compute_stat('_mean', lambda x: x.mean())
+
+    @property
+    def std(self) -> dict[str, float]:
+        """Standard deviation of parameter samples."""
+        return self._compute_stat('_std', lambda x: x.std(ddof=1))
+
+    @property
+    def median(self) -> dict[str, float]:
+        """Median of parameter samples."""
+        return self._compute_stat('_median', lambda x: x.median())
 
     @property
     def _params_dist(self) -> dict[str, JAXArray]:
@@ -2788,6 +2828,12 @@ class PosteriorFlux(NamedTuple):
     energy: bool
     """Whether the flux is in energy flux. False for photon flux."""
 
+    mean: dict[str, Q] | dict[str, dict[str, Q]]
+    """The mean flux."""
+
+    std: dict[str, Q] | dict[str, dict[str, Q]]
+    """The standard deviation of flux."""
+
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median flux."""
 
@@ -2821,6 +2867,12 @@ class PosteriorLumin(NamedTuple):
 
     cosmo: LambdaCDM
     """Cosmology model used to calculate luminosity."""
+
+    mean: dict[str, Q] | dict[str, dict[str, Q]]
+    """The mean luminosity."""
+
+    std: dict[str, Q] | dict[str, dict[str, Q]]
+    """The standard deviation of luminosity."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median luminosity."""
@@ -2858,6 +2910,12 @@ class PosteriorEiso(NamedTuple):
 
     cosmo: LambdaCDM
     """Cosmology model used to calculate Eiso."""
+
+    mean: dict[str, Q] | dict[str, dict[str, Q]]
+    """The mean Eiso."""
+
+    std: dict[str, Q] | dict[str, dict[str, Q]]
+    """The standard deviation of Eiso."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
     r"""The median Eiso."""
