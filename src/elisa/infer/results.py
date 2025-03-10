@@ -2176,15 +2176,18 @@ class PosteriorResult(FitResult):
         return stat
 
     @property
-    def mean(self) -> dict:
+    def mean(self) -> dict[str, float]:
+        """Mean of parameter samples."""
         return self._compute_stat('_mean', lambda x: x.mean())
 
     @property
-    def std(self) -> dict:
+    def std(self) -> dict[str, float]:
+        """Standard deviation of parameter samples."""
         return self._compute_stat('_std', lambda x: x.std(ddof=1))
 
     @property
-    def median(self) -> dict:
+    def median(self) -> dict[str, float]:
+        """Median of parameter samples."""
         return self._compute_stat('_median', lambda x: x.median())
 
     @property
