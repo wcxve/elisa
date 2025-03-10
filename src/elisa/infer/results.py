@@ -1630,7 +1630,9 @@ class PosteriorResult(FitResult):
         }
 
         if fn:
-            median_, interval_, dist_ = self._ci_fn(fn, cl, hdi, parallel)
+            mean_, std_, median_, interval_, dist_ = self._ci_fn(fn, cl, hdi, parallel)
+            mean |= mean_
+            std |= std_
             median |= median_
             interval |= interval_
             dist |= dist_
@@ -1708,8 +1710,11 @@ class PosteriorResult(FitResult):
             interval = jax.tree.map(
                 lambda x: (float(x[1]), float(x[2])), quantile
             )
+        
+        mean = jax.tree.map(np.mean, dist)
+        std = jax.tree.map(np.std, dist)
 
-        return median, interval, dist
+        return mean, std, median, interval, dist
 
     def _intensity_ci(
         self,
@@ -1749,9 +1754,11 @@ class PosteriorResult(FitResult):
 
         fn = jax.jit(lambda p: self._flux_fn(egrid, p, energy, comps))
 
-        median, intervals, dist = self._ci_fn(
+        mean, std, median, intervals, dist = self._ci_fn(
             {'intensity': fn}, cl, hdi, True, params
         )
+        mean = mean['intensity']
+        std = std['intensity']
         median = median['intensity']
         intervals = intervals['intensity']
         dist = dist['intensity']
@@ -1767,6 +1774,8 @@ class PosteriorResult(FitResult):
         )
 
         return {
+            'mean': jax.tree.map(convert, mean),
+            'std': jax.tree.map(convert, std),
             'median': jax.tree.map(convert, median),
             'intervals': jax.tree.map(convert, intervals),
             'errors': jax.tree.map(convert, errors),
@@ -2179,7 +2188,7 @@ class PosteriorResult(FitResult):
             self._median = {pn: float(params.median()[pn].item()) for pn in params_name}
 
         return self._median
-    
+
     @property
     def _params_dist(self) -> dict[str, JAXArray]:
         """Posterior parameters, the size is truncated to <= nmax."""
@@ -2818,6 +2827,12 @@ class PosteriorFlux(NamedTuple):
     energy: bool
     """Whether the flux is in energy flux. False for photon flux."""
 
+    mean: dict[str, Q] | dict[str, dict[str, Q]]
+    """The mean flux."""
+
+    std: dict[str, Q] | dict[str, dict[str, Q]]
+    """The std flux."""
+
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median flux."""
 
@@ -2851,6 +2866,12 @@ class PosteriorLumin(NamedTuple):
 
     cosmo: LambdaCDM
     """Cosmology model used to calculate luminosity."""
+
+    mean: dict[str, Q] | dict[str, dict[str, Q]]
+    """The mean flux."""
+
+    std: dict[str, Q] | dict[str, dict[str, Q]]
+    """The std flux."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
     """The median luminosity."""
@@ -2889,6 +2910,12 @@ class PosteriorEiso(NamedTuple):
     cosmo: LambdaCDM
     """Cosmology model used to calculate Eiso."""
 
+    mean: dict[str, Q] | dict[str, dict[str, Q]]
+    """The mean flux."""
+
+    std: dict[str, Q] | dict[str, dict[str, Q]]
+    """The std flux."""
+    
     median: dict[str, Q] | dict[str, dict[str, Q]]
     r"""The median Eiso."""
 
