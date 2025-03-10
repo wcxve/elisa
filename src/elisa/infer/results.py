@@ -1630,7 +1630,9 @@ class PosteriorResult(FitResult):
         }
 
         if fn:
-            mean_, std_, median_, interval_, dist_ = self._ci_fn(fn, cl, hdi, parallel)
+            mean_, std_, median_, interval_, dist_ = self._ci_fn(
+                fn, cl, hdi, parallel
+            )
             mean |= mean_
             std |= std_
             median |= median_
@@ -1710,7 +1712,7 @@ class PosteriorResult(FitResult):
             interval = jax.tree.map(
                 lambda x: (float(x[1]), float(x[2])), quantile
             )
-        
+
         mean = jax.tree.map(np.mean, dist)
         std = jax.tree.map(np.std, dist)
 
@@ -2167,7 +2169,9 @@ class PosteriorResult(FitResult):
         if self._mean is None:
             params_name = self._helper.params_names['all']
             params = self.idata['posterior'][params_name]
-            self._mean = {pn: float(params.mean()[pn].item()) for pn in params_name}
+            self._mean = {
+                pn: float(params.mean()[pn].item()) for pn in params_name
+            }
 
         return self._mean
 
@@ -2176,7 +2180,9 @@ class PosteriorResult(FitResult):
         if self._std is None:
             params_name = self._helper.params_names['all']
             params = self.idata['posterior'][params_name]
-            self._std = {pn: float(params.std(ddof=1)[pn].item()) for pn in params_name}
+            self._std = {
+                pn: float(params.std(ddof=1)[pn].item()) for pn in params_name
+            }
 
         return self._std
 
@@ -2185,7 +2191,9 @@ class PosteriorResult(FitResult):
         if self._median is None:
             params_name = self._helper.params_names['all']
             params = self.idata['posterior'][params_name]
-            self._median = {pn: float(params.median()[pn].item()) for pn in params_name}
+            self._median = {
+                pn: float(params.median()[pn].item()) for pn in params_name
+            }
 
         return self._median
 
@@ -2915,7 +2923,7 @@ class PosteriorEiso(NamedTuple):
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
     """The std flux."""
-    
+
     median: dict[str, Q] | dict[str, dict[str, Q]]
     r"""The median Eiso."""
 
