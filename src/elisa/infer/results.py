@@ -2165,9 +2165,7 @@ class PosteriorResult(FitResult):
         return self._idata
 
     def _compute_stat(
-        self,
-        cache_attr: str,
-        stat_fn: Callable
+        self, cache_attr: str, stat_fn: Callable
     ) -> dict[str, float]:
         stat = getattr(self, cache_attr, None)
         if stat is None:
