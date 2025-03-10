@@ -1324,6 +1324,9 @@ class PosteriorResult(FitResult):
 
     _plotter: PosteriorResultPlotter | None = None
     _idata: az.InferenceData
+    _mean: dict | None = None
+    _std: dict | None = None
+    _median: dict | None = None
     _deviance: dict | None = None
     _mle_result: dict | None = None
     _ppc: PPCResult | None = None
@@ -2150,6 +2153,33 @@ class PosteriorResult(FitResult):
         """ArviZ InferenceData."""
         return self._idata
 
+    @property
+    def mean(self) -> dict:
+        if self._mean is None:
+            params_name = self._helper.params_names['all']
+            params = self.idata['posterior'][params_name]
+            self._mean = {pn: float(params.mean()[pn].item()) for pn in params_name}
+
+        return self._mean
+
+    @property
+    def std(self) -> dict:
+        if self._std is None:
+            params_name = self._helper.params_names['all']
+            params = self.idata['posterior'][params_name]
+            self._std = {pn: float(params.std(ddof=1)[pn].item()) for pn in params_name}
+
+        return self._std
+
+    @property
+    def median(self) -> dict:
+        if self._median is None:
+            params_name = self._helper.params_names['all']
+            params = self.idata['posterior'][params_name]
+            self._median = {pn: float(params.median()[pn].item()) for pn in params_name}
+
+        return self._median
+    
     @property
     def _params_dist(self) -> dict[str, JAXArray]:
         """Posterior parameters, the size is truncated to <= nmax."""
