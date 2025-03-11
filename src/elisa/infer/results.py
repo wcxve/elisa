@@ -681,6 +681,10 @@ class MLEResult(FitResult):
         vars_names = params + list(fn.keys())
         vars_mle = {k: v for k, v in params_mle.items() if k in vars_names}
         vars_mle |= {k: v(params_mle) for k, v in fn.items()}
+        params_std = {k: v[1] for k, v in self._mle.items()}
+        fn_covar = self.covar(params=(), fn=fn, method='hess')
+        vars_std = {k: v for k, v in params_std.items() if k in vars_names}
+        vars_std |= {k: np.sqrt(fn_covar.matrix[k, k]) for k, v in fn.items()}
         errors = {
             k: (intervals[k][0] - vars_mle[k], intervals[k][1] - vars_mle[k])
             for k in vars_names
@@ -688,6 +692,7 @@ class MLEResult(FitResult):
 
         return ConfidenceInterval(
             mle=_format_result(vars_mle, vars_names),
+            std=_format_result(vars_std, vars_names),
             intervals=_format_result(intervals, vars_names),
             errors=_format_result(errors, vars_names),
             cl=1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl,
@@ -2635,6 +2640,9 @@ class ConfidenceInterval(NamedTuple):
 
     mle: dict[str, float]
     """MLE of the parameters."""
+
+    std: dict[str, float]
+    """The errors of the parameters, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[float, float]]
     """The confidence intervals."""
