@@ -604,7 +604,7 @@ class MLEResult(FitResult):
             The keys are the names of the function results, and the values are
             the functions whose input is a dict of model parameters.
         method : {'profile', 'boot'}, optional
-            Method used to calculate confidence. Available options are:
+            Method for calculating confidence intervals. Available options are:
 
                 * ``'profile'``: use Minos algorithm of Minuit to find the
                   confidence intervals based on the profile likelihood
@@ -1083,7 +1083,7 @@ class MLEResult(FitResult):
             ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
             The default is 1.
         method : {'profile', 'boot'}, optional
-            Method used to calculate confidence. Available options are:
+            Method for calculating confidence intervals. Available options are:
 
                 * ``'profile'``: use Minos algorithm of Minuit to find the
                   confidence intervals based on the profile likelihood
@@ -1157,7 +1157,7 @@ class MLEResult(FitResult):
             ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
             The default is 1.
         method : {'profile', 'boot'}, optional
-            Method used to calculate confidence. Available options are:
+            Method for calculating confidence intervals. Available options are:
 
                 * ``'profile'``: use Minos algorithm of Minuit to find the
                   confidence intervals based on the profile likelihood
@@ -1238,7 +1238,7 @@ class MLEResult(FitResult):
             For example, ``cl=1`` produces a 1-sigma or 68.3% confidence
             interval. The default is 1.
         method : {'profile', 'boot'}, optional
-            Method used to calculate confidence. Available options are:
+            Method for calculating confidence intervals. Available options are:
 
                 * ``'profile'``: use Minos algorithm of Minuit to find the
                   confidence intervals based on the profile likelihood
