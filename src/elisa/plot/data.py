@@ -448,6 +448,10 @@ class MLEPlotData(PlotData):
             on_data = self.spec_counts
         on_model = self.model('on', 'mle')
 
+        if stat == 'whittle':
+            pit = stats.expon.cdf(on_data, scale=on_model)
+            return pit, pit
+
         if stat in _STATISTIC_SPEC_NORMAL:  # chi2
             pit = stats.norm.cdf((on_data - on_model) / self.net_errors)
             return pit, pit
@@ -575,7 +579,7 @@ class MLEPlotData(PlotData):
         stat = self.statistic
 
         if rtype == 'mle':
-            if stat in _STATISTIC_SPEC_NORMAL:
+            if stat in _STATISTIC_SPEC_NORMAL or stat == 'whittle':
                 on_data = self.net_counts
             else:
                 on_data = self.spec_counts
@@ -584,6 +588,8 @@ class MLEPlotData(PlotData):
 
         if stat in _STATISTIC_SPEC_NORMAL:
             std = self.net_errors
+        elif stat == 'whittle':
+            std = np.sqrt(self.model('on', rtype))
         else:
             std = None
 
@@ -654,6 +660,7 @@ class MLEPlotData(PlotData):
                 lower = np.full(r.shape, False)
                 lower[lower_mask] = True
 
+        assert np.isfinite(r).all()
         return r, lower, upper
 
 
@@ -967,6 +974,8 @@ class PosteriorPlotData(PlotData):
 
         if stat in _STATISTIC_SPEC_NORMAL:
             std = self.net_errors
+        elif stat == 'whittle':
+            std = np.sqrt(on_model)
         else:
             std = None
 
