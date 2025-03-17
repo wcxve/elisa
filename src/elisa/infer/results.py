@@ -15,11 +15,9 @@ import astropy.units as u
 import dill
 import jax
 import jax.numpy as jnp
-import nautilus
 import numpy as np
 import numpyro
 import scipy.stats as stats
-import ultranest
 from astropy.cosmology import Planck18
 from iminuit import Minuit
 from iminuit.util import Matrix as CovarMatrix
@@ -37,7 +35,7 @@ from elisa.util.misc import make_pretty_table
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
-    from typing import Literal
+    from typing import Any, Literal
 
     from arviz.stats.stats_utils import ELPDData
     from astropy.cosmology.flrw.lambdacdm import LambdaCDM
@@ -49,9 +47,6 @@ if TYPE_CHECKING:
     from elisa.infer.helper import Helper
     from elisa.plot.plotter import Plotter
     from elisa.util.typing import JAXArray
-
-ReactiveNestedSampler = ultranest.ReactiveNestedSampler
-Sampler = nautilus.Sampler
 
 
 class FitResult(ABC):
@@ -1343,14 +1338,23 @@ class PosteriorResult(FitResult):
 
     def __init__(
         self,
-        sampler: MCMC | NestedSampler | ReactiveNestedSampler | Sampler,
+        sampler: MCMC | NestedSampler | Any,
         helper: Helper,
         fit: BayesFit,
     ):
-        if not isinstance(
-            sampler, (MCMC, NestedSampler, ReactiveNestedSampler, Sampler)
-        ):
-            raise ValueError(f'unknown sampler type {type(sampler)}')
+        try:
+            import ultranest
+
+            has_ultranest = True
+        except ImportError:
+            has_ultranest = False
+
+        try:
+            import nautilus
+
+            has_nautilus = True
+        except ImportError:
+            has_nautilus = False
 
         super().__init__(helper)
         self._fit = fit
@@ -1358,10 +1362,14 @@ class PosteriorResult(FitResult):
             self._init_from_numpyro(sampler)
         elif isinstance(sampler, NestedSampler):
             self._init_from_jaxns(sampler)
-        elif isinstance(sampler, ReactiveNestedSampler):
+        elif has_ultranest and isinstance(
+            sampler, ultranest.ReactiveNestedSampler
+        ):
             self._init_from_ultranest(sampler)
-        else:
+        elif has_nautilus and isinstance(sampler, nautilus.Sampler):
             self._init_from_nautilus(sampler)
+        else:
+            raise ValueError('unknown sampler')
 
     def __repr__(self):
         tabs = self._tabs()
@@ -2288,7 +2296,7 @@ class PosteriorResult(FitResult):
         # model evidence
         self._lnZ = (float(result.log_Z_mean), float(result.log_Z_uncert))
 
-    def _init_from_ultranest(self, sampler: ReactiveNestedSampler):
+    def _init_from_ultranest(self, sampler):
         result = sampler._transform_back(sampler.results['samples'])
         nsamples = len(sampler.results['samples'])
         ncores = jax.local_device_count()
@@ -2301,7 +2309,7 @@ class PosteriorResult(FitResult):
         attrs = {
             'elisa_version': __version__,
             'inference_library': 'ultranest',
-            'inference_library_version': ultranest.__version__,
+            'inference_library_version': metadata.version('ultranest'),
         }
 
         self._generate_idata(samples, attrs)
@@ -2317,7 +2325,7 @@ class PosteriorResult(FitResult):
             float(sampler.results['logzerr']),
         )
 
-    def _init_from_nautilus(self, sampler: Sampler):
+    def _init_from_nautilus(self, sampler):
         result = sampler.posterior(equal_weight=True)[0]
         result = sampler._transform_back(result)
         ncores = jax.local_device_count()
@@ -2331,8 +2339,8 @@ class PosteriorResult(FitResult):
         # attrs for each group of arviz.InferenceData
         attrs = {
             'elisa_version': __version__,
-            'inference_library': 'nautilus',
-            'inference_library_version': nautilus.__version__,
+            'inference_library': 'nautilus-sampler',
+            'inference_library_version': metadata.version('nautilus-sampler'),
         }
 
         self._generate_idata(samples, attrs)
