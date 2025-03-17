@@ -633,7 +633,7 @@ class MLEResult(FitResult):
         fn = self._check_fn(fn)
         rtol_keys = tuple(fn.keys()) + tuple(composite)
         if isinstance(rtol, float):
-            rtol = {k: rtol for k in rtol_keys}
+            rtol = dict.fromkeys(rtol_keys, rtol)
         else:
             rtol = jax.tree.map(float, dict(rtol))
             for k in rtol_keys:
@@ -987,7 +987,7 @@ class MLEResult(FitResult):
                 return _
 
             fn_dic = jax.tree.map(transform, fn_dic)
-            rtol = {k: 1e-8 for k in fn_dic.keys()}
+            rtol = dict.fromkeys(fn_dic.keys(), 1e-08)
             intervals, status = self._ci_fn(fn_dic, cl, rtol=rtol)
             intervals = jax.tree.map(jnp.exp, intervals)
         elif method == 'boot':
@@ -2290,7 +2290,7 @@ class PosteriorResult(FitResult):
 
         # effective sample size
         ess = int(result.ESS)
-        self._ess = {p: ess for p in self._helper.params_names['all']}
+        self._ess = dict.fromkeys(self._helper.params_names['all'], ess)
         # relative mcmc efficiency
         self._reff = float(ess / result.total_num_samples)
         # model evidence
@@ -2316,7 +2316,7 @@ class PosteriorResult(FitResult):
 
         # effective sample size
         ess = int(sampler.results['ess'])
-        self._ess = {p: ess for p in self._helper.params_names['all']}
+        self._ess = dict.fromkeys(self._helper.params_names['all'], ess)
         # relative mcmc efficiency
         self._reff = float(ess / nsamples)
         # model evidence
@@ -2347,7 +2347,7 @@ class PosteriorResult(FitResult):
 
         # effective sample size
         ess = int(sampler.n_eff)
-        self._ess = {p: ess for p in self._helper.params_names['all']}
+        self._ess = dict.fromkeys(self._helper.params_names['all'], ess)
         # relative mcmc efficiency
         total_sample = len(sampler.posterior(equal_weight=False)[0])
         self._reff = float(ess / total_sample)
