@@ -9,10 +9,8 @@ from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
-import nautilus
 import numpy as np
 import optimistix as optx
-import ultranest
 from iminuit import Minuit
 from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
@@ -760,6 +758,14 @@ class BayesFit(Fit):
             sampler will not run, but read the log file instead, and make
             sure the data and model setting is the same as the previous run.
         """
+        try:
+            import ultranest
+        except ImportError as e:
+            raise ModuleNotFoundError(
+                'To run the nested sampling of UltraNest, install it by '
+                'by `conda install --channel conda-forge ultranest=4.4.0`'
+            ) from e
+
         if constructor_kwargs is None:
             constructor_kwargs = {}
         else:
@@ -870,6 +876,14 @@ class BayesFit(Fit):
             Extra parameters passed to
             :class:`nautilus.Sampler.run()`.
         """
+        try:
+            import nautilus
+        except ImportError as e:
+            raise ModuleNotFoundError(
+                'To run the nested sampling of Nautilus, install it by '
+                '`pip install nautilus-sampler==1.0.5`'
+            ) from e
+
         if constructor_kwargs is None:
             constructor_kwargs = {}
         else:
