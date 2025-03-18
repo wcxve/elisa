@@ -170,6 +170,7 @@ class FitResult(ABC):
         self,
         path: str,
         compress: Literal['gzip', 'bz2', 'lzma'] = 'gzip',
+        **kwargs: dict,
     ) -> None:
         """Save the fit result to a file.
 
@@ -179,6 +180,9 @@ class FitResult(ABC):
             The file path to save fit result.
         compress : {'gzip', 'bz2', 'lzma'}
             The compression algorithm to use.
+        **kwargs : dict
+            Extra parameters passed to :py:func:`gzip.open`,
+            :py:func:`bz2.open`, or :py:func:`lzma.open`.
         """
         if compress == 'gzip':
             open_ = gzip.open
@@ -189,7 +193,7 @@ class FitResult(ABC):
         else:
             raise ValueError(f'unsupported compression algorithm {compress}')
 
-        with open_(path, 'wb') as f:
+        with open_(path, 'wb', **kwargs) as f:
             dill.dump(self, f)
 
     @staticmethod
