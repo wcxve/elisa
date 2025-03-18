@@ -2132,7 +2132,7 @@ def get_model_info(
     comp_latex_mapping = {
         pid: cid_to_latex[cid] for pid, (cid, _) in comp_param.items()
     }
-    comp_latex_mapping |= {pid: '' for pid in aux_params}
+    comp_latex_mapping |= dict.fromkeys(aux_params, '')
 
     # record the LaTeX format of aux parameters
     aux_latex = [params_info[pid].latex for pid in aux_params]
