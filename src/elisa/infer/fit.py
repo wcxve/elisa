@@ -10,10 +10,8 @@ from typing import TYPE_CHECKING
 import dill
 import jax
 import jax.numpy as jnp
-import nautilus
 import numpy as np
 import optimistix as optx
-import ultranest
 from iminuit import Minuit
 from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
@@ -491,9 +489,8 @@ class MaxLikeFit(Fit):
 
         Parameters
         ----------
-        init : array_like or dict, optional
-            Initial guess for the maximum likelihood estimation. The default is
-            as parameters' default values.
+        init : dict, optional
+            Initial guess for the maximum likelihood estimation.
         method : {'minuit', 'lm', 'ns'}, optional
             Optimization algorithm used to find the MLE.
             Available options are:
@@ -520,14 +517,11 @@ class MaxLikeFit(Fit):
         MLEResult
             The MLE result.
         """
-        if isinstance(init, (np.ndarray, jax.Array, Sequence)):
-            init_unconstr = self._helper.constr_arr_to_unconstr_arr(init)
-        elif isinstance(init, dict):
-            init_unconstr = self._helper.constr_dic_to_unconstr_arr(init)
-        elif init is None:
-            init_unconstr = self._helper.free_default['unconstr_arr']
+        if init is None:
+            init = self._helper.free_default['constr_dic']
         else:
-            raise TypeError('params must be a array, sequence, or mapping')
+            init = self._helper.free_default['constr_dic'] | dict(init)
+        init_unconstr = self._helper.constr_dic_to_unconstr_arr(init)
 
         max_steps = 131072 if max_steps is None else int(max_steps)
 
@@ -809,6 +803,14 @@ class BayesFit(Fit):
             sampler will not run, but read the log file instead, and make
             sure the data and model setting is the same as the previous run.
         """
+        try:
+            import ultranest
+        except ImportError as e:
+            raise ModuleNotFoundError(
+                'To run the nested sampling of UltraNest, install it by '
+                'by `conda install --channel conda-forge ultranest=4.4.0`'
+            ) from e
+
         if constructor_kwargs is None:
             constructor_kwargs = {}
         else:
@@ -919,6 +921,14 @@ class BayesFit(Fit):
             Extra parameters passed to
             :class:`nautilus.Sampler.run()`.
         """
+        try:
+            import nautilus
+        except ImportError as e:
+            raise ModuleNotFoundError(
+                'To run the nested sampling of Nautilus, install it by '
+                '`pip install nautilus-sampler==1.0.5`'
+            ) from e
+
         if constructor_kwargs is None:
             constructor_kwargs = {}
         else:

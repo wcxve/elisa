@@ -15,11 +15,9 @@ import astropy.units as u
 import dill
 import jax
 import jax.numpy as jnp
-import nautilus
 import numpy as np
 import numpyro
 import scipy.stats as stats
-import ultranest
 from astropy.cosmology import Planck18
 from iminuit import Minuit
 from iminuit.util import Matrix as CovarMatrix
@@ -37,7 +35,7 @@ from elisa.util.misc import make_pretty_table
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
-    from typing import Literal
+    from typing import Any, Literal
 
     from arviz.stats.stats_utils import ELPDData
     from astropy.cosmology.flrw.lambdacdm import LambdaCDM
@@ -49,9 +47,6 @@ if TYPE_CHECKING:
     from elisa.infer.helper import Helper
     from elisa.plot.plotter import Plotter
     from elisa.util.typing import JAXArray
-
-ReactiveNestedSampler = ultranest.ReactiveNestedSampler
-Sampler = nautilus.Sampler
 
 
 class FitResult(ABC):
@@ -175,6 +170,7 @@ class FitResult(ABC):
         self,
         path: str,
         compress: Literal['gzip', 'bz2', 'lzma'] = 'gzip',
+        **kwargs: dict,
     ) -> None:
         """Save the fit result to a file.
 
@@ -184,6 +180,9 @@ class FitResult(ABC):
             The file path to save fit result.
         compress : {'gzip', 'bz2', 'lzma'}
             The compression algorithm to use.
+        **kwargs : dict
+            Extra parameters passed to :py:func:`gzip.open`,
+            :py:func:`bz2.open`, or :py:func:`lzma.open`.
         """
         if compress == 'gzip':
             open_ = gzip.open
@@ -194,7 +193,7 @@ class FitResult(ABC):
         else:
             raise ValueError(f'unsupported compression algorithm {compress}')
 
-        with open_(path, 'wb') as f:
+        with open_(path, 'wb', **kwargs) as f:
             dill.dump(self, f)
 
     @staticmethod
@@ -604,7 +603,7 @@ class MLEResult(FitResult):
             The keys are the names of the function results, and the values are
             the functions whose input is a dict of model parameters.
         method : {'profile', 'boot'}, optional
-            Method used to calculate confidence. Available options are:
+            Method for calculating confidence intervals. Available options are:
 
                 * ``'profile'``: use Minos algorithm of Minuit to find the
                   confidence intervals based on the profile likelihood
@@ -638,7 +637,7 @@ class MLEResult(FitResult):
         fn = self._check_fn(fn)
         rtol_keys = tuple(fn.keys()) + tuple(composite)
         if isinstance(rtol, float):
-            rtol = {k: rtol for k in rtol_keys}
+            rtol = dict.fromkeys(rtol_keys, rtol)
         else:
             rtol = jax.tree.map(float, dict(rtol))
             for k in rtol_keys:
@@ -681,6 +680,10 @@ class MLEResult(FitResult):
         vars_names = params + list(fn.keys())
         vars_mle = {k: v for k, v in params_mle.items() if k in vars_names}
         vars_mle |= {k: v(params_mle) for k, v in fn.items()}
+        params_se = {k: v[1] for k, v in self._mle.items()}
+        fn_covar = self.covar(params=(), fn=fn, method='hess')
+        vars_se = {k: v for k, v in params_se.items() if k in vars_names}
+        vars_se |= {k: np.sqrt(fn_covar.matrix[k, k]) for k, v in fn.items()}
         errors = {
             k: (intervals[k][0] - vars_mle[k], intervals[k][1] - vars_mle[k])
             for k in vars_names
@@ -688,6 +691,7 @@ class MLEResult(FitResult):
 
         return ConfidenceInterval(
             mle=_format_result(vars_mle, vars_names),
+            se=_format_result(vars_se, vars_names),
             intervals=_format_result(intervals, vars_names),
             errors=_format_result(errors, vars_names),
             cl=1.0 - 2.0 * stats.norm.sf(cl) if cl >= 1.0 else cl,
@@ -973,7 +977,7 @@ class MLEResult(FitResult):
             fn_dic = {d: factory(d) for d in mapping.values()}
 
         cov = self.covar(params=(), fn=fn_dic, method='hess')
-        std = {k: np.sqrt(cov.matrix[k, k]) for k in fn_dic.keys()}
+        se = {k: np.sqrt(cov.matrix[k, k]) for k in fn_dic.keys()}
 
         if method == 'profile':
             if params is not None:
@@ -987,7 +991,7 @@ class MLEResult(FitResult):
                 return _
 
             fn_dic = jax.tree.map(transform, fn_dic)
-            rtol = {k: 1e-8 for k in fn_dic.keys()}
+            rtol = dict.fromkeys(fn_dic.keys(), 1e-08)
             intervals, status = self._ci_fn(fn_dic, cl, rtol=rtol)
             intervals = jax.tree.map(jnp.exp, intervals)
         elif method == 'boot':
@@ -996,8 +1000,8 @@ class MLEResult(FitResult):
             raise ValueError("method must be either 'profile' or 'boot'")
 
         if comps:
-            std = {
-                k: {c: std[f'{k}_{c}'] for c in mle_flux[k].keys()}
+            se = {
+                k: {c: se[f'{k}_{c}'] for c in mle_flux[k].keys()}
                 for k in mapping.values()
             }
             intervals = {
@@ -1024,7 +1028,7 @@ class MLEResult(FitResult):
         convert = lambda x: (x if x is None else converter(x * unit))
 
         intervals = {k: intervals[v] for k, v in mapping.items()}
-        std = {k: std[v] for k, v in mapping.items()}
+        se = {k: se[v] for k, v in mapping.items()}
         errors = jax.tree.map(
             lambda x, y: (y[0] - x, y[1] - x), mle_flux, intervals
         )
@@ -1036,7 +1040,7 @@ class MLEResult(FitResult):
 
         return {
             'mle': jax.tree.map(convert, mle_flux),
-            'std': jax.tree.map(convert, std),
+            'se': jax.tree.map(convert, se),
             'intervals': jax.tree.map(convert, intervals),
             'errors': jax.tree.map(convert, errors),
             'cl': cl,
@@ -1078,7 +1082,7 @@ class MLEResult(FitResult):
             ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
             The default is 1.
         method : {'profile', 'boot'}, optional
-            Method used to calculate confidence. Available options are:
+            Method for calculating confidence intervals. Available options are:
 
                 * ``'profile'``: use Minos algorithm of Minuit to find the
                   confidence intervals based on the profile likelihood
@@ -1152,7 +1156,7 @@ class MLEResult(FitResult):
             ``cl=1`` produces a 1-sigma or 68.3% confidence interval.
             The default is 1.
         method : {'profile', 'boot'}, optional
-            Method used to calculate confidence. Available options are:
+            Method for calculating confidence intervals. Available options are:
 
                 * ``'profile'``: use Minos algorithm of Minuit to find the
                   confidence intervals based on the profile likelihood
@@ -1233,7 +1237,7 @@ class MLEResult(FitResult):
             For example, ``cl=1`` produces a 1-sigma or 68.3% confidence
             interval. The default is 1.
         method : {'profile', 'boot'}, optional
-            Method used to calculate confidence. Available options are:
+            Method for calculating confidence intervals. Available options are:
 
                 * ``'profile'``: use Minos algorithm of Minuit to find the
                   confidence intervals based on the profile likelihood
@@ -1338,14 +1342,23 @@ class PosteriorResult(FitResult):
 
     def __init__(
         self,
-        sampler: MCMC | NestedSampler | ReactiveNestedSampler | Sampler,
+        sampler: MCMC | NestedSampler | Any,
         helper: Helper,
         fit: BayesFit,
     ):
-        if not isinstance(
-            sampler, (MCMC, NestedSampler, ReactiveNestedSampler, Sampler)
-        ):
-            raise ValueError(f'unknown sampler type {type(sampler)}')
+        try:
+            import ultranest
+
+            has_ultranest = True
+        except ImportError:
+            has_ultranest = False
+
+        try:
+            import nautilus
+
+            has_nautilus = True
+        except ImportError:
+            has_nautilus = False
 
         super().__init__(helper)
         self._fit = fit
@@ -1353,10 +1366,14 @@ class PosteriorResult(FitResult):
             self._init_from_numpyro(sampler)
         elif isinstance(sampler, NestedSampler):
             self._init_from_jaxns(sampler)
-        elif isinstance(sampler, ReactiveNestedSampler):
+        elif has_ultranest and isinstance(
+            sampler, ultranest.ReactiveNestedSampler
+        ):
             self._init_from_ultranest(sampler)
-        else:
+        elif has_nautilus and isinstance(sampler, nautilus.Sampler):
             self._init_from_nautilus(sampler)
+        else:
+            raise ValueError('unknown sampler')
 
     def __repr__(self):
         tabs = self._tabs()
@@ -2277,13 +2294,13 @@ class PosteriorResult(FitResult):
 
         # effective sample size
         ess = int(result.ESS)
-        self._ess = {p: ess for p in self._helper.params_names['all']}
+        self._ess = dict.fromkeys(self._helper.params_names['all'], ess)
         # relative mcmc efficiency
         self._reff = float(ess / result.total_num_samples)
         # model evidence
         self._lnZ = (float(result.log_Z_mean), float(result.log_Z_uncert))
 
-    def _init_from_ultranest(self, sampler: ReactiveNestedSampler):
+    def _init_from_ultranest(self, sampler):
         result = sampler._transform_back(sampler.results['samples'])
         nsamples = len(sampler.results['samples'])
         ncores = jax.local_device_count()
@@ -2296,14 +2313,14 @@ class PosteriorResult(FitResult):
         attrs = {
             'elisa_version': __version__,
             'inference_library': 'ultranest',
-            'inference_library_version': ultranest.__version__,
+            'inference_library_version': metadata.version('ultranest'),
         }
 
         self._generate_idata(samples, attrs)
 
         # effective sample size
         ess = int(sampler.results['ess'])
-        self._ess = {p: ess for p in self._helper.params_names['all']}
+        self._ess = dict.fromkeys(self._helper.params_names['all'], ess)
         # relative mcmc efficiency
         self._reff = float(ess / nsamples)
         # model evidence
@@ -2312,7 +2329,7 @@ class PosteriorResult(FitResult):
             float(sampler.results['logzerr']),
         )
 
-    def _init_from_nautilus(self, sampler: Sampler):
+    def _init_from_nautilus(self, sampler):
         result = sampler.posterior(equal_weight=True)[0]
         result = sampler._transform_back(result)
         ncores = jax.local_device_count()
@@ -2326,15 +2343,15 @@ class PosteriorResult(FitResult):
         # attrs for each group of arviz.InferenceData
         attrs = {
             'elisa_version': __version__,
-            'inference_library': 'nautilus',
-            'inference_library_version': nautilus.__version__,
+            'inference_library': 'nautilus-sampler',
+            'inference_library_version': metadata.version('nautilus-sampler'),
         }
 
         self._generate_idata(samples, attrs)
 
         # effective sample size
         ess = int(sampler.n_eff)
-        self._ess = {p: ess for p in self._helper.params_names['all']}
+        self._ess = dict.fromkeys(self._helper.params_names['all'], ess)
         # relative mcmc efficiency
         total_sample = len(sampler.posterior(equal_weight=False)[0])
         self._reff = float(ess / total_sample)
@@ -2634,7 +2651,10 @@ class ConfidenceInterval(NamedTuple):
     """Confidence interval result."""
 
     mle: dict[str, float]
-    """MLE of the parameters."""
+    """The maximum likelihood estimation."""
+
+    se: dict[str, float]
+    """The standard errors of the MLE, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[float, float]]
     """The confidence intervals."""
@@ -2665,10 +2685,10 @@ class MLEFlux(NamedTuple):
     """Whether the flux is in energy flux. False for photon flux."""
 
     mle: dict[str, Q] | dict[str, dict[str, Q]]
-    """The model flux at MLE."""
+    """The maximum likelihood estimation of flux."""
 
-    std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The errors of the model flux, calculated from Hessian matrix."""
+    se: dict[str, Q] | dict[str, dict[str, Q]]
+    """The standard errors of MLE, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model flux."""
@@ -2702,10 +2722,10 @@ class MLELumin(NamedTuple):
     """Cosmology model used to calculate luminosity."""
 
     mle: dict[str, Q] | dict[str, dict[str, Q]]
-    """The model luminosity at MLE."""
+    """The maximum likelihood estimation of luminosity."""
 
-    std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The errors of the model luminosity, calculated from Hessian matrix."""
+    se: dict[str, Q] | dict[str, dict[str, Q]]
+    """The standard errors of MLE, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model luminosity."""
@@ -2742,10 +2762,10 @@ class MLEEiso(NamedTuple):
     """Cosmology model used to calculate Eiso."""
 
     mle: dict[str, Q] | dict[str, dict[str, Q]]
-    """The model Eiso at MLE."""
+    """The maximum likelihood estimation of Eiso."""
 
-    std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The errors of the model Eiso, calculated from Hessian matrix."""
+    se: dict[str, Q] | dict[str, dict[str, Q]]
+    """The standard errors of MLE, calculated from Hessian matrix."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
     """The confidence intervals of the model Eiso."""
@@ -2767,7 +2787,7 @@ class BootstrapResult(NamedTuple):
     """Parametric bootstrap result."""
 
     mle: dict
-    """MLE of the model parameters."""
+    """The maximum likelihood estimation."""
 
     data: dict
     """Simulation data based on MLE."""
@@ -2798,7 +2818,7 @@ class CredibleInterval(NamedTuple):
     """Credible interval result."""
 
     median: dict[str, float]
-    """Median of the parameters."""
+    """Median of the posterior distribution."""
 
     intervals: dict[str, tuple[float, float]]
     """The credible intervals."""
@@ -2829,19 +2849,19 @@ class PosteriorFlux(NamedTuple):
     """Whether the flux is in energy flux. False for photon flux."""
 
     mean: dict[str, Q] | dict[str, dict[str, Q]]
-    """The mean flux."""
+    """The posterior mean of the flux."""
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The standard deviation of flux."""
+    """The standard deviation of posterior distribution of flux."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
-    """The median flux."""
+    """The posterior median of the flux."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The credible intervals of the model flux."""
+    """The credible intervals of the flux."""
 
     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The credible intervals of the model flux in error form."""
+    """The credible intervals of the flux in error form."""
 
     cl: float
     """The credible level."""
@@ -2869,19 +2889,19 @@ class PosteriorLumin(NamedTuple):
     """Cosmology model used to calculate luminosity."""
 
     mean: dict[str, Q] | dict[str, dict[str, Q]]
-    """The mean luminosity."""
+    """The posterior mean of luminosity."""
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The standard deviation of luminosity."""
+    """The posterior standard deviation of the luminosity."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
-    """The median luminosity."""
+    """The posterior median of the luminosity."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The credible intervals of the model luminosity."""
+    """The credible intervals of the luminosity."""
 
     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The credible intervals of the model luminosity in error form."""
+    """The credible intervals of the luminosity in error form."""
 
     cl: float
     """The credible level."""
@@ -2912,19 +2932,19 @@ class PosteriorEiso(NamedTuple):
     """Cosmology model used to calculate Eiso."""
 
     mean: dict[str, Q] | dict[str, dict[str, Q]]
-    """The mean Eiso."""
+    """The posterior mean of the Eiso."""
 
     std: dict[str, Q] | dict[str, dict[str, Q]]
-    """The standard deviation of Eiso."""
+    """The posterior standard deviation of the Eiso."""
 
     median: dict[str, Q] | dict[str, dict[str, Q]]
-    r"""The median Eiso."""
+    r"""The posterior median of the Eiso."""
 
     intervals: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The credible intervals of the model Eiso."""
+    """The credible intervals of the Eiso."""
 
     errors: dict[str, tuple[Q, Q]] | dict[str, dict[str, tuple[Q, Q]]]
-    """The credible intervals of the model Eiso in error form."""
+    """The credible intervals of the Eiso in error form."""
 
     cl: float
     """The credible level."""

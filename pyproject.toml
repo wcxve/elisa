@@ -34,9 +34,8 @@ dependencies = [
     "jax>=0.4.28,<=0.5.2; python_version >= '3.10'",
     "jaxns==2.6.7",
     "matplotlib",
-    "nautilus-sampler==1.0.5",
     "numpy",
-    "numpyro>=0.16.1,<=0.17.0",
+    "numpyro>=0.16.1,<=0.18.0",
     "optimistix>=0.0.8,<=0.0.10",
     "prettytable<=3.15.1",
     "quadax>=0.2.1,<=0.2.6",
@@ -45,12 +44,12 @@ dependencies = [
     "seaborn<=0.13.2",
     "tinygp<=0.3.0",
     "tqdm",
-    "ultranest==4.4.0",
 ]
 
 
 [project.optional-dependencies]
 xspec = ["xspex"]
+nested_sampler = ["nautilus-sampler==1.0.5", "ultranest==4.4.0"]
 test = ["coverage[toml]", "pytest", "pytest-cov"]
 docs = [
     "ipywidgets",
