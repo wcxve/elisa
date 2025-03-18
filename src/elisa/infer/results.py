@@ -181,7 +181,7 @@ class FitResult(ABC):
         compress : {'gzip', 'bz2', 'lzma'}
             The compression algorithm to use.
         **kwargs : dict
-            Extra parameters passed to :`gzip.open`, `bz2.open` 
+            Extra parameters passed to :`gzip.open`, `bz2.open`
             or `lzma.open`.
         """
         if compress == 'gzip':
