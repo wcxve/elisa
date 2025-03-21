@@ -763,7 +763,7 @@ class BayesFit(Fit):
         except ImportError as e:
             raise ModuleNotFoundError(
                 'To run the nested sampling of UltraNest, install it by '
-                'by `conda install --channel conda-forge ultranest=4.4.0`'
+                '`conda install --channel conda-forge ultranest=4.4.0`'
             ) from e
 
         if constructor_kwargs is None:
