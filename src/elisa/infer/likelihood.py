@@ -10,7 +10,7 @@ import numpyro
 from jax import lax
 from jax.experimental.sparse import BCSR
 from jax.scipy.special import xlogy
-from numpyro.distributions import Normal, Poisson
+from numpyro.distributions import Exponential, Normal, Poisson
 from numpyro.distributions.util import validate_sample
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 #   for source estimation, which is probably due to the choice of conjugate
 #   prior of Poisson background data.
 #   'lstat' will be included here with a proper prior at some point.
-Statistic = Literal['chi2', 'cstat', 'pstat', 'pgstat', 'wstat']
+Statistic = Literal['chi2', 'cstat', 'pstat', 'pgstat', 'wstat', 'whittle']
 
 _STATISTIC_OPTIONS: frozenset[str] = frozenset(get_args(Statistic))
 _STATISTIC_SPEC_NORMAL: frozenset[str] = frozenset({'chi2'})
@@ -172,6 +172,13 @@ class BetterPoisson(Poisson):
             logp = xlogy(value, self.rate) - self.rate
             gof = xlogy(value, value) - value
             return jnp.clip(logp - gof, a_max=0.0)
+
+
+class BetterExponential(Exponential):
+    @validate_sample
+    def log_prob(self, value):
+        gof = -jnp.log(value) - 1.0
+        return jnp.log(self.rate) - self.rate * value - gof
 
 
 def _get_resp_matrix(data: FixedData) -> JAXArray | BCSR:
@@ -446,5 +453,43 @@ def wstat(
             numpyro.deterministic(
                 name=f'{name}_loglike', value=loglike_on + loglike_off
             )
+
+    return likelihood
+
+
+def whittle(
+    data: FixedData,
+    model: ModelCompiledFn,
+) -> Callable[[ParamNameValMapping, bool], None]:
+    """Whittle likelihood for power spectrum (periodogram)."""
+    name = str(data.name)
+    power = jnp.array(data.net_counts, float)
+    freq_bins = jnp.array(data.photon_egrid, float)
+    df = jnp.diff(freq_bins)
+
+    def likelihood(
+        params: ParamNameValMapping,
+        predictive: bool = False,
+    ) -> None:
+        """Whittle likelihood defined via numpyro primitives."""
+        pmodel = model(freq_bins, params)
+        numpyro.deterministic(name, pmodel / df)
+        numpyro.deterministic(f'{name}_Non_model', pmodel)
+        pdata = numpyro.primitives.mutable(f'{name}_Non_data', power)
+
+        with numpyro.plate(f'{name}_plate', len(power)):
+            dist_on = BetterExponential(1.0 / pmodel)
+            numpyro.sample(
+                name=f'{name}_Non',
+                fn=dist_on,
+                obs=None if predictive else pdata,
+            )
+
+        # record log likelihood into chains to avoid re-computation
+        if not predictive:
+            loglike_on = numpyro.deterministic(
+                name=f'{name}_Non_loglike', value=dist_on.log_prob(pdata)
+            )
+            numpyro.deterministic(name=f'{name}_loglike', value=loglike_on)
 
     return likelihood
