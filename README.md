@@ -3,7 +3,7 @@
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/astro-elisa?color=blue&logo=Python&logoColor=white&style=for-the-badge)](https://pypi.org/project/astro-elisa)
 [![PyPI - Version](https://img.shields.io/pypi/v/astro-elisa?color=blue&logo=PyPI&logoColor=white&style=for-the-badge)](https://pypi.org/project/astro-elisa)
 [![License: GPL v3](https://img.shields.io/github/license/wcxve/elisa?color=blue&logo=open-source-initiative&logoColor=white&style=for-the-badge)](https://www.gnu.org/licenses/gpl-3.0)<br>
-[![Coverage Status](https://img.shields.io/coverallsCoverage/github/wcxve/elisa?logo=Coveralls&logoColor=white&style=for-the-badge)](https://coveralls.io/github/wcxve/elisa)
+[![Coverage Status](https://img.shields.io/codecov/c/github/wcxve/elisa?logo=Codecov&logoColor=white&style=for-the-badge)](https://app.codecov.io/github/wcxve/elisa)
 [![Documentation Status](https://img.shields.io/readthedocs/astro-elisa?logo=Read-the-Docs&logoColor=white&style=for-the-badge)](https://astro-elisa.readthedocs.io/en/latest/?badge=latest)
 
 ``ELISA`` aims to provide a modern and efficient tool to explore and
