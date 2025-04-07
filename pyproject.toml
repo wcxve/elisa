@@ -119,7 +119,7 @@ lint.select = [
 "docs/notebooks/model-building.ipynb" = ["F403", "F405"]
 
 [tool.pytest]
-ini_options.addopts = "--cov=chronpy --cov-report xml"
+ini_options.addopts = "--cov=elisa --cov-report xml"
 
 [tool.coverage.run]
 branch = true
