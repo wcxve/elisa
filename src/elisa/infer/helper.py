@@ -608,7 +608,8 @@ def get_helper(fit: Fit) -> Helper:
     @jax.jit
     def fit_once(i: int, args: tuple) -> tuple:
         """Loop core, fit simulation data once."""
-        sim_data, result, init = args
+        result, init = args
+        sim_data = result['data']
 
         # substitute observation data with simulation data
         new_data = {
@@ -669,10 +670,9 @@ def get_helper(fit: Fit) -> Helper:
         )
         result['valid'] = result['valid'].at[i].set(valid)
 
-        return sim_data, result, init
+        return result, init
 
-    def sim_sequence_fit(
-        sim_data: dict[str, JAXArray],
+    def fit_in_sequence(
         result: dict,
         init: JAXArray,
         run_str: str,
@@ -690,12 +690,11 @@ def get_helper(fit: Fit) -> Helper:
         else:
             fn = fit_once
 
-        fit_jit = jax.jit(lambda *args: lax.fori_loop(0, n, fn, args)[1])
-        result = fit_jit(sim_data, result, init)
+        fit_jit = jax.jit(lambda *args: lax.fori_loop(0, n, fn, args)[0])
+        result = fit_jit(result, init)
         return result
 
-    def sim_parallel_fit(
-        sim_data: dict[str, JAXArray],
+    def fit_in_parallel(
         result: dict,
         init: JAXArray,
         run_str: str,
@@ -716,15 +715,102 @@ def get_helper(fit: Fit) -> Helper:
         else:
             fn = fit_once
 
-        fit_pmap = jax.pmap(lambda *args: lax.fori_loop(0, batch, fn, args)[1])
+        fit_pmap = jax.pmap(lambda *args: lax.fori_loop(0, batch, fn, args)[0])
         reshape = lambda x: x.reshape((n_parallel, -1) + x.shape[1:])
         result = fit_pmap(
-            jax.tree.map(reshape, sim_data),
             jax.tree.map(reshape, result),
             jax.tree.map(reshape, init),
         )
 
         return jax.tree.map(jnp.concatenate, result)
+
+    def batch_fit(
+        init_params: dict[str, JAXArray],
+        data: dict[str, JAXArray],
+        parallel: bool = True,
+        n_parallel: int | None = None,
+        progress: bool = True,
+        update_rate: int = 50,
+        run_str: str = 'Fitting',
+    ) -> dict:
+        """Simulate data and then fit the simulation data.
+
+        Parameters
+        ----------
+        init_params : dict
+            The initial parameters values in constrained space.
+        data : dict
+            The simulation data corresponding to `free_params`.
+        parallel : bool, optional
+            Whether to fit in parallel, by default True.
+        n_parallel : int, optional
+            The number of parallel processes when `parallel` is ``True``.
+            Defaults to ``jax.local_device_count()``.
+        progress : bool, optional
+            Whether to show progress bar, by default True.
+        update_rate : int, optional
+            The update rate of the progress bar, by default 50.
+        run_str : str, optional
+            The string to ahead progress bar during the run when `progress` is
+            True. The default is 'Fitting'.
+
+        Returns
+        -------
+        result : dict
+            The simulation and fitting result.
+        """
+        n_parallel = get_parallel_number(n_parallel)
+
+        init_params = jax.tree.map(jnp.array, init_params)
+        assert set(init_params) == set(params_names)
+
+        # check if all params shapes are the same
+        param_shapes = [np.shape(v)[:-1] for v in init_params.values()]
+        assert all(i == param_shapes[0] for i in param_shapes)
+
+        # the data shape is (nsim, nchan)
+        data_shapes = [np.shape(data[k])[:-1] for k in ndata if k != 'total']
+        assert all(i == data_shapes[0] for i in data_shapes)
+        assert all(len(i) == 1 for i in data_shapes)
+        nsim = data_shapes[0][0]
+
+        # get initial parameters arrays in unconstrained space,
+        init = jnp.array([init_params[k] for k in params_names]).T
+        assert init.ndim <= 2
+        if init.ndim == 2:
+            assert init.shape[0] == nsim
+        if init.ndim == 1:
+            init = jnp.full((nsim, len(init)), init)
+        init = jax.vmap(constr_arr_to_unconstr_arr)(init)
+
+        # fit result container
+        result = {
+            'data': data,
+            'params': {k: jnp.empty(nsim) for k in params_names},
+            'models': {
+                i: jnp.empty((nsim, ndata[k]))
+                for k, v in data_group.items()
+                for i in [k, *map('{}_model'.format, v)]
+            },
+            'deviance': {
+                'total': jnp.empty(nsim),
+                'group': {k: jnp.empty(nsim) for k in data_group},
+                'point': {k: jnp.empty((nsim, ndata[k])) for k in data_group},
+            },
+            'valid': jnp.full(nsim, True, bool),
+        }
+
+        # fit simulation data
+        if parallel:
+            result = fit_in_parallel(
+                result, init, run_str, progress, update_rate, n_parallel
+            )
+        else:
+            result = fit_in_sequence(
+                result, init, run_str, progress, update_rate
+            )
+
+        return result
 
     def simulate_and_fit(
         seed: int,
@@ -767,74 +853,33 @@ def get_helper(fit: Fit) -> Helper:
         result : dict
             The simulation and fitting result.
         """
-        seed = int(seed)
-        free_params = jax.tree.map(jnp.array, free_params)
         model_values = {
             f'{k}_model': model_values[f'{k}_model'] for k in simulators
         }
-        n = int(n)
-        n_parallel = get_parallel_number(n_parallel)
-
-        assert set(free_params) == set(free_names)
-        assert n > 0
-
-        # check if all params shapes are the same
-        shapes = list(jax.tree.map(jnp.shape, free_params).values())
-        assert all(i == shapes[0] for i in shapes)
 
         # TODO: support posterior prediction with n > 1
+        # check if all model shapes are the same
+        shapes = [
+            np.shape(model_values[f'{k}_Non_model'])[:-1]
+            for k in ndata
+            if k != 'total'
+        ]
+        assert all(i == shapes[0] for i in shapes)
         assert not (shapes[0] != () and n > 1)
 
-        # get free parameters arrays in unconstrained space,
-        # used as initial value in optimization
-        to_unconstr = constr_dic_to_unconstr_arr
-        if shapes[0] != ():
-            for _ in range(len(shapes[0])):
-                to_unconstr = jax.jit(jax.vmap(to_unconstr, in_axes=0))
-        init = to_unconstr(free_params)
-
         # simulate data
-        sim_data = simulate(seed, model_values, n)
-
-        if n > 1:
-            init = jnp.full((n, len(init)), init)
-            nsim = n
-        else:
-            nsim = len(init)
-
-        # fit result container
-        result = {
-            'params': {k: jnp.empty(nsim) for k in params_names},
-            'models': {
-                i: jnp.empty((nsim, ndata[k]))
-                for k, v in data_group.items()
-                for i in [k, *map('{}_model'.format, v)]
-            },
-            'deviance': {
-                'total': jnp.empty(nsim),
-                'group': {k: jnp.empty(nsim) for k in data_group},
-                'point': {k: jnp.empty((nsim, ndata[k])) for k in data_group},
-            },
-            'valid': jnp.full(nsim, True, bool),
-        }
+        sim_data = simulate(int(seed), model_values, int(n))
 
         # fit simulation data
-        if parallel:
-            result = sim_parallel_fit(
-                sim_data,
-                result,
-                init,
-                run_str,
-                progress,
-                update_rate,
-                n_parallel,
-            )
-        else:
-            result = sim_sequence_fit(
-                sim_data, result, init, run_str, progress, update_rate
-            )
-        result['data'] = sim_data
-        return result
+        return batch_fit(
+            free_params,
+            sim_data,
+            parallel,
+            n_parallel,
+            progress,
+            update_rate,
+            run_str,
+        )
 
     # =============== functions used in simulation procedure ==================
 
@@ -880,6 +925,7 @@ def get_helper(fit: Fit) -> Helper:
         unconstr_dic_to_params_dic=unconstr_dic_to_params_dic,
         simulate=simulate,
         simulate_and_fit=simulate_and_fit,
+        batch_fit=batch_fit,
     )
 
 
@@ -1022,3 +1068,9 @@ class Helper(NamedTuple):
         [int, dict, dict, int, bool, int, bool, int, str], dict
     ]
     """Function to simulate data and then fit the simulation data."""
+
+    batch_fit: Callable[
+        [dict[str, JAXArray], dict[str, JAXArray], bool, int, bool, int, str],
+        dict,
+    ]
+    """Function to fit simulation data."""
