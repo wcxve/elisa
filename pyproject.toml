@@ -118,6 +118,9 @@ lint.select = [
 [tool.ruff.lint.per-file-ignores]
 "docs/notebooks/model-building.ipynb" = ["F403", "F405"]
 
+[tool.pytest]
+ini_options.addopts = "--cov=elisa --cov-report xml"
+
 [tool.coverage.run]
 branch = true
 parallel = true
