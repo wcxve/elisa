@@ -106,8 +106,8 @@ class Fit(ABC):
         cname = [comp.name for comp in comps]
         name_with_data_suffix = list(map(''.join, zip(cname, data_suffix)))
         num_suffix = build_namespace(name_with_data_suffix)['suffix_num']
-        cname = add_suffix(cname, num_suffix, True, True)
-        cname = add_suffix(cname, data_suffix, False, True)
+        cname = add_suffix(cname, num_suffix, True)
+        cname = add_suffix(cname, data_suffix, False)
         cid_to_name = dict(zip(cid, cname))
         latex = [comp.latex for comp in comps]
         latex = add_suffix(latex, num_suffix, True, latex=True)

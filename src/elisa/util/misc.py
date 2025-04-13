@@ -28,25 +28,76 @@ if TYPE_CHECKING:
 
     T = TypeVar('T')
 
-_SUPERSCRIPT = dict(
-    zip(
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()',
-        'ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁⱽᵂᕽʸᶻᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ᐟ⁼⁽⁾',
-    )
-)
-_SUBSCRIPT = dict(
+UNICODE_SUBSCRIPT = dict(
     zip(
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()',
         'ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢₐᵦ𝒸𝒹ₑ𝒻𝓰ₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ𝓌ₓᵧ𝓏₀₁₂₃₄₅₆₇₈₉₊₋⸝₌₍₎',
     )
 )
+UNICODE_SUPERSCRIPT = dict(
+    zip(
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()',
+        'ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁⱽᵂᕽʸᶻᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ᐟ⁼⁽⁾',
+    )
+)
+UNICODE_SUFFIX = False
+PLAIN_SUBSCRIPT_TEMPLATE = '_%s'
+PLAIN_SUPERSCRIPT_TEMPLATE = '[%s]'
+LATEX_SUBSCRIPT_TEMPLATE = '_{%s}'
+LATEX_SUPERSCRIPT_TEMPLATE = '^{%s}'
+
+
+def set_suffix_config(
+    unicode: bool = False,
+    plain_subscript_template: str = '_%s',
+    plain_superscript_template: str = '[%s]',
+    latex_subscript_template: str = '_{%s}',
+    latex_superscript_template: str = '^{%s}',
+) -> None:
+    """Set suffix configuration.
+
+    Parameters
+    ----------
+    unicode : bool, optional
+        If True, use unicode suffix. The default is False.
+    plain_subscript_template : str, optional
+        The template for plain subscript. The default is ``'_%s'``.
+    plain_superscript_template : str, optional
+        The template for plain superscript. The default is ``'[%s]'``.
+    latex_subscript_template : str, optional
+        The template for LaTeX subscript. The default is ``'_{%s}'``.
+    latex_superscript_template : str, optional
+        The template for LaTeX superscript. The default is ``'^{%s}'``.
+    """
+    # test if templates are valid
+    try:
+        _ = plain_subscript_template % 'test'
+        _ = plain_superscript_template % 'test'
+        _ = latex_subscript_template % 'test'
+        _ = latex_superscript_template % 'test'
+    except TypeError as e:
+        raise ValueError(
+            'subscript and superscript templates must be valid '
+            'Python string formatting templates'
+        ) from e
+
+    global UNICODE_SUFFIX
+    global PLAIN_SUBSCRIPT_TEMPLATE
+    global PLAIN_SUPERSCRIPT_TEMPLATE
+    global LATEX_SUBSCRIPT_TEMPLATE
+    global LATEX_SUPERSCRIPT_TEMPLATE
+    UNICODE_SUFFIX = bool(unicode)
+    PLAIN_SUBSCRIPT_TEMPLATE = plain_subscript_template
+    PLAIN_SUPERSCRIPT_TEMPLATE = plain_superscript_template
+    LATEX_SUBSCRIPT_TEMPLATE = latex_subscript_template
+    LATEX_SUPERSCRIPT_TEMPLATE = latex_superscript_template
 
 
 def add_suffix(
     strings: str | Sequence[str],
     suffix: str | Sequence[str],
-    subscript: bool = True,
-    unicode: bool = False,
+    subscript: bool,
+    unicode: bool | None = None,
     latex: bool = False,
     mathrm: bool = False,
 ) -> str | list[str]:
@@ -57,14 +108,17 @@ def add_suffix(
     strings : sequence of str
         The sequence of strings.
     suffix : sequence of str
-        The sequence of suffixes.
+        The sequence of suffixes. The suffix format can be set by
+        :py:func:`elisa.util.misc.set_suffix_config`.
     subscript : bool, optional
         If True, add suffix as subscript, otherwise superscript.
         The default is True.
     latex : bool, optional
         If True, add suffix following LaTeX format. The default is False.
     unicode : bool, optional
-        If True, add suffix with Unicode string. The default is False.
+        If True, add suffix with Unicode string. Defaults to
+        ``elisa.util.misc.UNICODE_SUFFIX``, which can be set by
+        :py:func:`elisa.util.misc.set_suffix_config`.
     mathrm : bool, optional
         If True, add suffix in mathrm when latex is True. The default is False.
 
@@ -73,6 +127,9 @@ def add_suffix(
     str or list of str
         The strings with suffix added.
     """
+    if unicode is None:
+        unicode = UNICODE_SUFFIX
+
     return_list = False
 
     if isinstance(strings, str):
@@ -93,26 +150,30 @@ def add_suffix(
     def to_unicode(string: str):
         """Replace suffix with unicode."""
         if subscript:
-            return ''.join(f'{_SUBSCRIPT.get(i, i)}' for i in string)
+            return ''.join(f'{UNICODE_SUBSCRIPT.get(i, i)}' for i in string)
         else:
-            return ''.join(f'{_SUPERSCRIPT.get(i, i)}' for i in string)
+            return ''.join(f'{UNICODE_SUPERSCRIPT.get(i, i)}' for i in string)
 
     if latex:
-        symbol = '_' if subscript else '^'
-        rm = r'\mathrm' if mathrm else ''
-        strings = [
-            rf'{{{i}}}{symbol}{rm}{{{j}}}' if j else i
-            for i, j in zip(strings, suffix)
-        ]
+        if subscript:
+            template = LATEX_SUBSCRIPT_TEMPLATE
+        else:
+            template = LATEX_SUPERSCRIPT_TEMPLATE
+        if mathrm:
+            suffix = [r'\mathrm{' + i + '}' for i in suffix]
+        else:
+            suffix = ['{' + i + '}' for i in suffix]
+        strings = ['{' + i + '}' for i in strings]
     elif unicode:
-        strings = [
-            f'{i}{to_unicode(j)}' if j else i for i, j in zip(strings, suffix)
-        ]
+        template = '%s'
+        suffix = [to_unicode(i) for i in suffix]
     else:
-        symbol = '_' if subscript else '^'
-        strings = [
-            f'{i}{symbol}{j}' if j else i for i, j in zip(strings, suffix)
-        ]
+        if subscript:
+            template = PLAIN_SUBSCRIPT_TEMPLATE
+        else:
+            template = PLAIN_SUPERSCRIPT_TEMPLATE
+
+    strings = [i + template % j if j else i for i, j in zip(strings, suffix)]
 
     if return_list:
         return strings
@@ -143,34 +204,27 @@ def build_namespace(
         A dict of non-duplicate names and suffixes in original name order.
     """
     namespace = []
-    names_ = []
     suffixes_n = []
     counter = {}
 
     for name in names:
-        names_.append(name)
-
         if name not in namespace:
             counter[name] = 1
             namespace.append(name)
         else:
             counter[name] += 1
-            namespace.append(f'{name}#{counter[name]}')
 
         suffixes_n.append(counter[name])
 
     if prime:
         suffixes = [i - 1 for i in suffixes_n]
-        if latex:
-            suffixes = ["'" * n for n in suffixes]
-        else:
-            suffixes = ['"' * (n // 2) + "'" * (n % 2) for n in suffixes]
+        suffixes = ["'" * n for n in suffixes]
     else:
         template = '_{%d}' if latex else '_%d'
         suffixes = [template % n if n > 1 else '' for n in suffixes_n]
 
     return {
-        'namespace': list(map(''.join, zip(names_, suffixes))),
+        'namespace': list(map(''.join, zip(names, suffixes))),
         'suffix_num': [str(n) if n > 1 else '' for n in suffixes_n],
     }
 
