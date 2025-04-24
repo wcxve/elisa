@@ -1040,7 +1040,7 @@ class BayesFit(Fit):
             return sampler.get_samples(group_by_chain=False)
 
         # The following code merges multiple chains from the same sampler
-        # into a single chain to make arviz stats valid, e.g., rhat
+        # into a single chain to make arviz stats valid, e.g., rhat and ess
         if n_parallel >= 2:
             rng_keys = jax.random.split(rng_key, n_parallel)
             traces = jax.pmap(do_mcmc)(rng_keys)
