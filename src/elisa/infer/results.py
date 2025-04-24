@@ -1339,7 +1339,7 @@ class PosteriorResult(FitResult):
     _pit: dict[str, tuple] | None = None
     _params: dict[str, JAXArray] | None = None
     _info_tabs: dict | None = None
-    _last_state: dict | None = None
+    _last_state = None
 
     def __init__(
         self,
@@ -2184,9 +2184,7 @@ class PosteriorResult(FitResult):
 
     @property
     def last_state(self) -> dict:
-        """
-        The final MCMC state at the end of the sampling phase.
-        """
+        """The final MCMC state at the end of the sampling phase."""
         return self._last_state
 
     def _compute_stat(
@@ -2280,7 +2278,7 @@ class PosteriorResult(FitResult):
         self._lnZ = (None, None)
 
         # the final sampling state
-        self._last_state = sampler._last_state
+        self._last_state = sampler.last_state
 
     def _init_from_jaxns(self, sampler: NestedSampler):
         helper = self._helper
