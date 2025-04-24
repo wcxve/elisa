@@ -552,6 +552,7 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
+        post_warmup_state: dict | None = None,
         **nuts_kwargs: dict,
     ) -> PosteriorResult:
         """Run the No-U-Turn Sampler of :mod:`numpyro`.
@@ -576,6 +577,9 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
+        post_warmup_state : dict, optional
+            The state before the sampling phase. If pass PosteriorResult.last_state,
+            `BayesFit.run` will skip the warmup phase and start with the state.
         **nuts_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.NUTS`.
 
@@ -625,6 +629,9 @@ class BayesFit(Fit):
             chain_method=chain_method,
             progress_bar=progress,
         )
+
+        if post_warmup_state is not None:
+            sampler.post_warmup_state = post_warmup_state
 
         sampler.run(
             rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
@@ -967,6 +974,7 @@ class BayesFit(Fit):
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
+        post_warmup_state: dict | None = None,
         **aies_kwargs: dict,
     ) -> PosteriorResult:
         """Affine-Invariant Ensemble Sampling (AIES) of :mod:`numpyro`.
@@ -1003,6 +1011,9 @@ class BayesFit(Fit):
             If `chain_method` is set to ``'parallel'``, this is always False.
         moves : dict, optional
             Moves for the sampler.
+        post_warmup_state : dict, optional
+            The state before the sampling phase. If pass PosteriorResult.last_state,
+            `BayesFit.run` will skip the warmup phase and start with the state.
         **aies_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.AIES`.
 
@@ -1056,6 +1067,9 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
+        if post_warmup_state is not None:
+            sampler.post_warmup_state = post_warmup_state
+
         run_ensemble(
             sampler,
             AIES(**aies_kwargs),
@@ -1080,6 +1094,7 @@ class BayesFit(Fit):
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
+        post_warmup_state: dict | None = None,
         **ess_kwargs: dict,
     ) -> PosteriorResult:
         """Ensemble Slice Sampling (ESS) of :mod:`numpyro`.
@@ -1116,6 +1131,9 @@ class BayesFit(Fit):
             If `chain_method` is set to ``'parallel'``, this is always False.
         moves : dict, optional
             Moves for the sampler.
+        post_warmup_state : dict, optional
+            The state before the sampling phase. If pass PosteriorResult.last_state,
+            `BayesFit.run` will skip the warmup phase and start with the state.
         **ess_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.ESS`.
 
@@ -1166,6 +1184,9 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
+        if post_warmup_state is not None:
+            sampler.post_warmup_state = post_warmup_state
+
         run_ensemble(
             sampler,
             ESS(**ess_kwargs),
@@ -1187,6 +1208,7 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
+        post_warmup_state: dict | None = None,
         **sa_kwargs: dict,
     ) -> PosteriorResult:
         """Run the Sample Adaptive MCMC of :mod:`numpyro`.
@@ -1209,6 +1231,9 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
+        post_warmup_state : dict, optional
+            The state before the sampling phase. If pass PosteriorResult.last_state,
+            `BayesFit.run` will skip the warmup phase and start with the state.
         **sa_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.SA`.
 
@@ -1249,6 +1274,14 @@ class BayesFit(Fit):
             chain_method=chain_method,
             progress_bar=progress,
         )
+
+        if post_warmup_state is not None:
+            sampler.post_warmup_state = post_warmup_state
+
+        sampler.run(
+            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+        )
+        return PosteriorResult(sampler, self._helper, self)
 
 
 # temporarily for ensemble parallelled run
