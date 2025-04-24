@@ -16,6 +16,9 @@ from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
 from numpyro.infer import AIES, ESS, MCMC, NUTS, SA, init_to_value
+from numpyro.infer.ensemble import AIESState, ESSState
+from numpyro.infer.hmc import HMCState
+from numpyro.infer.sa import SAState
 
 from elisa.data.base import FixedData, ObservationData
 from elisa.infer.helper import Helper, get_helper
@@ -552,6 +555,7 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
+        post_warmup_state: HMCState | None = None,
         **nuts_kwargs: dict,
     ) -> PosteriorResult:
         """Run the No-U-Turn Sampler of :mod:`numpyro`.
@@ -576,6 +580,9 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
+        post_warmup_state : HMCState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
         **nuts_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.NUTS`.
 
@@ -625,6 +632,11 @@ class BayesFit(Fit):
             chain_method=chain_method,
             progress_bar=progress,
         )
+
+        if post_warmup_state is not None:
+            if not isinstance(post_warmup_state, HMCState):
+                raise ValueError('post_warmup_state must be HMCState')
+            sampler.post_warmup_state = post_warmup_state
 
         sampler.run(
             rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
@@ -967,6 +979,7 @@ class BayesFit(Fit):
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
+        post_warmup_state: AIESState | None = None,
         **aies_kwargs: dict,
     ) -> PosteriorResult:
         """Affine-Invariant Ensemble Sampling (AIES) of :mod:`numpyro`.
@@ -1003,6 +1016,9 @@ class BayesFit(Fit):
             If `chain_method` is set to ``'parallel'``, this is always False.
         moves : dict, optional
             Moves for the sampler.
+        post_warmup_state : AIESState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
         **aies_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.AIES`.
 
@@ -1045,52 +1061,34 @@ class BayesFit(Fit):
         else:
             aies_kwargs['moves'] = moves
 
-        if chain_method == 'parallel':
-            aies_kernel = AIES(**aies_kwargs)
+        rng_key = jax.random.PRNGKey(self._helper.seed['mcmc'])
 
-            def do_mcmc(rng_key):
-                mcmc = MCMC(
-                    aies_kernel,
-                    num_warmup=warmup,
-                    num_samples=steps,
-                    num_chains=chains,
-                    chain_method='vectorized',
-                    progress_bar=False,
-                )
-                mcmc.run(
-                    rng_key,
-                    init_params=init,
-                )
-                return mcmc.get_samples(group_by_chain=True)
+        sampler = MCMC(
+            AIES(**aies_kwargs),
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method='vectorized',
+            progress_bar=progress,
+        )
 
-            rng_keys = jax.random.split(
-                jax.random.PRNGKey(self._helper.seed['mcmc']),
-                get_parallel_number(n_parallel),
-            )
-            traces = jax.pmap(do_mcmc)(rng_keys)
-            trace = {k: np.concatenate(v) for k, v in traces.items()}
+        if post_warmup_state is not None:
+            if not isinstance(post_warmup_state, AIESState):
+                raise ValueError('post_warmup_state must be AIESState')
+            sampler.post_warmup_state = post_warmup_state
 
-            sampler = MCMC(
-                aies_kernel,
-                num_warmup=warmup,
-                num_samples=steps,
-            )
-            sampler._states = {sampler._sample_field: trace}
+        run_ensemble(
+            sampler,
+            AIES(**aies_kwargs),
+            rng_key,
+            warmup,
+            steps,
+            chains,
+            init,
+            chain_method,
+            n_parallel,
+        )
 
-        else:
-            sampler = MCMC(
-                AIES(**aies_kwargs),
-                num_warmup=warmup,
-                num_samples=steps,
-                num_chains=chains,
-                chain_method=chain_method,
-                progress_bar=progress,
-            )
-
-            sampler.run(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
-            )
         return PosteriorResult(sampler, self._helper, self)
 
     def ess(
@@ -1103,6 +1101,7 @@ class BayesFit(Fit):
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
+        post_warmup_state: ESSState | None = None,
         **ess_kwargs: dict,
     ) -> PosteriorResult:
         """Ensemble Slice Sampling (ESS) of :mod:`numpyro`.
@@ -1139,6 +1138,9 @@ class BayesFit(Fit):
             If `chain_method` is set to ``'parallel'``, this is always False.
         moves : dict, optional
             Moves for the sampler.
+        post_warmup_state : ESSState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
         **ess_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.ESS`.
 
@@ -1178,52 +1180,33 @@ class BayesFit(Fit):
         else:
             ess_kwargs['moves'] = moves
 
-        if chain_method == 'parallel':
-            ess_kernel = ESS(**ess_kwargs)
+        rng_key = jax.random.PRNGKey(self._helper.seed['mcmc'])
 
-            def do_mcmc(rng_key):
-                mcmc = MCMC(
-                    ess_kernel,
-                    num_warmup=warmup,
-                    num_samples=steps,
-                    num_chains=chains,
-                    chain_method='vectorized',
-                    progress_bar=False,
-                )
-                mcmc.run(
-                    rng_key,
-                    init_params=init,
-                )
-                return mcmc.get_samples(group_by_chain=True)
+        sampler = MCMC(
+            ESS(**ess_kwargs),
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method='vectorized',
+            progress_bar=progress,
+        )
 
-            rng_keys = jax.random.split(
-                jax.random.PRNGKey(self._helper.seed['mcmc']),
-                get_parallel_number(n_parallel),
-            )
-            traces = jax.pmap(do_mcmc)(rng_keys)
-            trace = {k: np.concatenate(v) for k, v in traces.items()}
+        if post_warmup_state is not None:
+            if not isinstance(post_warmup_state, ESSState):
+                raise ValueError('post_warmup_state must be ESSState')
+            sampler.post_warmup_state = post_warmup_state
 
-            sampler = MCMC(
-                ess_kernel,
-                num_warmup=warmup,
-                num_samples=steps,
-            )
-            sampler._states = {sampler._sample_field: trace}
-
-        else:
-            sampler = MCMC(
-                ESS(**ess_kwargs),
-                num_warmup=warmup,
-                num_samples=steps,
-                num_chains=chains,
-                chain_method=chain_method,
-                progress_bar=progress,
-            )
-
-            sampler.run(
-                rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-                init_params=init,
-            )
+        run_ensemble(
+            sampler,
+            ESS(**ess_kwargs),
+            rng_key,
+            warmup,
+            steps,
+            chains,
+            init,
+            chain_method,
+            n_parallel,
+        )
         return PosteriorResult(sampler, self._helper, self)
 
     def sa(
@@ -1234,6 +1217,7 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
+        post_warmup_state: SAState | None = None,
         **sa_kwargs: dict,
     ) -> PosteriorResult:
         """Run the Sample Adaptive MCMC of :mod:`numpyro`.
@@ -1256,6 +1240,9 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
+        post_warmup_state : SAState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
         **sa_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.SA`.
 
@@ -1297,7 +1284,59 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
+        if post_warmup_state is not None:
+            if not isinstance(post_warmup_state, SAState):
+                raise ValueError('post_warmup_state must be SAState')
+            sampler.post_warmup_state = post_warmup_state
+
         sampler.run(
             rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
         )
         return PosteriorResult(sampler, self._helper, self)
+
+
+# temporarily for ensemble parallelled run
+def run_ensemble(
+    sampler,
+    kernel,
+    rng_key,
+    warmup,
+    steps,
+    chains,
+    init_params,
+    chain_method='vectorized',
+    n_parallel=None,
+):
+    if chain_method == 'parallel':
+        paral_mcmc = MCMC(
+            kernel,
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method='vectorized',
+            progress_bar=False,
+        )
+
+        if sampler.post_warmup_state is not None:
+            paral_mcmc.post_warmup_state = sampler.post_warmup_state
+
+        def do_mcmc(rng_key):
+            paral_mcmc.run(
+                rng_key,
+                init_params=init_params,
+            )
+            return paral_mcmc.get_samples(group_by_chain=False)
+
+        rng_keys = jax.random.split(
+            rng_key,
+            get_parallel_number(n_parallel),
+        )
+        traces = jax.pmap(do_mcmc)(rng_keys)
+        # trace = {k: np.concatenate(v) for k, v in traces.items()}
+        sampler._states = {sampler._sample_field: traces}
+
+    else:
+        sampler.run(
+            rng_key=rng_key,
+            init_params=init_params,
+        )
