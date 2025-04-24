@@ -16,6 +16,9 @@ from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
 from numpyro.infer import AIES, ESS, MCMC, NUTS, SA, init_to_value
+from numpyro.infer.ensemble import AIESState, ESSState
+from numpyro.infer.hmc import HMCState
+from numpyro.infer.sa import SAState
 
 from elisa.data.base import FixedData, ObservationData
 from elisa.infer.helper import Helper, get_helper
@@ -552,7 +555,7 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
-        post_warmup_state: dict | None = None,
+        post_warmup_state: HMCState | None = None,
         **nuts_kwargs: dict,
     ) -> PosteriorResult:
         """Run the No-U-Turn Sampler of :mod:`numpyro`.
@@ -577,9 +580,9 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-        post_warmup_state : dict, optional
-            The state before the sampling phase. If pass PosteriorResult.last_state,
-            `BayesFit.run` will skip the warmup phase and start with the state.
+        post_warmup_state : HMCState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
         **nuts_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.NUTS`.
 
@@ -631,6 +634,8 @@ class BayesFit(Fit):
         )
 
         if post_warmup_state is not None:
+            if not isinstance(post_warmup_state, HMCState):
+                raise ValueError('post_warmup_state must be HMCState')
             sampler.post_warmup_state = post_warmup_state
 
         sampler.run(
@@ -974,7 +979,7 @@ class BayesFit(Fit):
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
-        post_warmup_state: dict | None = None,
+        post_warmup_state: AIESState | None = None,
         **aies_kwargs: dict,
     ) -> PosteriorResult:
         """Affine-Invariant Ensemble Sampling (AIES) of :mod:`numpyro`.
@@ -1011,9 +1016,9 @@ class BayesFit(Fit):
             If `chain_method` is set to ``'parallel'``, this is always False.
         moves : dict, optional
             Moves for the sampler.
-        post_warmup_state : dict, optional
-            The state before the sampling phase. If pass PosteriorResult.last_state,
-            `BayesFit.run` will skip the warmup phase and start with the state.
+        post_warmup_state : AIESState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
         **aies_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.AIES`.
 
@@ -1068,6 +1073,8 @@ class BayesFit(Fit):
         )
 
         if post_warmup_state is not None:
+            if not isinstance(post_warmup_state, AIESState):
+                raise ValueError('post_warmup_state must be AIESState')
             sampler.post_warmup_state = post_warmup_state
 
         run_ensemble(
@@ -1094,7 +1101,7 @@ class BayesFit(Fit):
         n_parallel: int | None = None,
         progress: bool = True,
         moves: dict | None = None,
-        post_warmup_state: dict | None = None,
+        post_warmup_state: ESSState | None = None,
         **ess_kwargs: dict,
     ) -> PosteriorResult:
         """Ensemble Slice Sampling (ESS) of :mod:`numpyro`.
@@ -1131,9 +1138,9 @@ class BayesFit(Fit):
             If `chain_method` is set to ``'parallel'``, this is always False.
         moves : dict, optional
             Moves for the sampler.
-        post_warmup_state : dict, optional
-            The state before the sampling phase. If pass PosteriorResult.last_state,
-            `BayesFit.run` will skip the warmup phase and start with the state.
+        post_warmup_state : ESSState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
         **ess_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.ESS`.
 
@@ -1185,6 +1192,8 @@ class BayesFit(Fit):
         )
 
         if post_warmup_state is not None:
+            if not isinstance(post_warmup_state, ESSState):
+                raise ValueError('post_warmup_state must be ESSState')
             sampler.post_warmup_state = post_warmup_state
 
         run_ensemble(
@@ -1208,7 +1217,7 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
-        post_warmup_state: dict | None = None,
+        post_warmup_state: SAState | None = None,
         **sa_kwargs: dict,
     ) -> PosteriorResult:
         """Run the Sample Adaptive MCMC of :mod:`numpyro`.
@@ -1231,9 +1240,9 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-        post_warmup_state : dict, optional
-            The state before the sampling phase. If pass PosteriorResult.last_state,
-            `BayesFit.run` will skip the warmup phase and start with the state.
+        post_warmup_state : SAState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
         **sa_kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.SA`.
 
@@ -1276,6 +1285,8 @@ class BayesFit(Fit):
         )
 
         if post_warmup_state is not None:
+            if not isinstance(post_warmup_state, SAState):
+                raise ValueError('post_warmup_state must be SAState')
             sampler.post_warmup_state = post_warmup_state
 
         sampler.run(
@@ -1329,8 +1340,3 @@ def run_ensemble(
             rng_key=rng_key,
             init_params=init_params,
         )
-
-        sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-        )
-        return PosteriorResult(sampler, self._helper, self)
