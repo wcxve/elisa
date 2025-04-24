@@ -1250,6 +1250,7 @@ class BayesFit(Fit):
             progress_bar=progress,
         )
 
+
 # temporarily for ensemble parallelled run
 def run_ensemble(
     sampler,
