@@ -1273,8 +1273,8 @@ def run_ensemble(
             progress_bar=False,
         )
 
-        if sampler.last_state is not None:
-            paral_mcmc.post_warmup_state = sampler.last_state
+        if sampler.post_warmup_state is not None:
+            paral_mcmc.post_warmup_state = sampler.post_warmup_state
 
         def do_mcmc(rng_key):
             paral_mcmc.run(
