@@ -39,12 +39,10 @@ def test_trivial_max_like_fit(simulation, method):
     [
         pytest.param('nuts', {}, id='nuts'),
         pytest.param('jaxns', {}, id='jaxns'),
-        pytest.param(
-            'aies', {'chain_method': 'parallel', 'n_parallel': 4}, id='aies'
-        ),
-        pytest.param(
-            'ess', {'chain_method': 'parallel', 'n_parallel': 4}, id='ess'
-        ),
+        pytest.param('aies', {'n_parallel': 1}, id='aies'),
+        pytest.param('aies', {'n_parallel': 4}, id='aies'),
+        pytest.param('ess', {'n_parallel': 1}, id='ess'),
+        pytest.param('ess', {'n_parallel': 4}, id='ess'),
         pytest.param('ultranest', {}, id='ultranest'),
         pytest.param('nautilus', {}, id='nautilus'),
     ],
