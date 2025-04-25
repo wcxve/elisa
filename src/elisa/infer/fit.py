@@ -1145,7 +1145,7 @@ class BayesFit(Fit):
         steps: int = 5000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
-        n_parallel: int = 0,
+        n_parallel: int | None = None,
         progress: bool = True,
         post_warmup_state: EnsembleSamplerState | None = None,
         **ess_kwargs: dict,
