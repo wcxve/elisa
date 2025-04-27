@@ -1,0 +1,9 @@
+channels:
+  - https://heasarc.gsfc.nasa.gov/FTP/software/conda/
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - xspec=12.15.0
+  - pip:
+    - xspex==0.0.4
