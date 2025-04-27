@@ -16,6 +16,9 @@ sphinx:
 #   - pdf
 #   - epub
 
+conda:
+  environment: docs/environment.yml
+
 python:
   install:
     - method: pip
