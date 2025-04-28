@@ -18,6 +18,7 @@ from jax.sharding import Mesh, PartitionSpec
 from numpyro.infer import AIES, ESS, MCMC, NUTS, SA, init_to_value
 from numpyro.infer.ensemble import AIESState, EnsembleSamplerState, ESSState
 from numpyro.infer.hmc import HMCState
+from numpyro.infer.barker import BarkerMHState
 from numpyro.infer.sa import SAState
 
 from elisa.data.base import FixedData, ObservationData
@@ -641,6 +642,104 @@ class BayesFit(Fit):
         sampler.run(
             rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
             extra_fields=('energy', 'num_steps'),
+        )
+        return PosteriorResult(sampler, self._helper, self)
+
+    def barkermh(
+        self,
+        warmup=2000,
+        steps=5000,
+        chains: int | None = None,
+        init: dict[str, float] | None = None,
+        chain_method: str = 'parallel',
+        progress: bool = True,
+        post_warmup_state: HMCState | None = None,
+        **bmh_kwargs: dict,
+    ) -> PosteriorResult:
+        """Run the gradient-based MCMC Sampler of :mod:`numpyro`.
+
+        .. note::
+            This is a gradient-based MCMC algorithm of Metropolis-Hastings type that uses 
+            a skew-symmetric proposal distribution that depends on the gradient of 
+            the potential see ref [1]_.
+            This algorithm to be particularly effective for low to moderate 
+            dimensional models, where it may be competitive with NUTS.
+
+        Parameters
+        ----------
+        warmup : int, optional
+            Number of warmup steps.
+        steps : int, optional
+            Number of steps to run for each chain.
+        chains : int, optional
+            Number of MCMC chains to run. If there are not enough devices
+            available, chains will run in sequence. Defaults to the number of
+            ``jax.local_device_count()``.
+        init : dict, optional
+            Initial parameter for sampler to start from.
+        chain_method : str, optional
+            The chain method passed to :class:`numpyro.infer.MCMC`.
+        progress : bool, optional
+            Whether to show progress bar during sampling. The default is True.
+        post_warmup_state : HMCState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
+        **bmh_kwargs : dict
+            Extra parameters passed to :class:`numpyro.infer.BarkerMH`.
+
+        Returns
+        -------
+        PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] The Barker proposal: combining robustness and efficiency in gradient-based MCMC. 
+                Samuel Livingstone, Giacomo Zanella.
+        """
+        device_count = jax.local_device_count()
+
+        if chains is None:
+            chains = device_count
+        else:
+            chains = int(chains)
+
+        steps = int(steps)
+
+        # the total samples number should be multiple of the device number
+        if chains * steps % device_count != 0:
+            steps += device_count - steps % device_count
+
+        # TODO: option to let sampler starting from MLE
+        if init is None:
+            init = self._helper.free_default['constr_dic']
+        else:
+            init = self._helper.free_default['constr_dic'] | dict(init)
+
+        default_bmh_kwargs = {
+            'dense_mass': True,
+            'target_accept_prob': 0.8,
+        }
+        bmh_kwargs = default_bmh_kwargs | bmh_kwargs
+        bmh_kwargs['model'] = self._helper.numpyro_model
+        bmh_kwargs['init_strategy'] = init_to_value(values=init)
+
+        sampler = MCMC(
+            BarkerMH(**bmh_kwargs),
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method=chain_method,
+            progress_bar=progress,
+        )
+
+        if post_warmup_state is not None:
+            if not isinstance(post_warmup_state, BarkerMHState):
+                raise ValueError('post_warmup_state must be BarkerMHState')
+            sampler.post_warmup_state = post_warmup_state
+
+        sampler.run(
+            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
         )
         return PosteriorResult(sampler, self._helper, self)
 
