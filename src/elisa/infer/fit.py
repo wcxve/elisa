@@ -16,9 +16,9 @@ from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
 from numpyro.infer import AIES, ESS, MCMC, NUTS, SA, init_to_value
+from numpyro.infer.barker import BarkerMHState
 from numpyro.infer.ensemble import AIESState, EnsembleSamplerState, ESSState
 from numpyro.infer.hmc import HMCState
-from numpyro.infer.barker import BarkerMHState
 from numpyro.infer.sa import SAState
 
 from elisa.data.base import FixedData, ObservationData
@@ -659,10 +659,10 @@ class BayesFit(Fit):
         """Run the gradient-based MCMC Sampler of :mod:`numpyro`.
 
         .. note::
-            This is a gradient-based MCMC algorithm of Metropolis-Hastings type that uses 
-            a skew-symmetric proposal distribution that depends on the gradient of 
+            This is a gradient-based MCMC algorithm of Metropolis-Hastings type that uses
+            a skew-symmetric proposal distribution that depends on the gradient of
             the potential see ref [1]_.
-            This algorithm to be particularly effective for low to moderate 
+            This algorithm to be particularly effective for low to moderate
             dimensional models, where it may be competitive with NUTS.
 
         Parameters
@@ -694,7 +694,7 @@ class BayesFit(Fit):
 
         References
         ----------
-        .. [1] The Barker proposal: combining robustness and efficiency in gradient-based MCMC. 
+        .. [1] The Barker proposal: combining robustness and efficiency in gradient-based MCMC.
                 Samuel Livingstone, Giacomo Zanella.
         """
         device_count = jax.local_device_count()
