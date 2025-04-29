@@ -4,13 +4,13 @@ build:
   os: ubuntu-24.04
   tools:
     python: "miniconda-latest"
+  apt_packages:
+    - jq
   jobs:
     build:
       html:
         - conda init
-        - conda list --json
-        - conda env list --json
-        - bash -c "conda activate && echo $CONDA_PREFIX && echo $HEADAS"
+        - bash -c "env=$(conda env list --json | jq -r '.envs[-1]'); source $env/heasoft/headas-init.sh; echo $HEADAS"
         - bash -c "source ~/.bashrc && bash docs/build.sh $READTHEDOCS_OUTPUT/html"
 
 conda:
