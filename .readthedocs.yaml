@@ -6,17 +6,15 @@ build:
     python: "miniconda-latest"
   jobs:
     pre_install:
-      - conda env list
-      - conda list
+      - mamba install xspec \
+          -c https://heasarc.gsfc.nasa.gov/docs/software/conda.html
+          -c conda-forge
     pre_build:
       - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
 
 sphinx:
   configuration: docs/conf.py
   fail_on_warning: true
-
-conda:
-  environment: docs/environment.yml
 
 python:
   install:
