@@ -5,6 +5,8 @@ build:
   tools:
     python: "miniconda-latest"
   jobs:
+    pre_build:
+      - bash -c "echo $CONDA_PREFIX"
     build:
       html:
         - bash -c "bash docs/build.sh $READTHEDOCS_OUTPUT/html"
