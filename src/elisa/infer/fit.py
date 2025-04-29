@@ -15,7 +15,7 @@ from iminuit import Minuit
 from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
-from numpyro.infer import AIES, ESS, MCMC, NUTS, SA, init_to_value
+from numpyro.infer import AIES, ESS, MCMC, NUTS, BarkerMH, SA, init_to_value
 from numpyro.infer.barker import BarkerMHState
 from numpyro.infer.ensemble import AIESState, EnsembleSamplerState, ESSState
 from numpyro.infer.hmc import HMCState
