@@ -9,8 +9,8 @@ build:
   jobs:
     build:
       html:
-        - bash -c 'conda env list --json'
-        - bash -c 'ls -l $(conda env list --json | jq -r ".envs[0]")'
+        - conda init
+        - bash -c "conda activate $(conda env list --json | jq -r '.envs[0]')"
         - bash -c 'export env_path=$(conda env list --json | jq -r ".envs[-1]"); source $env_path/heasoft/headas-init.sh; echo $HEADAS'
 #        - bash -c 'source ~/.bashrc && bash docs/build.sh $READTHEDOCS_OUTPUT/html'
 
