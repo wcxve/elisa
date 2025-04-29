@@ -8,6 +8,7 @@ build:
     pre_install:
       - pwd
       - which conda
+      - conda env list
     pre_build:
       - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
 
