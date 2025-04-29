@@ -9,10 +9,12 @@ build:
   jobs:
     build:
       html:
-        - conda env list --json
-        - echo "export HEADAS=$(conda env list --json | jq -r '.envs[-1]')" >> ~/.bashrc
+        - conda info --json | jq -r '.default_prefix'
+        - echo "export HEADAS=$(conda info --json | jq -r '.default_prefix')/heasoft" >> ~/.bashrc
         - echo 'source $HEADAS/headas-init.sh' >> ~/.bashrc
+        - cat ~/.bashrc
         - bash -c 'source ~/.bashrc; echo $HEADAS; which xspec; python -c "import xspex"'
+        - bash -c 'echo $HEADAS; which xspec; python -c "import xspex"'
 #        - bash -c 'source ~/.bashrc && bash docs/build.sh $READTHEDOCS_OUTPUT/html'
 
 conda:
