@@ -6,9 +6,7 @@ build:
     python: "miniconda-latest"
   jobs:
     pre_install:
-      - conda install xspec \
-        -c https://heasarc.gsfc.nasa.gov/FTP/software/conda/ \
-        -c conda-forge
+      - conda install xspec -c https://heasarc.gsfc.nasa.gov/FTP/software/conda/ -c conda-forge -y
     pre_build:
       - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
 
