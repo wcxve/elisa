@@ -2,24 +2,19 @@ version: 2
 
 build:
   os: ubuntu-24.04
-#  tools:
-#    python: "3.12"
-  commands:
-    - echo $READTHEDOCS_OUTPUT
-    - whoami
-    - history
-#      - bash -c "sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa"
+  tools:
+    python: "miniconda-latest"
+  jobs:
+    build:
+      html:
+        - bash docs/build.sh $READTHEDOCS_OUTPUT/html
 
-#conda:
-#  environment: docs/environment.yml
-#
-#sphinx:
-#  configuration: docs/conf.py
-#  fail_on_warning: true
-#
-#python:
-#  install:
-#    - method: pip
-#      path: .
-#      extra_requirements:
-#        - docs
+conda:
+  environment: docs/environment.yml
+
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
