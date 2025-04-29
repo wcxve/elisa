@@ -12,10 +12,6 @@ sphinx:
   configuration: docs/conf.py
   fail_on_warning: true
 
-# formats:
-#   - pdf
-#   - epub
-
 conda:
   environment: docs/environment.yml
 
@@ -25,3 +21,8 @@ python:
       path: .
       extra_requirements:
         - docs
+        - xspec
+
+# formats:
+#   - pdf
+#   - epub
