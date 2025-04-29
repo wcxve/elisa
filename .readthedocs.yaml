@@ -6,7 +6,7 @@ build:
     python: "miniconda-latest"
   jobs:
     pre_install:
-      - mamba install xspec \
+      - conda install xspec \
           -c https://heasarc.gsfc.nasa.gov/docs/software/conda.html
           -c conda-forge
     pre_build:
