@@ -4,10 +4,9 @@ build:
   os: ubuntu-24.04
   tools:
     python: "miniconda-latest"
-  apt_packages:
-    - sudo
   jobs:
     pre_install:
+      - pwd
       - which conda
     pre_build:
       - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
