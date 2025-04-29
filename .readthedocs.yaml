@@ -7,7 +7,7 @@ build:
   jobs:
     pre_install:
       - export HEADAS=$CONDA_PREFIX/heasoft
-      - source $HEADAS/headas.sh
+      - . $HEADAS/headas.sh
     pre_build:
       - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
 
