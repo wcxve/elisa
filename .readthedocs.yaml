@@ -5,15 +5,8 @@ build:
   tools:
     python: "miniconda-latest"
   jobs:
-    pre_install:
-      - conda init
-      - conda activate
-      - echo $HEADAS
-      - echo $CONDA_PREFIX
-      - export HEADAS=$CONDA_PREFIX/heasoft
-      - . $HEADAS/headas.sh
     pre_build:
-      - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
+      - bash -c "sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa"
 
 conda:
   environment: docs/environment.yml
@@ -28,7 +21,6 @@ python:
       path: .
       extra_requirements:
         - docs
-        - xspec
 
 # formats:
 #   - pdf
