@@ -6,7 +6,7 @@ build:
     python: "miniconda-latest"
   jobs:
     pre_install:
-      - chsh -s /bin/bash
+      - sudo chsh -s /bin/bash
     pre_build:
       - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
 
