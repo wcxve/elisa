@@ -7,4 +7,4 @@ dependencies:
   - xspec>=12.15.0
   - pip
   - pip:
-      xspex==0.0.5
+      - xspex>=0.0.5
