@@ -12,10 +12,7 @@ build:
         - conda env list --json
         - echo "export HEADAS=$(conda env list --json | jq -r '.envs[-1]')" >> ~/.bashrc
         - echo 'source $HEADAS/headas-init.sh' >> ~/.bashrc
-        - bash -c 'echo $HEADAS'
-        - bash -c 'which xspec'
-        - bash -c 'source ~/.bashrc && which xspec'
-        - bash -c 'source ~/.bashrc && python -c "import xspex"'
+        - bash -c 'source ~/.bashrc; echo $HEADAS; which xspec; python -c "import xspex"'
 #        - bash -c 'source ~/.bashrc && bash docs/build.sh $READTHEDOCS_OUTPUT/html'
 
 conda:
