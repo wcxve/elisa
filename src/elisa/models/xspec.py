@@ -338,7 +338,7 @@ def create_xspec_components():
 
     template = '''
 class {name}({component_class}):
-    """Xspec {name} model [1]_.
+    """Xspec {name} model, see [1]_ for details.
 
     References
     ----------
@@ -413,7 +413,7 @@ class {name}({component_class}):
         s = 'https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSmodel{}.html'
         str_map = {
             'name': name,
-            'link': s.format(name.title),
+            'link': s.format(name.title()),
             'component_class': component_class,
             'params_config': params_config,
         }
@@ -429,7 +429,12 @@ def create_xspec_conv_components():
 
     template = '''
 class {name}(XspecConvolution):
-    """Xspec {name} model."""
+    """Xspec {name} model, see [1]_ for details.
+
+    References
+    ----------
+    .. [1] {link}
+    """
 
     _supported = frozenset(['{supported}'])
     _config = (
@@ -486,8 +491,10 @@ class {name}(XspecConvolution):
 
         params_config = ',\n        '.join(params_config)
 
+        s = 'https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSmodel{}.html'
         str_map = {
             'name': name,
+            'link': s.format(name.title()),
             'params_config': params_config,
             'supported': 'mul' if name in conv_mul else 'add',
         }
