@@ -1,4 +1,4 @@
-"""Xspec model wrappers."""
+"""Xspec model library API."""
 
 from __future__ import annotations
 
@@ -338,7 +338,12 @@ def create_xspec_components():
 
     template = '''
 class {name}({component_class}):
-    """Xspec {name} model."""
+    """Xspec {name} model [1]_.
+
+    References
+    ----------
+    .. [1] {link}
+    """
 
     _config = (
         {params_config},
@@ -405,8 +410,10 @@ class {name}({component_class}):
 
         params_config = ',\n        '.join(params_config)
 
+        s = 'https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSmodel{}.html'
         str_map = {
             'name': name,
+            'link': s.format(name.title),
             'component_class': component_class,
             'params_config': params_config,
         }
