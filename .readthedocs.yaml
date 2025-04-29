@@ -6,7 +6,8 @@ build:
     python: "miniconda-latest"
   jobs:
     pre_build:
-     - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
+      - conda env list
+      - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
 
 sphinx:
   configuration: docs/conf.py
