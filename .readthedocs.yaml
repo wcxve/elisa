@@ -11,7 +11,7 @@ build:
       html:
         - conda info --json | jq -r '.default_prefix'
         - echo "export HEADAS=$(conda info --json | jq -r '.default_prefix')/heasoft" >> ~/.bashrc
-        - echo 'source $HEADAS/headas-init.sh' >> ~/.bashrc
+        - echo "source \$HEADAS/headas-init.sh" >> ~/.bashrc
         - cat ~/.bashrc
         - bash -c 'source ~/.bashrc; echo $HEADAS; which xspec; python -c "import xspex"'
         - bash -c 'echo $HEADAS; which xspec; python -c "import xspex"'
