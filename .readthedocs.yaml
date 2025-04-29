@@ -7,8 +7,9 @@ build:
   jobs:
     build:
       html:
-        - bash -c "conda list"
-        - bash -c "conda init && conda activate && echo $CONDA_PREFIX && echo $HEADAS"
+        - conda init
+        - conda list --json
+        - bash -c "conda activate && echo $CONDA_PREFIX && echo $HEADAS"
         - bash -c "source ~/.bashrc && bash docs/build.sh $READTHEDOCS_OUTPUT/html"
 
 conda:
