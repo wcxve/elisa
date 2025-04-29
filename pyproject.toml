@@ -50,7 +50,7 @@ dependencies = [
 [project.optional-dependencies]
 xspec = ["xspex"]
 nested_sampler = ["nautilus-sampler==1.0.5", "ultranest==4.4.0"]
-test = ["coverage[toml]", "pytest", "pytest-cov"]
+test = ["coverage[toml]", "pytest", "pytest-cov", "pytest-xdist"]
 docs = [
     "ipywidgets",
     "jupyter",
@@ -119,7 +119,7 @@ lint.select = [
 "docs/notebooks/model-building.ipynb" = ["F403", "F405"]
 
 [tool.pytest]
-ini_options.addopts = "--cov=elisa --cov-report xml"
+ini_options.addopts = "-n auto --cov=elisa --cov-report xml"
 
 [tool.coverage.run]
 branch = true
