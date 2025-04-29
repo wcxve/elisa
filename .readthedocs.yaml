@@ -7,6 +7,7 @@ build:
   jobs:
     pre_build:
       - conda env list
+      - conda list
       - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
 
 sphinx:
