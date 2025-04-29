@@ -7,6 +7,7 @@ build:
   jobs:
     build:
       html:
+        - bash -c "pip install .[docs,xspec]  --verbose"
         - bash -c "sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa"
         - bash -c "python -m sphinx -T -W --keep-going -b html -d _build/doctrees -D language=en . $READTHEDOCS_OUTPUT/html"
 
@@ -16,10 +17,3 @@ conda:
 sphinx:
   configuration: docs/conf.py
   fail_on_warning: true
-
-python:
-  install:
-    - method: pip
-      path: .
-      extra_requirements:
-        - docs
