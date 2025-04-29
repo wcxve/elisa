@@ -10,8 +10,10 @@ build:
     build:
       html:
         - conda info --json | jq -r '.default_prefix'
-        - bash -c "export HEADAS=$(conda info --json | jq -r '.default_prefix')/heasoft; source \$HEADAS/headas-init.sh; which xspec; pip list"
-#        - bash -c 'source ~/.bashrc && bash docs/build.sh $READTHEDOCS_OUTPUT/html'
+        - bash -c "
+          export HEADAS=$(conda info --json | jq -r '.default_prefix')/heasoft;
+          source \$HEADAS/headas-init.sh;
+          . docs/build.sh $READTHEDOCS_OUTPUT/html"
 
 conda:
   environment: docs/environment.yml
