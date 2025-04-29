@@ -3,8 +3,8 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.11
-  - xspec=12.15.0
+  - python=3.12
+  - xspec>=12.15.0
   - pip
   - pip:
-    - xspex==0.0.4
+      xspex>=0.0.5
