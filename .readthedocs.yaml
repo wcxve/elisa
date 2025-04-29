@@ -5,9 +5,10 @@ build:
   tools:
     python: "miniconda-latest"
   jobs:
-    pre_build:
+    pre_install:
       - conda env list
       - conda list
+    pre_build:
       - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
 
 sphinx:
