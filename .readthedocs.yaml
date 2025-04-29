@@ -1,11 +1,14 @@
 version: 2
 
 build:
-  os: ubuntu-22.04
+  os: ubuntu-24.04
   tools:
     python: "miniconda-latest"
   jobs:
     pre_install:
+      - conda activate
+      - echo $HEADAS
+      - echo $CONDA_PREFIX
       - export HEADAS=$CONDA_PREFIX/heasoft
       - . $HEADAS/headas.sh
     pre_build:
