@@ -9,6 +9,7 @@ build:
       html:
         - conda init
         - conda list --json
+        - conda env list --json
         - bash -c "conda activate && echo $CONDA_PREFIX && echo $HEADAS"
         - bash -c "source ~/.bashrc && bash docs/build.sh $READTHEDOCS_OUTPUT/html"
 
