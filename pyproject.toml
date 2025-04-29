@@ -50,7 +50,7 @@ dependencies = [
 [project.optional-dependencies]
 xspec = ["xspex"]
 nested_sampler = ["nautilus-sampler==1.0.5", "ultranest==4.4.0"]
-test = ["coverage[toml]", "pytest", "pytest-cov"]
+test = ["coverage[toml]", "pytest", "pytest-cov", "pytest-xdist"]
 docs = [
     "ipywidgets",
     "jupyter",
@@ -67,6 +67,18 @@ docs = [
     "widgetsnbextension",
 ]
 dev = ["pre-commit>=3.6.0", "ruff>=0.2.0"]
+mindep = [
+    "arviz==0.17.1; python_version < '3.10'",
+    "arviz==0.18.0; python_version >= '3.10'",
+    "astropy==5.3",
+    "corner==2.2.2",
+    "jax==0.4.28",
+    "jaxlib==0.4.28",
+    "numpyro==0.16.1",
+    "optimistix==0.0.8",
+    "quadax==0.2.6",
+    "scipy==1.11.0",
+]
 
 
 [project.urls]
@@ -119,7 +131,7 @@ lint.select = [
 "docs/notebooks/model-building.ipynb" = ["F403", "F405"]
 
 [tool.pytest]
-ini_options.addopts = "--cov=elisa --cov-report xml"
+ini_options.addopts = "-n auto --cov=elisa --cov-report xml"
 
 [tool.coverage.run]
 branch = true
