@@ -7,6 +7,7 @@ build:
   commands:
     - echo $READTHEDOCS_OUTPUT
     - whoami
+    - history
 #      - bash -c "sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa"
 
 #conda:
