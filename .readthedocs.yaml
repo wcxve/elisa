@@ -10,7 +10,7 @@ build:
     build:
       html:
         - conda init
-        - bash -c "env=$(conda env list --json | jq -r '.envs[-1]'); source $env/heasoft/headas-init.sh; echo $HEADAS"
+        - bash -c "export env=$(conda env list --json | jq -r '.envs[-1]'); source $env/heasoft/headas-init.sh; echo $HEADAS"
         - bash -c "source ~/.bashrc && bash docs/build.sh $READTHEDOCS_OUTPUT/html"
 
 conda:
