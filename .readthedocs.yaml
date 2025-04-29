@@ -5,7 +5,7 @@ build:
   tools:
     python: "miniconda-latest"
   jobs:
-    pre-build:
+    pre_build:
       - bash -c "sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa"
 
 conda:
