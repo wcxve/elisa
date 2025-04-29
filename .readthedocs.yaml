@@ -4,6 +4,8 @@ build:
   os: ubuntu-24.04
   tools:
     python: "miniconda-latest"
+  apt_packages:
+    - sudo
   jobs:
     pre_install:
       - sudo chsh -s /bin/bash
