@@ -6,7 +6,8 @@ build:
     python: "miniconda-latest"
   jobs:
     pre_build:
-      - bash -c "sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa"
+      - chsh -s /bin/bash
+      - sphinx-apidoc -e -T --templatedir docs/_templates/apidoc -o docs/apidoc src/elisa
 
 conda:
   environment: docs/environment.yml
@@ -21,6 +22,7 @@ python:
       path: .
       extra_requirements:
         - docs
+        - xspec
 
 # formats:
 #   - pdf
