@@ -7,7 +7,7 @@ build:
   jobs:
     build:
       html:
-        - bash docs/build.sh $READTHEDOCS_OUTPUT/html
+        - bash -c "bash docs/build.sh $READTHEDOCS_OUTPUT/html"
 
 conda:
   environment: docs/environment.yml
