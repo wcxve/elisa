@@ -12,9 +12,7 @@ build:
 conda:
   environment: docs/environment.yml
 
-python:
-  install:
-    - method: pip
-      path: .
-      extra_requirements:
-        - docs
+sphinx:
+  builder: html
+  configuration: docs/conf.py
+  fail_on_warning: true
