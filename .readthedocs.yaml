@@ -8,6 +8,7 @@ build:
     build:
       html:
         - conda init
+        - cat ~/.bashrc
         - bash -c "source ~/.bashrc && echo $HEADAS"
         - bash -c "source ~/.bashrc && bash docs/build.sh $READTHEDOCS_OUTPUT/html"
 
