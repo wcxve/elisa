@@ -1,7 +1,8 @@
-"""Xspec model wrappers."""
+"""Xspec model library API."""
 
 from __future__ import annotations
 
+import os
 import warnings
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Literal
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Literal
 import jax
 import jax.numpy as jnp
 import numpy as np
+from bs4 import BeautifulSoup
 
 from elisa.models.model import (
     Component,
@@ -337,8 +339,8 @@ def create_xspec_components():
         return {}
 
     template = '''
-class {name}({component_class}):
-    """Xspec {name} model."""
+class XS{name}({component_class}):
+    """Xspec {mtype} model `{name} <{link}>`_: {desc}."""
 
     _config = (
         {params_config},
@@ -405,8 +407,21 @@ class {name}({component_class}):
 
         params_config = ',\n        '.join(params_config)
 
+        name = name.lower()
+        if name == 'sss_ice':
+            name = 'sssice'
+        if name.endswith('gaussian'):
+            name = name.replace('gaussian', 'gauss')
+        desc_url = _xs_model_info[name]
+        if info.modeltype.name == 'Add':
+            mtype = 'additive'
+        else:
+            mtype = 'multiplicative'
         str_map = {
             'name': name,
+            'mtype': mtype,
+            'desc': desc_url['desc'],
+            'link': desc_url['link'],
             'component_class': component_class,
             'params_config': params_config,
         }
@@ -421,8 +436,8 @@ def create_xspec_conv_components():
         return {}
 
     template = '''
-class {name}(XspecConvolution):
-    """Xspec {name} model."""
+class XS{name}(XspecConvolution):
+    """Xspec {mtype} model `{name} <{link}>`_: {desc}."""
 
     _supported = frozenset(['{supported}'])
     _config = (
@@ -479,8 +494,13 @@ class {name}(XspecConvolution):
 
         params_config = ',\n        '.join(params_config)
 
+        name = name.lower()
+        desc_url = _xs_model_info[name]
         str_map = {
             'name': name,
+            'mtype': 'convolution',
+            'desc': desc_url['desc'],
+            'link': desc_url['link'],
             'params_config': params_config,
             'supported': 'mul' if name in conv_mul else 'add',
         }
@@ -489,6 +509,52 @@ class {name}(XspecConvolution):
     return model_classes
 
 
+def xspec_model_info():
+    HEADAS = os.environ.get('HEADAS', '')
+    model_info = {}
+
+    if not HEADAS:
+        return model_info
+
+    spectral_path = os.path.abspath(f'{HEADAS}/../spectral')
+    if not os.path.exists(spectral_path):
+        spectral_path = os.path.abspath(f'{HEADAS}/spectral')
+        if not os.path.exists(spectral_path):
+            spectral_path = ''
+
+    if not spectral_path:
+        return model_info
+
+    url = 'https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSmodel{}.html'
+    html_path = f'{spectral_path}/help/html'
+    for mtype in ['Additive', 'Multiplicative', 'Convolution']:
+        with open(f'{html_path}/{mtype}.html', encoding='utf-8') as f:
+            s = BeautifulSoup(f.read(), 'html.parser')
+
+        for a in s.find_all('ul', class_='ChildLinks')[0].find_all('a'):
+            text = a.text
+
+            # there is no ':' in agnslim model desc
+            if mtype == 'Additive' and text.startswith('agnslim, AGN'):
+                text = text.replace('agnslim, AGN', 'agnslim: AGN')
+
+            models, desc = text.split(':')
+            models = [m.strip() for m in models.split(',')]
+            desc = desc.strip()
+            link = url.format(models[0].title())
+            for m in models:
+                model_info[m.lower()] = {'desc': desc, 'link': link}
+
+    # There are some typos in the model name
+    if 'bvvcie' not in model_info and 'bbvcie' in model_info:
+        model_info['bvvcie'] = model_info.pop('bbvcie')
+    if 'bvwdem' not in model_info and 'bwwdem' in model_info:
+        model_info['bvwdem'] = model_info.pop('bwwdem')
+
+    return model_info
+
+
+_xs_model_info = xspec_model_info()
 _xs_comps = create_xspec_components() | create_xspec_conv_components()
 locals().update(_xs_comps)
 __all__.extend(_xs_comps.keys())
