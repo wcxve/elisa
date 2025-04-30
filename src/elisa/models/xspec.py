@@ -533,6 +533,8 @@ def xspec_model_info():
 
         for a in s.find_all('ul', class_='ChildLinks')[0].find_all('a'):
             text = a.text
+
+            # there is no ':' for agnslim model desc
             if mtype == 'Additive' and text.startswith('agnslim, AGN'):
                 text = text.replace('agnslim, AGN', 'agnslim: AGN')
 
