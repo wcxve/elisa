@@ -67,7 +67,7 @@ jobs:
           uv pip compile "pyproject.toml[$extra]" \
             $compile_extra
             --output-file requirements.txt \
-            --resolution ${{ matrix.uv-resolution }} \
+            --resolution ${{ matrix.uv-resolution }}
           uv pip install ".[$extra,test]" --overrides requirements.txt --verbose
 
       - name: Run Tests
