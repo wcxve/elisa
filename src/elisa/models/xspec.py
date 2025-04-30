@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import warnings
 from abc import abstractmethod
 from typing import TYPE_CHECKING, Literal
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Literal
 import jax
 import jax.numpy as jnp
 import numpy as np
+from bs4 import BeautifulSoup
 
 from elisa.models.model import (
     Component,
@@ -338,7 +340,7 @@ def create_xspec_components():
 
     template = '''
 class {name}({component_class}):
-    """Xspec {name} model, see [1]_ for details.
+    """Xspec {name} model: {desc} See [1]_ for details.
 
     References
     ----------
@@ -410,10 +412,11 @@ class {name}({component_class}):
 
         params_config = ',\n        '.join(params_config)
 
-        s = 'https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSmodel{}.html'
+        desc_url = _xs_model_info.get(name.lower(), {'desc': '', 'link': ''})
         str_map = {
             'name': name,
-            'link': s.format(name.title()),
+            'desc': desc_url['desc'],
+            'link': desc_url['link'],
             'component_class': component_class,
             'params_config': params_config,
         }
@@ -429,7 +432,7 @@ def create_xspec_conv_components():
 
     template = '''
 class {name}(XspecConvolution):
-    """Xspec {name} model, see [1]_ for details.
+    """Xspec {name} model: {desc} See [1]_ for details.
 
     References
     ----------
@@ -491,10 +494,11 @@ class {name}(XspecConvolution):
 
         params_config = ',\n        '.join(params_config)
 
-        s = 'https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSmodel{}.html'
+        desc_url = _xs_model_info.get(name.lower(), {'desc': '', 'link': ''})
         str_map = {
             'name': name,
-            'link': s.format(name.title()),
+            'desc': desc_url['desc'],
+            'link': desc_url['link'],
             'params_config': params_config,
             'supported': 'mul' if name in conv_mul else 'add',
         }
@@ -503,6 +507,52 @@ class {name}(XspecConvolution):
     return model_classes
 
 
+def xspec_model_info():
+    HEADAS = os.environ.get('HEADAS', '')
+    model_info = {}
+
+    if not HEADAS:
+        return model_info
+
+    spectral_path = os.path.abspath(f'{HEADAS}/../spectral')
+    if not os.path.exists(spectral_path):
+        spectral_path = os.path.abspath(f'{HEADAS}/spectral')
+        if not os.path.exists(spectral_path):
+            spectral_path = ''
+
+    if not spectral_path:
+        return model_info
+
+    html_path = f'{spectral_path}/help/html'
+
+    with open(f'{html_path}/Models.html', encoding='utf-8') as f:
+        s = BeautifulSoup(f.read(), 'html.parser')
+
+    summary_html = (
+        s.find_all('ul', class_='ChildLinks')[0]
+        .find_all('li')[0]
+        .find_all('a')[0]
+        .attrs['href']
+    )
+
+    with open(f'{html_path}/{summary_html}', encoding='utf-8') as f:
+        s = BeautifulSoup(f.read(), 'html.parser')
+
+    url = 'https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSmodel{}.html'
+    for tr in s.find_all('tr')[1:]:
+        models, desc = tr.find_all('td')
+        models = [a.text for a in models.find_all('a')]
+        desc = desc.text.strip()
+        murl = url.format(models[0].title())
+        for m in models:
+            model_info[m] = {
+                'desc': desc,
+                'link': f'{murl}#{m}',
+            }
+    return model_info
+
+
+_xs_model_info = xspec_model_info()
 _xs_comps = create_xspec_components() | create_xspec_conv_components()
 locals().update(_xs_comps)
 __all__.extend(_xs_comps.keys())
