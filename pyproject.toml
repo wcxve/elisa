@@ -51,7 +51,7 @@ dependencies = [
 
 
 [project.optional-dependencies]
-xspec = ["xspex"]
+xspec = ["xspex>=0.0.5"]
 nested_sampler = ["nautilus-sampler==1.0.5", "ultranest==4.4.0"]
 test = ["coverage[toml]", "pytest", "pytest-cov", "pytest-xdist"]
 docs = [

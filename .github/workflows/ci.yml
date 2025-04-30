@@ -61,9 +61,13 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          extra="nested_sampler,xspec"
-          uv pip install ".[$extra]" --resolution ${{ matrix.uv-resolution }} --verbose
-          uv pip install ".[test]" --verbose
+          uv pip compile pyproject.toml \
+            --extra nested_sampler \
+            --extra xspec \
+            --output-file requirements.txt \
+            --resolution ${{ matrix.uv-resolution }} \
+            --verbose
+          uv pip install ".[test]" --overrides requirements.txt --verbose
 
       - name: Run Tests
         run: |
