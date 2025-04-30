@@ -16,7 +16,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  test-deps: "nested_sampler,xspec,test"
   heasarc-channel: "https://heasarc.gsfc.nasa.gov/FTP/software/conda/"
 
 jobs:
@@ -32,15 +31,17 @@ jobs:
           - name: Tests (Python 3.12 in Linux-x86_64)
             os: "ubuntu-latest"
             python-version: "3.12"
+            uv-resolution: "highest"
 
           - name: Tests (Python 3.12 in macOS-arm64)
             os: "macos-latest"
             python-version: "3.12"
+            uv-resolution: "highest"
 
           - name: Tests (Minimum Version Deps)
             os: "ubuntu-latest"
             python-version: "3.9"
-            extra-deps: "mindep"
+            uv-resolution: "lowest-direct"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,15 +56,13 @@ jobs:
         run: |
           mamba install xspec -c ${{ env.heasarc-channel }} -c conda-forge -y
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
       - name: Install Python Dependencies
         run: |
-          if [[ -n "${{ matrix.extra-deps }}" ]]; then
-            deps="${{ env.test-deps }},${{ matrix.extra-deps }}"
-          else
-            deps="${{ env.test-deps }}"
-          fi
-          pip install -U pip
-          pip install ".[$deps]" --verbose
+          extra="nested_sampler,xspec,test"
+          uv pip install ".[$extra]" --resolution ${{ matrix.uv-resolution }} --verbose
 
       - name: Run Tests
         run: |
