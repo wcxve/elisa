@@ -66,6 +66,8 @@ environment as follows:
    pip install xspex
    ```
 
+   For more details, see [API docs](https://astro-elisa.readthedocs.io/en/latest/apidoc/elisa.models.xspec.html) for ``Xspec``.
+
 
 ### Development Version
 The latest version of ``ELISA`` can be installed by the following command:
