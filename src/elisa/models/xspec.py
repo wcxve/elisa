@@ -407,7 +407,9 @@ class XS{name}({component_class}):
 
         params_config = ',\n        '.join(params_config)
 
-        name = name.lower().replace('_', '')
+        name = name.lower()
+        if name == 'sss_ice':
+            name = 'sssice'
         if name.endswith('gaussian'):
             name = name.replace('gaussian', 'gauss')
         desc_url = _xs_model_info[name]
