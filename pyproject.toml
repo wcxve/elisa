@@ -77,7 +77,7 @@ mindep = [
     "jaxlib==0.4.28",
     "numpyro==0.16.1",
     "optimistix==0.0.8",
-    "quadax==0.2.6",
+    "quadax==0.2.7",
     "scipy==1.11.0",
 ]
 
