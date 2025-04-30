@@ -339,8 +339,8 @@ def create_xspec_components():
         return {}
 
     template = '''
-class {name}({component_class}):
-    """Xspec `{name} <{link}>`_ model: {desc}"""
+class XS{name}({component_class}):
+    """Xspec {mtype} model `{name} <{link}>`_: {desc}."""
 
     _config = (
         {params_config},
@@ -407,9 +407,17 @@ class {name}({component_class}):
 
         params_config = ',\n        '.join(params_config)
 
-        desc_url = _xs_model_info.get(name.lower(), {'desc': '', 'link': ''})
+        name = name.lower().replace('_', '')
+        if name.endswith('gaussian'):
+            name = name.replace('gaussian', 'gauss')
+        desc_url = _xs_model_info[name]
+        if info.modeltype.name == 'Add':
+            mtype = 'additive'
+        else:
+            mtype = 'multiplicative'
         str_map = {
             'name': name,
+            'mtype': mtype,
             'desc': desc_url['desc'],
             'link': desc_url['link'],
             'component_class': component_class,
@@ -426,8 +434,8 @@ def create_xspec_conv_components():
         return {}
 
     template = '''
-class {name}(XspecConvolution):
-    """Xspec `{name} <{link}>`_ model: {desc}"""
+class XS{name}(XspecConvolution):
+    """Xspec {mtype} model `{name} <{link}>`_: {desc}."""
 
     _supported = frozenset(['{supported}'])
     _config = (
@@ -484,9 +492,11 @@ class {name}(XspecConvolution):
 
         params_config = ',\n        '.join(params_config)
 
-        desc_url = _xs_model_info.get(name.lower(), {'desc': '', 'link': ''})
+        name = name.lower().replace('_', '')
+        desc_url = _xs_model_info[name]
         str_map = {
             'name': name,
+            'mtype': 'convolution',
             'desc': desc_url['desc'],
             'link': desc_url['link'],
             'params_config': params_config,
@@ -513,29 +523,30 @@ def xspec_model_info():
     if not spectral_path:
         return model_info
 
-    html_path = f'{spectral_path}/help/html'
-
-    with open(f'{html_path}/Models.html', encoding='utf-8') as f:
-        s = BeautifulSoup(f.read(), 'html.parser')
-
-    summary_html = (
-        s.find_all('ul', class_='ChildLinks')[0]
-        .find_all('li')[0]
-        .find_all('a')[0]
-        .attrs['href']
-    )
-
-    with open(f'{html_path}/{summary_html}', encoding='utf-8') as f:
-        s = BeautifulSoup(f.read(), 'html.parser')
-
     url = 'https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSmodel{}.html'
-    for tr in s.find_all('tr')[1:]:
-        models, desc = tr.find_all('td')
-        models = [a.text for a in models.find_all('a')]
-        desc = desc.text.strip()
-        murl = url.format(models[0].title())
-        for m in models:
-            model_info[m.lower()] = {'desc': desc, 'link': f'{murl}#{m}'}
+    html_path = f'{spectral_path}/help/html'
+    for mtype in ['Additive', 'Multiplicative', 'Convolution']:
+        with open(f'{html_path}/{mtype}.html', encoding='utf-8') as f:
+            s = BeautifulSoup(f.read(), 'html.parser')
+
+        for a in s.find_all('ul', class_='ChildLinks')[0].find_all('a'):
+            text = a.text
+            if mtype == 'Additive' and text.startswith('agnslim, AGN'):
+                text = text.replace('agnslim, AGN', 'agnslim: AGN')
+
+            models, desc = text.split(':')
+            models = [m.strip() for m in models.split(',')]
+            desc = desc.strip()
+            murl = url.format(models[0].title())
+            for m in models:
+                model_info[m.lower()] = {'desc': desc, 'link': f'{murl}#{m}'}
+
+    # There are some typos in the model name
+    if 'bvvcie' not in model_info and 'bbvcie' in model_info:
+        model_info['bvvcie'] = model_info.pop('bbvcie')
+    if 'bvwdem' not in model_info and 'bwwdem' in model_info:
+        model_info['bvwdem'] = model_info.pop('bwwdem')
+
     return model_info
 
 
