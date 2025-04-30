@@ -63,8 +63,10 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          compile_extra=echo $extra | tr ',' '\n' | xargs -I {} echo --extra {}
-          uv pip compile "pyproject.toml[$extra]" \
+          compile_extra=$(
+            echo "$extra" | tr ',' '\n' | xargs -I {} echo --extra {}
+          )
+          uv pip compile pyproject.toml \
             $compile_extra \
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }}
