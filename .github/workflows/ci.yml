@@ -25,6 +25,8 @@ jobs:
     defaults:
       run:
         shell: bash -el {0}
+    env:
+      extra: "nested_sampler,xspec"
     strategy:
       matrix:
         include:
@@ -61,8 +63,9 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
-          extra="nested_sampler,xspec"
+          compile_extra=echo $extra | tr ',' '\n' | xargs -I {} echo --extra {}
           uv pip compile "pyproject.toml[$extra]" \
+            $compile_extra
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }} \
           uv pip install ".[$extra,test]" --overrides requirements.txt --verbose
