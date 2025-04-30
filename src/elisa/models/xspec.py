@@ -340,12 +340,7 @@ def create_xspec_components():
 
     template = '''
 class {name}({component_class}):
-    """Xspec {name} model: {desc} See [1]_ for details.
-
-    References
-    ----------
-    .. [1] {link}
-    """
+    """Xspec `{name}<link>`__ model: {desc}"""
 
     _config = (
         {params_config},
@@ -432,12 +427,7 @@ def create_xspec_conv_components():
 
     template = '''
 class {name}(XspecConvolution):
-    """Xspec {name} model: {desc} See [1]_ for details.
-
-    References
-    ----------
-    .. [1] {link}
-    """
+    """Xspec `{name}<link>`__ model: {desc}"""
 
     _supported = frozenset(['{supported}'])
     _config = (
