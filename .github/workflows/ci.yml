@@ -15,40 +15,55 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  test-deps: "nested_sampler,xspec,test"
+  heasarc-channel: "https://heasarc.gsfc.nasa.gov/FTP/software/conda/"
+
 jobs:
   tests:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
     strategy:
       matrix:
         include:
           - name: Tests (Python 3.12 in Linux-x86_64)
             os: "ubuntu-latest"
             python-version: "3.12"
-            extra-deps: "nested_sampler,test"
 
           - name: Tests (Python 3.12 in macOS-arm64)
             os: "macos-latest"
             python-version: "3.12"
-            extra-deps: "nested_sampler,test"
 
           - name: Tests (Minimum Version Deps)
             os: "ubuntu-latest"
             python-version: "3.9"
-            extra-deps: "nested_sampler,test,mindep"
+            extra-deps: "mindep"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Setup Miniforge
+        uses: conda-incubator/setup-miniconda@v3
         with:
+          miniforge-version: latest
           python-version: ${{ matrix.python-version }}
+
+      - name: Install Xspec
+        run: |
+          mamba install xspec -c ${{ env.heasarc-channel }} -c conda-forge -y
 
       - name: Install Python Dependencies
         run: |
+          if [[ -n "${{ matrix.extra-deps }}" ]]; then
+            deps="${{ env.test-deps }},${{ matrix.extra-deps }}"
+          else
+            deps="${{ env.test-deps }}"
+          fi
           pip install -U pip
-          pip install ".[${{ matrix.extra-deps }}]" --verbose
+          pip install ".[$deps]" --verbose
 
       - name: Run Tests
         run: |
