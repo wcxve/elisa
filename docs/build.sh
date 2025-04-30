@@ -22,6 +22,7 @@ sphinx-apidoc \
 sphinx-build \
     --builder html \
     --doctree-dir _build/doctrees \
+    --jobs auto \
     --define language=en \
     --fail-on-warning \
     --keep-going \

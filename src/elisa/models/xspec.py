@@ -535,7 +535,7 @@ def xspec_model_info():
         desc = desc.text.strip()
         murl = url.format(models[0].title())
         for m in models:
-            model_info[m] = {'desc': desc, 'link': f'{murl}#{m}'}
+            model_info[m.lower()] = {'desc': desc, 'link': f'{murl}#{m}'}
     return model_info
 
 
