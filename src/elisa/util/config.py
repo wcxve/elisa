@@ -45,18 +45,18 @@ def set_jax_platform(platform: Literal['cpu', 'gpu', 'tpu'] | None = None):
 
     jax.config.update('jax_platform_name', platform)
 
-    if platform == 'gpu':
-        # see https://jax.readthedocs.io/en/latest/gpu_performance_tips.html
-        xla_gpu_flags = (
-            '--xla_gpu_enable_triton_softmax_fusion=true '
-            '--xla_gpu_triton_gemm_any=True '
-            '--xla_gpu_enable_async_collectives=true '
-            '--xla_gpu_enable_latency_hiding_scheduler=true '
-            '--xla_gpu_enable_highest_priority_async_stream=true'
-        )
-        xla_flags = os.getenv('XLA_FLAGS', '')
-        if xla_gpu_flags not in xla_flags:
-            os.environ['XLA_FLAGS'] = f'{xla_flags} {xla_gpu_flags}'
+    # if platform == 'gpu':
+    #     # see https://jax.readthedocs.io/en/latest/gpu_performance_tips.html
+    #     xla_gpu_flags = (
+    #         '--xla_gpu_enable_triton_softmax_fusion=true '
+    #         '--xla_gpu_triton_gemm_any=True '
+    #         '--xla_gpu_enable_async_collectives=true '
+    #         '--xla_gpu_enable_latency_hiding_scheduler=true '
+    #         '--xla_gpu_enable_highest_priority_async_stream=true'
+    #     )
+    #     xla_flags = os.getenv('XLA_FLAGS', '')
+    #     if xla_gpu_flags not in xla_flags:
+    #         os.environ['XLA_FLAGS'] = f'{xla_flags} {xla_gpu_flags}'
 
 
 def set_cpu_cores(n: int) -> None:
