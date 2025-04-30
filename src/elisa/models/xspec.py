@@ -541,9 +541,9 @@ def xspec_model_info():
             models, desc = text.split(':')
             models = [m.strip() for m in models.split(',')]
             desc = desc.strip()
-            murl = url.format(models[0].title())
+            link = url.format(models[0].title())
             for m in models:
-                model_info[m.lower()] = {'desc': desc, 'link': f'{murl}#{m}'}
+                model_info[m.lower()] = {'desc': desc, 'link': link}
 
     # There are some typos in the model name
     if 'bvvcie' not in model_info and 'bbvcie' in model_info:
