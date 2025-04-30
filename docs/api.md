@@ -8,5 +8,4 @@ Here follows the API documentation of ``ELISA``.
 :maxdepth: 4
 
 apidoc/elisa
-xspec_api
 ```
