@@ -492,7 +492,7 @@ class XS{name}(XspecConvolution):
 
         params_config = ',\n        '.join(params_config)
 
-        name = name.lower().replace('_', '')
+        name = name.lower()
         desc_url = _xs_model_info[name]
         str_map = {
             'name': name,
