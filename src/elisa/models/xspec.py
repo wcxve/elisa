@@ -23,6 +23,7 @@ from elisa.util.misc import define_fdjvp
 
 try:
     from xspex import (
+        ModelType as _XspecModelType,
         abundance,
         chatter,
         clear_db,
@@ -37,7 +38,6 @@ try:
         get_number_xflt,
         get_xflt,
         in_xflt,
-        list_models,
         number_elements,
         set_db,
         set_xflt,
@@ -60,7 +60,6 @@ try:
         'get_number_xflt',
         'get_xflt',
         'in_xflt',
-        'list_models',
         'number_elements',
         'set_db',
         'set_xflt',
@@ -74,6 +73,11 @@ except ImportError as e:
     warnings.warn(f'Xspec model library is not available: {e}', ImportWarning)
 
 if TYPE_CHECKING:
+    from xspex import (
+        XspecModel as XspecModelInfo,
+        XspecParameter as XspecParameterInfo,
+    )
+
     from elisa.models.model import Model, UniComponentModel
     from elisa.util.typing import (
         Callable,
@@ -219,8 +223,9 @@ class XspecConvolvedModel(ConvolvedModel):
         def extend_low(egrid):
             if egrid[0] < elow:
                 raise RuntimeError(
-                    f'the lower limit ({elow}) of the energy extension must '
-                    f'be less than the minimum energy grid ({egrid[0]})'
+                    f'for Xspec convolution model {self}, the lower limit '
+                    f'of the energy extension ({elow}) must be less than '
+                    f'the minimum energy grid ({egrid[0]})'
                 )
             if loglow:
                 low_extension = np.geomspace(elow, egrid[0], nlow + 1)[:-1]
@@ -231,8 +236,9 @@ class XspecConvolvedModel(ConvolvedModel):
         def extend_high(egrid):
             if egrid[-1] > ehigh:
                 raise RuntimeError(
-                    f'the upper limit ({ehigh}) of the energy extension must '
-                    f'be greater than the maximum energy grid ({egrid[-1]})'
+                    f'for Xspec convolution model {self}, the upper limit '
+                    f'of the energy extension ({ehigh}) must be greater than '
+                    f'the maximum energy grid ({egrid[-1]})'
                 )
             if loghigh:
                 high_extension = np.geomspace(egrid[-1], ehigh, nhigh + 1)[1:]
@@ -333,14 +339,33 @@ class XspecConvolution(XspecComponent):
         pass
 
 
-def create_xspec_components():
-    """Create Xspec model classes."""
-    if not _HAS_XSPEC:
-        return {}
+_TEMPLATE_ADD = '''
+class XS{name}(XspecAdditive):
+    """Xspec additive model `{name} <{link}>`_: {desc}."""
 
-    template = '''
-class XS{name}({component_class}):
-    """Xspec {mtype} model `{name} <{link}>`_: {desc}."""
+    _config = (
+        {params_config},
+    )
+
+    @property
+    def _integral(self):
+        spec_num = self.spec_num
+        params_names = [p.name for p in self._config if p.name != 'norm']
+
+        def integral(egrid, params):
+            params = [params[p] for p in params_names]
+            if params:
+                params = jnp.stack(params)
+            else:
+                params = jnp.empty(0)
+            return {name}(params, egrid, spec_num)
+
+        return integral
+'''
+
+_TEMPLATE_MUL = '''
+class XS{name}(XspecMultiplicative):
+    """Xspec multiplicative model `{name} <{link}>`_: {desc}."""
 
     _config = (
         {params_config},
@@ -350,94 +375,21 @@ class XS{name}({component_class}):
     def _integral(self):
         spec_num = self.spec_num
         params_names = [p.name for p in self._config]
-        if self.type == 'add':
-            params_names.remove('norm')
-        fn = XSMODEL['primitive']['{name}']
 
-        def {name}(egrid, params):
-            params = jnp.stack([params[p] for p in params_names])
-            return fn(params, egrid, spec_num)
-
-        return {name}
-'''
-    env = {
-        'ParamConfig': ParamConfig,
-        'XSMODEL': _XSMODEL,
-        'XspecAdditive': XspecAdditive,
-        'XspecMultiplicative': XspecMultiplicative,
-        'jnp': jnp,
-    }
-    models = _XSMODEL['add'] | _XSMODEL['mul']
-    model_classes = {}
-    for name, info in models.items():
-        params_config = []
-        for p in info.parameters:
-            if p.units is None:
-                unit = ''
+        def integral(egrid, params):
+            params = [params[p] for p in params_names]
+            if params:
+                params = jnp.stack(params)
             else:
-                unit = p.units
+                params = jnp.empty(0)
+            return {name}(params, egrid, spec_num)
 
-            pname = p.name
-            if pname == 'del':
-                pname = 'delta'
+        return integral
+'''
 
-            pmin = p.hardmin
-            pmax = p.hardmax
-            default = p.default
-            if p.paramtype.name == 'Default' and (not pmin < default < pmax):
-                delta = 1e-3 * (pmax - pmin)
-                if pmin == default:
-                    default += delta
-                else:
-                    default -= delta
-
-            params_config.append(
-                rf"ParamConfig('{pname}', r'\mathrm{{{pname}}}', '{unit}', "
-                f'{default}, {pmin}, {pmax}, fixed={p.frozen})'
-            )
-
-        if info.modeltype.name == 'Add':
-            component_class = 'XspecAdditive'
-            params_config.append(
-                r"ParamConfig('norm', r'\mathrm{{norm}}', '', "
-                '1.0, 1e-10, 1e10)'
-            )
-        else:
-            component_class = 'XspecMultiplicative'
-
-        params_config = ',\n        '.join(params_config)
-
-        name = name.lower()
-        if name == 'sss_ice':
-            name = 'sssice'
-        if name.endswith('gaussian'):
-            name = name.replace('gaussian', 'gauss')
-        desc_url = _xs_model_info[name]
-        if info.modeltype.name == 'Add':
-            mtype = 'additive'
-        else:
-            mtype = 'multiplicative'
-        str_map = {
-            'name': name,
-            'mtype': mtype,
-            'desc': desc_url['desc'],
-            'link': desc_url['link'],
-            'component_class': component_class,
-            'params_config': params_config,
-        }
-        exec(template.format_map(str_map), env, model_classes)
-
-    return model_classes
-
-
-def create_xspec_conv_components():
-    """Create Xspec convolution model classes."""
-    if not _HAS_XSPEC:
-        return {}
-
-    template = '''
+_TEMPLATE_CON = '''
 class XS{name}(XspecConvolution):
-    """Xspec {mtype} model `{name} <{link}>`_: {desc}."""
+    """Xspec convolution model `{name} <{link}>`_: {desc}."""
 
     _supported = frozenset(['{supported}'])
     _config = (
@@ -448,68 +400,117 @@ class XS{name}(XspecConvolution):
     def _convolve(self):
         spec_num = self.spec_num
         params_names = [p.name for p in self._config]
-        fn = XSMODEL['primitive']['{name}']
 
-        def {name}(egrid, params, flux):
-            params = jnp.stack([params[p] for p in params_names])
-            return fn(params, egrid, flux, spec_num)
+        def convolve(egrid, params, flux):
+            params = [params[p] for p in params_names]
+            if params:
+                params = jnp.stack(params)
+            else:
+                params = jnp.empty(0)
+            return {name}(params, egrid, flux, spec_num)
 
-        return {name}
+        return convolve
 '''
+
+_PARAM_CONFIG_TEMPLATE = (
+    r'ParamConfig(name="{name}", latex=r"\mathrm{{{name}}}", unit="{unit}", '
+    'default={default}, min={min}, max={max}, fixed={fixed})'
+)
+
+
+def generate_xspec_models():
+    """Generate Xspec model classes."""
+    models = {}
+
+    if not _HAS_XSPEC:
+        return models
+
+    # Models' short description and URL link to official manual
+    model_desc_link = xspec_model_desc_and_link()
+
+    # Convolution models that should be applied for multiplicative models
+    conv_for_mul = ('partcov', 'vmshift', 'zmshift')
+
+    # For compile model function
     env = {
         'ParamConfig': ParamConfig,
-        'XSMODEL': _XSMODEL,
+        'XspecAdditive': XspecAdditive,
+        'XspecMultiplicative': XspecMultiplicative,
         'XspecConvolution': XspecConvolution,
         'jnp': jnp,
     }
-    conv_mul = ['partcov', 'vmshift', 'zmshift']
-    models = _XSMODEL['con']
-    model_classes = {}
-    for name, info in models.items():
-        params_config = []
-        for p in info.parameters:
-            if p.units is None:
-                unit = ''
-            else:
-                unit = p.units
 
-            pname = p.name
-            if pname == 'del':
-                pname = 'delta'
+    # For additive models
+    norm_config = _PARAM_CONFIG_TEMPLATE.format(
+        name='norm',
+        latex=r'\mathrm{{norm}}',
+        unit='',
+        default=1.0,
+        min=1e-10,
+        max=1e10,
+        fixed=False,
+    )
 
-            pmin = p.hardmin
-            pmax = p.hardmax
-            default = p.default
-            if p.paramtype.name == 'Default' and (not pmin < default < pmax):
-                delta = 1e-3 * (pmax - pmin)
-                if pmin == default:
-                    default += delta
-                else:
-                    default -= delta
+    def gen_param_config(param_info: XspecParameterInfo) -> str:
+        """Generate parameter configuration string given parameter info."""
+        name = param_info.name
+        default = param_info.default
+        unit = param_info.units if param_info.units else ''
+        pmin = param_info.hardmin
+        pmax = param_info.hardmax
 
-            params_config.append(
-                rf"ParamConfig('{pname}', r'\mathrm{{{pname}}}', '{unit}', "
-                f'{default}, {pmin}, {pmax}, fixed={p.frozen})'
-            )
+        # avoid conflict to del in Python
+        if name == 'del':
+            name = 'delta'
 
-        params_config = ',\n        '.join(params_config)
+        # min and max is None for switch and scale type parameters
+        if pmin is None:
+            pmin = -1
+        if pmax is None:
+            pmax = 1e10
 
-        name = name.lower()
-        desc_url = _xs_model_info[name]
-        str_map = {
+        return _PARAM_CONFIG_TEMPLATE.format(
+            name=name,
+            unit=unit,
+            default=default,
+            min=pmin,
+            max=pmax,
+            fixed=param_info.frozen,
+        )
+
+    def make_xspec_model(model_info: XspecModelInfo) -> XspecComponentMeta:
+        """Make Xspec model class."""
+        name = model_info.name
+        vars_map = {
             'name': name,
-            'mtype': 'convolution',
-            'desc': desc_url['desc'],
-            'link': desc_url['link'],
-            'params_config': params_config,
-            'supported': 'mul' if name in conv_mul else 'add',
+            'desc': model_desc_link[name]['desc'],
+            'link': model_desc_link[name]['link'],
         }
-        exec(template.format_map(str_map), env, model_classes)
+        params_config = list(map(gen_param_config, model_info.parameters))
+        model_type = model_info.modeltype
+        if model_type == _XspecModelType.Add:
+            params_config.append(norm_config)
+            template = _TEMPLATE_ADD
+        elif model_type == _XspecModelType.Mul:
+            template = _TEMPLATE_MUL
+        elif model_type == _XspecModelType.Con:
+            vars_map['supported'] = 'mul' if name in conv_for_mul else 'add'
+            template = _TEMPLATE_CON
+        else:
+            raise ValueError(f'Unsupported model type: {model_type.name}')
+        vars_map['params_config'] = ',\n        '.join(params_config)
+        model_code = template.format_map(vars_map)
+        primitive = _XSMODEL['primitive'][name]
+        exec(model_code, env | {name: primitive}, models)
 
-    return model_classes
+    list(map(make_xspec_model, _XSMODEL['add'].values()))
+    list(map(make_xspec_model, _XSMODEL['mul'].values()))
+    list(map(make_xspec_model, _XSMODEL['con'].values()))
+
+    return models
 
 
-def xspec_model_info():
+def xspec_model_desc_and_link():
     HEADAS = os.environ.get('HEADAS', '')
     model_info = {}
 
@@ -554,8 +555,9 @@ def xspec_model_info():
     return model_info
 
 
-_xs_model_info = xspec_model_info()
-_xs_comps = create_xspec_components() | create_xspec_conv_components()
+_xs_comps = generate_xspec_models()
+for c in _xs_comps.values():
+    c.__module__ = __name__
 locals().update(_xs_comps)
 __all__.extend(_xs_comps.keys())
 del _xs_comps
