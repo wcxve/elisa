@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, NamedTuple, get_args
@@ -463,7 +464,8 @@ class UniformParameter(DistParameter):
     ):
         self._log = bool(log)
 
-        self._check_and_set_values(default, min, max)
+        self._name = name
+        self._check_and_set_values(default, min, max, fixed)
 
         super().__init__(
             name,
@@ -545,6 +547,7 @@ class UniformParameter(DistParameter):
     @fixed.setter
     def fixed(self, fixed: bool):
         self._fixed = bool(fixed)
+        self._check_and_set_values(self.default, self.min, self.max)
 
     @property
     def _dist_expr(self) -> str:
@@ -558,6 +561,7 @@ class UniformParameter(DistParameter):
         default: float | None = None,
         min: float | None = None,
         max: float | None = None,
+        fixed: bool | None = None,
     ) -> None:
         """Check and set parameter configuration."""
         if default is None:
@@ -581,21 +585,46 @@ class UniformParameter(DistParameter):
                 raise ValueError('max must be a scalar')
             _max = jnp.asarray(max, float)
 
+        if fixed is None:
+            fixed = self._fixed
+        else:
+            fixed = bool(fixed)
+
         if _min <= 0.0 and self._log:
             raise ValueError(f'min ({_min}) must be positive for log uniform')
 
         if _min >= _max:
             raise ValueError(f'min ({_min}) must be less than max ({_max})')
 
-        if _default <= _min:
+        if _default < _min:
             raise ValueError(
                 f'default ({_default}) must be greater than min ({_min})'
             )
 
-        if _default >= _max:
+        if _default > _max:
             raise ValueError(
                 f'default ({_default}) must be less than max ({_max})'
             )
+
+        if _default == _min and not fixed:
+            new_default = _min + 1e-10 * (_max - _min)
+            warnings.warn(
+                f'the default value of {self} ({_default}) is equal '
+                f'its min ({_min}), which will lead to undefined result; '
+                f'the default value is now reset to {new_default}',
+                Warning,
+            )
+            _default = new_default
+
+        if _default == _max and not fixed:
+            new_default = _max - 1e-10 * (_max - _min)
+            warnings.warn(
+                f'the default value of {self} ({_default}) is equal '
+                f'to its max ({_max}), which will lead to undefined result; '
+                f'the default value is now reset to {new_default}',
+                Warning,
+            )
+            _default = new_default
 
         if default is not None:
             self._default = _default
