@@ -24,6 +24,7 @@ def get_test_models():
     models = generate_xspec_models()
     if not has_xspec_data:
         models_to_test = [
+            'XSposm',
             'XSzpowerlw',
             'XSzvgauss',
             'XStbabs',
