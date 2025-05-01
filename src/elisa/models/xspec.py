@@ -455,7 +455,7 @@ def generate_xspec_models():
         """Generate parameter configuration string given parameter info."""
         name = param_info.name
         default = param_info.default
-        unit = param_info.units if param_info.units else ''
+        unit = param_info.units or ''
         pmin = param_info.hardmin
         pmax = param_info.hardmax
 
