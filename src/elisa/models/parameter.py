@@ -574,16 +574,12 @@ class UniformParameter(DistParameter):
         if min is None:
             _min = self._min
         else:
-            if jnp.shape(min) != ():
-                raise ValueError('min must be a scalar')
-            _min = jnp.asarray(min, float)
+            _min = jnp.asarray(float(min), float)
 
         if max is None:
             _max = self._max
         else:
-            if jnp.shape(max) != ():
-                raise ValueError('max must be a scalar')
-            _max = jnp.asarray(max, float)
+            _max = jnp.asarray(float(max), float)
 
         if fixed is None:
             fixed = self._fixed
