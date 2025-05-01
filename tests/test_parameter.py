@@ -16,7 +16,7 @@ def test_param_bound():
     assert p.min < p.default < p.max
 
     p = UniformParameter('p', 0.0, -1.0, 0.0, fixed=True)
-    assert p.default == p.min
+    assert p.default == p.max
     p.fixed = False
     assert p.min < p.default < p.max
 
