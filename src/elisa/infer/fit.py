@@ -781,67 +781,68 @@ class BayesFit(Fit):
             **kwargs,
         )
 
-    def sa(
-        self,
-        warmup: int = 100000,
-        steps: int = 100000,
-        chains: int | None = None,
-        init: dict[str, float] | None = None,
-        chain_method: str = 'parallel',
-        progress: bool = True,
-        post_warmup_state: SAState | None = None,
-        **kwargs: dict,
-    ) -> PosteriorResult:
-        """Run :mod:`numpyro`'s :class:`numpyro.infer.SA` sampler.
-
-        .. note::
-            Thi is a gradient-free sampler. It is fast in term of n_eff / s,
-            but requires **many** warmup (burn-in) steps.
-
-        Parameters
-        ----------
-        warmup : int, optional
-            Number of warmup steps. The default is 100000.
-        steps : int, optional
-            Number of steps to run for each chain. The default is 100000.
-        chains : int, optional
-            Number of MCMC chains to run. If there are not enough devices
-            available, chains will run in sequence. Defaults to the number of
-            ``jax.local_device_count()``.
-        init : dict, optional
-            Initial parameter for sampler to start from.
-        chain_method : str, optional
-            The chain method passed to :class:`numpyro.infer.MCMC`.
-        progress : bool, optional
-            Whether to show progress bar during sampling. The default is True.
-        post_warmup_state : SAState, optional
-            The state before the sampling phase. The sampling will start from
-            the given state if provided.
-        **kwargs : dict
-            Extra parameters passed to :class:`numpyro.infer.SA`.
-
-        Returns
-        -------
-        PosteriorResult
-            The posterior sampling result.
-
-        References
-        ----------
-        .. [1] Sample Adaptive MCMC
-               (https://papers.nips.cc/paper/9107-sample-adaptive-mcmc),
-               Michael Zhu
-        """
-        return self._run_numpyro_mcmc(
-            kernel=SA,
-            warmup=warmup,
-            steps=steps,
-            chains=chains,
-            init=init,
-            chain_method=chain_method,
-            progress=progress,
-            post_warmup_state=post_warmup_state,
-            **kwargs,
-        )
+    # def sa(
+    #     self,
+    #     warmup: int = 100000,
+    #     steps: int = 100000,
+    #     chains: int | None = None,
+    #     init: dict[str, float] | None = None,
+    #     chain_method: str = 'parallel',
+    #     progress: bool = True,
+    #     post_warmup_state: SAState | None = None,
+    #     **kwargs: dict,
+    # ) -> PosteriorResult:
+    #     """Run :mod:`numpyro`'s :class:`numpyro.infer.SA` sampler.
+    #
+    #     .. note::
+    #         Thi is a gradient-free sampler. It is fast in term of n_eff / s,
+    #         but requires **many** warmup (burn-in) steps.
+    #
+    #     Parameters
+    #     ----------
+    #     warmup : int, optional
+    #         Number of warmup steps. The default is 100000.
+    #     steps : int, optional
+    #         Number of steps to run for each chain. The default is 100000.
+    #     chains : int, optional
+    #         Number of MCMC chains to run. If there are not enough devices
+    #         available, chains will run in sequence. Defaults to the number of
+    #         ``jax.local_device_count()``.
+    #     init : dict, optional
+    #         Initial parameter for sampler to start from.
+    #     chain_method : str, optional
+    #         The chain method passed to :class:`numpyro.infer.MCMC`.
+    #     progress : bool, optional
+    #         Whether to show progress bar during sampling.
+    #         The default is True.
+    #     post_warmup_state : SAState, optional
+    #         The state before the sampling phase. The sampling will start from
+    #         the given state if provided.
+    #     **kwargs : dict
+    #         Extra parameters passed to :class:`numpyro.infer.SA`.
+    #
+    #     Returns
+    #     -------
+    #     PosteriorResult
+    #         The posterior sampling result.
+    #
+    #     References
+    #     ----------
+    #     .. [1] Sample Adaptive MCMC
+    #            (https://papers.nips.cc/paper/9107-sample-adaptive-mcmc),
+    #            Michael Zhu
+    #     """
+    #     return self._run_numpyro_mcmc(
+    #         kernel=SA,
+    #         warmup=warmup,
+    #         steps=steps,
+    #         chains=chains,
+    #         init=init,
+    #         chain_method=chain_method,
+    #         progress=progress,
+    #         post_warmup_state=post_warmup_state,
+    #         **kwargs,
+    #     )
 
     def _run_numpyro_ensemble_sampler(
         self,

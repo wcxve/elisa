@@ -40,7 +40,7 @@ def test_trivial_max_like_fit(simulation, method):
         # NumPyro samplers
         pytest.param('nuts', {}, id='NUTS'),
         pytest.param('barkermh', {}, id='BarkerMH'),
-        pytest.param('sa', {}, id='SA'),
+        # pytest.param('sa', {}, id='SA'),
         pytest.param('aies', {}, id='AIES'),
         pytest.param('aies', {'n_parallel': 1}, id='AIES_1'),
         pytest.param('ess', {}, id='ESS'),
