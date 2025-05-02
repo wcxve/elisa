@@ -40,6 +40,7 @@ try:
         in_xflt,
         number_elements,
         set_db,
+        set_model_string,
         set_xflt,
         version,
     )
@@ -62,6 +63,7 @@ try:
         'in_xflt',
         'number_elements',
         'set_db',
+        'set_model_string',
         'set_xflt',
         'version',
     ]
