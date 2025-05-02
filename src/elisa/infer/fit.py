@@ -870,31 +870,16 @@ class BayesFit(Fit):
         n_parallel = get_parallel_number(n_parallel)
 
         kernel_kwargs['model'] = self._helper.numpyro_model
+        kernel = kernel(**kernel_kwargs)
         sampler = MCMC(
-            kernel(**kernel_kwargs),
+            kernel,
             num_warmup=warmup,
             num_samples=steps,
             num_chains=chains,
             chain_method='vectorized',
             progress_bar=bool(progress) and (n_parallel < 2),
         )
-
-        if post_warmup_state is not None:
-            if not isinstance(post_warmup_state, EnsembleSamplerState):
-                raise ValueError(
-                    'post_warmup_state must be EnsembleSamplerState'
-                )
-
-            if isinstance(kernel, AIES) and not isinstance(
-                post_warmup_state.inner_state, AIESState
-            ):
-                raise ValueError('post_warmup_state must be the state of AIES')
-            elif isinstance(kernel, ESS) and not isinstance(
-                post_warmup_state.inner_state, ESSState
-            ):
-                raise ValueError('post_warmup_state must be the state of ESS')
-
-            sampler.post_warmup_state = post_warmup_state
+        self._set_numpyro_mcmc_post_warmup_state(sampler, post_warmup_state)
 
         # TODO: option to let sampler starting from MLE
         init = self._helper.constr_dic_to_unconstr_arr(self._check_init(init))
