@@ -121,10 +121,6 @@ lint.select = [
 ini_options.addopts = "-n auto --cov=elisa --cov-report xml"
 
 [tool.coverage]
-run.omit = [
-    "src/elisa/infer/nested_sampling.py",
-    "src/elisa/models/tables",
-]
 report.exclude_also = [
     # Have to re-enable the standard pragma
     "pragma: no cover",
@@ -139,4 +135,8 @@ report.exclude_also = [
     "if TYPE_CHECKING:",
     # Don't complain about abstract methods' implementations
     '@(abc\.)?abstractmethod',
+]
+run.omit = [
+    "src/elisa/infer/nested_sampling.py",
+    "src/elisa/models/tables",
 ]
