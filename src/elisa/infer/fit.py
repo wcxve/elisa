@@ -647,23 +647,25 @@ class BayesFit(Fit):
 
     def barkermh(
         self,
-        warmup=2000,
-        steps=5000,
+        warmup: int = 2000,
+        steps: int = 5000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
-        post_warmup_state: HMCState | None = None,
+        post_warmup_state: BarkerMHState | None = None,
         **bmh_kwargs: dict,
     ) -> PosteriorResult:
-        """Run the gradient-based MCMC Sampler of :mod:`numpyro`.
+        """Run :mod:`numpyro`'s :class:`numpyro.infer.BarkerMH` sampler.
 
         .. note::
-            This is a gradient-based MCMC algorithm of Metropolis-Hastings type that uses
-            a skew-symmetric proposal distribution that depends on the gradient of
-            the potential see ref [1]_.
-            This algorithm to be particularly effective for low to moderate
-            dimensional models, where it may be competitive with NUTS.
+            This is a gradient-based MCMC algorithm of Metropolis-Hastings
+            type that uses a skew-symmetric proposal distribution that depends
+            on the gradient of the potential (the Barker proposal [1]_).
+            In particular the proposal distribution is skewed in the direction
+            of the gradient at the current sample. This algorithm is expected
+            to be particularly effective for low to moderate dimensional
+            models, where it may be competitive with HMC and NUTS.
 
         Parameters
         ----------
@@ -681,7 +683,7 @@ class BayesFit(Fit):
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
             Whether to show progress bar during sampling. The default is True.
-        post_warmup_state : HMCState, optional
+        post_warmup_state : BarkerMHState, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided.
         **bmh_kwargs : dict
@@ -694,8 +696,9 @@ class BayesFit(Fit):
 
         References
         ----------
-        .. [1] The Barker proposal: combining robustness and efficiency in gradient-based MCMC.
-                Samuel Livingstone, Giacomo Zanella.
+        .. [1] The Barker proposal: combining robustness and efficiency in
+               gradient-based MCMC (https://doi.org/10.1111/rssb.12482),
+               Samuel Livingstone and Giacomo Zanella.
         """
         device_count = jax.local_device_count()
 
