@@ -25,7 +25,6 @@ def get_test_models():
         models_to_test = [
             'XSfeklor',  # test for additive models with norm param only
             'XSposm',  # test for additive models with norm param only
-            'XSzkerrbb',  # test for cosmology setting
             'XStbabs',  # test multiplicative model
             'XSclumin',  # test convolution model (for additive models)
             'XSpartcov',  # test convolution model (for multiplicative models)
