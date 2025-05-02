@@ -17,8 +17,14 @@ from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
 from numpyro.infer import AIES, ESS, MCMC, NUTS, SA, BarkerMH, init_to_value
 from numpyro.infer.barker import BarkerMHState
-from numpyro.infer.ensemble import AIESState, EnsembleSamplerState, ESSState
-from numpyro.infer.hmc import HMCState
+from numpyro.infer.ensemble import (
+    AIESState,
+    EnsembleSampler,
+    EnsembleSamplerState,
+    ESSState,
+)
+from numpyro.infer.hmc import HMC, HMCState
+from numpyro.infer.mcmc import MCMCKernel
 from numpyro.infer.sa import SAState
 
 from elisa.data.base import FixedData, ObservationData
@@ -548,29 +554,121 @@ class MaxLikeFit(Fit):
 class BayesFit(Fit):
     _tab_config = ('Bayesian Fit', frozenset({'Bound'}))
 
-    def nuts(
+    def _check_init(self, init: dict[str, float] | None) -> dict[str, float]:
+        if init is None:
+            init = self._helper.free_default['constr_dic']
+        else:
+            init = self._helper.free_default['constr_dic'] | dict(init)
+        return init
+
+    @staticmethod
+    def _set_numpyro_mcmc_post_warmup_state(mcmc: MCMC, state: Any) -> None:
+        if state is None:
+            return
+
+        assert isinstance(mcmc, MCMC)
+        kernel: MCMCKernel = mcmc.sampler
+        kernel_state_types = {
+            BarkerMH: BarkerMHState,
+            EnsembleSampler: EnsembleSamplerState,
+            HMC: HMCState,
+            SA: SAState,
+        }
+        ensemble_state_types = {
+            AIES: AIESState,
+            ESS: ESSState,
+        }
+        for kt, st in kernel_state_types.items():
+            if isinstance(kernel, kt):
+                if not isinstance(state, st):
+                    raise ValueError(
+                        f'post_warmup_state must be {st.__name__}'
+                    )
+                break
+        if isinstance(kernel, EnsembleSampler):
+            kernel_type = kernel.__class__
+            is_type = ensemble_state_types.get(kernel_type, object)
+            if not isinstance(state.inner_state, is_type):
+                raise ValueError(
+                    f'post_warmup_state must be state for {kernel_type}'
+                )
+        mcmc.post_warmup_state = state
+
+    def _run_numpyro_mcmc(
         self,
-        warmup=2000,
-        steps=5000,
+        kernel: type[MCMCKernel],
+        warmup: int,
+        steps: int,
         chains: int | None = None,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
         post_warmup_state: HMCState | None = None,
-        **nuts_kwargs: dict,
+        extra_fields: tuple[str, ...] = (),
+        **kernel_kwargs: dict,
+    ):
+        """Run the regular sampler of numpyro."""
+        if not issubclass(kernel, MCMCKernel):
+            raise ValueError('kernel must be a subclass of numpyro MCMCKernel')
+
+        warmup = int(warmup)
+        steps = int(steps)
+
+        device_count = jax.local_device_count()
+
+        chains = int(chains) if chains is not None else device_count
+
+        # the number of total samples should be multiple of the device number
+        if chains * steps % device_count:
+            steps += device_count - steps % device_count
+
+        kernel_kwargs['model'] = self._helper.numpyro_model
+
+        # TODO: option to let sampler starting from MLE
+        init_strategy = init_to_value(values=self._check_init(init))
+        if init is not None:
+            kernel_kwargs['init_strategy'] = init_strategy
+        else:
+            kernel_kwargs.setdefault('init_strategy', init_strategy)
+
+        mcmc = MCMC(
+            kernel(**kernel_kwargs),
+            num_warmup=warmup,
+            num_samples=steps,
+            num_chains=chains,
+            chain_method=chain_method,
+            progress_bar=progress,
+        )
+        self._set_numpyro_mcmc_post_warmup_state(mcmc, post_warmup_state)
+
+        rng_key = jax.random.PRNGKey(self._helper.seed['mcmc'])
+        mcmc.run(rng_key, extra_fields=extra_fields)
+
+        return PosteriorResult(mcmc, self._helper, self)
+
+    def nuts(
+        self,
+        warmup: int = 2000,
+        steps: int = 5000,
+        chains: int | None = None,
+        init: dict[str, float] | None = None,
+        chain_method: str = 'parallel',
+        progress: bool = True,
+        post_warmup_state: HMCState | None = None,
+        **kwargs: dict,
     ) -> PosteriorResult:
-        """Run the No-U-Turn Sampler of :mod:`numpyro`.
+        """Run :mod:`numpyro`'s :class:`numpyro.infer.NUTS` sampler.
 
         .. note::
-            If the chains are not converged well, see ref [1]_ for more
-            information on how to finetune the NUTS sampler.
+            If the chains are not converged well, see ref [2]_ for more
+            information on how to fine-tune NUTS.
 
         Parameters
         ----------
         warmup : int, optional
-            Number of warmup steps.
+            Number of warmup steps. The default is 2000.
         steps : int, optional
-            Number of steps to run for each chain.
+            Number of steps to run for each chain. The default is 5000.
         chains : int, optional
             Number of MCMC chains to run. If there are not enough devices
             available, chains will run in sequence. Defaults to the number of
@@ -584,7 +682,7 @@ class BayesFit(Fit):
         post_warmup_state : HMCState, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided.
-        **nuts_kwargs : dict
+        **kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.NUTS`.
 
         Returns
@@ -594,67 +692,36 @@ class BayesFit(Fit):
 
         References
         ----------
-        .. [1] NumPyro tutorial: `Bad posterior geometry and how to deal with
+        .. [1] The No-U-Turn Sampler: Adaptively Setting Path Lengths in
+               Hamiltonian Monte Carlo
+               (https://www.jmlr.org/papers/volume15/hoffman14a/hoffman14a.pdf)
+        .. [2] NumPyro tutorial: `Bad posterior geometry and how to deal with
                it <https://num.pyro.ai/en/stable/tutorials/bad_posterior_geometry.html>`__
         """
-        device_count = jax.local_device_count()
-
-        if chains is None:
-            chains = device_count
-        else:
-            chains = int(chains)
-
-        steps = int(steps)
-
-        # the total samples number should be multiple of the device number
-        if chains * steps % device_count != 0:
-            steps += device_count - steps % device_count
-
-        # TODO: option to let sampler starting from MLE
-        if init is None:
-            init = self._helper.free_default['constr_dic']
-        else:
-            init = self._helper.free_default['constr_dic'] | dict(init)
-
-        default_nuts_kwargs = {
-            'dense_mass': True,
-            'target_accept_prob': 0.8,
-            'max_tree_depth': 10,
-        }
-        nuts_kwargs = default_nuts_kwargs | nuts_kwargs
-        nuts_kwargs['model'] = self._helper.numpyro_model
-        nuts_kwargs['init_strategy'] = init_to_value(values=init)
-
-        sampler = MCMC(
-            NUTS(**nuts_kwargs),
-            num_warmup=warmup,
-            num_samples=steps,
-            num_chains=chains,
+        kwargs.setdefault('dense_mass', True)
+        return self._run_numpyro_mcmc(
+            kernel=NUTS,
+            warmup=warmup,
+            steps=steps,
+            chains=chains,
+            init=init,
             chain_method=chain_method,
-            progress_bar=progress,
-        )
-
-        if post_warmup_state is not None:
-            if not isinstance(post_warmup_state, HMCState):
-                raise ValueError('post_warmup_state must be HMCState')
-            sampler.post_warmup_state = post_warmup_state
-
-        sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
+            progress=progress,
+            post_warmup_state=post_warmup_state,
             extra_fields=('energy', 'num_steps'),
+            **kwargs,
         )
-        return PosteriorResult(sampler, self._helper, self)
 
     def barkermh(
         self,
-        warmup: int = 2000,
+        warmup: int = 5000,
         steps: int = 5000,
         chains: int | None = None,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
         post_warmup_state: BarkerMHState | None = None,
-        **bmh_kwargs: dict,
+        **kwargs: dict,
     ) -> PosteriorResult:
         """Run :mod:`numpyro`'s :class:`numpyro.infer.BarkerMH` sampler.
 
@@ -670,9 +737,9 @@ class BayesFit(Fit):
         Parameters
         ----------
         warmup : int, optional
-            Number of warmup steps.
+            Number of warmup steps. The default is 5000.
         steps : int, optional
-            Number of steps to run for each chain.
+            Number of steps to run for each chain. The default is 10000.
         chains : int, optional
             Number of MCMC chains to run. If there are not enough devices
             available, chains will run in sequence. Defaults to the number of
@@ -686,7 +753,7 @@ class BayesFit(Fit):
         post_warmup_state : BarkerMHState, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided.
-        **bmh_kwargs : dict
+        **kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.BarkerMH`.
 
         Returns
@@ -700,51 +767,306 @@ class BayesFit(Fit):
                gradient-based MCMC (https://doi.org/10.1111/rssb.12482),
                Samuel Livingstone and Giacomo Zanella.
         """
-        device_count = jax.local_device_count()
+        kwargs.setdefault('dense_mass', True)
+        return self._run_numpyro_mcmc(
+            kernel=BarkerMH,
+            warmup=warmup,
+            steps=steps,
+            chains=chains,
+            init=init,
+            chain_method=chain_method,
+            progress=progress,
+            post_warmup_state=post_warmup_state,
+            **kwargs,
+        )
+
+    # def sa(
+    #     self,
+    #     warmup: int = 100000,
+    #     steps: int = 100000,
+    #     chains: int | None = None,
+    #     init: dict[str, float] | None = None,
+    #     chain_method: str = 'parallel',
+    #     progress: bool = True,
+    #     post_warmup_state: SAState | None = None,
+    #     **kwargs: dict,
+    # ) -> PosteriorResult:
+    #     """Run :mod:`numpyro`'s :class:`numpyro.infer.SA` sampler.
+    #
+    #     .. note::
+    #         Thi is a gradient-free sampler. It is fast in term of n_eff / s,
+    #         but requires **many** warmup (burn-in) steps.
+    #
+    #     Parameters
+    #     ----------
+    #     warmup : int, optional
+    #         Number of warmup steps. The default is 100000.
+    #     steps : int, optional
+    #         Number of steps to run for each chain. The default is 100000.
+    #     chains : int, optional
+    #         Number of MCMC chains to run. If there are not enough devices
+    #         available, chains will run in sequence. Defaults to the number of
+    #         ``jax.local_device_count()``.
+    #     init : dict, optional
+    #         Initial parameter for sampler to start from.
+    #     chain_method : str, optional
+    #         The chain method passed to :class:`numpyro.infer.MCMC`.
+    #     progress : bool, optional
+    #         Whether to show progress bar during sampling.
+    #         The default is True.
+    #     post_warmup_state : SAState, optional
+    #         The state before the sampling phase. The sampling will start from
+    #         the given state if provided.
+    #     **kwargs : dict
+    #         Extra parameters passed to :class:`numpyro.infer.SA`.
+    #
+    #     Returns
+    #     -------
+    #     PosteriorResult
+    #         The posterior sampling result.
+    #
+    #     References
+    #     ----------
+    #     .. [1] Sample Adaptive MCMC
+    #            (https://papers.nips.cc/paper/9107-sample-adaptive-mcmc),
+    #            Michael Zhu
+    #     """
+    #     return self._run_numpyro_mcmc(
+    #         kernel=SA,
+    #         warmup=warmup,
+    #         steps=steps,
+    #         chains=chains,
+    #         init=init,
+    #         chain_method=chain_method,
+    #         progress=progress,
+    #         post_warmup_state=post_warmup_state,
+    #         **kwargs,
+    #     )
+
+    def _run_numpyro_ensemble_sampler(
+        self,
+        kernel: type[AIES | ESS],
+        warmup: int,
+        steps: int,
+        chains: int | None,
+        init: dict[str, float] | None,
+        n_parallel: int,
+        progress: bool,
+        post_warmup_state: EnsembleSamplerState | None,
+        **kernel_kwargs: dict,
+    ) -> PosteriorResult:
+        """Run the ensemble sampler (AIES or ESS) of numpyro."""
+        if not issubclass(kernel, (AIES, ESS)):
+            raise ValueError('kernel must be AIES or ESS')
+
+        warmup = int(warmup)
+        steps = int(steps)
 
         if chains is None:
-            chains = device_count
+            chains = 4 * len(self._helper.params_names['free'])
         else:
             chains = int(chains)
 
-        steps = int(steps)
+        n_parallel = get_parallel_number(n_parallel)
 
-        # the total samples number should be multiple of the device number
-        if chains * steps % device_count != 0:
-            steps += device_count - steps % device_count
-
-        # TODO: option to let sampler starting from MLE
-        if init is None:
-            init = self._helper.free_default['constr_dic']
-        else:
-            init = self._helper.free_default['constr_dic'] | dict(init)
-
-        default_bmh_kwargs = {
-            'dense_mass': True,
-            'target_accept_prob': 0.8,
-        }
-        bmh_kwargs = default_bmh_kwargs | bmh_kwargs
-        bmh_kwargs['model'] = self._helper.numpyro_model
-        bmh_kwargs['init_strategy'] = init_to_value(values=init)
-
+        kernel_kwargs['model'] = self._helper.numpyro_model
+        kernel = kernel(**kernel_kwargs)
         sampler = MCMC(
-            BarkerMH(**bmh_kwargs),
+            kernel,
             num_warmup=warmup,
             num_samples=steps,
             num_chains=chains,
-            chain_method=chain_method,
-            progress_bar=progress,
+            chain_method='vectorized',
+            progress_bar=bool(progress) and (n_parallel < 2),
         )
+        self._set_numpyro_mcmc_post_warmup_state(sampler, post_warmup_state)
 
-        if post_warmup_state is not None:
-            if not isinstance(post_warmup_state, BarkerMHState):
-                raise ValueError('post_warmup_state must be BarkerMHState')
-            sampler.post_warmup_state = post_warmup_state
+        # TODO: option to let sampler starting from MLE
+        init = self._helper.constr_dic_to_unconstr_arr(self._check_init(init))
+        rng = np.random.default_rng(self._helper.seed['mcmc'])
+        jitter = 0.1 * np.abs(init)
+        low = init - jitter
+        high = init + jitter
+        init = rng.uniform(low, high, size=(chains, len(init)))
+        init = dict(zip(self._helper.params_names['free'], init.T))
 
-        sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-        )
+        def do_mcmc(rng_key):
+            sampler.run(rng_key, init_params=init)
+            return sampler.get_samples(group_by_chain=False)
+
+        rng_key = jax.random.PRNGKey(self._helper.seed['mcmc'])
+
+        # The following code merges multiple chains from the same sampler
+        # into a single chain to make arviz stats valid, e.g., rhat
+        if n_parallel >= 2:
+            rng_keys = jax.random.split(rng_key, n_parallel)
+            traces = jax.pmap(do_mcmc)(rng_keys)
+            sampler = MCMC(
+                kernel,
+                num_warmup=warmup * chains,
+                num_samples=steps * chains,
+                num_chains=n_parallel,
+            )
+            # For n_parallel >= 2, sampler.last_state is not updated
+            sampler._states = {sampler._sample_field: traces}
+        else:
+            traces = jax.tree.map(lambda x: x[jnp.newaxis], do_mcmc(rng_key))
+            last_state = sampler.last_state
+            sampler = MCMC(
+                kernel,
+                num_warmup=warmup * chains,
+                num_samples=steps * chains,
+                num_chains=1,
+            )
+            sampler._last_state = last_state
+            sampler._states = {sampler._sample_field: traces}
+
         return PosteriorResult(sampler, self._helper, self)
+
+    def aies(
+        self,
+        warmup: int = 5000,
+        steps: int = 5000,
+        chains: int | None = None,
+        init: dict[str, float] | None = None,
+        n_parallel: int | None = None,
+        progress: bool = True,
+        post_warmup_state: EnsembleSamplerState | None = None,
+        **kwargs: dict,
+    ) -> PosteriorResult:
+        """Affine-Invariant Ensemble Sampling (AIES) of :mod:`numpyro`.
+
+        Affine-invariant ensemble sampling [1]_ is a gradient-free method
+        that informs Metropolis-Hastings proposals by sharing information
+        between chains. Suitable for low to moderate dimensional models.
+        Generally, `chains` should be at least twice the dimensionality
+        of the model.
+
+        .. note::
+            This sampler must be used with even `chains` > 1.
+
+        Parameters
+        ----------
+        warmup : int, optional
+            Number of warmup steps. The default is 5000.
+        steps : int, optional
+            Number of steps to run for each chain. The default is 5000.
+        chains : int, optional
+            Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
+            the dimension of model parameters.
+        init : dict, optional
+            Initial parameter for sampler to start from.
+        n_parallel : int, optional
+            Number of parallel samplers to run.
+            The default is ``jax.local_device_count()``.
+        progress : bool, optional
+            Whether to show progress bar during sampling. The default is True.
+            This is always False if `n_parallel`>=2.
+        post_warmup_state : EnsembleSamplerState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided. This does not take effect when
+            `n_parallel`>=2.
+        **kwargs : dict
+            Extra parameters passed to :class:`numpyro.infer.AIES`.
+
+        Returns
+        -------
+        PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] *emcee: The MCMC Hammer*
+               (https://iopscience.iop.org/article/10.1086/670067),
+               Daniel Foreman-Mackey, David W. Hogg, Dustin Lang,
+               and Jonathan Goodman.
+        """
+        # use the same default moves as in emcee
+        kwargs.setdefault('moves', {AIES.StretchMove(): 1.0})
+        return self._run_numpyro_ensemble_sampler(
+            AIES,
+            warmup,
+            steps,
+            chains,
+            init,
+            n_parallel,
+            progress,
+            post_warmup_state,
+            **kwargs,
+        )
+
+    def ess(
+        self,
+        warmup: int = 5000,
+        steps: int = 5000,
+        chains: int | None = None,
+        init: dict[str, float] | None = None,
+        n_parallel: int | None = None,
+        progress: bool = True,
+        post_warmup_state: EnsembleSamplerState | None = None,
+        **kwargs: dict,
+    ) -> PosteriorResult:
+        """Ensemble Slice Sampling (ESS) of :mod:`numpyro`.
+
+        Ensemble Slice Sampling [1]_ is a gradient free method
+        that finds better slice sampling directions by sharing information
+        between chains. Suitable for low to moderate dimensional models.
+        Generally, `chains` should be at least twice the dimensionality
+        of the model.
+
+        .. note::
+            This sampler must be used with even `chains` > 1.
+
+        Parameters
+        ----------
+        warmup : int, optional
+            Number of warmup steps. The default is 5000.
+        steps : int, optional
+            Number of steps to run for each chain. The default is 5000.
+        chains : int, optional
+            Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
+            the dimension of model parameters.
+        init : dict, optional
+            Initial parameter for sampler to start from.
+        n_parallel : int, optional
+            Number of parallel samplers to run.
+            The default is ``jax.local_device_count()``.
+        progress : bool, optional
+            Whether to show progress bar during sampling. The default is True.
+            This is always False if `n_parallel`>=2.
+        post_warmup_state : EnsembleSamplerState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided. This does not take effect when
+            `n_parallel`>=2.
+        **kwargs : dict
+            Extra parameters passed to :class:`numpyro.infer.ESS`.
+
+        Returns
+        -------
+        PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] zeus: a PYTHON implementation of ensemble slice sampling
+                for efficient Bayesian parameter inference
+                (https://academic.oup.com/mnras/article/508/3/3589/6381726),
+                Minas Karamanis, Florian Beutler, and John A. Peacock.
+        .. [2] Ensemble slice sampling
+               (https://link.springer.com/article/10.1007/s11222-021-10038-2),
+               Minas Karamanis, Florian Beutler.
+        """
+        return self._run_numpyro_ensemble_sampler(
+            ESS,
+            warmup,
+            steps,
+            chains,
+            init,
+            n_parallel,
+            progress,
+            post_warmup_state,
+            **kwargs,
+        )
 
     def jaxns(
         self,
@@ -760,7 +1082,7 @@ class BayesFit(Fit):
         term_cond: dict | None = None,
         **ns_kwargs: dict,
     ) -> PosteriorResult:
-        """Run the Nested Sampler of :mod:`jaxns`.
+        """Run the nested sampler of :mod:`jaxns`.
 
         .. note::
             Parameters `s`, `k`, and `c` are defined in the paper [1]_.
@@ -837,6 +1159,122 @@ class BayesFit(Fit):
         print(f'Sampling cost {time.time() - t0:.2f} s')
         return PosteriorResult(sampler, self._helper, self)
 
+    def nautilus(
+        self,
+        ess: int = 3000,
+        ignore_nan: bool = True,
+        parallel: bool = True,
+        n_batch: int = 5000,
+        *,
+        constructor_kwargs: dict | None = None,
+        termination_kwargs: dict | None = None,
+    ) -> PosteriorResult:
+        """Run the nested sampler of :mod:`nautilus`.
+
+        Parameters
+        ----------
+        ess : int, optional
+            The desired effective sample size.
+        ignore_nan : bool, optional
+            Whether to transform a NaN log probability to a large negative
+            number (-1e300). The default is True.
+
+            .. warning ::
+                Setting ``ignore_nan=True`` may fail to spot potential issues
+                with model computation.
+        parallel : bool, optional
+            Whether to parallelize likelihood evaluation. The default is True.
+        n_batch : int, optional
+            Number of likelihood evaluations that are performed at each step
+            for each core when `parallel` is True. The default is 5000.
+        constructor_kwargs : dict, optional
+            Extra parameters passed to
+            :class:`nautilus.Sampler`.
+        termination_kwargs : dict, optional
+            Extra parameters passed to
+            :class:`nautilus.Sampler.run()`.
+        """
+        try:
+            import nautilus
+        except ImportError as e:
+            raise ModuleNotFoundError(
+                'To run the nested sampling of Nautilus, install it by '
+                '`pip install nautilus-sampler==1.0.5`'
+            ) from e
+
+        if constructor_kwargs is None:
+            constructor_kwargs = {}
+        else:
+            constructor_kwargs = dict(constructor_kwargs)
+
+        if termination_kwargs is None:
+            termination_kwargs = {}
+        else:
+            termination_kwargs = dict(termination_kwargs)
+
+        log_prob, transform, param_names = reparam_loglike(
+            self._helper.numpyro_model,
+            jax.random.PRNGKey(self._helper.seed['mcmc']),
+        )
+
+        @jax.jit
+        def log_prob_(params):
+            logp = log_prob(dict(zip(param_names, params)))
+            if ignore_nan:
+                return jnp.nan_to_num(logp, nan=-1e300)
+            else:
+                return logp
+
+        if parallel:
+            ncore = jax.local_device_count()
+            devices = create_device_mesh((ncore,))
+            mesh = Mesh(devices, axis_names=('i',))
+            pi = PartitionSpec('i')
+            log_prob_ = shard_map(
+                f=jax.jit(jax.vmap(log_prob_)),
+                mesh=mesh,
+                in_specs=(pi,),
+                out_specs=pi,
+                check_rep=False,
+            )
+            constructor_kwargs['n_batch'] = n_batch * ncore
+
+        @jax.vmap
+        @jax.jit
+        def transform_(samples):
+            base_names = [name + '_base' for name in param_names]
+            return transform(dict(zip(base_names, samples)))
+
+        prior = nautilus.Prior()
+        for param in param_names:
+            prior.add_parameter(param)
+
+        constructor_kwargs['pass_dict'] = False
+        constructor_kwargs['seed'] = self._helper.seed['mcmc']
+        constructor_kwargs['vectorized'] = bool(parallel)
+        constructor_kwargs.setdefault('pool', (None, jax.local_device_count()))
+        sampler = nautilus.Sampler(
+            prior=prior,
+            likelihood=log_prob_,
+            **constructor_kwargs,
+        )
+
+        termination_kwargs['discard_exploration'] = True
+        termination_kwargs.setdefault('verbose', True)
+        print('Start nested sampling...')
+        t0 = time.time()
+        success = sampler.run(n_eff=int(ess), **termination_kwargs)
+        if success:
+            print(f'Sampling cost {time.time() - t0:.2f} s')
+            sampler._transform_back = transform_
+            return PosteriorResult(sampler, self._helper, self)
+        else:
+            raise RuntimeError(
+                'Sampling failed due to limits were reached, please set a '
+                'larger `n_like_max` or `timeout`. You can also resume the '
+                'sampler from previous one, providing `filepath` and `resume`.'
+            )
+
     def ultranest(
         self,
         ess: int = 3000,
@@ -846,7 +1284,7 @@ class BayesFit(Fit):
         termination_kwargs: dict | None = None,
         read_file: dict | None = None,
     ) -> PosteriorResult:
-        """Run the Nested Sampler of :mod:`ultranest`.
+        """Run the nested sampler of :mod:`ultranest`.
 
         Parameters
         ----------
@@ -953,446 +1391,4 @@ class BayesFit(Fit):
                 log_dir, x_dim, verbose=verbose
             )
             sampler.results = sequence | final
-        return PosteriorResult(sampler, self._helper, self)
-
-    def nautilus(
-        self,
-        ess: int = 3000,
-        ignore_nan: bool = True,
-        parallel: bool = True,
-        n_batch: int = 5000,
-        *,
-        constructor_kwargs: dict | None = None,
-        termination_kwargs: dict | None = None,
-    ) -> PosteriorResult:
-        """Run the Nested Sampler of :mod:`nautilus`.
-
-        Parameters
-        ----------
-        ess : int, optional
-            The desired effective sample size.
-        ignore_nan : bool, optional
-            Whether to transform a NaN log probability to a large negative
-            number (-1e300). The default is True.
-
-            .. warning ::
-                Setting ``ignore_nan=True`` may fail to spot potential issues
-                with model computation.
-        parallel : bool, optional
-            Whether to parallelize likelihood evaluation. The default is True.
-        n_batch : int, optional
-            Number of likelihood evaluations that are performed at each step
-            for each core when `parallel` is True. The default is 5000.
-        constructor_kwargs : dict, optional
-            Extra parameters passed to
-            :class:`nautilus.Sampler`.
-        termination_kwargs : dict, optional
-            Extra parameters passed to
-            :class:`nautilus.Sampler.run()`.
-        """
-        try:
-            import nautilus
-        except ImportError as e:
-            raise ModuleNotFoundError(
-                'To run the nested sampling of Nautilus, install it by '
-                '`pip install nautilus-sampler==1.0.5`'
-            ) from e
-
-        if constructor_kwargs is None:
-            constructor_kwargs = {}
-        else:
-            constructor_kwargs = dict(constructor_kwargs)
-
-        if termination_kwargs is None:
-            termination_kwargs = {}
-        else:
-            termination_kwargs = dict(termination_kwargs)
-
-        log_prob, transform, param_names = reparam_loglike(
-            self._helper.numpyro_model,
-            jax.random.PRNGKey(self._helper.seed['mcmc']),
-        )
-
-        @jax.jit
-        def log_prob_(params):
-            logp = log_prob(dict(zip(param_names, params)))
-            if ignore_nan:
-                return jnp.nan_to_num(logp, nan=-1e300)
-            else:
-                return logp
-
-        if parallel:
-            ncore = jax.local_device_count()
-            devices = create_device_mesh((ncore,))
-            mesh = Mesh(devices, axis_names=('i',))
-            pi = PartitionSpec('i')
-            log_prob_ = shard_map(
-                f=jax.jit(jax.vmap(log_prob_)),
-                mesh=mesh,
-                in_specs=(pi,),
-                out_specs=pi,
-                check_rep=False,
-            )
-            constructor_kwargs['n_batch'] = n_batch * ncore
-
-        @jax.vmap
-        @jax.jit
-        def transform_(samples):
-            base_names = [name + '_base' for name in param_names]
-            return transform(dict(zip(base_names, samples)))
-
-        prior = nautilus.Prior()
-        for param in param_names:
-            prior.add_parameter(param)
-
-        constructor_kwargs['pass_dict'] = False
-        constructor_kwargs['seed'] = self._helper.seed['mcmc']
-        constructor_kwargs['vectorized'] = bool(parallel)
-        constructor_kwargs.setdefault('pool', (None, jax.local_device_count()))
-        sampler = nautilus.Sampler(
-            prior=prior,
-            likelihood=log_prob_,
-            **constructor_kwargs,
-        )
-
-        termination_kwargs['discard_exploration'] = True
-        termination_kwargs.setdefault('verbose', True)
-        print('Start nested sampling...')
-        t0 = time.time()
-        success = sampler.run(n_eff=int(ess), **termination_kwargs)
-        if success:
-            print(f'Sampling cost {time.time() - t0:.2f} s')
-            sampler._transform_back = transform_
-            return PosteriorResult(sampler, self._helper, self)
-        else:
-            raise RuntimeError(
-                'Sampling failed due to limits were reached, please set a '
-                'larger `n_like_max` or `timeout`. You can also resume the '
-                'sampler from previous one, providing `filepath` and `resume`.'
-            )
-
-    def _run_numpyro_ensemble_sampler(
-        self,
-        kernel: AIES | ESS,
-        warmup: int,
-        steps: int,
-        chains: int | None,
-        init: dict[str, float] | None,
-        n_parallel: int,
-        progress: bool,
-        post_warmup_state: EnsembleSamplerState | None,
-    ) -> PosteriorResult:
-        """Run the ensemble sampler (AIES or ESS) of :mod:`numpyro`."""
-        if not isinstance(kernel, (AIES, ESS)):
-            raise ValueError('kernel must be AIES or ESS')
-
-        warmup = int(warmup)
-        steps = int(steps)
-
-        if chains is None:
-            chains = 4 * len(self._helper.params_names['free'])
-        else:
-            chains = int(chains)
-
-        n_parallel = get_parallel_number(n_parallel)
-
-        # TODO: option to let sampler starting from MLE
-        if init is None:
-            init = self._helper.free_default['constr_dic']
-        else:
-            init = self._helper.free_default['constr_dic'] | dict(init)
-        init = self._helper.constr_dic_to_unconstr_arr(init)
-        rng = np.random.default_rng(self._helper.seed['mcmc'])
-        jitter = 0.1 * np.abs(init)
-        low = init - jitter
-        high = init + jitter
-        init = rng.uniform(low, high, size=(chains, len(init)))
-        init = dict(zip(self._helper.params_names['free'], init.T))
-
-        sampler = MCMC(
-            kernel,
-            num_warmup=warmup,
-            num_samples=steps,
-            num_chains=chains,
-            chain_method='vectorized',
-            progress_bar=bool(progress) and (n_parallel < 2),
-        )
-
-        if post_warmup_state is not None:
-            if not isinstance(post_warmup_state, EnsembleSamplerState):
-                raise ValueError(
-                    'post_warmup_state must be EnsembleSamplerState'
-                )
-
-            if isinstance(kernel, AIES) and not isinstance(
-                post_warmup_state.inner_state, AIESState
-            ):
-                raise ValueError('post_warmup_state must be the state of AIES')
-            elif isinstance(kernel, ESS) and not isinstance(
-                post_warmup_state.inner_state, ESSState
-            ):
-                raise ValueError('post_warmup_state must be the state of ESS')
-
-            sampler.post_warmup_state = post_warmup_state
-
-        rng_key = jax.random.PRNGKey(self._helper.seed['mcmc'])
-
-        def do_mcmc(rng_key):
-            sampler.run(rng_key, init_params=init)
-            return sampler.get_samples(group_by_chain=False)
-
-        # The following code merges multiple chains from the same sampler
-        # into a single chain to make arviz stats valid, e.g., rhat and ess
-        if n_parallel >= 2:
-            rng_keys = jax.random.split(rng_key, n_parallel)
-            traces = jax.pmap(do_mcmc)(rng_keys)
-            sampler = MCMC(
-                kernel,
-                num_warmup=warmup * chains,
-                num_samples=steps * chains,
-                num_chains=n_parallel,
-            )
-            # For n_parallel >= 2, sampler.last_state is not updated
-            sampler._states = {sampler._sample_field: traces}
-        else:
-            traces = jax.tree.map(lambda x: x[jnp.newaxis], do_mcmc(rng_key))
-            last_state = sampler.last_state
-            sampler = MCMC(
-                kernel,
-                num_warmup=warmup * chains,
-                num_samples=steps * chains,
-                num_chains=1,
-            )
-            sampler._last_state = last_state
-            sampler._states = {sampler._sample_field: traces}
-
-        return PosteriorResult(sampler, self._helper, self)
-
-    def aies(
-        self,
-        warmup: int = 2000,
-        steps: int = 5000,
-        chains: int | None = None,
-        init: dict[str, float] | None = None,
-        n_parallel: int | None = None,
-        progress: bool = True,
-        post_warmup_state: EnsembleSamplerState | None = None,
-        **aies_kwargs: dict,
-    ) -> PosteriorResult:
-        """Affine-Invariant Ensemble Sampling (AIES) of :mod:`numpyro`.
-
-        Affine-invariant ensemble sampling [1]_ is a gradient-free method
-        that informs Metropolis-Hastings proposals by sharing information
-        between chains. Suitable for low to moderate dimensional models.
-        Generally, `chains` should be at least twice the dimensionality
-        of the model.
-
-        .. note::
-            This sampler must be used with even `chains` > 1.
-
-        Parameters
-        ----------
-        warmup : int, optional
-            Number of warmup steps.
-        steps : int, optional
-            Number of steps to run for each chain.
-        chains : int, optional
-            Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
-            the dimension of model parameters.
-        init : dict, optional
-            Initial parameter for sampler to start from.
-        n_parallel : int, optional
-            Number of parallel samplers to run.
-            The default is ``jax.local_device_count()``.
-        progress : bool, optional
-            Whether to show progress bar during sampling. The default is True.
-            This is always False if `n_parallel`>=2.
-        post_warmup_state : EnsembleSamplerState, optional
-            The state before the sampling phase. The sampling will start from
-            the given state if provided. This does not take effect when
-            `n_parallel`>=2.
-        **aies_kwargs : dict
-            Extra parameters passed to :class:`numpyro.infer.AIES`.
-
-        Returns
-        -------
-        PosteriorResult
-            The posterior sampling result.
-
-        References
-        ----------
-        .. [1] *emcee: The MCMC Hammer*
-               (https://iopscience.iop.org/article/10.1086/670067),
-               Daniel Foreman-Mackey, David W. Hogg, Dustin Lang,
-               and Jonathan Goodman.
-        """
-        aies_kwargs['model'] = self._helper.numpyro_model
-        # use the same default moves as in emcee
-        aies_kwargs.setdefault('moves', {AIES.StretchMove(): 1.0})
-        aies_kernel = AIES(**aies_kwargs)
-        return self._run_numpyro_ensemble_sampler(
-            aies_kernel,
-            warmup,
-            steps,
-            chains,
-            init,
-            n_parallel,
-            progress,
-            post_warmup_state,
-        )
-
-    def ess(
-        self,
-        warmup: int = 2000,
-        steps: int = 5000,
-        chains: int | None = None,
-        init: dict[str, float] | None = None,
-        n_parallel: int | None = None,
-        progress: bool = True,
-        post_warmup_state: EnsembleSamplerState | None = None,
-        **ess_kwargs: dict,
-    ) -> PosteriorResult:
-        """Ensemble Slice Sampling (ESS) of :mod:`numpyro`.
-
-        Ensemble Slice Sampling [1]_ is a gradient free method
-        that finds better slice sampling directions by sharing information
-        between chains. Suitable for low to moderate dimensional models.
-        Generally, `chains` should be at least twice the dimensionality
-        of the model.
-
-        .. note::
-            This sampler must be used with even `chains` > 1.
-
-        Parameters
-        ----------
-        warmup : int, optional
-            Number of warmup steps.
-        steps : int, optional
-            Number of steps to run for each chain.
-        chains : int, optional
-            Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
-            the dimension of model parameters.
-        init : dict, optional
-            Initial parameter for sampler to start from.
-        n_parallel : int, optional
-            Number of parallel samplers to run.
-            The default is ``jax.local_device_count()``.
-        progress : bool, optional
-            Whether to show progress bar during sampling. The default is True.
-            This is always False if `n_parallel`>=2.
-        post_warmup_state : EnsembleSamplerState, optional
-            The state before the sampling phase. The sampling will start from
-            the given state if provided. This does not take effect when
-            `n_parallel`>=2.
-        **ess_kwargs : dict
-            Extra parameters passed to :class:`numpyro.infer.ESS`.
-
-        Returns
-        -------
-        PosteriorResult
-            The posterior sampling result.
-
-        References
-        ----------
-        .. [1] zeus: a PYTHON implementation of ensemble slice sampling
-                for efficient Bayesian parameter inference
-                (https://academic.oup.com/mnras/article/508/3/3589/6381726),
-                Minas Karamanis, Florian Beutler, and John A. Peacock.
-        .. [2] Ensemble slice sampling
-               (https://link.springer.com/article/10.1007/s11222-021-10038-2),
-               Minas Karamanis, Florian Beutler.
-        """
-        ess_kwargs['model'] = self._helper.numpyro_model
-        ess_kernel = ESS(**ess_kwargs)
-        return self._run_numpyro_ensemble_sampler(
-            ess_kernel,
-            warmup,
-            steps,
-            chains,
-            init,
-            n_parallel,
-            progress,
-            post_warmup_state,
-        )
-
-    def sa(
-        self,
-        warmup: int = 20000,
-        steps: int = 300000,
-        chains: int | None = None,
-        init: dict[str, float] | None = None,
-        chain_method: str = 'parallel',
-        progress: bool = True,
-        post_warmup_state: SAState | None = None,
-        **sa_kwargs: dict,
-    ) -> PosteriorResult:
-        """Run the Sample Adaptive MCMC of :mod:`numpyro`.
-
-        Sample Adaptive MCMC, a gradient-free sampler. [1]_
-
-        Parameters
-        ----------
-        warmup : int, optional
-            Number of warmup steps.
-        steps : int, optional
-            Number of steps to run for each chain.
-        chains : int, optional
-            Number of MCMC chains to run. If there are not enough devices
-            available, chains will run in sequence. Defaults to the number of
-            ``jax.local_device_count()``.
-        init : dict, optional
-            Initial parameter for sampler to start from.
-        chain_method : str, optional
-            The chain method passed to :class:`numpyro.infer.MCMC`.
-        progress : bool, optional
-            Whether to show progress bar during sampling. The default is True.
-        post_warmup_state : SAState, optional
-            The state before the sampling phase. The sampling will start from
-            the given state if provided.
-        **sa_kwargs : dict
-            Extra parameters passed to :class:`numpyro.infer.SA`.
-
-        Returns
-        -------
-        PosteriorResult
-            The posterior sampling result.
-
-        References
-        ----------
-        .. [1] Sample Adaptive MCMC by Michael Zhu
-               <https://papers.nips.cc/paper/9107-sample-adaptive-mcmc>`__
-        """
-        if chains is None:
-            chains = 4 * len(self._helper.params_names['free'])
-        else:
-            chains = int(chains)
-
-        # TODO: option to let sampler starting from MLE
-        if init is None:
-            init = self._helper.free_default['constr_dic']
-        else:
-            init = self._helper.free_default['constr_dic'] | dict(init)
-
-        sa_kwargs.setdefault('dense_mass', True)
-        sa_kwargs.setdefault('adapt_state_size', None)
-        sa_kwargs['model'] = self._helper.numpyro_model
-        sa_kwargs['init_strategy'] = init_to_value(values=init)
-
-        sampler = MCMC(
-            SA(**sa_kwargs),
-            num_warmup=warmup,
-            num_samples=steps,
-            num_chains=chains,
-            chain_method=chain_method,
-            progress_bar=progress,
-        )
-
-        if post_warmup_state is not None:
-            if not isinstance(post_warmup_state, SAState):
-                raise ValueError('post_warmup_state must be SAState')
-            sampler.post_warmup_state = post_warmup_state
-
-        sampler.run(
-            rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']),
-        )
         return PosteriorResult(sampler, self._helper, self)
