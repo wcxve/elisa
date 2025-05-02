@@ -1,11 +1,9 @@
 [project]
 name = "astro-elisa"
-dynamic = ["version"]
 description = "Efficient library for spectral analysis in high-energy astrophysics."
 readme = "README.md"
 requires-python = ">=3.9, <3.13"
 license = "GPL-3.0-or-later"
-keywords = []
 authors = [
     { name = "Wang-Chen Xue", email = "wcxuemail@gmail.com" },
 ]
@@ -48,6 +46,7 @@ dependencies = [
     "tinygp==0.3.0",
     "tqdm>=4.66.0",
 ]
+dynamic = ["version"]
 
 
 [project.optional-dependencies]
@@ -84,13 +83,10 @@ build-backend = "hatchling.build"
 
 
 [tool.hatch]
-metadata.allow-direct-references = true
 version.path = "src/elisa/__about__.py"
 build.targets.sdist.only-include = ["src", "tests"]
 build.targets.wheel.packages = ["src/elisa"]
 
-[[tool.hatch.envs.all.matrix]]
-python = ["3.9", "3.10", "3.11", "3.12"]
 
 [tool.ruff]
 line-length = 79
@@ -124,20 +120,23 @@ lint.select = [
 [tool.pytest]
 ini_options.addopts = "-n auto --cov=elisa --cov-report xml"
 
-[tool.coverage.run]
-branch = true
-parallel = true
-source = ["src/"]
-omit = [
-    "docs/*",
+[tool.coverage]
+run.omit = [
     "src/elisa/infer/nested_sampling.py",
-    "src/elisa/models/tables/*",
-    "tests/*",
-    "*__init__*"
+    "src/elisa/models/tables",
 ]
-
-[tool.coverage.paths]
-source = ["src/", "*/site-packages"]
-
-[tool.coverage.report]
-show_missing = true
+report.exclude_also = [
+    # Have to re-enable the standard pragma
+    "pragma: no cover",
+    # Don't complain about packages we have installed
+    "except ImportError",
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+    # Don't complain about script hooks
+    "if __name__ == .__main__.:",
+    # typing.TYPE_CHECKING is False at runtime
+    "if TYPE_CHECKING:",
+    # Don't complain about abstract methods' implementations
+    '@(abc\.)?abstractmethod',
+]
