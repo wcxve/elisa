@@ -563,34 +563,36 @@ class BayesFit(Fit):
 
     @staticmethod
     def _set_numpyro_mcmc_post_warmup_state(mcmc: MCMC, state: Any) -> None:
-        if state is not None:
-            assert isinstance(mcmc, MCMC)
-            kernel: MCMCKernel = mcmc.sampler
-            kernel_state_types = {
-                BarkerMH: BarkerMHState,
-                EnsembleSampler: EnsembleSamplerState,
-                HMC: HMCState,
-                SA: SAState,
-            }
-            ensemble_state_types = {
-                AIES: AIESState,
-                ESS: ESSState,
-            }
-            for kt, st in kernel_state_types.items():
-                if isinstance(kernel, kt):
-                    if not isinstance(state, st):
-                        raise ValueError(
-                            f'post_warmup_state must be {st.__name__}'
-                        )
-                    break
-            if isinstance(kernel, EnsembleSampler):
-                kernel_type = kernel.__class__
-                is_type = ensemble_state_types.get(kernel_type, object)
-                if not isinstance(state.inner_state, is_type):
+        if state is None:
+            return
+
+        assert isinstance(mcmc, MCMC)
+        kernel: MCMCKernel = mcmc.sampler
+        kernel_state_types = {
+            BarkerMH: BarkerMHState,
+            EnsembleSampler: EnsembleSamplerState,
+            HMC: HMCState,
+            SA: SAState,
+        }
+        ensemble_state_types = {
+            AIES: AIESState,
+            ESS: ESSState,
+        }
+        for kt, st in kernel_state_types.items():
+            if isinstance(kernel, kt):
+                if not isinstance(state, st):
                     raise ValueError(
-                        f'post_warmup_state must be state for {kernel_type}'
+                        f'post_warmup_state must be {st.__name__}'
                     )
-            mcmc.post_warmup_state = state
+                break
+        if isinstance(kernel, EnsembleSampler):
+            kernel_type = kernel.__class__
+            is_type = ensemble_state_types.get(kernel_type, object)
+            if not isinstance(state.inner_state, is_type):
+                raise ValueError(
+                    f'post_warmup_state must be state for {kernel_type}'
+                )
+        mcmc.post_warmup_state = state
 
     def _run_numpyro_mcmc(
         self,
@@ -614,13 +616,10 @@ class BayesFit(Fit):
 
         device_count = jax.local_device_count()
 
-        if chains is None:
-            chains = device_count
-        else:
-            chains = int(chains)
+        chains = int(chains) if chains is not None else device_count
 
         # the number of total samples should be multiple of the device number
-        if chains * steps % device_count != 0:
+        if chains * steps % device_count:
             steps += device_count - steps % device_count
 
         kernel_kwargs['model'] = self._helper.numpyro_model
