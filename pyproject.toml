@@ -121,19 +121,22 @@ lint.select = [
 ini_options.addopts = "-n auto --cov=elisa --cov-report xml"
 
 [tool.coverage]
-paths.source = ["src/", "*/site-packages"]
-report.exclude_lines = [
-    "no cov",
-    "if __name__ == .__main__.:",
-    "if TYPE_CHECKING:",
-]
-report.show_missing = true
-run.branch = true
-run.parallel = true
-run.source = ["src/"]
 run.omit = [
-    "docs/*",
     "src/elisa/infer/nested_sampling.py",
-    "src/elisa/models/tables/*",
-    "tests/*",
+    "src/elisa/models/tables",
+]
+report.exclude_also = [
+    # Have to re-enable the standard pragma
+    "pragma: no cover",
+    # Don't complain about packages we have installed
+    "except ImportError",
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+    # Don't complain about script hooks
+    "if __name__ == .__main__.:",
+    # typing.TYPE_CHECKING is False at runtime
+    "if TYPE_CHECKING:",
+    # Don't complain about abstract methods' implementations
+    '@(abc\.)?abstractmethod',
 ]
