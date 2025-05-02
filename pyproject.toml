@@ -100,7 +100,6 @@ lint.ignore = [
     "C901",  # allow functions with a high complexity
     "E731",  # allow lambda functions
 ]
-lint.ignore-init-module-imports = true
 lint.isort.known-first-party = ["elisa"]
 lint.isort.combine-as-imports = true
 lint.select = [
