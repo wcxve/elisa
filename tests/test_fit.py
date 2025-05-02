@@ -37,14 +37,19 @@ def test_trivial_max_like_fit(simulation, method):
 @pytest.mark.parametrize(
     'method, options',
     [
-        pytest.param('nuts', {}, id='nuts'),
-        pytest.param('jaxns', {}, id='jaxns'),
-        pytest.param('aies', {'n_parallel': 1}, id='aies'),
-        pytest.param('aies', {'n_parallel': 4}, id='aies'),
-        pytest.param('ess', {'n_parallel': 1}, id='ess'),
-        pytest.param('ess', {'n_parallel': 4}, id='ess'),
-        pytest.param('ultranest', {}, id='ultranest'),
-        pytest.param('nautilus', {}, id='nautilus'),
+        # NumPyro samplers
+        pytest.param('nuts', {}, id='NUTS'),
+        pytest.param('barkermh', {}, id='BarkerMH'),
+        pytest.param('sa', {}, id='SA'),
+        pytest.param('aies', {}, id='AIES'),
+        pytest.param('aies', {'n_parallel': 1}, id='AIES_1'),
+        pytest.param('ess', {}, id='ESS'),
+        pytest.param('ess', {'n_parallel': 1}, id='ESS_1'),
+        # JAX backend nested sampler
+        pytest.param('jaxns', {}, id='JAXNS'),
+        # Non-JAX backends nested samplers
+        pytest.param('nautilus', {}, id='Nautilus'),
+        pytest.param('ultranest', {}, id='UltraNest'),
     ],
 )
 def test_trivial_bayes_fit(simulation, method, options):
