@@ -59,7 +59,7 @@ jobs:
           mamba install xspec -c ${{ env.heasarc-channel }} -c conda-forge -y
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
 
       - name: Install Python Dependencies
         run: |
