@@ -686,7 +686,7 @@ class BayesFit(Fit):
         chain_method : str, optional
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
-            Whether to show progress bar during sampling. The default is True.
+            Whether to show progress bars during sampling. The default is True.
         post_warmup_state : HMCState, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided.
@@ -764,7 +764,7 @@ class BayesFit(Fit):
         chain_method : str, optional
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
-            Whether to show progress bar during sampling. The default is True.
+            Whether to show progress bars during sampling. The default is True.
         post_warmup_state : BarkerMHState, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided.
@@ -812,7 +812,7 @@ class BayesFit(Fit):
         """Run :mod:`numpyro`'s :class:`numpyro.infer.SA` sampler.
 
         .. note::
-            This is a gradient-free sampler. It is fast in term of n_eff / s,
+            This is a gradient-free sampler. It is fast in terms of n_eff / s,
             but requires **many** warmup (burn-in) steps.
 
             If the result does not converge satisfactorily, consider increasing
@@ -838,8 +838,7 @@ class BayesFit(Fit):
         chain_method : str, optional
             The chain method passed to :class:`numpyro.infer.MCMC`.
         progress : bool, optional
-            Whether to show progress bar during sampling.
-            The default is True.
+            Whether to show progress bars during sampling. The default is True.
         post_warmup_state : SAState, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided.
@@ -999,7 +998,7 @@ class BayesFit(Fit):
             Number of parallel samplers to run.
             The default is ``jax.local_device_count()``.
         progress : bool, optional
-            Whether to show progress bar during sampling. The default is True.
+            Whether to show progress bars during sampling. The default is True.
             This is always False if `n_parallel`>=2.
         post_warmup_state : EnsembleSamplerState, optional
             The state before the sampling phase. The sampling will start from
@@ -1078,7 +1077,7 @@ class BayesFit(Fit):
             Number of parallel samplers to run.
             The default is ``jax.local_device_count()``.
         progress : bool, optional
-            Whether to show progress bar during sampling. The default is True.
+            Whether to show progress bars during sampling. The default is True.
             This is always False if `n_parallel`>=2.
         post_warmup_state : EnsembleSamplerState, optional
             The state before the sampling phase. The sampling will start from
@@ -1226,7 +1225,7 @@ class BayesFit(Fit):
             Whether to transform a NaN log probability to a large negative
             number (-1e300). The default is True.
 
-            .. warning ::
+            .. warning::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
         parallel : bool, optional
@@ -1341,7 +1340,7 @@ class BayesFit(Fit):
             Whether to transform a NaN log probability to a large negative
             number (-1e300). The default is True.
 
-            .. warning ::
+            .. warning::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
         constructor_kwargs : dict, optional
@@ -1354,8 +1353,8 @@ class BayesFit(Fit):
             Read the log file from a previous run. The dictionary should
             contain the log directory and other optional parameters. It
             should be noted that when providing this keyword argument, the
-            sampler will not run, but read the log file instead, and make
-            sure the data and model setting is the same as the previous run.
+            sampler will not run, but read the log file instead and make
+            sure the data and model settings are the same as the previous run.
         """
         try:
             import ultranest
