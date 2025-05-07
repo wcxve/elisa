@@ -843,9 +843,6 @@ class BayesFit(Fit):
         post_warmup_state : SAState, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided.
-        thinning : int, optional
-            For each chain, the every `thinning` step is retained and
-            The total steps for each chain is `steps` * `thinning`.
         **kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.SA`.
             The default for `adapt_state_size` is ``5 * D``, where `D` is the
