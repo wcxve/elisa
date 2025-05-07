@@ -692,6 +692,7 @@ class BayesFit(Fit):
             the given state if provided.
         **kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.NUTS`.
+            The default for `dense_mass` is ``True``.
 
         Returns
         -------
@@ -769,6 +770,7 @@ class BayesFit(Fit):
             the given state if provided.
         **kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.BarkerMH`.
+            The default for `dense_mass` is ``True``.
 
         Returns
         -------
@@ -795,77 +797,85 @@ class BayesFit(Fit):
             **kwargs,
         )
 
-    # def sa(
-    #     self,
-    #     warmup: int = 300000,
-    #     steps: int = 5000,
-    #     chains: int | None = None,
-    #     thinning: int = 100,
-    #     init: dict[str, float] | None = None,
-    #     chain_method: str = 'parallel',
-    #     progress: bool = True,
-    #     post_warmup_state: SAState | None = None,
-    #     **kwargs: dict,
-    # ) -> PosteriorResult:
-    #     """Run :mod:`numpyro`'s :class:`numpyro.infer.SA` sampler.
-    #
-    #     .. note::
-    #         Thi is a gradient-free sampler. It is fast in term of n_eff / s,
-    #         but requires **many** warmup (burn-in) steps.
-    #
-    #     Parameters
-    #     ----------
-    #     warmup : int, optional
-    #         Number of warmup steps. The default is 100000.
-    #     steps : int, optional
-    #         Number of steps to run. The default is 5000.
-    #     chains : int, optional
-    #         Number of MCMC chains to run. If there are not enough devices
-    #         available, chains will run in sequence. Defaults to the number of
-    #         ``jax.local_device_count()``.
-    #     thinning: int, optional
-    #         For each chain, every `thinning` step is retained, and the other
-    #         steps are discarded. The total steps for each chain are
-    #         `steps` * `thinning`. The default is 100.
-    #     init : dict, optional
-    #         Initial parameter for sampler to start from.
-    #     chain_method : str, optional
-    #         The chain method passed to :class:`numpyro.infer.MCMC`.
-    #     progress : bool, optional
-    #         Whether to show progress bar during sampling.
-    #         The default is True.
-    #     post_warmup_state : SAState, optional
-    #         The state before the sampling phase. The sampling will start from
-    #         the given state if provided.
-    #     thinning : int, optional
-    #         For each chain, the every `thinning` step is retained and
-    #         The total steps for each chain is `steps` * `thinning`.
-    #     **kwargs : dict
-    #         Extra parameters passed to :class:`numpyro.infer.SA`.
-    #
-    #     Returns
-    #     -------
-    #     PosteriorResult
-    #         The posterior sampling result.
-    #
-    #     References
-    #     ----------
-    #     .. [1] Sample Adaptive MCMC
-    #            (https://papers.nips.cc/paper/9107-sample-adaptive-mcmc),
-    #            Michael Zhu
-    #     """
-    #     return self._run_numpyro_mcmc(
-    #         kernel=SA,
-    #         warmup=warmup,
-    #         steps=steps,
-    #         chains=chains,
-    #         thinning=thinning,
-    #         init=init,
-    #         chain_method=chain_method,
-    #         progress=progress,
-    #         post_warmup_state=post_warmup_state,
-    #         **kwargs,
-    #     )
+    def sa(
+        self,
+        warmup: int = 75000,
+        steps: int = 5000,
+        chains: int | None = None,
+        thinning: int = 5,
+        init: dict[str, float] | None = None,
+        chain_method: str = 'parallel',
+        progress: bool = True,
+        post_warmup_state: SAState | None = None,
+        **kwargs: dict,
+    ) -> PosteriorResult:
+        """Run :mod:`numpyro`'s :class:`numpyro.infer.SA` sampler.
+
+        .. note::
+            Thi is a gradient-free sampler. It is fast in term of n_eff / s,
+            but requires **many** warmup (burn-in) steps.
+
+            If the result does not converge satisfactorily, consider increasing
+            the values of `warmup` and/or `adapt_state_size`, or providing
+            better initial parameter estimates via the `init` argument.
+
+        Parameters
+        ----------
+        warmup : int, optional
+            Number of warmup steps. The default is 75000.
+        steps : int, optional
+            Number of steps to run. The default is 5000.
+        chains : int, optional
+            Number of MCMC chains to run. If there are not enough devices
+            available, chains will run in sequence. Defaults to the number of
+            ``jax.local_device_count()``.
+        thinning: int, optional
+            For each chain, every `thinning` step is retained, and the other
+            steps are discarded. The total steps for each chain are
+            `steps` * `thinning`. The default is 5.
+        init : dict, optional
+            Initial parameter for sampler to start from.
+        chain_method : str, optional
+            The chain method passed to :class:`numpyro.infer.MCMC`.
+        progress : bool, optional
+            Whether to show progress bar during sampling.
+            The default is True.
+        post_warmup_state : SAState, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
+        thinning : int, optional
+            For each chain, the every `thinning` step is retained and
+            The total steps for each chain is `steps` * `thinning`.
+        **kwargs : dict
+            Extra parameters passed to :class:`numpyro.infer.SA`.
+            The default for `adapt_state_size` is ``5 * D``, where `D` is the
+            dimension of model parameters.
+
+        Returns
+        -------
+        PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] Sample Adaptive MCMC
+               (https://papers.nips.cc/paper/9107-sample-adaptive-mcmc),
+               Michael Zhu
+        """
+        nparams = len(self._helper.params_names['free'])
+        kwargs.setdefault('adapt_state_size', 5 * nparams)
+        return self._run_numpyro_mcmc(
+            kernel=SA,
+            warmup=warmup,
+            steps=steps,
+            chains=chains,
+            thinning=thinning,
+            init=init,
+            chain_method=chain_method,
+            progress=progress,
+            post_warmup_state=post_warmup_state,
+            **kwargs,
+        )
 
     def _run_numpyro_ensemble_sampler(
         self,
@@ -1000,6 +1010,7 @@ class BayesFit(Fit):
             `n_parallel`>=2.
         **kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.AIES`.
+            The default for `moves` is ``{AIES.StretchMove(): 1.0}``.
 
         Returns
         -------
@@ -1119,7 +1130,7 @@ class BayesFit(Fit):
         parameter_estimation: bool = False,
         verbose: bool = False,
         term_cond: dict | None = None,
-        **ns_kwargs: dict,
+        **kwargs: dict,
     ) -> PosteriorResult:
         """Run the nested sampler of :mod:`jaxns`.
 
@@ -1156,7 +1167,7 @@ class BayesFit(Fit):
         term_cond : dict, optional
             Termination conditions for the sampling. The default is as in
             :class:`jaxns.TermCondition`.
-        **ns_kwargs : dict
+        **kwargs : dict
             Extra parameters passes to :class:`jaxns.DefaultNestedSampler`.
 
         Returns
@@ -1180,11 +1191,11 @@ class BayesFit(Fit):
             'parameter_estimation': parameter_estimation,
             'verbose': verbose,
         }
-        constructor_kwargs |= ns_kwargs
+        constructor_kwargs.update(kwargs)
 
         termination_kwargs = {'dlogZ': 1e-4}
         if term_cond is not None:
-            termination_kwargs |= dict(term_cond)
+            termination_kwargs.update(term_cond)
 
         sampler = NestedSampler(
             self._helper.numpyro_model,
