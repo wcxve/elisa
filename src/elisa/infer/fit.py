@@ -600,10 +600,11 @@ class BayesFit(Fit):
         warmup: int,
         steps: int,
         chains: int | None = None,
+        thinning: int = 1,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
-        post_warmup_state: HMCState | None = None,
+        post_warmup_state: Any = None,
         extra_fields: tuple[str, ...] = (),
         **kernel_kwargs: dict,
     ):
@@ -634,8 +635,9 @@ class BayesFit(Fit):
         mcmc = MCMC(
             kernel(**kernel_kwargs),
             num_warmup=warmup,
-            num_samples=steps,
+            num_samples=steps * thinning,
             num_chains=chains,
+            thinning=thinning,
             chain_method=chain_method,
             progress_bar=progress,
         )
@@ -651,6 +653,7 @@ class BayesFit(Fit):
         warmup: int = 2000,
         steps: int = 5000,
         chains: int | None = None,
+        thinning: int = 1,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
@@ -673,6 +676,10 @@ class BayesFit(Fit):
             Number of MCMC chains to run. If there are not enough devices
             available, chains will run in sequence. Defaults to the number of
             ``jax.local_device_count()``.
+        thinning: int, optional
+            For each chain, every `thinning` step is retained, and the other
+            steps are discarded. The total steps for each chain are
+            `steps` * `thinning`. The default is 1.
         init : dict, optional
             Initial parameter for sampler to start from.
         chain_method : str, optional
@@ -704,6 +711,7 @@ class BayesFit(Fit):
             warmup=warmup,
             steps=steps,
             chains=chains,
+            thinning=thinning,
             init=init,
             chain_method=chain_method,
             progress=progress,
@@ -717,6 +725,7 @@ class BayesFit(Fit):
         warmup: int = 5000,
         steps: int = 5000,
         chains: int | None = None,
+        thinning: int = 1,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
@@ -744,6 +753,10 @@ class BayesFit(Fit):
             Number of MCMC chains to run. If there are not enough devices
             available, chains will run in sequence. Defaults to the number of
             ``jax.local_device_count()``.
+        thinning: int, optional
+            For each chain, every `thinning` step is retained, and the other
+            steps are discarded. The total steps for each chain are
+            `steps` * `thinning`. The default is 1.
         init : dict, optional
             Initial parameter for sampler to start from.
         chain_method : str, optional
@@ -773,6 +786,7 @@ class BayesFit(Fit):
             warmup=warmup,
             steps=steps,
             chains=chains,
+            thinning=thinning,
             init=init,
             chain_method=chain_method,
             progress=progress,
@@ -782,9 +796,10 @@ class BayesFit(Fit):
 
     # def sa(
     #     self,
-    #     warmup: int = 100000,
-    #     steps: int = 100000,
+    #     warmup: int = 300000,
+    #     steps: int = 5000,
     #     chains: int | None = None,
+    #     thinning: int = 100,
     #     init: dict[str, float] | None = None,
     #     chain_method: str = 'parallel',
     #     progress: bool = True,
@@ -802,11 +817,15 @@ class BayesFit(Fit):
     #     warmup : int, optional
     #         Number of warmup steps. The default is 100000.
     #     steps : int, optional
-    #         Number of steps to run for each chain. The default is 100000.
+    #         Number of steps to run. The default is 5000.
     #     chains : int, optional
     #         Number of MCMC chains to run. If there are not enough devices
     #         available, chains will run in sequence. Defaults to the number of
     #         ``jax.local_device_count()``.
+    #     thinning: int, optional
+    #         For each chain, every `thinning` step is retained, and the other
+    #         steps are discarded. The total steps for each chain are
+    #         `steps` * `thinning`. The default is 100.
     #     init : dict, optional
     #         Initial parameter for sampler to start from.
     #     chain_method : str, optional
@@ -817,6 +836,9 @@ class BayesFit(Fit):
     #     post_warmup_state : SAState, optional
     #         The state before the sampling phase. The sampling will start from
     #         the given state if provided.
+    #     thinning : int, optional
+    #         For each chain, the every `thinning` step is retained and
+    #         The total steps for each chain is `steps` * `thinning`.
     #     **kwargs : dict
     #         Extra parameters passed to :class:`numpyro.infer.SA`.
     #
@@ -836,6 +858,7 @@ class BayesFit(Fit):
     #         warmup=warmup,
     #         steps=steps,
     #         chains=chains,
+    #         thinning=thinning,
     #         init=init,
     #         chain_method=chain_method,
     #         progress=progress,
@@ -848,15 +871,16 @@ class BayesFit(Fit):
         kernel: type[AIES | ESS],
         warmup: int,
         steps: int,
-        chains: int | None,
-        init: dict[str, float] | None,
-        n_parallel: int,
-        progress: bool,
-        post_warmup_state: EnsembleSamplerState | None,
+        chains: int | None = None,
+        thinning: int = 1,
+        init: dict[str, float] | None = None,
+        n_parallel: int | None = None,
+        progress: bool = True,
+        post_warmup_state: EnsembleSamplerState | None = None,
         **kernel_kwargs: dict,
     ) -> PosteriorResult:
         """Run the ensemble sampler (AIES or ESS) of numpyro."""
-        if not issubclass(kernel, (AIES, ESS)):
+        if kernel not in (AIES, ESS):
             raise ValueError('kernel must be AIES or ESS')
 
         warmup = int(warmup)
@@ -874,8 +898,9 @@ class BayesFit(Fit):
         sampler = MCMC(
             kernel,
             num_warmup=warmup,
-            num_samples=steps,
+            num_samples=steps * thinning,
             num_chains=chains,
+            thinning=thinning,
             chain_method='vectorized',
             progress_bar=bool(progress) and (n_parallel < 2),
         )
@@ -928,6 +953,7 @@ class BayesFit(Fit):
         warmup: int = 5000,
         steps: int = 5000,
         chains: int | None = None,
+        thinning: int = 1,
         init: dict[str, float] | None = None,
         n_parallel: int | None = None,
         progress: bool = True,
@@ -954,6 +980,10 @@ class BayesFit(Fit):
         chains : int, optional
             Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
             the dimension of model parameters.
+        thinning: int, optional
+            For each chain, every `thinning` step is retained, and the other
+            steps are discarded. The total steps for each chain are
+            `steps` * `thinning`. The default is 1.
         init : dict, optional
             Initial parameter for sampler to start from.
         n_parallel : int, optional
@@ -984,14 +1014,15 @@ class BayesFit(Fit):
         # use the same default moves as in emcee
         kwargs.setdefault('moves', {AIES.StretchMove(): 1.0})
         return self._run_numpyro_ensemble_sampler(
-            AIES,
-            warmup,
-            steps,
-            chains,
-            init,
-            n_parallel,
-            progress,
-            post_warmup_state,
+            kernel=AIES,
+            warmup=warmup,
+            steps=steps,
+            chains=chains,
+            thinning=thinning,
+            init=init,
+            n_parallel=n_parallel,
+            progress=progress,
+            post_warmup_state=post_warmup_state,
             **kwargs,
         )
 
@@ -1000,6 +1031,7 @@ class BayesFit(Fit):
         warmup: int = 5000,
         steps: int = 5000,
         chains: int | None = None,
+        thinning: int = 1,
         init: dict[str, float] | None = None,
         n_parallel: int | None = None,
         progress: bool = True,
@@ -1026,6 +1058,10 @@ class BayesFit(Fit):
         chains : int, optional
             Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
             the dimension of model parameters.
+        thinning: int, optional
+            For each chain, every `thinning` step is retained, and the other
+            steps are discarded. The total steps for each chain are
+            `steps` * `thinning`. The default is 1.
         init : dict, optional
             Initial parameter for sampler to start from.
         n_parallel : int, optional
@@ -1057,14 +1093,15 @@ class BayesFit(Fit):
                Minas Karamanis, Florian Beutler.
         """
         return self._run_numpyro_ensemble_sampler(
-            ESS,
-            warmup,
-            steps,
-            chains,
-            init,
-            n_parallel,
-            progress,
-            post_warmup_state,
+            kernel=ESS,
+            warmup=warmup,
+            steps=steps,
+            chains=chains,
+            thinning=thinning,
+            init=init,
+            n_parallel=n_parallel,
+            progress=progress,
+            post_warmup_state=post_warmup_state,
             **kwargs,
         )
 
