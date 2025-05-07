@@ -614,6 +614,7 @@ class BayesFit(Fit):
 
         warmup = int(warmup)
         steps = int(steps)
+        thinning = int(thinning)
 
         device_count = jax.local_device_count()
 
@@ -885,6 +886,7 @@ class BayesFit(Fit):
 
         warmup = int(warmup)
         steps = int(steps)
+        thinning = int(thinning)
 
         if chains is None:
             chains = 4 * len(self._helper.params_names['free'])
