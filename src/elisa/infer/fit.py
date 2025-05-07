@@ -812,7 +812,7 @@ class BayesFit(Fit):
         """Run :mod:`numpyro`'s :class:`numpyro.infer.SA` sampler.
 
         .. note::
-            Thi is a gradient-free sampler. It is fast in term of n_eff / s,
+            This is a gradient-free sampler. It is fast in term of n_eff / s,
             but requires **many** warmup (burn-in) steps.
 
             If the result does not converge satisfactorily, consider increasing
