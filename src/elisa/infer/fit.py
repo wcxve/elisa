@@ -802,7 +802,7 @@ class BayesFit(Fit):
         warmup: int = 75000,
         steps: int = 5000,
         chains: int | None = None,
-        thinning: int = 5,
+        thinning: int = 1,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
@@ -832,7 +832,7 @@ class BayesFit(Fit):
         thinning: int, optional
             For each chain, every `thinning` step is retained, and the other
             steps are discarded. The total steps for each chain are
-            `steps` * `thinning`. The default is 5.
+            `steps` * `thinning`. The default is 1.
         init : dict, optional
             Initial parameter for sampler to start from.
         chain_method : str, optional
