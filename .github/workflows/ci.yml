@@ -30,14 +30,14 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Tests (Python 3.12 in Linux-x86_64)
+          - name: Tests (Python 3.13 in Linux-x86_64)
             os: "ubuntu-latest"
-            python-version: "3.12"
+            python-version: "3.13"
             uv-resolution: "highest"
 
-          - name: Tests (Python 3.12 in macOS-arm64)
+          - name: Tests (Python 3.13 in macOS-arm64)
             os: "macos-latest"
-            python-version: "3.12"
+            python-version: "3.13"
             uv-resolution: "highest"
 
           - name: Tests (Lowest Version Deps)
@@ -93,7 +93,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.13"
 
       - name: Install Python Dependencies
         run: |
