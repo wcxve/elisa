@@ -48,9 +48,10 @@ def test_trivial_max_like_fit(simulation, method):
         pytest.param('ess', {'n_parallel': 1}, id='ESS_1'),
         # JAX backend nested sampler
         pytest.param('jaxns', {}, id='JAXNS'),
-        # Non-JAX backends nested samplers
+        # Non-JAX backends samplers
         pytest.param('emcee', {}, id='emcee'),
         pytest.param('emcee', {'n_parallel': 1}, id='emcee_1'),
+        # Non-JAX backends nested samplers
         pytest.param('nautilus', {}, id='Nautilus'),
         pytest.param('ultranest', {}, id='UltraNest'),
     ],
@@ -60,13 +61,16 @@ def test_trivial_bayes_fit(simulation, method, options):
     model = PowerLaw()
     model.PowerLaw.K.log = True
 
+    # sample adaptive mcmc has a problem in convergence, fix it by better init
+    if method == 'sa':
+        model['PowerLaw']['alpha'].defualt = 0.0
+        model['PowerLaw']['K'].defualt = 10.0
+
     # Get Bayesian fit result, i.e. posterior
     result = getattr(BayesFit(data, model), method)(**options)
 
     # check convergence
-    rhat = [i for i in result.rhat.values() if not np.isnan(i)]
-    print(rhat)
-    assert all(i < 1.01 for i in rhat)
+    assert all(i < 1.01 for i in result.rhat.values() if not np.isnan(i))
 
     # check the true parameters values are within the 68% CI
     ci = result.ci(cl=1).intervals

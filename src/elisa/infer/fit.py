@@ -954,10 +954,10 @@ class BayesFit(Fit):
 
     def sa(
         self,
-        warmup: int = 70000,
+        warmup: int = 75000,
         steps: int = 5000,
         chains: int | None = None,
-        thinning: int = 2,
+        thinning: int = 1,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
@@ -1436,7 +1436,7 @@ class BayesFit(Fit):
 
     def jaxns(
         self,
-        max_samples: int = 131072,
+        max_samples: int = 2**17,
         num_live_points: int | None = None,
         s: int | None = None,
         k: int | None = None,
