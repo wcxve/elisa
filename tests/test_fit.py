@@ -41,7 +41,7 @@ def test_trivial_max_like_fit(simulation, method):
         pytest.param('nuts', {}, id='NUTS'),
         pytest.param('barkermh', {}, id='BarkerMH'),
         pytest.param('blackjax_nuts', {}, id='BlackJAX_NUTS'),
-        pytest.param('sa', {}, id='SA'),
+        pytest.param('sa', {'warmup': 20000}, id='SA'),
         pytest.param('aies', {}, id='AIES'),
         pytest.param('aies', {'n_parallel': 1}, id='AIES_1'),
         pytest.param('ess', {}, id='ESS'),
@@ -67,7 +67,7 @@ def test_trivial_bayes_fit(simulation, method, options):
         model['PowerLaw']['K'].default = 10.0
 
     # Get Bayesian fit result, i.e. posterior
-    result = getattr(BayesFit(data, model), method)(**options)
+    result = getattr(BayesFit(data, model, seed=0), method)(**options)
 
     # check convergence
     assert all(i < 1.01 for i in result.rhat.values() if not np.isnan(i))

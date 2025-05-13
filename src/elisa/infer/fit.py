@@ -208,7 +208,7 @@ class Fit(ABC):
             t0 = time.time()
             print('Start searching MLE...')
             self._ns.run(rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']))
-            print(f'Search cost {time.time() - t0:.2f} s')
+            print(f'Search completed in {time.time() - t0:.2f} s')
 
         ns = self._ns
 
@@ -1519,10 +1519,10 @@ class BayesFit(Fit):
             termination_kwargs=termination_kwargs,
         )
 
-        print("Starting JAXNS's nested sampling...")
+        print('Running nested sampling of JAXNS...')
         t0 = time.time()
         sampler.run(rng_key=jax.random.PRNGKey(self._helper.seed['mcmc']))
-        print(f'Sampling cost {time.time() - t0:.2f} s')
+        print(f'Sampling completed in {time.time() - t0:.2f} s')
 
         helper = self._helper
         result = sampler._results
@@ -1595,13 +1595,16 @@ class BayesFit(Fit):
             termination_kwargs = dict(termination_kwargs)
         termination_kwargs['n_eff'] = int(ess)
 
+        print('Running nested sampling of Nautilus...')
         sampler = NautilusSampler(
             numpyro_model=self._helper.numpyro_model,
             seed=self._helper.seed['mcmc'],
             ignore_nan=ignore_nan,
             **constructor_kwargs,
         )
+        t0 = time.time()
         samples = sampler.run(**termination_kwargs)
+        print(f'Sampling completed in {time.time() - t0:.2f} s')
 
         # format posterior samples
         samples = jax.tree.map(lambda x: x[None], samples)
@@ -1679,21 +1682,22 @@ class BayesFit(Fit):
         if viz_params is None:
             viz_params = self._helper.params_names['all']
 
+        print('Running nested sampling of UltraNest...')
+        t0 = time.time()
         sampler = UltraNestSampler(
             numpyro_model=self._helper.numpyro_model,
             seed=self._helper.seed['mcmc'],
             ignore_nan=ignore_nan,
             **constructor_kwargs,
         )
-
         samples = sampler.run(
             viz_sample_names=viz_params,
             read_file_config=read_file_config,
             **termination_kwargs,
         )
-
         if print_result:
             sampler.print_results()
+        print(f'Sampling completed in {time.time() - t0:.2f} s')
 
         # format posterior samples
         samples = jax.tree.map(lambda x: x[None], samples)
