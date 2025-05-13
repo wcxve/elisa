@@ -64,7 +64,9 @@ def test_trivial_bayes_fit(simulation, method, options):
     result = getattr(BayesFit(data, model), method)(**options)
 
     # check convergence
-    assert np.all([i <= 1.01 for i in result.rhat.values() if not np.isnan(i)])
+    rhat = [i for i in result.rhat.values() if not np.isnan(i)]
+    print(rhat)
+    assert all(i < 1.01 for i in rhat)
 
     # check the true parameters values are within the 68% CI
     ci = result.ci(cl=1).intervals
