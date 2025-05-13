@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 import warnings
 from typing import TYPE_CHECKING
 
@@ -85,8 +84,6 @@ class NautilusSampler:
     def run(self, **kwargs) -> dict[str, NDArray[float]]:
         kwargs.setdefault('verbose', True)
         kwargs['discard_exploration'] = True
-        print("Starting Nautilus' nested sampling...")
-        t0 = time.time()
         sampler = self._sampler
         success = sampler.run(**kwargs)
         if success:
@@ -97,7 +94,6 @@ class NautilusSampler:
             u_samples = jax.vmap(self._model_info.unravel)(u_samples)
             samples = jax.vmap(self._model_info.postprocess_fn)(u_samples)
             samples = jax.device_get(samples)
-            print(f'Sampling cost {time.time() - t0:.2f} s')
             return samples
         else:
             raise RuntimeError(

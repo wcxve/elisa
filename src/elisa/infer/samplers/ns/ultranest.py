@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 import warnings
 from functools import partial
 from typing import TYPE_CHECKING
@@ -97,8 +96,6 @@ class UltraNestSampler:
                 shape = filtered[0][2]
                 derived_names.extend(ravel_params_names(i, shape))
 
-        print("Starting UltraNest's nested sampling...")
-        t0 = time.time()
         sampler = self._sampler = self._sampler_constructor(
             param_names=params_names,
             loglike=lambda x: jax.device_get(self._log_prob_fn(x)),
@@ -118,7 +115,6 @@ class UltraNestSampler:
         u_samples = jax.vmap(mi.unravel)(u_samples)
         samples = jax.vmap(mi.postprocess_fn)(u_samples)
         samples = jax.device_get(samples)
-        print(f'Sampling cost {time.time() - t0:.2f} s')
         return samples
 
     def print_results(self, use_unicode: bool = True):
