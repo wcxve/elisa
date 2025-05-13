@@ -98,6 +98,7 @@ class UltraNestSampler:
         if read_file_config is None:
             np.random.seed(self._seed)
             sampler.run(**kwargs)
+            np.random.seed()
         else:
             read_file_config = dict(read_file_config)
             x_dim = sampler.x_dim
