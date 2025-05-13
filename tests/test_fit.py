@@ -40,6 +40,7 @@ def test_trivial_max_like_fit(simulation, method):
         # NumPyro samplers
         pytest.param('nuts', {}, id='NUTS'),
         pytest.param('barkermh', {}, id='BarkerMH'),
+        pytest.param('blackjax_nuts', {}, id='BlackJAX_NUTS'),
         pytest.param('sa', {'warmup': 40000, 'steps': 2000}, id='SA'),
         pytest.param('aies', {}, id='AIES'),
         pytest.param('aies', {'n_parallel': 1}, id='AIES_1'),
@@ -48,6 +49,8 @@ def test_trivial_max_like_fit(simulation, method):
         # JAX backend nested sampler
         pytest.param('jaxns', {}, id='JAXNS'),
         # Non-JAX backends nested samplers
+        pytest.param('emcee', {}, id='emcee'),
+        pytest.param('emcee', {'n_parallel': 1}, id='emcee_1'),
         pytest.param('nautilus', {}, id='Nautilus'),
         pytest.param('ultranest', {}, id='UltraNest'),
     ],
