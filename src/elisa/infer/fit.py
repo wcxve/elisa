@@ -1566,11 +1566,6 @@ class BayesFit(Fit):
             .. warning::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
-        parallel : bool, optional
-            Whether to parallelize likelihood evaluation. The default is True.
-        n_batch : int, optional
-            Number of likelihood evaluations that are performed at each step
-            for each core when `parallel` is True. The default is 5000.
         constructor_kwargs : dict, optional
             Extra parameters passed to
             :class:`nautilus.Sampler`.
@@ -1584,6 +1579,7 @@ class BayesFit(Fit):
             constructor_kwargs = {}
         else:
             constructor_kwargs = dict(constructor_kwargs)
+        constructor_kwargs.setdefault('pool', get_parallel_number(None))
 
         if termination_kwargs is None:
             termination_kwargs = {}
