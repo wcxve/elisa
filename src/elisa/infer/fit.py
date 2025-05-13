@@ -954,10 +954,10 @@ class BayesFit(Fit):
 
     def sa(
         self,
-        warmup: int = 75000,
+        warmup: int = 70000,
         steps: int = 5000,
         chains: int | None = None,
-        thinning: int = 1,
+        thinning: int = 2,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
@@ -1626,6 +1626,8 @@ class BayesFit(Fit):
         self,
         ess: int = 3000,
         ignore_nan: bool = False,
+        viz_params: list[str] | None = None,
+        print_result: bool = True,
         *,
         constructor_kwargs: dict | None = None,
         termination_kwargs: dict | None = None,
@@ -1644,6 +1646,10 @@ class BayesFit(Fit):
             .. warning::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
+        viz_params : list, optional
+            Parameters to visualize during sampling. The default is all.
+        print_result : bool, optional
+            Whether to print sampling result. The default is True.
         constructor_kwargs : dict, optional
             Extra parameters passed to
             :class:`ultranest.ReactiveNestedSampler`.
@@ -1670,6 +1676,9 @@ class BayesFit(Fit):
             termination_kwargs = dict(termination_kwargs)
         termination_kwargs['min_ess'] = ess
 
+        if viz_params is None:
+            viz_params = self._helper.params_names['all']
+
         sampler = UltraNestSampler(
             numpyro_model=self._helper.numpyro_model,
             seed=self._helper.seed['mcmc'],
@@ -1678,10 +1687,13 @@ class BayesFit(Fit):
         )
 
         samples = sampler.run(
-            viz_sample_names=self._helper.params_names['all'],
+            viz_sample_names=viz_params,
             read_file_config=read_file_config,
             **termination_kwargs,
         )
+
+        if print_result:
+            sampler.print_results()
 
         # format posterior samples
         samples = jax.tree.map(lambda x: x[None], samples)
