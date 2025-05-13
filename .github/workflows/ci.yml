@@ -26,7 +26,7 @@ jobs:
       run:
         shell: bash -el {0}
     env:
-      extra: "nested_sampler,xspec"
+      extra: "extra_samplers,xspec"
     strategy:
       matrix:
         include:
@@ -42,7 +42,7 @@ jobs:
 
           - name: Tests (Lowest Version Deps)
             os: "ubuntu-latest"
-            python-version: "3.9"
+            python-version: "3.10"
             uv-resolution: "lowest-direct"
     steps:
       - name: Checkout
