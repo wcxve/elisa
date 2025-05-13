@@ -17,10 +17,6 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
 
 
-# monkey patching the pool for compatibility with JAX
-nautilus_pool.Pool = mp.Pool
-
-
 class NautilusSampler:
     def __init__(
         self,
@@ -59,10 +55,15 @@ class NautilusSampler:
                 mp.set_start_method('spawn', force=True)
             else:
                 old_method = ''
+            # monkey patching the pool for compatibility with JAX
+            old_pool = nautilus_pool.Pool
+            nautilus_pool.Pool = mp.Pool
         else:
-            old_method = ''
             kwargs['vectorized'] = True
             log_prob_fn = jax.jit(jax.vmap(log_prob_fn))
+            old_method = ''
+            old_pool = None
+
         self._sampler = nautilus.Sampler(
             prior=lambda x: x,
             likelihood=lambda x: jax.device_get(log_prob_fn(x)),
@@ -71,8 +72,12 @@ class NautilusSampler:
             seed=seed,
             **kwargs,
         )
+
         if old_method:
             mp.set_start_method(old_method, force=True)
+
+        if old_pool is not None:
+            nautilus_pool.Pool = old_pool
 
     def run(self, **kwargs) -> dict[str, NDArray[float]]:
         kwargs.setdefault('verbose', True)
