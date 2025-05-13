@@ -608,7 +608,7 @@ class BayesFit(Fit):
         else:
             attrs = dict(attrs)
         attrs['elisa_version'] = elisa_version
-        attrs = {
+        attrs |= {
             'inference_library': inference_library,
             'inference_library_version': metadata.version(inference_library),
         }

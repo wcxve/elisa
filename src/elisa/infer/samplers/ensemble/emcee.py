@@ -179,7 +179,10 @@ class EmceeSampler:
                     finished += 1
 
         old_method = mp.get_start_method()
-        mp.set_start_method('spawn', force=True)
+        if old_method != 'spawn':
+            mp.set_start_method('spawn', force=True)
+        else:
+            old_method = ''
 
         queue = mp.Manager().Queue()
         listener_thread = threading.Thread(
@@ -199,7 +202,8 @@ class EmceeSampler:
 
         listener_thread.join()
 
-        mp.set_start_method(old_method, force=True)
+        if old_method:
+            mp.set_start_method(old_method, force=True)
 
         # reshape results from (n_step, n_walker) to (n_walker, n_step)
         results = list(map(np.transpose, results))
