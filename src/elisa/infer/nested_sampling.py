@@ -6,6 +6,7 @@ This module is adapted from
 https://github.com/pyro-ppl/numpyro/raw/master/numpyro/contrib/nested_sampling.py
 
 """
+
 from __future__ import annotations
 
 from functools import singledispatch
@@ -19,8 +20,11 @@ from jax import random
 from numpyro.handlers import reparam, seed, trace
 from numpyro.infer import Predictive
 from numpyro.infer.reparam import Reparam
-from numpyro.infer.util import _guess_max_plate_nesting, _validate_model, log_density
-
+from numpyro.infer.util import (
+    _guess_max_plate_nesting,
+    _validate_model,
+    log_density,
+)
 
 tfpd = tfp.distributions
 
@@ -33,10 +37,13 @@ def uniform_reparam_transform(d):
     """
     if isinstance(d, dist.TransformedDistribution):
         outer_transform = dist.transforms.ComposeTransform(d.transforms)
-        return lambda q: outer_transform(uniform_reparam_transform(d.base_dist)(q))
+        return lambda q: outer_transform(
+            uniform_reparam_transform(d.base_dist)(q)
+        )
 
     if isinstance(
-        d, (dist.Independent, dist.ExpandedDistribution, dist.MaskedDistribution)
+        d,
+        (dist.Independent, dist.ExpandedDistribution, dist.MaskedDistribution),
     ):
         return lambda q: uniform_reparam_transform(d.base_dist)(q)
 
@@ -62,7 +69,9 @@ def _(d):
 @uniform_reparam_transform.register(dist.CategoricalLogits)
 @uniform_reparam_transform.register(dist.CategoricalProbs)
 def _(d):
-    return lambda q: jnp.sum(jnp.cumsum(d.probs, axis=-1) < q[..., None], axis=-1)
+    return lambda q: jnp.sum(
+        jnp.cumsum(d.probs, axis=-1) < q[..., None], axis=-1
+    )
 
 
 @uniform_reparam_transform.register(dist.Dirichlet)
@@ -89,15 +98,20 @@ class UniformReparam(Reparam):
     """
 
     def __call__(self, name, fn, obs):
-        assert obs is None, "TransformReparam does not support observe statements"
+        assert obs is None, (
+            'TransformReparam does not support observe statements'
+        )
         shape = fn.shape()
         fn, expand_shape, event_dim = self._unwrap(fn)
         transform = uniform_reparam_transform(fn)
         tiny = jnp.finfo(jnp.result_type(float)).tiny
 
         x = numpyro.sample(
-            "{}_base".format(name),
-            dist.Uniform(tiny, 1).expand(shape).to_event(event_dim).mask(False),
+            f'{name}_base',
+            dist.Uniform(tiny, 1)
+            .expand(shape)
+            .to_event(event_dim)
+            .mask(False),
         )
         # Simulate a numpyro.deterministic() site.
         return None, transform(x)
@@ -192,16 +206,16 @@ class NestedSampler:
         seeded = jax.jit(seed(self.model, rng_key))
         prototype_trace = trace(seeded).get_trace(*args, **kwargs)
         param_names = [
-            site["name"]
+            site['name']
             for site in prototype_trace.values()
-            if site["type"] == "sample"
-            and not site["is_observed"]
-            and site["infer"].get("enumerate", "") != "parallel"
+            if site['type'] == 'sample'
+            and not site['is_observed']
+            and site['infer'].get('enumerate', '') != 'parallel'
         ]
         deterministics = [
-            site["name"]
+            site['name']
             for site in prototype_trace.values()
-            if site["type"] == "deterministic"
+            if site['type'] == 'deterministic'
         ]
         reparam_model = reparam(
             self.model, config={k: UniformReparam() for k in param_names}
@@ -209,12 +223,15 @@ class NestedSampler:
 
         # enable enumerate if needed
         has_enum = any(
-            site["type"] == "sample"
-            and site["infer"].get("enumerate", "") == "parallel"
+            site['type'] == 'sample'
+            and site['infer'].get('enumerate', '') == 'parallel'
             for site in prototype_trace.values()
         )
         if has_enum:
-            from numpyro.contrib.funsor import enum, log_density as log_density_
+            from numpyro.contrib.funsor import (
+                enum,
+                log_density as log_density_,
+            )
 
             max_plate_nesting = _guess_max_plate_nesting(prototype_trace)
             _validate_model(prototype_trace)
@@ -229,16 +246,16 @@ class NestedSampler:
         \treturn log_density_(reparam_model, args, kwargs, params)[0]
         """
         exec(loglik_fn_def, locals(), local_dict)
-        loglik_fn = local_dict["loglik_fn"]
+        loglik_fn = local_dict['loglik_fn']
 
         # use NestedSampler with identity prior chain
         def prior_model():
             params = {}
             for name in param_names:
-                shape = prototype_trace[name]["fn"].shape()
+                shape = prototype_trace[name]['fn'].shape()
                 param = yield Prior(
                     tfpd.Uniform(low=jnp.zeros(shape), high=jnp.ones(shape)),
-                    name=name + "_base",
+                    name=name + '_base',
                 )
                 params[name] = param
             return params
@@ -279,7 +296,8 @@ class NestedSampler:
             run_default_ns = default_ns
 
         termination_reason, state = run_default_ns(
-            rng_sampling, term_cond=TerminationCondition(**self.termination_kwargs)
+            rng_sampling,
+            term_cond=TerminationCondition(**self.termination_kwargs),
         )
         results = default_ns.to_results(
             termination_reason=termination_reason, state=state
@@ -310,11 +328,15 @@ class NestedSampler:
 
         if self._results is None:
             raise RuntimeError(
-                "NestedSampler.run(...) method should be called first to obtain results."
+                'NestedSampler.run(...) method should be called first to obtain results.'
             )
         weighted_samples, sample_weights = self.get_weighted_samples()
         return resample(
-            rng_key, weighted_samples, sample_weights, S=num_samples, replace=True
+            rng_key,
+            weighted_samples,
+            sample_weights,
+            S=num_samples,
+            replace=True,
         )
 
     def get_weighted_samples(self):
@@ -323,7 +345,7 @@ class NestedSampler:
         """
         if self._results is None:
             raise RuntimeError(
-                "NestedSampler.run(...) method should be called first to obtain results."
+                'NestedSampler.run(...) method should be called first to obtain results.'
             )
 
         return self._results.samples, self._results.log_dp_mean
@@ -336,7 +358,7 @@ class NestedSampler:
 
         if self._results is None:
             raise RuntimeError(
-                "NestedSampler.run(...) method should be called first to obtain results."
+                'NestedSampler.run(...) method should be called first to obtain results.'
             )
         summary(self._results)
 
@@ -349,7 +371,7 @@ class NestedSampler:
 
         if self._results is None:
             raise RuntimeError(
-                "NestedSampler.run(...) method should be called first to obtain results."
+                'NestedSampler.run(...) method should be called first to obtain results.'
             )
         plot_diagnostics(self._results)
         plot_cornerplot(self._results)
@@ -417,15 +439,17 @@ class GlobalOptimizer:
     :param dict termination_kwargs: keyword arguments to terminate the sampler. Please
         refer to the upstream :meth:`jaxns.experimental.DefaultGlobalOptimisation.__call__` method.
     """
+
     def __init__(
         self,
         model,
         *,
         constructor_kwargs: dict | None = None,
-        termination_kwargs: dict | None = None
+        termination_kwargs: dict | None = None,
     ):
         from jaxns.experimental import (
-            DefaultGlobalOptimisation, GlobalOptimisationResults
+            DefaultGlobalOptimisation,
+            GlobalOptimisationResults,
         )
 
         self.model = model
@@ -448,34 +472,42 @@ class GlobalOptimizer:
         """
         from jaxns import Model, Prior
         from jaxns.experimental import (
-            DefaultGlobalOptimisation, GlobalOptimisationTerminationCondition
+            DefaultGlobalOptimisation,
+            GlobalOptimisationTerminationCondition,
         )
 
         rng_sampling, rng_predictive = random.split(rng_key)
         # reparam the model so that latent sites have Uniform(0, 1) priors
-        prototype_trace = trace(seed(self.model, rng_key)).get_trace(*args, **kwargs)
+        prototype_trace = trace(seed(self.model, rng_key)).get_trace(
+            *args, **kwargs
+        )
         param_names = [
-            site["name"]
+            site['name']
             for site in prototype_trace.values()
-            if site["type"] == "sample"
-               and not site["is_observed"]
-               and site["infer"].get("enumerate", "") != "parallel"
+            if site['type'] == 'sample'
+            and not site['is_observed']
+            and site['infer'].get('enumerate', '') != 'parallel'
         ]
         deterministics = [
-            site["name"]
+            site['name']
             for site in prototype_trace.values()
-            if site["type"] == "deterministic"
+            if site['type'] == 'deterministic'
         ]
-        reparam_model = reparam(self.model, config={k: UniformReparam() for k in param_names})
+        reparam_model = reparam(
+            self.model, config={k: UniformReparam() for k in param_names}
+        )
 
         # enable enumerate if needed
         has_enum = any(
-            site["type"] == "sample"
-            and site["infer"].get("enumerate", "") == "parallel"
+            site['type'] == 'sample'
+            and site['infer'].get('enumerate', '') == 'parallel'
             for site in prototype_trace.values()
         )
         if has_enum:
-            from numpyro.contrib.funsor import enum, log_density as log_density_
+            from numpyro.contrib.funsor import (
+                enum,
+                log_density as log_density_,
+            )
 
             max_plate_nesting = _guess_max_plate_nesting(prototype_trace)
             _validate_model(prototype_trace)
@@ -489,22 +521,27 @@ class GlobalOptimizer:
         \tparams = {{{}}}\n
         \treturn log_density_(reparam_model, args, kwargs, params)[0]
         """.format(
-            ", ".join([f"{name.replace('.', '_')}_base" for name in param_names]),
-            ", ".join(
-                [f"'{name}_base': {name.replace('.', '_')}_base" for name in param_names]
+            ', '.join(
+                [f'{name.replace(".", "_")}_base' for name in param_names]
+            ),
+            ', '.join(
+                [
+                    f"'{name}_base': {name.replace('.', '_')}_base"
+                    for name in param_names
+                ]
             ),
         )
         exec(loglik_fn_def, locals(), local_dict)
-        loglik_fn = local_dict["loglik_fn"]
+        loglik_fn = local_dict['loglik_fn']
 
         # use NestedSampler with identity prior chain
         def prior_model():
             params = []
             for name in param_names:
-                shape = prototype_trace[name]["fn"].shape()
+                shape = prototype_trace[name]['fn'].shape()
                 param = yield Prior(
                     tfpd.Uniform(low=jnp.zeros(shape), high=jnp.ones(shape)),
-                    name=name + "_base",
+                    name=name + '_base',
                 )
                 params.append(param)
             return tuple(params)
@@ -541,7 +578,9 @@ class GlobalOptimizer:
 
         self._results = self._optimizer(
             rng_sampling,
-            term_cond=GlobalOptimisationTerminationCondition(**self.termination_kwargs)
+            term_cond=GlobalOptimisationTerminationCondition(
+                **self.termination_kwargs
+            ),
         )
 
         return self._results
