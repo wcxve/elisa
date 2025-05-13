@@ -2,7 +2,7 @@
 name = "astro-elisa"
 description = "Efficient library for spectral analysis in high-energy astrophysics."
 readme = "README.md"
-requires-python = ">=3.10, <=3.12"
+requires-python = ">=3.10, <3.13"
 license = "GPL-3.0-or-later"
 authors = [
     { name = "Wang-Chen Xue", email = "wcxuemail@gmail.com" },
