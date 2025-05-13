@@ -41,7 +41,7 @@ def test_trivial_max_like_fit(simulation, method):
         pytest.param('nuts', {}, id='NUTS'),
         pytest.param('barkermh', {}, id='BarkerMH'),
         pytest.param('blackjax_nuts', {}, id='BlackJAX_NUTS'),
-        pytest.param('sa', {'warmup': 40000, 'steps': 2000}, id='SA'),
+        pytest.param('sa', {'warmup': 20000, 'steps': 5000}, id='SA'),
         pytest.param('aies', {}, id='AIES'),
         pytest.param('aies', {'n_parallel': 1}, id='AIES_1'),
         pytest.param('ess', {}, id='ESS'),
@@ -63,8 +63,8 @@ def test_trivial_bayes_fit(simulation, method, options):
 
     # sample adaptive mcmc has a problem in convergence, fix it by better init
     if method == 'sa':
-        model['PowerLaw']['alpha'].defualt = 0.0
-        model['PowerLaw']['K'].defualt = 10.0
+        model['PowerLaw']['alpha'].default = 0.0
+        model['PowerLaw']['K'].default = 10.0
 
     # Get Bayesian fit result, i.e. posterior
     result = getattr(BayesFit(data, model), method)(**options)

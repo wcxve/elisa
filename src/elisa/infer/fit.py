@@ -954,10 +954,10 @@ class BayesFit(Fit):
 
     def sa(
         self,
-        warmup: int = 75000,
+        warmup: int = 70000,
         steps: int = 5000,
         chains: int | None = None,
-        thinning: int = 1,
+        thinning: int = 2,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
         progress: bool = True,
@@ -977,7 +977,7 @@ class BayesFit(Fit):
         Parameters
         ----------
         warmup : int, optional
-            Number of warmup steps. The default is 75000.
+            Number of warmup steps. The default is 70000.
         steps : int, optional
             Number of steps to run. The default is 5000.
         chains : int, optional
@@ -987,7 +987,7 @@ class BayesFit(Fit):
         thinning: int, optional
             For each chain, every `thinning` step is retained, and the other
             steps are discarded. The total steps for each chain are
-            `steps` * `thinning`. The default is 1.
+            `steps` * `thinning`. The default is 2.
         init : dict, optional
             Initial parameter for sampler to start from.
         chain_method : str, optional
