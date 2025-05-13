@@ -7,17 +7,9 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 import numpy as np
+from ultranest import ReactiveNestedSampler, read_file
 
 from elisa.infer.samplers.util import ravel_params_names, uniform_reparam_model
-
-try:
-    from ultranest import ReactiveNestedSampler, read_file
-except ImportError as e:
-    raise ModuleNotFoundError(
-        'To run the nested sampling of UltraNest, install it by '
-        '`conda install --channel conda-forge ultranest=4.4.0`, '
-        'or `pip install ultranest==4.4.0`'
-    ) from e
 
 if TYPE_CHECKING:
     from typing import Callable

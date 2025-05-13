@@ -6,26 +6,19 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 import multiprocess as mp
+import nautilus
+import nautilus.pool as nautilus_pool
 
 from elisa.infer.samplers.util import uniform_reparam_model
-
-try:
-    import nautilus
-
-    # monkey patching the pool for compatibility with JAX
-    import nautilus.pool as nautilus_pool
-
-    nautilus_pool.Pool = mp.Pool
-except ImportError as e:
-    raise ModuleNotFoundError(
-        'To run the nested sampling of Nautilus, install it by '
-        '`pip install nautilus-sampler==1.0.5`'
-    ) from e
 
 if TYPE_CHECKING:
     from typing import Callable
 
     from numpy.typing import NDArray
+
+
+# monkey patching the pool for compatibility with JAX
+nautilus_pool.Pool = mp.Pool
 
 
 class NautilusSampler:
