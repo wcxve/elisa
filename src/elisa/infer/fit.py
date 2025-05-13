@@ -1,4 +1,4 @@
-"""Model fit in maximum likelihood or Bayesian way."""
+"""Model fit in a maximum likelihood or Bayesian way."""
 
 from __future__ import annotations
 
@@ -772,10 +772,6 @@ class BayesFit(Fit):
         device_count = jax.local_device_count()
 
         chains = int(chains) if chains is not None else device_count
-
-        # the number of total samples should be multiple of the device number
-        if chains * steps % device_count:
-            steps += device_count - steps % device_count
 
         kernel_kwargs['model'] = self._helper.numpyro_model
 
