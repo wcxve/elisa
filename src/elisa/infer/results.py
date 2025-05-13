@@ -7,7 +7,6 @@ import gzip
 import lzma
 import warnings
 from abc import ABC, abstractmethod
-from importlib import metadata
 from typing import TYPE_CHECKING, NamedTuple
 
 import arviz as az
@@ -16,19 +15,16 @@ import dill
 import jax
 import jax.numpy as jnp
 import numpy as np
-import numpyro
 import scipy.stats as stats
+from arviz import InferenceData
 from astropy.cosmology import Planck18
 from iminuit import Minuit
 from iminuit.util import Matrix as CovarMatrix
 from jax.experimental.mesh_utils import create_device_mesh
 from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
-from numpyro.infer import MCMC
 
-from elisa.__about__ import __version__
 from elisa.infer.helper import check_params
-from elisa.infer.nested_sampling import NestedSampler
 from elisa.plot.plotter import MLEResultPlotter, PosteriorResultPlotter
 from elisa.util.config import get_parallel_number
 from elisa.util.misc import make_pretty_table
@@ -43,7 +39,6 @@ if TYPE_CHECKING:
     from iminuit.util import FMin
     from xarray import DataArray
 
-    from elisa.infer.fit import BayesFit
     from elisa.infer.helper import Helper
     from elisa.plot.plotter import Plotter
     from elisa.util.typing import JAXArray
@@ -1343,38 +1338,15 @@ class PosteriorResult(FitResult):
 
     def __init__(
         self,
-        sampler: MCMC | NestedSampler | Any,
         helper: Helper,
-        fit: BayesFit,
+        idata: InferenceData,
+        ml_optimize: Callable,
+        sampler_state: Any = None,
     ):
-        try:
-            import ultranest
-
-            has_ultranest = True
-        except ImportError:
-            has_ultranest = False
-
-        try:
-            import nautilus
-
-            has_nautilus = True
-        except ImportError:
-            has_nautilus = False
-
         super().__init__(helper)
-        self._fit = fit
-        if isinstance(sampler, MCMC):
-            self._init_from_numpyro(sampler)
-        elif isinstance(sampler, NestedSampler):
-            self._init_from_jaxns(sampler)
-        elif has_ultranest and isinstance(
-            sampler, ultranest.ReactiveNestedSampler
-        ):
-            self._init_from_ultranest(sampler)
-        elif has_nautilus and isinstance(sampler, nautilus.Sampler):
-            self._init_from_nautilus(sampler)
-        else:
-            raise ValueError('unknown sampler')
+        self._idata = idata
+        self._ml_optimize = ml_optimize
+        self._sampler_state = sampler_state
 
     def __repr__(self):
         tabs = self._tabs()
@@ -2149,7 +2121,7 @@ class PosteriorResult(FitResult):
             init = self.idata['posterior'][free_params].sel(**mle_idx)
             init = {k: v.values for k, v in init.data_vars.items()}
             init = helper.constr_dic_to_unconstr_arr(init)
-            mle_unconstr = self._fit._optimize_lm(init, throw=False)[0]
+            mle_unconstr = self._ml_optimize(init, throw=False)[0]
 
             # MLE of model params in constrained space
             mle, cov = jax.device_get(helper.get_mle(mle_unconstr))
@@ -2183,9 +2155,9 @@ class PosteriorResult(FitResult):
         return self._idata
 
     @property
-    def last_state(self) -> dict:
-        """The final MCMC state at the end of the sampling phase."""
-        return self._last_state
+    def sampler_state(self) -> Any:
+        """The sampler state at the end of the sampling phase."""
+        return self._sampler_state
 
     def _compute_stat(
         self, cache_attr: str, stat_fn: Callable
@@ -2215,15 +2187,16 @@ class PosteriorResult(FitResult):
 
     @property
     def _params_dist(self) -> dict[str, JAXArray]:
-        """Posterior parameters, the size is truncated to <= nmax."""
+        """Posterior samples used for further analysis, the sample size is
+        truncated to be less than or equal to n_max=10000."""
         if self._params is not None:
             return self._params
 
-        nmax = 10000
+        n_max = 10000
         post = self.idata['posterior'][self._helper.params_names['free']]
         n = post.chain.size * post.draw.size
-        if n > nmax:
-            n = nmax - nmax % jax.local_device_count()
+        if n > n_max:
+            n = n_max - n_max % jax.local_device_count()
             rng = np.random.default_rng(self._helper.seed['mcmc'])
             i = rng.integers(0, post.chain.size, n)
             j = rng.integers(0, post.draw.size, n)
@@ -2232,188 +2205,6 @@ class PosteriorResult(FitResult):
             post = {k: np.hstack(v.values) for k, v in post.data_vars.items()}
         self._params = post
         return self._params
-
-    def _init_from_numpyro(self, sampler: MCMC):
-        helper = self._helper
-        params_names = helper.params_names
-        samples = sampler.get_samples(group_by_chain=True)
-
-        # stats of samples
-        rename = {'num_steps': 'n_steps'}
-        sample_stats = {}
-        for k, v in sampler.get_extra_fields(group_by_chain=True).items():
-            name = rename.get(k, k)
-            value = jax.device_get(v).copy()
-            sample_stats[name] = value
-            if k == 'num_steps':
-                sample_stats['tree_depth'] = np.log2(value).astype(int) + 1
-
-        # attrs for each group of arviz.InferenceData
-        attrs = {
-            'elisa_version': __version__,
-            'inference_library': 'numpyro',
-            'inference_library_version': numpyro.__version__,
-        }
-
-        # create arviz.InferenceData
-        self._generate_idata(samples, attrs, sample_stats)
-
-        # effective sample size
-        params = helper.get_params(samples)
-        ess = az.ess(params)
-        self._ess = {k: int(ess[k].values) for k in params.keys()}
-
-        # relative mcmc efficiency
-        # the calculation of reff is according to arviz loo:
-        # https://github.com/arviz-devs/arviz/blob/main/arviz/stats/stats.py#L770
-        if sampler.num_chains == 1:
-            self._reff = 1.0
-        else:
-            # use only free parameters to calculate reff
-            free = {k: params[k] for k in params_names['free']}
-            reff_p = az.ess(free, method='mean', relative=True)
-            self._reff = np.hstack(list(reff_p.data_vars.values())).mean()
-
-        # model evidence
-        self._lnZ = (None, None)
-
-        # the final sampling state
-        self._last_state = sampler.last_state
-
-    def _init_from_jaxns(self, sampler: NestedSampler):
-        helper = self._helper
-        result = sampler._results
-
-        # get posterior samples
-        total = result.total_num_samples
-        rng_key = jax.random.PRNGKey(helper.seed['mcmc'])
-        samples = jax.tree.map(
-            lambda x: x[None, ...],
-            sampler.get_samples(rng_key, total),
-        )
-
-        # attrs for each group of arviz.InferenceData
-        attrs = {
-            'elisa_version': __version__,
-            'inference_library': 'jaxns',
-            'inference_library_version': metadata.version('jaxns'),
-        }
-
-        self._generate_idata(samples, attrs)
-
-        # effective sample size
-        ess = int(result.ESS)
-        self._ess = dict.fromkeys(self._helper.params_names['all'], ess)
-        # relative mcmc efficiency
-        self._reff = float(ess / result.total_num_samples)
-        # model evidence
-        self._lnZ = (float(result.log_Z_mean), float(result.log_Z_uncert))
-
-    def _init_from_ultranest(self, sampler):
-        result = sampler._transform_back(sampler.results['samples'])
-        nsamples = len(sampler.results['samples'])
-        ncores = jax.local_device_count()
-        ndrop = nsamples % ncores
-
-        # get posterior samples
-        samples = jax.tree.map(lambda x: x[None, : nsamples - ndrop], result)
-
-        # attrs for each group of arviz.InferenceData
-        attrs = {
-            'elisa_version': __version__,
-            'inference_library': 'ultranest',
-            'inference_library_version': metadata.version('ultranest'),
-        }
-
-        self._generate_idata(samples, attrs)
-
-        # effective sample size
-        ess = int(sampler.results['ess'])
-        self._ess = dict.fromkeys(self._helper.params_names['all'], ess)
-        # relative mcmc efficiency
-        self._reff = float(ess / nsamples)
-        # model evidence
-        self._lnZ = (
-            float(sampler.results['logz']),
-            float(sampler.results['logzerr']),
-        )
-
-    def _init_from_nautilus(self, sampler):
-        result = sampler.posterior(equal_weight=True)[0]
-        result = sampler._transform_back(result)
-        ncores = jax.local_device_count()
-
-        # get posterior samples
-        samples = jax.tree.map(
-            lambda x: x[None, : len(x) - len(x) % ncores],
-            result,
-        )
-
-        # attrs for each group of arviz.InferenceData
-        attrs = {
-            'elisa_version': __version__,
-            'inference_library': 'nautilus-sampler',
-            'inference_library_version': metadata.version('nautilus-sampler'),
-        }
-
-        self._generate_idata(samples, attrs)
-
-        # effective sample size
-        ess = int(sampler.n_eff)
-        self._ess = dict.fromkeys(self._helper.params_names['all'], ess)
-        # relative mcmc efficiency
-        total_sample = len(sampler.posterior(equal_weight=False)[0])
-        self._reff = float(ess / total_sample)
-        # model evidence
-        self._lnZ = (float(sampler.log_z), None)
-
-    def _generate_idata(self, samples, attrs, sample_stats=None):
-        samples = jax.tree.map(jax.device_get, samples)
-        helper = self._helper
-
-        params = helper.get_params(samples)
-        models = helper.get_models(samples)
-        posterior = params | models
-        posterior_predictive = helper.simulate(helper.seed['pred'], models, 1)
-        loglike = helper.get_loglike(samples)
-        group = {f'{k}_total': v for k, v in loglike['group'].items()}
-        loglike = (
-            loglike['data']
-            | loglike['point']
-            | group
-            | {'channels': loglike['channels']}
-            | {'total': loglike['total']}
-        )
-
-        # get observation counts data
-        obs_data = helper.obs_data
-
-        # coords and dims of arviz.InferenceData
-        coords = dict(helper.channels)
-
-        dims = {'channels': ['channel']}
-        for i in helper.data_names:
-            dim = [f'{i}_channel']
-            dims[i] = dims[f'{i}_Non'] = dims[f'{i}_Non_model'] = dim
-
-            if f'{i}_Noff' in obs_data:
-                dims[f'{i}_Noff'] = dims[f'{i}_Noff_model'] = dim
-
-        # create InferenceData
-        self._idata = az.from_dict(
-            posterior=posterior,
-            posterior_predictive=posterior_predictive,
-            sample_stats=sample_stats,
-            log_likelihood=loglike,
-            observed_data=obs_data,
-            coords=coords,
-            dims=dims,
-            posterior_attrs=attrs,
-            posterior_predictive_attrs=attrs,
-            sample_stats_attrs=attrs,
-            log_likelihood_attrs=attrs,
-            observed_data_attrs=attrs,
-        )
 
     @property
     def deviance(self) -> dict:
@@ -2440,12 +2231,16 @@ class PosteriorResult(FitResult):
     @property
     def reff(self) -> float:
         """Relative MCMC efficiency."""
-        return self._reff
+        return float(self._idata['ess']['reff'])
 
     @property
     def ess(self) -> dict[str, int]:
         """Effective MCMC sample size."""
-        return self._ess
+        return {
+            k: int(v)
+            for k, v in self._idata['ess'].data_vars.items()
+            if k != 'reff'
+        }
 
     @property
     def rhat(self) -> dict[str, float]:
@@ -2534,9 +2329,11 @@ class PosteriorResult(FitResult):
         return self._loo
 
     @property
-    def lnZ(self) -> tuple[float, float] | tuple[None, None]:
-        """Log model evidence and uncertainty."""
-        return self._lnZ
+    def lnZ(self) -> tuple[float, float]:
+        """Log model evidence and error."""
+        lnZ = float(self._idata['evidence']['lnZ'])
+        lnZ_error = float(self._idata['evidence']['lnZ_error'])
+        return lnZ, lnZ_error
 
     @property
     def _psislw(self) -> DataArray:

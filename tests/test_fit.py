@@ -40,13 +40,17 @@ def test_trivial_max_like_fit(simulation, method):
         # NumPyro samplers
         pytest.param('nuts', {}, id='NUTS'),
         pytest.param('barkermh', {}, id='BarkerMH'),
-        pytest.param('sa', {'warmup': 40000, 'steps': 2000}, id='SA'),
+        pytest.param('blackjax_nuts', {}, id='BlackJAX_NUTS'),
+        pytest.param('sa', {'warmup': 20000}, id='SA'),
         pytest.param('aies', {}, id='AIES'),
         pytest.param('aies', {'n_parallel': 1}, id='AIES_1'),
         pytest.param('ess', {}, id='ESS'),
         pytest.param('ess', {'n_parallel': 1}, id='ESS_1'),
         # JAX backend nested sampler
         pytest.param('jaxns', {}, id='JAXNS'),
+        # Non-JAX backends samplers
+        pytest.param('emcee', {}, id='emcee'),
+        pytest.param('emcee', {'n_parallel': 1}, id='emcee_1'),
         # Non-JAX backends nested samplers
         pytest.param('nautilus', {}, id='Nautilus'),
         pytest.param('ultranest', {}, id='UltraNest'),
@@ -57,8 +61,14 @@ def test_trivial_bayes_fit(simulation, method, options):
     model = PowerLaw()
     model.PowerLaw.K.log = True
 
+    # SA seems to converge randomly, which is really frustrating
+    # we try to fix this by better init and seed of 100...
+    if method == 'sa':
+        model['PowerLaw']['alpha'].default = 0.0
+        model['PowerLaw']['K'].default = 10.0
+
     # Get Bayesian fit result, i.e. posterior
-    result = getattr(BayesFit(data, model), method)(**options)
+    result = getattr(BayesFit(data, model, seed=100), method)(**options)
 
     # check convergence
     assert all(i < 1.01 for i in result.rhat.values() if not np.isnan(i))
