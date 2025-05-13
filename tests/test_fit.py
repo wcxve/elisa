@@ -41,7 +41,7 @@ def test_trivial_max_like_fit(simulation, method):
         pytest.param('nuts', {}, id='NUTS'),
         pytest.param('barkermh', {}, id='BarkerMH'),
         pytest.param('blackjax_nuts', {}, id='BlackJAX_NUTS'),
-        pytest.param('sa', {'warmup': 20000, 'steps': 5000}, id='SA'),
+        pytest.param('sa', {'warmup': 40000}, id='SA'),
         pytest.param('aies', {}, id='AIES'),
         pytest.param('aies', {'n_parallel': 1}, id='AIES_1'),
         pytest.param('ess', {}, id='ESS'),
