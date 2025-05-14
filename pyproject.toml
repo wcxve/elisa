@@ -52,7 +52,7 @@ dynamic = ["version"]
 [project.optional-dependencies]
 xspec = ["xspex>=0.0.7"]
 test = [
-    "coverage[toml]",
+    "coverage[toml]>=7.8.0",
     "pytest",
     "pytest-cov",
     "pytest-xdist",
@@ -127,18 +127,18 @@ lint.select = [
 
 [tool.pytest]
 ini_options.addopts = "-n auto --cov --cov-report xml"
+ini_options.testpaths = ["tests"]
 
 [tool.coverage]
 run.concurrency = [
     "thread",
     "multiprocessing",
 ]
+run.source_dirs = ["src"]
 run.omit = [
     "src/elisa/infer/samplers/ns/jaxns.py",
     "src/elisa/models/tables",
 ]
-run.relative_files = true
-run.source = ["src"]
 report.exclude_also = [
     # Have to re-enable the standard pragma
     "pragma: no cover",
