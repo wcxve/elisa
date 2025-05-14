@@ -70,8 +70,7 @@ jobs:
             $compile_extra \
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }}
-          uv pip install ".[$extra,test]" \
-            -e \
+          uv pip install -e ".[$extra,test]" \
             --overrides requirements.txt \
             --verbose
 
