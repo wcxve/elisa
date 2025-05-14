@@ -440,7 +440,7 @@ class Plotter(ABC):
         self.data = self.get_plot_data(result)
         self.config = config
         markers = get_markers(len(self.data))
-        self._markers = dict(zip(self.data.keys(), markers))
+        self._markers = dict(zip(self.data.keys(), markers, strict=False))
 
     @abstractmethod
     def __call__(self, plots: str = 'data ne r') -> dict[str, Figure]:
@@ -497,7 +497,7 @@ class Plotter(ABC):
         if self._palette not in ('customized', self.config.palette):
             colors = get_colors(len(self.data), palette=self.config.palette)
             self._palette = self.config.palette
-            self._colors = dict(zip(self.data.keys(), colors))
+            self._colors = dict(zip(self.data.keys(), colors, strict=False))
         return self._colors
 
     @property
@@ -659,7 +659,7 @@ class Plotter(ABC):
         else:
             residuals = None
 
-        axs_dict = dict(zip(plots, axs))
+        axs_dict = dict(zip(plots, axs, strict=False))
 
         yscale = config.yscale
 
@@ -1090,7 +1090,7 @@ class Plotter(ABC):
         ha = 'center' if detrend else 'left'
         text_x = 0.5 if detrend else 0.03
 
-        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2))
+        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=False))
         colors = {'total': 'k'} | self.colors
         for name, ax in axs.items():
             color = colors[name]
@@ -1155,7 +1155,7 @@ class Plotter(ABC):
         ha = 'right' if detrend else 'left'
         text_x = 0.97 if detrend else 0.03
 
-        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2))
+        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=False))
         colors = {'total': 'k'} | self.colors
         for name, ax in axs.items():
             color = colors[name]
@@ -1227,7 +1227,7 @@ class Plotter(ABC):
         ax1.set_xlabel('$D$')
         ax1.set_ylabel(r'$P(\mathcal{D} \geq D)$')
 
-        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2))
+        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=False))
         colors = {'total': 'k'} | self.colors
         for name, ax in axs.items():
             color = colors[name]
@@ -1369,7 +1369,7 @@ class MLEResultPlotter(Plotter):
         )
         data = {
             name: MLEPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys)
+            for name, key in zip(helper.data_names, keys, strict=False)
         }
         return data
 
@@ -1556,7 +1556,7 @@ class PosteriorResultPlotter(Plotter):
         )
         data = {
             name: PosteriorPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys)
+            for name, key in zip(helper.data_names, keys, strict=False)
         }
         return data
 
