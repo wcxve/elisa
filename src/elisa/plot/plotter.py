@@ -485,7 +485,7 @@ class Plotter(ABC):
             self._colors = None
         else:
             colors = dict(colors)
-            if not set(colors.keys()).issubset(self.data.keys()):
+            if not set(self.data.keys()).issubset(colors.keys()):
                 missing = ', '.join(i for i in self.data if i not in colors)
                 raise ValueError(f'missing colors for those data: {missing}')
             self._palette = 'customized'

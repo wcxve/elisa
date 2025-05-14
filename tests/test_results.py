@@ -14,20 +14,47 @@ def test_mle_result(simulation, mle_result):
     assert result.ndata['total'] == nbins
     assert result.dof == nbins - 1
 
-    # Check various methods of mle result
+    # Check various methods of MLE result
     result.boot(1009)
     result.summary()
-    result.plot()
-    result.plot('data ne ene eene Fv vFv rq pit corner')
     _ = result.deviance
     _ = result.aic
     _ = result.bic
     assert all(i > 0.05 for i in result.gof.values())
 
     plotter = result.plot
+
+    # raise ValueError if colors dict not containing all data names
+    with pytest.raises(ValueError):
+        plotter.set_colors({})
+
+    plotter.set_colors(dict.fromkeys(plotter.data, 'k'))
+    plotter()
+    plotter('data ne ene eene Fv vFv qq pit gof')
+    plotter('rd')
+    plotter('rp')
+    plotter('rq')
+
+    plotter.set_colors(None)
+    plotter()
+    plotter('data ne ene eene Fv vFv qq pit gof')
+    plotter('rd')
+    plotter('rp')
+    plotter('rq')
+
+    plotter.config.fill_residuals_ci = False
+    plotter('rd')
+    plotter('rp')
+    plotter('rq')
+
+    plotter('corner')
+    plotter.plot_pit(detrend=False)
     plotter.plot_qq('rd')
+    plotter.plot_qq('rd', detrend=False)
     plotter.plot_qq('rp')
+    plotter.plot_qq('rp', detrend=False)
     plotter.plot_qq('rq')
+    plotter.plot_qq('rq', detrend=False)
 
     result.save('mle.pkl.gz', 'gzip')
     result.load('mle.pkl.gz', 'gzip')
@@ -213,17 +240,44 @@ def test_posterior_result(simulation, posterior_result):
     assert result.dof == nbins - 2
     result.ppc(1009)
     result.summary()
-    result.plot()
-    result.plot('data ne ene eene Fv vFv rq pit corner khat trace')
     _ = result.deviance
     _ = result.loo
     _ = result.waic
     assert all(i > 0.05 for i in result.gof.values())
 
     plotter = result.plot
+
+    # raise ValueError if colors dict not containing all data names
+    with pytest.raises(ValueError):
+        plotter.set_colors({})
+
+    plotter.set_colors(dict.fromkeys(plotter.data, 'k'))
+    plotter()
+    plotter('data ne ene eene Fv vFv qq pit gof khat')
+    plotter('rd')
+    plotter('rp')
+    plotter('rq')
+
+    plotter.set_colors(None)
+    plotter()
+    plotter('data ne ene eene Fv vFv qq pit gof khat')
+    plotter('rd')
+    plotter('rp')
+    plotter('rq')
+
+    plotter.config.fill_residuals_ci = False
+    plotter('rd')
+    plotter('rp')
+    plotter('rq')
+
+    plotter('corner')
+    plotter.plot_pit(detrend=False)
     plotter.plot_qq('rd')
+    plotter.plot_qq('rd', detrend=False)
     plotter.plot_qq('rp')
+    plotter.plot_qq('rp', detrend=False)
     plotter.plot_qq('rq')
+    plotter.plot_qq('rq', detrend=False)
 
 
 def test_posterior_covar(
