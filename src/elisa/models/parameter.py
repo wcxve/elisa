@@ -911,7 +911,7 @@ class CompositeParameter(Parameter):
                 build_namespace([p.name for p in self._nodes], prime=True)[
                     'namespace'
                 ],
-                strict=False,
+                strict=True,
             )
         )
         self._name = self._id_to_label(pid_to_pname, 'name')
@@ -1017,7 +1017,7 @@ class CompositeParameter(Parameter):
     def latex(self) -> str:
         nodes_latex = [p.latex for p in self._nodes]
         latex = build_namespace(nodes_latex, True, True)['namespace']
-        pid_to_latex = dict(zip(self._nodes_id, latex, strict=False))
+        pid_to_latex = dict(zip(self._nodes_id, latex, strict=True))
         return self._id_to_label(pid_to_latex, 'latex')
 
     @property

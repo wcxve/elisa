@@ -127,11 +127,11 @@ class Fit(ABC):
         num_suffix = build_namespace(name_with_data_suffix)['suffix_num']
         cname = add_suffix(cname, num_suffix, True)
         cname = add_suffix(cname, data_suffix, False)
-        cid_to_name = dict(zip(cid, cname, strict=False))
+        cid_to_name = dict(zip(cid, cname, strict=True))
         latex = [comp.latex for comp in comps]
         latex = add_suffix(latex, num_suffix, True, latex=True)
         latex = add_suffix(latex, data_suffix, False, latex=True, mathrm=True)
-        cid_to_latex = dict(zip(cid, latex, strict=False))
+        cid_to_latex = dict(zip(cid, latex, strict=True))
 
         # get model info
         self._model_info: ModelInfo = get_model_info(
@@ -141,12 +141,12 @@ class Fit(ABC):
         # first filter out duplicated models then compile the remaining models,
         # this is intended to avoid re-compilation of the same model
         models_id = [id(m) for m in models]
-        mid_to_model = dict(zip(models_id, models, strict=False))
+        mid_to_model = dict(zip(models_id, models, strict=True))
         compiled_model = {
             mid: m.compile(model_info=self._model_info)
             for mid, m in mid_to_model.items()
         }
-        data_to_mid = dict(zip(data_names, models_id, strict=False))
+        data_to_mid = dict(zip(data_names, models_id, strict=True))
         self._model = {
             name: compiled_model[mid] for name, mid in data_to_mid.items()
         }
@@ -277,7 +277,7 @@ class Fit(ABC):
                 self._data,
                 (m.name for m in self._model.values()),
                 self._stat.values(),
-                strict=False,
+                strict=True,
             )
         )
         self._tab_likelihood: PrettyTable = make_pretty_table(fields, rows)
@@ -466,7 +466,7 @@ class Fit(ABC):
             raise ValueError(msg)
 
         # check if correctly using stat
-        for d, s in zip(data_list, stat_list, strict=False):
+        for d, s in zip(data_list, stat_list, strict=True):
             check_stat(d, s)
 
         return data_list, model_list, stat_list
