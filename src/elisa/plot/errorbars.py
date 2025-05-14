@@ -45,7 +45,7 @@ def get_delta(cl: float) -> float:
 @jax.jit
 def _sigmoid(x, s):
     finfo = jnp.finfo(jnp.result_type(x))
-    return jnp.clip(expit(x), a_min=finfo.tiny, a_max=1.0 - finfo.eps) * s
+    return jnp.clip(expit(x), min=finfo.tiny, max=1.0 - finfo.eps) * s
 
 
 @jax.jit
