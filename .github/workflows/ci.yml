@@ -78,6 +78,15 @@ jobs:
         run: |
           pytest
 
+      - name: Upload Test Results
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          file: junit.xml
+          flags: "py${{ matrix.python-version }}"
+          name: "Python ${{ matrix.python-version }}"
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Upload Coverage Results
         uses: codecov/codecov-action@v5
         with:
