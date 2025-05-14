@@ -86,6 +86,8 @@ jobs:
           flags: "py${{ matrix.python-version }}"
           name: "Python ${{ matrix.python-version }}"
           token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true
+          verbose: true
 
       - name: Upload Coverage Results
         uses: codecov/codecov-action@v5
