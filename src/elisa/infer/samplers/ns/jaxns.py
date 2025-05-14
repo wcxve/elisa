@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import jax
 import jax.numpy as jnp
-import tensorflow_probability.substrates.jax as tfp
 from jax import random
 from numpyro.handlers import reparam, seed, trace
 from numpyro.infer import Predictive
@@ -21,8 +20,6 @@ from numpyro.infer.util import (
 )
 
 from elisa.infer.samplers.util import UniformReparam
-
-tfpd = tfp.distributions
 
 
 class JAXNSSampler:
@@ -108,6 +105,7 @@ class JAXNSSampler:
         """
         from jaxns import Model, Prior, TerminationCondition
         from jaxns.public import DefaultNestedSampler
+        import tensorflow_probability.substrates.jax.distributions as tfpd
 
         rng_sampling, rng_predictive = random.split(rng_key)
         # reparam the model so that latent sites have Uniform(0, 1) priors
