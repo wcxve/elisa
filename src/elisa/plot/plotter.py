@@ -1058,7 +1058,7 @@ class Plotter(ABC):
         text_x = 0.5 if detrend else 0.03
 
         axs = [ax1] + axs.ravel().tolist()[: len(self.data)]
-        names = ['total'] + list(self.ndata.keys())
+        names = ['total'] + list(self.data.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
         for ax, name, color in zip(axs, names, colors, strict=True):
             theor, q, line, lo, up = _get_qq(
@@ -1123,7 +1123,7 @@ class Plotter(ABC):
         text_x = 0.97 if detrend else 0.03
 
         axs = [ax1] + axs.ravel().tolist()[: len(self.data)]
-        names = ['total'] + list(self.ndata.keys())
+        names = ['total'] + list(self.data.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
         for ax, name, color in zip(axs, names, colors, strict=True):
@@ -1197,7 +1197,7 @@ class Plotter(ABC):
         ax1.set_ylabel(r'$P(\mathcal{D} \geq D)$')
 
         axs = [ax1] + axs.ravel().tolist()[: len(self.data)]
-        names = ['total'] + list(self.ndata.keys())
+        names = ['total'] + list(self.data.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
         for ax, name, color in zip(axs, names, colors, strict=True):
