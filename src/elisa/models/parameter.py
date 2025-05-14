@@ -14,8 +14,8 @@ from elisa.util.integrate import AdaptQuadMethod, make_integral_factory
 from elisa.util.misc import build_namespace
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-    from typing import Any, Callable, Literal
+    from collections.abc import Callable, Iterable
+    from typing import Any, Literal
 
     # from tinygp import kernels, means, noise
     from elisa.util.integrate import IntegralFactory
@@ -855,7 +855,7 @@ class CompositeParameter(Parameter):
         op_symbol: Literal['+', '-', '*', '/', '^'] | None = None,
     ):
         # check if the type of params is parameter or sequence
-        if not isinstance(params, (Parameter, Sequence)):
+        if not isinstance(params, Parameter | Sequence):
             raise TypeError(
                 'parameters must be a Parameter or a sequence of Parameter'
             )
@@ -911,6 +911,7 @@ class CompositeParameter(Parameter):
                 build_namespace([p.name for p in self._nodes], prime=True)[
                     'namespace'
                 ],
+                strict=True,
             )
         )
         self._name = self._id_to_label(pid_to_pname, 'name')
@@ -1016,7 +1017,7 @@ class CompositeParameter(Parameter):
     def latex(self) -> str:
         nodes_latex = [p.latex for p in self._nodes]
         latex = build_namespace(nodes_latex, True, True)['namespace']
-        pid_to_latex = dict(zip(self._nodes_id, latex))
+        pid_to_latex = dict(zip(self._nodes_id, latex, strict=True))
         return self._id_to_label(pid_to_latex, 'latex')
 
     @property

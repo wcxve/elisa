@@ -12,7 +12,7 @@ from ultranest import ReactiveNestedSampler, read_file
 from elisa.infer.samplers.util import ravel_params_names, uniform_reparam_model
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from numpy.typing import NDArray
 

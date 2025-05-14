@@ -14,7 +14,7 @@ from numpyro.distributions import Normal, Poisson
 from numpyro.distributions.util import validate_sample
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from elisa.data.base import FixedData
     from elisa.util.typing import (

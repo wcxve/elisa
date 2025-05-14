@@ -12,7 +12,7 @@ import nautilus.pool as nautilus_pool
 from elisa.infer.samplers.util import uniform_reparam_model
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from numpy.typing import NDArray
 

@@ -97,7 +97,7 @@ build.targets.wheel.packages = ["src/elisa"]
 
 [tool.ruff]
 line-length = 79
-target-version = "py39"
+target-version = "py310"
 extend-exclude = [
     "src/elisa/infer/samplers/ns/jaxns.py",
 ]
@@ -126,13 +126,19 @@ lint.select = [
 "docs/notebooks/model-building.ipynb" = ["F403", "F405"]
 
 [tool.pytest]
-ini_options.addopts = "-n auto --cov=elisa --cov-report xml"
+ini_options.addopts = "-n auto --cov --cov-report xml"
 
 [tool.coverage]
+run.concurrency = [
+    "thread",
+    "multiprocessing",
+]
 run.omit = [
     "src/elisa/infer/samplers/ns/jaxns.py",
     "src/elisa/models/tables",
 ]
+run.relative_files = true
+run.source = ["src"]
 report.exclude_also = [
     # Have to re-enable the standard pragma
     "pragma: no cover",
@@ -148,3 +154,4 @@ report.exclude_also = [
     # Don't complain about abstract methods' implementations
     '@(abc\.)?abstractmethod',
 ]
+report.show_missing = true

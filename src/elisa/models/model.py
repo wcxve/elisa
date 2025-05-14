@@ -22,7 +22,8 @@ from elisa.models.parameter import Parameter, UniformParameter
 from elisa.util.misc import build_namespace, define_fdjvp, make_pretty_table
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Literal
+    from collections.abc import Callable
+    from typing import Any, Literal
 
     from astropy.cosmology.flrw.lambdacdm import LambdaCDM
     from numpyro.distributions import Distribution
@@ -72,12 +73,12 @@ class Model(ABC):
         self._comps_id = tuple(comp._id for comp in comps)
 
         cname = build_namespace([c.name for c in comps])['namespace']
-        cid_to_cname = dict(zip(self._comps_id, cname))
+        cid_to_cname = dict(zip(self._comps_id, cname, strict=True))
         self._cid_to_cname = cid_to_cname
 
         self.__name = self._id_to_label(cid_to_cname, 'name')
 
-        for name, comp in zip(cid_to_cname.values(), comps):
+        for name, comp in zip(cid_to_cname.values(), comps, strict=True):
             setattr(self, name, comp)
 
         self.__initialized = True
@@ -86,7 +87,7 @@ class Model(ABC):
     def _cid_to_clatex(self) -> CompIDStrMapping:
         clatex = [c.latex for c in self._comps]
         clatex = build_namespace(clatex, latex=True)['namespace']
-        return dict(zip(self._comps_id, clatex))
+        return dict(zip(self._comps_id, clatex, strict=True))
 
     def compile(self, *, model_info: ModelInfo | None = None) -> CompiledModel:
         """Compile the model for fast evaluation.
@@ -159,6 +160,7 @@ class Model(ABC):
             zip(
                 self._comps_id,
                 build_namespace(latex, latex=True)['namespace'],
+                strict=True,
             )
         )
 
@@ -239,7 +241,7 @@ class Model(ABC):
             egrid: JAXArray, params: ParamIDValMapping
         ) -> dict[tuple[str, str], JAXArray]:
             """The evaluation function of additive components."""
-            return dict(zip(comps_labels, _fn(egrid, params)))
+            return dict(zip(comps_labels, _fn(egrid, params), strict=True))
 
         return fn
 
@@ -323,7 +325,9 @@ class CompiledModel:
         self._params_default = dict(model_info.default)
         self._value_sequence_to_params: Callable[
             [Sequence[JAXFloat]], ParamIDValMapping
-        ] = jax.jit(lambda sequence: dict(zip(params_id, sequence)))
+        ] = jax.jit(
+            lambda sequence: dict(zip(params_id, sequence, strict=True))
+        )
         fixed_name_to_pid = {model_info.name[pid]: pid for pid in fixed_id}
         pname_pid_all = pname_to_pid | fixed_name_to_pid
         self._value_mapping_to_params: Callable[
@@ -357,7 +361,7 @@ class CompiledModel:
 
     def _prepare_eval(self, params: ArrayLike | Sequence | Mapping | None):
         """Check if `params` is valid for the model."""
-        if isinstance(params, (np.ndarray, jax.Array, Sequence)):
+        if isinstance(params, np.ndarray | jax.Array | Sequence):
             params = jnp.atleast_1d(jnp.asarray(params, float))
             if params.shape[-1] != self._nparam:
                 raise ValueError(
@@ -1423,7 +1427,7 @@ def _param_setter(name: str, idx: int) -> Callable[[Component, Any], None]:
             )
 
         elif isinstance(
-            param, (float, int, jnp.number, jnp.ndarray, np.ndarray)
+            param, float | int | jnp.number | jnp.ndarray | np.ndarray
         ):
             # fixed to the given value
             if jnp.shape(param) != ():
@@ -2120,7 +2124,9 @@ def get_model_info(
     aux_names = build_namespace(aux_names, prime=True)['namespace']
 
     # name mapping from aux params id to name
-    name_mapping: ParamIDStrMapping = dict(zip(aux_params.keys(), aux_names))
+    name_mapping: ParamIDStrMapping = dict(
+        zip(aux_params.keys(), aux_names, strict=True)
+    )
 
     # record name mapping of params directly assigned to a component
     name_mapping |= {
@@ -2137,7 +2143,7 @@ def get_model_info(
     # record the LaTeX format of aux parameters
     aux_latex = [params_info[pid].latex for pid in aux_params]
     aux_latex = build_namespace(aux_latex, latex=True, prime=True)['namespace']
-    latex_mapping = dict(zip(aux_params.keys(), aux_latex))
+    latex_mapping = dict(zip(aux_params.keys(), aux_latex, strict=True))
 
     # record the LaTeX format of component parameters from _config
     latex_mapping |= {

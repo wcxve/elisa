@@ -428,7 +428,7 @@ class Plotter(ABC):
         self.data = self.get_plot_data(result)
         self.config = config
         markers = get_markers(len(self.data))
-        self._markers = dict(zip(self.data.keys(), markers))
+        self._markers = dict(zip(self.data.keys(), markers, strict=True))
 
     @abstractmethod
     def __call__(self, plots: str = 'data ne r') -> dict[str, Figure]:
@@ -464,7 +464,7 @@ class Plotter(ABC):
         """Plotting color for each data."""
         if self._palette != self.config.palette:
             colors = get_colors(len(self.data), palette=self.config.palette)
-            self._colors = dict(zip(self.data.keys(), colors))
+            self._colors = dict(zip(self.data.keys(), colors, strict=True))
             self._palette = self.config.palette
         return self._colors
 
@@ -627,7 +627,7 @@ class Plotter(ABC):
         else:
             residuals = None
 
-        axs_dict = dict(zip(plots, axs))
+        axs_dict = dict(zip(plots, axs, strict=True))
 
         yscale = config.yscale
 
@@ -1057,10 +1057,10 @@ class Plotter(ABC):
         ha = 'center' if detrend else 'left'
         text_x = 0.5 if detrend else 0.03
 
-        axs = [ax1] + axs.ravel().tolist()
-        names = ['total'] + list(self.ndata.keys())
+        axs = [ax1] + axs.ravel().tolist()[: len(self.data)]
+        names = ['total'] + list(self.data.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
-        for ax, name, color in zip(axs, names, colors):
+        for ax, name, color in zip(axs, names, colors, strict=True):
             theor, q, line, lo, up = _get_qq(
                 r[name], detrend, 0.95, rsim[name]
             )
@@ -1122,11 +1122,11 @@ class Plotter(ABC):
         ha = 'right' if detrend else 'left'
         text_x = 0.97 if detrend else 0.03
 
-        axs = [ax1] + axs.ravel().tolist()
-        names = ['total'] + list(self.ndata.keys())
+        axs = [ax1] + axs.ravel().tolist()[: len(self.data)]
+        names = ['total'] + list(self.data.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
-        for ax, name, color in zip(axs, names, colors):
+        for ax, name, color in zip(axs, names, colors, strict=True):
             x, y, line, lower, upper = _get_pit_ecdf(pit[name], 0.95, detrend)
             ax.plot(x, line, ls='--', color=color, alpha=alpha)
             ax.fill_between(
@@ -1196,11 +1196,11 @@ class Plotter(ABC):
         ax1.set_xlabel('$D$')
         ax1.set_ylabel(r'$P(\mathcal{D} \geq D)$')
 
-        axs = [ax1] + axs.ravel().tolist()
-        names = ['total'] + list(self.ndata.keys())
+        axs = [ax1] + axs.ravel().tolist()[: len(self.data)]
+        names = ['total'] + list(self.data.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
-        for ax, name, color in zip(axs, names, colors):
+        for ax, name, color in zip(axs, names, colors, strict=True):
             d_obs = dev_obs[name]
             d_sim = np.sort(dev_sim[name])
             sf = 1.0 - np.arange(1.0, n + 1.0) / n
@@ -1339,7 +1339,7 @@ class MLEResultPlotter(Plotter):
         )
         data = {
             name: MLEPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys)
+            for name, key in zip(helper.data_names, keys, strict=True)
         }
         return data
 
@@ -1526,7 +1526,7 @@ class PosteriorResultPlotter(Plotter):
         )
         data = {
             name: PosteriorPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys)
+            for name, key in zip(helper.data_names, keys, strict=True)
         }
         return data
 
