@@ -15,7 +15,7 @@ from tqdm.auto import tqdm
 from elisa.infer.samplers.util import get_model_info
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from numpy.typing import NDArray
 

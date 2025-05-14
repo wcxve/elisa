@@ -1,6 +1,7 @@
 """Typing aliases to shorten hints."""
 
-from typing import Callable, TypeVar, Union
+from collections.abc import Callable
+from typing import TypeVar
 
 import numpy as np
 from jax import Array
@@ -36,15 +37,15 @@ __all__ = [
 
 T = TypeVar('T')
 
-PyFloat = Union[float, np.inexact]  # must include 0-d NDArray with float dtype
+PyFloat = float | np.inexact  # must include 0-d NDArray with float dtype
 JAXFloat = Array
-Float = Union[PyFloat, JAXFloat]
+Float = PyFloat | JAXFloat
 
 PRNGKey = Array
 
 NumPyArray = np.ndarray
 JAXArray = Array
-Array = Union[NumPyArray, JAXArray]
+Array = NumPyArray | JAXArray
 
 ArrayLike = ArrayLike
 

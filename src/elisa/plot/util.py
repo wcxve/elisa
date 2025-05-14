@@ -21,7 +21,9 @@ def get_colors(
 
 def get_markers(n: int) -> list[str]:
     markers_cycle = cycle(['s', 'o', 'D', '^', 'd', 'p', 'h', 'H', 'D'])
-    return [marker for marker, _ in zip(markers_cycle, range(int(n)))]
+    return [
+        marker for marker, _ in zip(markers_cycle, range(int(n)), strict=False)
+    ]
 
 
 def _clip(num):

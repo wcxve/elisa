@@ -298,14 +298,22 @@ class MLEResult(FitResult):
             covar_unconstr = jnp.array(minuit.covariance, float)
             covar = helper.params_covar(self._mle_unconstr, covar_unconstr)
 
-        var2pos = dict(zip(helper.params_names['all'], range(len(mle))))
+        var2pos = dict(
+            zip(helper.params_names['all'], range(len(mle)), strict=True)
+        )
         self._covar = CovarMatrix(var2pos)
         self._covar[:] = covar
 
         err = jnp.sqrt(jnp.diagonal(covar))
 
         # MLE of model params in constrained space
-        self._mle = dict(zip(helper.params_names['all'], zip(mle, err)))
+        self._mle = dict(
+            zip(
+                helper.params_names['all'],
+                zip(mle, err, strict=True),
+                strict=True,
+            )
+        )
 
         # model deviance at MLE
         self._deviance = jax.jit(helper.deviance)(self._mle_unconstr)
@@ -520,7 +528,9 @@ class MLEResult(FitResult):
                 @jax.jacobian
                 @jax.jit
                 def jacobian(params_arr):
-                    params_dic = dict(zip(params_mle.keys(), params_arr))
+                    params_dic = dict(
+                        zip(params_mle.keys(), params_arr, strict=True)
+                    )
                     fn_arr = jnp.array([f(params_dic) for f in fn.values()])
                     return jnp.hstack([params_arr, fn_arr])
 
@@ -562,7 +572,7 @@ class MLEResult(FitResult):
             raise ValueError("method must be either 'hess' or 'boot'")
 
         names = tuple(params) + tuple(fn.keys())
-        var2pos = dict(zip(names, range(len(names))))
+        var2pos = dict(zip(names, range(len(names)), strict=True))
         matrix = CovarMatrix(var2pos)
         mask = np.array(
             [p in params for p in params_mle] + [True] * len(fn),
@@ -814,7 +824,7 @@ class MLEResult(FitResult):
         @jax.jit
         def loss(x: np.ndarray):
             """Joint loss of params and func of params."""
-            unconstr_dic = dict(zip(params_free, x[1:]))
+            unconstr_dic = dict(zip(params_free, x[1:], strict=True))
             params = helper.unconstr_dic_to_params_dic(unconstr_dic)
             fn_value = fn(params)
             s1 = fn_value / x[0] - 1.0
@@ -1465,7 +1475,7 @@ class PosteriorResult(FitResult):
         bins = np.asarray([-np.inf, 0.5, 0.7, 1, np.inf])
         counts, *_ = np.histogram(loo.pareto_k.values, bins)
         pct = [f'{i:.1%}' for i in counts / np.sum(counts)]
-        rows = list(zip(ranges, flags, counts, pct))
+        rows = list(zip(ranges, flags, counts, pct, strict=True))
         names = ['Range', 'Flag', 'Count', 'Pct.']
         k_tab = make_pretty_table(names, rows)
 
@@ -1541,7 +1551,7 @@ class PosteriorResult(FitResult):
         covar = np.cov(samples, rowvar=False)
 
         names = tuple(params) + tuple(fn.keys())
-        var2pos = dict(zip(names, range(len(names))))
+        var2pos = dict(zip(names, range(len(names)), strict=True))
         matrix = CovarMatrix(var2pos)
         mask = np.array(
             [p in params for p in params_dist] + [True] * len(fn),
@@ -2127,7 +2137,9 @@ class PosteriorResult(FitResult):
             mle, cov = jax.device_get(helper.get_mle(mle_unconstr))
             err = np.sqrt(np.diagonal(cov))
             params_names = helper.params_names['all']
-            mle_result['params'] = dict(zip(params_names, zip(mle, err)))
+            mle_result['params'] = dict(
+                zip(params_names, zip(mle, err, strict=True), strict=True)
+            )
 
             sites = jax.device_get(jax.jit(helper.get_sites)(mle_unconstr))
 
