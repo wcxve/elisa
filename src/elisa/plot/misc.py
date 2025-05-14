@@ -108,7 +108,7 @@ def plot_corner(
     quantile = {p: quantile[p].values.tolist() for p in params}
     titles = [
         f'{t} = {report_interval(median[p], *quantile[p])}'
-        for t, p in zip(titles, params)
+        for t, p in zip(titles, params, strict=False)
     ]
 
     if levels is None:

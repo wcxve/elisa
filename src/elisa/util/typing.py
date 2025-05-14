@@ -1,6 +1,7 @@
 """Typing aliases to shorten hints."""
 
-from typing import Callable, TypeVar, Union
+from collections.abc import Callable
+from typing import TypeVar, Union
 
 import numpy as np
 from jax import Array

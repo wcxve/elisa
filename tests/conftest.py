@@ -12,7 +12,7 @@ from elisa.infer.fit import BayesFit, MaxLikeFit
 from elisa.models.add import PowerLaw
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from elisa import Data
     from elisa.infer.results import MLEResult, PosteriorResult

@@ -28,8 +28,8 @@ from elisa.plot.residuals import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from typing import Any, Callable, Literal
+    from collections.abc import Callable, Sequence
+    from typing import Any, Literal
 
     from xarray import DataArray
 

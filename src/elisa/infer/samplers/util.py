@@ -22,7 +22,7 @@ from numpyro.infer.util import (
 )
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from numpy import dtype, floating
     from numpy.typing import NDArray

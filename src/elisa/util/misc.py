@@ -19,8 +19,8 @@ from prettytable import PrettyTable
 from tqdm.auto import tqdm
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from typing import Callable, Literal, TypeVar
+    from collections.abc import Callable, Sequence
+    from typing import Literal, TypeVar
 
     from numpy import ndarray as NDArray
 
@@ -32,12 +32,14 @@ UNICODE_SUBSCRIPT = dict(
     zip(
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()',
         'ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢₐᵦ𝒸𝒹ₑ𝒻𝓰ₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ𝓌ₓᵧ𝓏₀₁₂₃₄₅₆₇₈₉₊₋⸝₌₍₎',
+        strict=False,
     )
 )
 UNICODE_SUPERSCRIPT = dict(
     zip(
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()',
         'ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁⱽᵂᕽʸᶻᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ᐟ⁼⁽⁾',
+        strict=False,
     )
 )
 UNICODE_SUFFIX = False
@@ -173,7 +175,10 @@ def add_suffix(
         else:
             template = PLAIN_SUPERSCRIPT_TEMPLATE
 
-    strings = [i + template % j if j else i for i, j in zip(strings, suffix)]
+    strings = [
+        i + template % j if j else i
+        for i, j in zip(strings, suffix, strict=False)
+    ]
 
     if return_list:
         return strings
@@ -224,7 +229,7 @@ def build_namespace(
         suffixes = [template % n if n > 1 else '' for n in suffixes_n]
 
     return {
-        'namespace': list(map(''.join, zip(names, suffixes))),
+        'namespace': list(map(''.join, zip(names, suffixes, strict=False))),
         'suffix_num': [str(n) if n > 1 else '' for n in suffixes_n],
     }
 
@@ -338,7 +343,7 @@ def get_unit_latex(unit: str, throw: bool = True) -> str:
             powers = [unit.powers[i] for i in index]
             ustr = r'\ '.join(
                 b + (f'^{{{p}}}' if p != 1 else '')
-                for b, p in zip(bases, powers)
+                for b, p in zip(bases, powers, strict=False)
             )
             scale = Unit(unit.scale).to_string('latex_inline')[9:-2]
             if scale != '':
