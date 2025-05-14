@@ -1144,8 +1144,8 @@ class Plotter(ABC):
         if n_subplots % 2:
             ax2[-1].set_visible(False)
         ax2 = ax2[: len(self.data)]
-        ax1.set_xlabel('Scaled Rank')
-        ax1.set_ylabel('PIT ECDF')
+        ax1.set_xlabel('PIT Value')
+        ax1.set_ylabel('ECDF')
 
         alpha = config.alpha
         ha = 'right' if detrend else 'left'
