@@ -440,7 +440,7 @@ class Plotter(ABC):
         self.data = self.get_plot_data(result)
         self.config = config
         markers = get_markers(len(self.data))
-        self._markers = dict(zip(self.data.keys(), markers, strict=False))
+        self._markers = dict(zip(self.data.keys(), markers, strict=True))
 
     @abstractmethod
     def __call__(self, plots: str = 'data ne r') -> dict[str, Figure]:
@@ -497,7 +497,7 @@ class Plotter(ABC):
         if self._palette not in ('customized', self.config.palette):
             colors = get_colors(len(self.data), palette=self.config.palette)
             self._palette = self.config.palette
-            self._colors = dict(zip(self.data.keys(), colors, strict=False))
+            self._colors = dict(zip(self.data.keys(), colors, strict=True))
         return self._colors
 
     @property
@@ -659,7 +659,7 @@ class Plotter(ABC):
         else:
             residuals = None
 
-        axs_dict = dict(zip(plots, axs, strict=False))
+        axs_dict = dict(zip(plots, axs, strict=True))
 
         yscale = config.yscale
 
@@ -1082,7 +1082,7 @@ class Plotter(ABC):
         gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
         gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
         ax1 = fig.add_subplot(gs1[0, 0])
-        ax2 = gs2.subplots(squeeze=False).ravel()
+        ax2 = gs2.subplots(squeeze=False).ravel()[: len(self.data)]
         ax1.set_xlabel('Normal Theoretical Quantiles')
         ax1.set_ylabel('Residuals')
 
@@ -1090,7 +1090,7 @@ class Plotter(ABC):
         ha = 'center' if detrend else 'left'
         text_x = 0.5 if detrend else 0.03
 
-        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=False))
+        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=True))
         colors = {'total': 'k'} | self.colors
         for name, ax in axs.items():
             color = colors[name]
@@ -1147,7 +1147,7 @@ class Plotter(ABC):
         gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
         gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
         ax1 = fig.add_subplot(gs1[0, 0])
-        ax2 = gs2.subplots(squeeze=False).ravel()
+        ax2 = gs2.subplots(squeeze=False).ravel()[: len(self.data)]
         ax1.set_xlabel('Scaled Rank')
         ax1.set_ylabel('PIT ECDF')
 
@@ -1155,7 +1155,7 @@ class Plotter(ABC):
         ha = 'right' if detrend else 'left'
         text_x = 0.97 if detrend else 0.03
 
-        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=False))
+        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=True))
         colors = {'total': 'k'} | self.colors
         for name, ax in axs.items():
             color = colors[name]
@@ -1223,11 +1223,11 @@ class Plotter(ABC):
         gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
         gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
         ax1 = fig.add_subplot(gs1[0, 0])
-        ax2 = gs2.subplots(squeeze=False).ravel()
+        ax2 = gs2.subplots(squeeze=False).ravel()[: len(self.data)]
         ax1.set_xlabel('$D$')
         ax1.set_ylabel(r'$P(\mathcal{D} \geq D)$')
 
-        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=False))
+        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=True))
         colors = {'total': 'k'} | self.colors
         for name, ax in axs.items():
             color = colors[name]
@@ -1369,7 +1369,7 @@ class MLEResultPlotter(Plotter):
         )
         data = {
             name: MLEPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys, strict=False)
+            for name, key in zip(helper.data_names, keys, strict=True)
         }
         return data
 
@@ -1556,7 +1556,7 @@ class PosteriorResultPlotter(Plotter):
         )
         data = {
             name: PosteriorPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys, strict=False)
+            for name, key in zip(helper.data_names, keys, strict=True)
         }
         return data
 
