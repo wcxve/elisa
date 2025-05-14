@@ -1,4 +1,4 @@
-"""Model fit in maximum likelihood or Bayesian way."""
+"""Model fit in a maximum likelihood or Bayesian way."""
 
 from __future__ import annotations
 
@@ -45,7 +45,8 @@ from elisa.util.misc import (
 )
 
 if TYPE_CHECKING:
-    from typing import Any, Callable, Literal
+    from collections.abc import Callable
+    from typing import Any, Literal
 
     from jaxlib.xla_client import Device
     from prettytable import PrettyTable
@@ -102,7 +103,9 @@ class Fit(ABC):
         # if a component is not fit with all datasets,
         # add names of data sets to be fit with it as its name/latex suffix
         data_names = [d.name for d in data]
-        data_to_cid = {n: m._comps_id for n, m in zip(data_names, models)}
+        data_to_cid = {
+            n: m._comps_id for n, m in zip(data_names, models, strict=True)
+        }
         cid_to_comp = {c._id: c for m in models for c in m._comps}
         cid = list(cid_to_comp.keys())
         comps = list(cid_to_comp.values())
@@ -118,15 +121,17 @@ class Fit(ABC):
         }
         data_suffix = list(cid_to_data_suffix.values())
         cname = [comp.name for comp in comps]
-        name_with_data_suffix = list(map(''.join, zip(cname, data_suffix)))
+        name_with_data_suffix = list(
+            map(''.join, zip(cname, data_suffix, strict=True))
+        )
         num_suffix = build_namespace(name_with_data_suffix)['suffix_num']
         cname = add_suffix(cname, num_suffix, True)
         cname = add_suffix(cname, data_suffix, False)
-        cid_to_name = dict(zip(cid, cname))
+        cid_to_name = dict(zip(cid, cname, strict=True))
         latex = [comp.latex for comp in comps]
         latex = add_suffix(latex, num_suffix, True, latex=True)
         latex = add_suffix(latex, data_suffix, False, latex=True, mathrm=True)
-        cid_to_latex = dict(zip(cid, latex))
+        cid_to_latex = dict(zip(cid, latex, strict=True))
 
         # get model info
         self._model_info: ModelInfo = get_model_info(
@@ -136,19 +141,23 @@ class Fit(ABC):
         # first filter out duplicated models then compile the remaining models,
         # this is intended to avoid re-compilation of the same model
         models_id = [id(m) for m in models]
-        mid_to_model = dict(zip(models_id, models))
+        mid_to_model = dict(zip(models_id, models, strict=True))
         compiled_model = {
             mid: m.compile(model_info=self._model_info)
             for mid, m in mid_to_model.items()
         }
-        data_to_mid = dict(zip(data_names, models_id))
+        data_to_mid = dict(zip(data_names, models_id, strict=True))
         self._model = {
             name: compiled_model[mid] for name, mid in data_to_mid.items()
         }
 
         # store data, stat, seed
-        self._data: dict[str, FixedData] = dict(zip(data_names, data))
-        self._stat: dict[str, Statistic] = dict(zip(data_names, stats))
+        self._data: dict[str, FixedData] = dict(
+            zip(data_names, data, strict=True)
+        )
+        self._stat: dict[str, Statistic] = dict(
+            zip(data_names, stats, strict=True)
+        )
         self._seed: int = int(seed)
 
         # make model information table
@@ -268,6 +277,7 @@ class Fit(ABC):
                 self._data,
                 (m.name for m in self._model.values()),
                 self._stat.values(),
+                strict=True,
             )
         )
         self._tab_likelihood: PrettyTable = make_pretty_table(fields, rows)
@@ -456,7 +466,7 @@ class Fit(ABC):
             raise ValueError(msg)
 
         # check if correctly using stat
-        for d, s in zip(data_list, stat_list):
+        for d, s in zip(data_list, stat_list, strict=True):
             check_stat(d, s)
 
         return data_list, model_list, stat_list
@@ -772,10 +782,6 @@ class BayesFit(Fit):
         device_count = jax.local_device_count()
 
         chains = int(chains) if chains is not None else device_count
-
-        # the number of total samples should be multiple of the device number
-        if chains * steps % device_count:
-            steps += device_count - steps % device_count
 
         kernel_kwargs['model'] = self._helper.numpyro_model
 
@@ -1149,7 +1155,9 @@ class BayesFit(Fit):
         low = init - jitter
         high = init + jitter
         init = rng.uniform(low, high, size=(chains, len(init)))
-        init = dict(zip(self._helper.params_names['free'], init.T))
+        init = dict(
+            zip(self._helper.params_names['free'], init.T, strict=True)
+        )
 
         def do_mcmc(rng_key):
             sampler.run(rng_key, init_params=init)
@@ -1570,11 +1578,6 @@ class BayesFit(Fit):
             .. warning::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
-        parallel : bool, optional
-            Whether to parallelize likelihood evaluation. The default is True.
-        n_batch : int, optional
-            Number of likelihood evaluations that are performed at each step
-            for each core when `parallel` is True. The default is 5000.
         constructor_kwargs : dict, optional
             Extra parameters passed to
             :class:`nautilus.Sampler`.
@@ -1588,6 +1591,7 @@ class BayesFit(Fit):
             constructor_kwargs = {}
         else:
             constructor_kwargs = dict(constructor_kwargs)
+        constructor_kwargs.setdefault('pool', get_parallel_number(None))
 
         if termination_kwargs is None:
             termination_kwargs = {}

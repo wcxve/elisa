@@ -8,21 +8,14 @@ import jax
 import jax.numpy as jnp
 import multiprocess as mp
 import numpy as np
+from emcee import EnsembleSampler, State
 from numpyro.infer.initialization import init_to_value
 from tqdm.auto import tqdm
 
 from elisa.infer.samplers.util import get_model_info
 
-try:
-    from emcee import EnsembleSampler as Sampler, State
-except ImportError as e:
-    raise ModuleNotFoundError(
-        'To run the ensemble sampling of emcee, install it by '
-        '`pip install emcee==3.1.6`'
-    ) from e
-
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from numpy.typing import NDArray
 
@@ -125,7 +118,7 @@ class EmceeSampler:
         def run_sampler(sampler_id, init, rng, queue):
             jitter = rng.uniform(0.99, 1.01, size=(chains, ndim))
             init = init * jitter
-            sampler = Sampler(
+            sampler = EnsembleSampler(
                 chains,
                 ndim,
                 log_prob_fn,

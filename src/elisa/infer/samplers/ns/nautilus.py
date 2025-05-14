@@ -6,24 +6,13 @@ from typing import TYPE_CHECKING
 import jax
 import jax.numpy as jnp
 import multiprocess as mp
+import nautilus
+import nautilus.pool as nautilus_pool
 
 from elisa.infer.samplers.util import uniform_reparam_model
 
-try:
-    import nautilus
-
-    # monkey patching the pool for compatibility with JAX
-    import nautilus.pool as nautilus_pool
-
-    nautilus_pool.Pool = mp.Pool
-except ImportError as e:
-    raise ModuleNotFoundError(
-        'To run the nested sampling of Nautilus, install it by '
-        '`pip install nautilus-sampler==1.0.5`'
-    ) from e
-
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from numpy.typing import NDArray
 
@@ -66,10 +55,15 @@ class NautilusSampler:
                 mp.set_start_method('spawn', force=True)
             else:
                 old_method = ''
+            # monkey patching the pool for compatibility with JAX
+            old_pool = nautilus_pool.Pool
+            nautilus_pool.Pool = mp.Pool
         else:
-            old_method = ''
             kwargs['vectorized'] = True
             log_prob_fn = jax.jit(jax.vmap(log_prob_fn))
+            old_method = ''
+            old_pool = None
+
         self._sampler = nautilus.Sampler(
             prior=lambda x: x,
             likelihood=lambda x: jax.device_get(log_prob_fn(x)),
@@ -78,8 +72,12 @@ class NautilusSampler:
             seed=seed,
             **kwargs,
         )
+
         if old_method:
             mp.set_start_method(old_method, force=True)
+
+        if old_pool is not None:
+            nautilus_pool.Pool = old_pool
 
     def run(self, **kwargs) -> dict[str, NDArray[float]]:
         kwargs.setdefault('verbose', True)

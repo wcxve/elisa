@@ -10,7 +10,7 @@ else # assume it's a path
     OUTPUT_DIR=$1
 fi
 
-pip install ..[docs,extra_samplers]  --verbose
+pip install ..[docs]  --verbose
 
 sphinx-apidoc \
     --no-toc \

@@ -14,7 +14,7 @@ from numpyro.infer.util import init_to_uniform, initialize_model
 from numpyro.util import identity, is_prng_key
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from blackjax.mcmc.metrics import MetricTypes
 

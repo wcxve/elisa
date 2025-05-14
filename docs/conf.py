@@ -72,7 +72,7 @@ codeautolink_concat_default = True
 copybutton_selector = 'div:not(.output) > div.highlight pre'
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.9', None),
+    'python': ('https://docs.python.org/3', None),
     'arviz': ('https://python.arviz.org/en/stable/', None),
     'jax': ('https://jax.readthedocs.io/en/latest/', None),
     'matplotlib': ('https://matplotlib.org/stable/', None),
