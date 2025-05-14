@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 import numpy as np
 import pytest
 
@@ -47,7 +49,18 @@ def test_trivial_max_like_fit(simulation, method):
         pytest.param('ess', {}, id='ESS'),
         pytest.param('ess', {'n_parallel': 1}, id='ESS_1'),
         # JAX backend nested sampler
-        pytest.param('jaxns', {}, id='JAXNS'),
+        pytest.param(
+            'jaxns',
+            {},
+            marks=pytest.mark.xfail(
+                (
+                    version('jaxns') == '2.6.7'
+                    and tuple(map(int, version('jax').split('.'))) >= (0, 6, 0)
+                ),
+                reason='jaxns==2.6.7 is not compatible with jax>=0.6.0',
+            ),
+            id='JAXNS',
+        ),
         # Non-JAX backends samplers
         pytest.param('emcee', {}, id='emcee'),
         pytest.param('emcee', {'n_parallel': 1}, id='emcee_1'),

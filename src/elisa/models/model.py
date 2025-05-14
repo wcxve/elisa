@@ -2030,7 +2030,11 @@ class PyAnaInt(PyComponent, AnalyticalIntegral):
                     (egrid.size - 1,), egrid.dtype
                 )
                 return jax.pure_callback(
-                    eval_integral, shape_dtype, egrid, params
+                    eval_integral,
+                    shape_dtype,
+                    egrid,
+                    params,
+                    vmap_method='sequential',
                 )
 
             self._integral_jit = jax.jit(
@@ -2069,7 +2073,11 @@ class PyNumInt(PyComponent, NumericalIntegral):
             def continuum(egrid: JAXArray, params: NameValMapping) -> JAXArray:
                 shape_dtype = jax.ShapeDtypeStruct(egrid.shape, egrid.dtype)
                 return jax.pure_callback(
-                    eval_continuum, shape_dtype, egrid, params
+                    eval_continuum,
+                    shape_dtype,
+                    egrid,
+                    params,
+                    vmap_method='sequential',
                 )
 
             self._continuum_jit = jax.jit(
