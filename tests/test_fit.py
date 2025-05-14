@@ -1,3 +1,4 @@
+import sys
 from importlib.metadata import version
 
 import numpy as np
@@ -7,9 +8,10 @@ from elisa import BayesFit, MaxLikeFit
 from elisa.models import PowerLaw
 
 JAXNS_XFAIL_MARK = pytest.mark.xfail(
-    version('jaxns') == '2.6.7'
-    and tuple(map(int, version('jax').split('.'))) >= (0, 6, 0),
-    reason='jaxns==2.6.7 is not compatible with jax>=0.6.0',
+    tuple(map(int, version('jax').split('.'))) >= (0, 6, 0)
+    and sys.version_info >= (3, 13)
+    and version('jaxns') == '2.6.7',
+    reason='jaxns==2.6.7 is not compatible with jax>=0.6.0 and python>=3.13',
 )
 
 
