@@ -9,7 +9,7 @@ from elisa import BayesFit, MaxLikeFit
 from elisa.models import PowerLaw
 
 JAXNS_XFAIL_MARK = pytest.mark.xfail(
-    find_spec('jaxns')
+    not find_spec('jaxns')
     and version('jaxns') == '2.6.7'
     and tuple(map(int, version('jax').split('.'))) >= (0, 6, 0)
     and sys.version_info >= (3, 13),
