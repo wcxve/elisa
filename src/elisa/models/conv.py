@@ -11,7 +11,7 @@ import jax.numpy as jnp
 from elisa.models.model import ConvolutionComponent, ParamConfig
 
 if TYPE_CHECKING:
-    from typing import Callable
+    from collections.abc import Callable
 
     from elisa.util.typing import ConvolveEval, JAXArray, NameValMapping
 

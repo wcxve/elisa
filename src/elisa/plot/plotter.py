@@ -256,6 +256,7 @@ class PlotConfig:
         random_quantile: bool = False,
         mark_outlier_residuals: bool = False,
         residuals_ci_with_sign: bool = True,
+        fill_residuals_ci: bool = True,
         plot_comps: bool = False,
         seed: int | None = None,
     ):
@@ -269,6 +270,7 @@ class PlotConfig:
         self.random_quantile = random_quantile
         self.mark_outlier_residuals = mark_outlier_residuals
         self.residuals_ci_with_sign = residuals_ci_with_sign
+        self.fill_residuals_ci = fill_residuals_ci
         self.plot_comps = plot_comps
         self.seed = seed
 
@@ -394,6 +396,15 @@ class PlotConfig:
         self._residuals_ci_with_sign = bool(residuals_ci_with_sign)
 
     @property
+    def fill_residuals_ci(self) -> bool:
+        """Whether to fill residuals' CI bands."""
+        return self._fill_residuals_ci
+
+    @fill_residuals_ci.setter
+    def fill_residuals_ci(self, fill_residuals_ci: bool):
+        self._fill_residuals_ci = bool(fill_residuals_ci)
+
+    @property
     def plot_comps(self) -> bool:
         """Whether to plot additive components in spectral plot."""
         return self._plot_comps
@@ -417,6 +428,7 @@ class PlotConfig:
 class Plotter(ABC):
     """Plotter to visualize fit results."""
 
+    _colors: dict | None = None
     _palette: Any | None = None
     _comps_latex: dict[str, str] | None = None
     _params_latex: dict[str, str] | None = None
@@ -428,7 +440,7 @@ class Plotter(ABC):
         self.data = self.get_plot_data(result)
         self.config = config
         markers = get_markers(len(self.data))
-        self._markers = dict(zip(self.data.keys(), markers))
+        self._markers = dict(zip(self.data.keys(), markers, strict=True))
 
     @abstractmethod
     def __call__(self, plots: str = 'data ne r') -> dict[str, Figure]:
@@ -459,13 +471,33 @@ class Plotter(ABC):
 
         self._config = config
 
+    def set_colors(self, colors: dict[str, Any] | None = None):
+        """Specify the colors of data points used in the plots.
+
+        Parameters
+        ----------
+        colors : dict or None, optional
+            If a dict is provided, will use the provided values as colors.
+            If None, the default colors will be used. The default is None.
+        """
+        if colors is None:
+            self._palette = None
+            self._colors = None
+        else:
+            colors = dict(colors)
+            if not set(self.data.keys()).issubset(colors.keys()):
+                missing = ', '.join(i for i in self.data if i not in colors)
+                raise ValueError(f'missing colors for those data: {missing}')
+            self._palette = 'customized'
+            self._colors = colors
+
     @property
     def colors(self):
         """Plotting color for each data."""
-        if self._palette != self.config.palette:
+        if self._palette not in ('customized', self.config.palette):
             colors = get_colors(len(self.data), palette=self.config.palette)
-            self._colors = dict(zip(self.data.keys(), colors))
             self._palette = self.config.palette
+            self._colors = dict(zip(self.data.keys(), colors, strict=True))
         return self._colors
 
     @property
@@ -574,7 +606,7 @@ class Plotter(ABC):
         Returns
         -------
         Figure
-            The Figure object containing spectral plot.
+            The Figure object containing the spectral plot.
         """
         nrows = data + ne + ene + eene + bool(residuals)
         height_ratios = [1.618] * nrows
@@ -627,7 +659,7 @@ class Plotter(ABC):
         else:
             residuals = None
 
-        axs_dict = dict(zip(plots, axs))
+        axs_dict = dict(zip(plots, axs, strict=True))
 
         yscale = config.yscale
 
@@ -927,24 +959,25 @@ class Plotter(ABC):
                 if q is not None:
                     quantiles.append(q)
 
-            if quantiles:
-                _plot_ribbon(
-                    ax,
-                    data.channel_emin,
-                    data.channel_emax,
-                    quantiles,
-                    color=color,
-                    **ribbon_kwargs,
-                )
-            else:
-                for q in normal_q:
-                    ax.fill_between(
-                        [data.channel_emin[0], data.channel_emax[-1]],
-                        -q,
-                        q,
+            if self.config.fill_residuals_ci:
+                if quantiles:
+                    _plot_ribbon(
+                        ax,
+                        data.channel_emin,
+                        data.channel_emax,
+                        quantiles,
                         color=color,
                         **ribbon_kwargs,
                     )
+                else:
+                    for q in normal_q:
+                        ax.fill_between(
+                            [data.channel_emin[0], data.channel_emax[-1]],
+                            -q,
+                            q,
+                            color=color,
+                            **ribbon_kwargs,
+                        )
 
             use_mle = True if quantiles else False
             r = data.residuals(rtype, seed, config.random_quantile, use_mle)
@@ -1049,7 +1082,7 @@ class Plotter(ABC):
         gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
         gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
         ax1 = fig.add_subplot(gs1[0, 0])
-        axs = gs2.subplots(squeeze=False)
+        ax2 = gs2.subplots(squeeze=False).ravel()[: len(self.data)]
         ax1.set_xlabel('Normal Theoretical Quantiles')
         ax1.set_ylabel('Residuals')
 
@@ -1057,10 +1090,10 @@ class Plotter(ABC):
         ha = 'center' if detrend else 'left'
         text_x = 0.5 if detrend else 0.03
 
-        axs = [ax1] + axs.ravel().tolist()
-        names = ['total'] + list(self.ndata.keys())
-        colors = ['k'] + get_colors(n_subplots, config.palette)
-        for ax, name, color in zip(axs, names, colors):
+        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=True))
+        colors = {'total': 'k'} | self.colors
+        for name, ax in axs.items():
+            color = colors[name]
             theor, q, line, lo, up = _get_qq(
                 r[name], detrend, 0.95, rsim[name]
             )
@@ -1080,7 +1113,7 @@ class Plotter(ABC):
                 color=color,
             )
         if n_subplots % 2:
-            axs[-1].set_visible(False)
+            ax2[-1].set_visible(False)
 
         return fig
 
@@ -1114,7 +1147,7 @@ class Plotter(ABC):
         gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
         gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
         ax1 = fig.add_subplot(gs1[0, 0])
-        axs = gs2.subplots(squeeze=False)
+        ax2 = gs2.subplots(squeeze=False).ravel()[: len(self.data)]
         ax1.set_xlabel('Scaled Rank')
         ax1.set_ylabel('PIT ECDF')
 
@@ -1122,11 +1155,10 @@ class Plotter(ABC):
         ha = 'right' if detrend else 'left'
         text_x = 0.97 if detrend else 0.03
 
-        axs = [ax1] + axs.ravel().tolist()
-        names = ['total'] + list(self.ndata.keys())
-        colors = ['k'] + get_colors(n_subplots, config.palette)
-
-        for ax, name, color in zip(axs, names, colors):
+        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=True))
+        colors = {'total': 'k'} | self.colors
+        for name, ax in axs.items():
+            color = colors[name]
             x, y, line, lower, upper = _get_pit_ecdf(pit[name], 0.95, detrend)
             ax.plot(x, line, ls='--', color=color, alpha=alpha)
             ax.fill_between(
@@ -1142,7 +1174,7 @@ class Plotter(ABC):
                 color=color,
             )
         if n_subplots % 2:
-            axs[-1].set_visible(False)
+            ax2[-1].set_visible(False)
 
         return fig
 
@@ -1179,7 +1211,6 @@ class Plotter(ABC):
             raise NotImplementedError
         p_value = p_value['group'] | {'total': p_value['total']}
 
-        config = self.config
         n_subplots = len(self.data)
         if n_subplots == 1:
             ncols = 1
@@ -1192,15 +1223,14 @@ class Plotter(ABC):
         gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
         gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
         ax1 = fig.add_subplot(gs1[0, 0])
-        axs = gs2.subplots(squeeze=False)
+        ax2 = gs2.subplots(squeeze=False).ravel()[: len(self.data)]
         ax1.set_xlabel('$D$')
         ax1.set_ylabel(r'$P(\mathcal{D} \geq D)$')
 
-        axs = [ax1] + axs.ravel().tolist()
-        names = ['total'] + list(self.ndata.keys())
-        colors = ['k'] + get_colors(n_subplots, config.palette)
-
-        for ax, name, color in zip(axs, names, colors):
+        axs = {'total': ax1} | dict(zip(self.data.keys(), ax2, strict=True))
+        colors = {'total': 'k'} | self.colors
+        for name, ax in axs.items():
+            color = colors[name]
             d_obs = dev_obs[name]
             d_sim = np.sort(dev_sim[name])
             sf = 1.0 - np.arange(1.0, n + 1.0) / n
@@ -1221,7 +1251,7 @@ class Plotter(ABC):
             )
             ax.set_yscale('log')
         if n_subplots % 2:
-            axs[-1].set_visible(False)
+            ax2[-1].set_visible(False)
 
         return fig
 
@@ -1339,7 +1369,7 @@ class MLEResultPlotter(Plotter):
         )
         data = {
             name: MLEPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys)
+            for name, key in zip(helper.data_names, keys, strict=True)
         }
         return data
 
@@ -1361,7 +1391,7 @@ class MLEResultPlotter(Plotter):
             Color of the plot. The default is ``None``.
         bins : int or list of int, optional
             The number of bins to use in histograms, either as a fixed value
-            for all dimensions, or as a list of integers for each dimension.
+            for all dimensions or as a list of integers for each dimension.
             The default is 40.
         hist_bin_factor : float or list of float, optional
             This is a factor (or list of factors, one for each dimension)
@@ -1526,7 +1556,7 @@ class PosteriorResultPlotter(Plotter):
         )
         data = {
             name: PosteriorPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys)
+            for name, key in zip(helper.data_names, keys, strict=True)
         }
         return data
 

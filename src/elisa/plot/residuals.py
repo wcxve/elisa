@@ -14,7 +14,7 @@ def combine_residuals(
     dof: int | float | NDArray,
     sign: NDArray | None = None,
 ) -> NDArray:
-    if isinstance(dof, (float, int)):
+    if isinstance(dof, float | int):
         dof = float(dof)
     else:
         dof = np.asarray(dof, float)
@@ -464,7 +464,7 @@ def deviance_residuals_poisson_poisson(
     if np.all(dof == 1.0):
         r = np.sqrt(d)
     else:
-        if isinstance(dof, (float, int)):
+        if isinstance(dof, float | int):
             dof = np.full(k1.shape, dof)
 
         mask = d <= dof
@@ -523,7 +523,7 @@ def deviance_residuals_poisson_normal(
     if np.all(dof == 1.0):
         r = np.sqrt(d)
     else:
-        if isinstance(dof, (float, int)):
+        if isinstance(dof, float | int):
             dof = np.full(k.shape, dof)
 
         mask = d <= dof

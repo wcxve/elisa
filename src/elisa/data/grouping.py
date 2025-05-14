@@ -630,7 +630,7 @@ def group_sig_normal(
 
     group_count = 0.0
     group_variance = 0.0
-    for i, (d, e) in enumerate(zip(count, error)):
+    for i, (d, e) in enumerate(zip(count, error, strict=True)):
         group_count += d
         group_variance += e * e
         x = group_count - sig * np.sqrt(group_variance)
@@ -706,7 +706,7 @@ def group_sig_lima(
 
     group_on = 0.0
     group_off = 0.0
-    for i, (j, k) in enumerate(zip(n_on, n_off)):
+    for i, (j, k) in enumerate(zip(n_on, n_off, strict=True)):
         group_on += j
         group_off += k
         group_sig = significance_lima(group_on, group_off, a)
@@ -786,7 +786,7 @@ def group_sig_gv(
     group_n = 0.0
     group_b = 0.0
     group_var = 0.0
-    for i, (ni, bi, si) in enumerate(zip(n, b, s)):
+    for i, (ni, bi, si) in enumerate(zip(n, b, s, strict=True)):
         group_n += ni
         group_b += bi
         group_var += si * si

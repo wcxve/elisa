@@ -32,8 +32,8 @@ from elisa.util.misc import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-    from typing import Callable, Literal
+    from collections.abc import Callable, Sequence
+    from typing import Literal
 
     from numpyro.distributions import Distribution
 
@@ -413,7 +413,7 @@ def get_helper(fit: Fit) -> Helper:
     def arr_to_dic(arr: JAXArray) -> ParamNameValMapping:
         """Covert free parameters from an array to a dict."""
         assert len(arr) == len(free_names)
-        return dict(zip(free_names, arr))
+        return dict(zip(free_names, arr, strict=True))
 
     @jax.jit
     def dic_to_arr(dic: ParamNameValMapping) -> JAXArray:
@@ -915,7 +915,7 @@ def get_helper(fit: Fit) -> Helper:
             'all': params_names,
         },
         params_default=unconstr_dic_to_params_dic(
-            dict(zip(free_names, default_unconstr_arr))
+            dict(zip(free_names, default_unconstr_arr, strict=True))
         ),
         params_setup=model_info.setup,
         params_latex=pname_to_latex,

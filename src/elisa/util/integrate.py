@@ -8,7 +8,8 @@ import jax.numpy as jnp
 from quadax import quadcc, quadgk, quadts, romberg, rombergts
 
 if TYPE_CHECKING:
-    from typing import Any, Callable
+    from collections.abc import Callable
+    from typing import Any
 
     from elisa.util.typing import (
         JAXArray,
@@ -23,7 +24,9 @@ if TYPE_CHECKING:
 AdaptQuadMethod = Literal['quadgk', 'quadcc', 'quadts', 'romberg', 'rombergts']
 _QUAD_FN = dict(
     zip(
-        get_args(AdaptQuadMethod), [quadgk, quadcc, quadts, romberg, rombergts]
+        get_args(AdaptQuadMethod),
+        [quadgk, quadcc, quadts, romberg, rombergts],
+        strict=True,
     )
 )
 

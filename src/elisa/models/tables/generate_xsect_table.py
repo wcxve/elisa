@@ -37,7 +37,9 @@ def get_cross_sections(
     sigma_ = np.array(-1000.0 * np.log(abs_model[::2]))
     inv_sigma = 1.0 / sigma_
     sigma = np.empty(energy.size)
-    for i, e, inv_sigma_e in zip(range(energy.size), egrid, inv_sigma):
+    for i, e, inv_sigma_e in zip(
+        range(energy.size), egrid, inv_sigma, strict=True
+    ):
         callModelFunction(model, e.tolist(), [inv_sigma_e], m := [])
         sigma[i] = -np.log(m[0]) * sigma_[i]
     return sigma
@@ -51,7 +53,9 @@ def get_wabs_cross_sections(energy: np.ndarray) -> np.ndarray:
     sigma_ = np.array(-1000.0 * np.log(abs_model[::2]))
     inv_sigma = 1.0 / sigma_
     sigma = np.empty(energy.size)
-    for i, e, inv_sigma_e in zip(range(energy.size), egrid, inv_sigma):
+    for i, e, inv_sigma_e in zip(
+        range(energy.size), egrid, inv_sigma, strict=True
+    ):
         callModelFunction('wabs', e.tolist(), [inv_sigma_e], m := [])
         sigma[i] = -np.log(m[0]) * sigma_[i]
     return sigma
