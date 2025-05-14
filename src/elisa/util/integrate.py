@@ -26,7 +26,7 @@ _QUAD_FN = dict(
     zip(
         get_args(AdaptQuadMethod),
         [quadgk, quadcc, quadts, romberg, rombergts],
-        strict=False,
+        strict=True,
     )
 )
 

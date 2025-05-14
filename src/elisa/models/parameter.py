@@ -855,7 +855,7 @@ class CompositeParameter(Parameter):
         op_symbol: Literal['+', '-', '*', '/', '^'] | None = None,
     ):
         # check if the type of params is parameter or sequence
-        if not isinstance(params, (Parameter, Sequence)):
+        if not isinstance(params, Parameter | Sequence):
             raise TypeError(
                 'parameters must be a Parameter or a sequence of Parameter'
             )

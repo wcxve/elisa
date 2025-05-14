@@ -32,14 +32,14 @@ UNICODE_SUBSCRIPT = dict(
     zip(
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()',
         'ᴀʙᴄᴅᴇғɢʜɪᴊᴋʟᴍɴᴏᴘǫʀsᴛᴜᴠᴡxʏᴢₐᵦ𝒸𝒹ₑ𝒻𝓰ₕᵢⱼₖₗₘₙₒₚᵩᵣₛₜᵤᵥ𝓌ₓᵧ𝓏₀₁₂₃₄₅₆₇₈₉₊₋⸝₌₍₎',
-        strict=False,
+        strict=True,
     )
 )
 UNICODE_SUPERSCRIPT = dict(
     zip(
         'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-/=()',
         'ᴬᴮᶜᴰᴱᶠᴳᴴᴵᴶᴷᴸᴹᴺᴼᴾᵠᴿˢᵀᵁⱽᵂᕽʸᶻᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐⁿᵒᵖᵠʳˢᵗᵘᵛʷˣʸᶻ⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ᐟ⁼⁽⁾',
-        strict=False,
+        strict=True,
     )
 )
 UNICODE_SUFFIX = False
@@ -177,7 +177,7 @@ def add_suffix(
 
     strings = [
         i + template % j if j else i
-        for i, j in zip(strings, suffix, strict=False)
+        for i, j in zip(strings, suffix, strict=True)
     ]
 
     if return_list:
@@ -229,7 +229,7 @@ def build_namespace(
         suffixes = [template % n if n > 1 else '' for n in suffixes_n]
 
     return {
-        'namespace': list(map(''.join, zip(names, suffixes, strict=False))),
+        'namespace': list(map(''.join, zip(names, suffixes, strict=True))),
         'suffix_num': [str(n) if n > 1 else '' for n in suffixes_n],
     }
 
@@ -343,7 +343,7 @@ def get_unit_latex(unit: str, throw: bool = True) -> str:
             powers = [unit.powers[i] for i in index]
             ustr = r'\ '.join(
                 b + (f'^{{{p}}}' if p != 1 else '')
-                for b, p in zip(bases, powers, strict=False)
+                for b, p in zip(bases, powers, strict=True)
             )
             scale = Unit(unit.scale).to_string('latex_inline')[9:-2]
             if scale != '':
@@ -429,7 +429,7 @@ def replace_string(value: T, mapping: dict[str, str]) -> T:
         """The main replace function."""
         if isinstance(v, str):
             return replace_with_mapping(v)
-        elif isinstance(v, (list, tuple)):
+        elif isinstance(v, list | tuple):
             return replace_sequence(v)
         elif isinstance(v, dict):
             return replace_dict(v)

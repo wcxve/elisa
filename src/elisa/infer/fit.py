@@ -104,7 +104,7 @@ class Fit(ABC):
         # add names of data sets to be fit with it as its name/latex suffix
         data_names = [d.name for d in data]
         data_to_cid = {
-            n: m._comps_id for n, m in zip(data_names, models, strict=False)
+            n: m._comps_id for n, m in zip(data_names, models, strict=True)
         }
         cid_to_comp = {c._id: c for m in models for c in m._comps}
         cid = list(cid_to_comp.keys())
@@ -122,7 +122,7 @@ class Fit(ABC):
         data_suffix = list(cid_to_data_suffix.values())
         cname = [comp.name for comp in comps]
         name_with_data_suffix = list(
-            map(''.join, zip(cname, data_suffix, strict=False))
+            map(''.join, zip(cname, data_suffix, strict=True))
         )
         num_suffix = build_namespace(name_with_data_suffix)['suffix_num']
         cname = add_suffix(cname, num_suffix, True)
@@ -153,10 +153,10 @@ class Fit(ABC):
 
         # store data, stat, seed
         self._data: dict[str, FixedData] = dict(
-            zip(data_names, data, strict=False)
+            zip(data_names, data, strict=True)
         )
         self._stat: dict[str, Statistic] = dict(
-            zip(data_names, stats, strict=False)
+            zip(data_names, stats, strict=True)
         )
         self._seed: int = int(seed)
 
@@ -1156,7 +1156,7 @@ class BayesFit(Fit):
         high = init + jitter
         init = rng.uniform(low, high, size=(chains, len(init)))
         init = dict(
-            zip(self._helper.params_names['free'], init.T, strict=False)
+            zip(self._helper.params_names['free'], init.T, strict=True)
         )
 
         def do_mcmc(rng_key):

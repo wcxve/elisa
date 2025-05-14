@@ -173,7 +173,7 @@ def uniform_reparam_transform(d):
 
     elif isinstance(
         d,
-        (dist.Independent, dist.ExpandedDistribution, dist.MaskedDistribution),
+        dist.Independent | dist.ExpandedDistribution | dist.MaskedDistribution,
     ):
 
         def transform(q):

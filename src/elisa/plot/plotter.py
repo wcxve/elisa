@@ -428,7 +428,7 @@ class Plotter(ABC):
         self.data = self.get_plot_data(result)
         self.config = config
         markers = get_markers(len(self.data))
-        self._markers = dict(zip(self.data.keys(), markers, strict=False))
+        self._markers = dict(zip(self.data.keys(), markers, strict=True))
 
     @abstractmethod
     def __call__(self, plots: str = 'data ne r') -> dict[str, Figure]:
@@ -627,7 +627,7 @@ class Plotter(ABC):
         else:
             residuals = None
 
-        axs_dict = dict(zip(plots, axs, strict=False))
+        axs_dict = dict(zip(plots, axs, strict=True))
 
         yscale = config.yscale
 
@@ -1060,7 +1060,7 @@ class Plotter(ABC):
         axs = [ax1] + axs.ravel().tolist()
         names = ['total'] + list(self.ndata.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
-        for ax, name, color in zip(axs, names, colors, strict=False):
+        for ax, name, color in zip(axs, names, colors, strict=True):
             theor, q, line, lo, up = _get_qq(
                 r[name], detrend, 0.95, rsim[name]
             )
@@ -1126,7 +1126,7 @@ class Plotter(ABC):
         names = ['total'] + list(self.ndata.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
-        for ax, name, color in zip(axs, names, colors, strict=False):
+        for ax, name, color in zip(axs, names, colors, strict=True):
             x, y, line, lower, upper = _get_pit_ecdf(pit[name], 0.95, detrend)
             ax.plot(x, line, ls='--', color=color, alpha=alpha)
             ax.fill_between(
@@ -1200,7 +1200,7 @@ class Plotter(ABC):
         names = ['total'] + list(self.ndata.keys())
         colors = ['k'] + get_colors(n_subplots, config.palette)
 
-        for ax, name, color in zip(axs, names, colors, strict=False):
+        for ax, name, color in zip(axs, names, colors, strict=True):
             d_obs = dev_obs[name]
             d_sim = np.sort(dev_sim[name])
             sf = 1.0 - np.arange(1.0, n + 1.0) / n
@@ -1339,7 +1339,7 @@ class MLEResultPlotter(Plotter):
         )
         data = {
             name: MLEPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys, strict=False)
+            for name, key in zip(helper.data_names, keys, strict=True)
         }
         return data
 
@@ -1526,7 +1526,7 @@ class PosteriorResultPlotter(Plotter):
         )
         data = {
             name: PosteriorPlotData(name, result, int(key[0]))
-            for name, key in zip(helper.data_names, keys, strict=False)
+            for name, key in zip(helper.data_names, keys, strict=True)
         }
         return data
 

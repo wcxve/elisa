@@ -69,7 +69,7 @@ def test_mle_covar(
     covar_true = mle_result2_covar[1](
         params_mle,
         lambda x: flux(
-            dict(zip(['PowerLaw.alpha', 'PowerLaw.K'], x, strict=False))
+            dict(zip(['PowerLaw.alpha', 'PowerLaw.K'], x, strict=True))
         ),
     )
 
@@ -247,7 +247,7 @@ def test_posterior_covar(
     covar_true = mle_result2_covar[1](
         params_mle,
         lambda x: flux(
-            dict(zip(['PowerLaw.alpha', 'PowerLaw.K'], x, strict=False))
+            dict(zip(['PowerLaw.alpha', 'PowerLaw.K'], x, strict=True))
         ),
     )
 
