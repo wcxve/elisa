@@ -1364,7 +1364,7 @@ class PosteriorResult(FitResult):
             f'Parameters\n{tabs["params"]}\n\n'
             f'Fit Statistics\n{tabs["stat"]}\n\n'
             f'Information Criterion\n{tabs["ic"]}\n\n'
-            f'Pareto k diagnostic\n{tabs["k"]}\n'
+            f'Pareto k Diagnostic\n{tabs["k"]}\n'
         )
 
     def _repr_html_(self):
@@ -1384,7 +1384,7 @@ class PosteriorResult(FitResult):
             '<summary><b>Information Criterion</b></summary>'
             f'{ic_tab}</details>'
             '<details open style="padding-left: 1em">'
-            f'<summary><b>Pareto k diagnostic</b></summary>{k_tab}</details>'
+            f'<summary><b>Pareto k Diagnostic</b></summary>{k_tab}</details>'
             '</details>'
         )
 
@@ -1470,9 +1470,10 @@ class PosteriorResult(FitResult):
         names = ['Method', 'Deviance', 'p']
         ic_tab = make_pretty_table(names, rows)
 
-        ranges = ['(-Inf, 0.5]', '(0.5, 0.7]', '(0.7, 1]', '(1, Inf)']
-        flags = ['good', 'ok', 'bad', 'very bad']
-        bins = np.asarray([-np.inf, 0.5, 0.7, 1, np.inf])
+        good_k = self.loo.good_k
+        ranges = [f'(-Inf, {good_k:.2f}]', f'({good_k:.2f}, 1]', '(1, Inf)']
+        flags = ['good', 'bad', 'very bad']
+        bins = np.asarray([-np.inf, good_k, 1, np.inf])
         counts, *_ = np.histogram(loo.pareto_k.values, bins)
         pct = [f'{i:.1%}' for i in counts / np.sum(counts)]
         rows = list(zip(ranges, flags, counts, pct, strict=True))
