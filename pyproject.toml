@@ -126,7 +126,7 @@ lint.select = [
 "docs/notebooks/model-building.ipynb" = ["F403", "F405"]
 
 [tool.pytest]
-ini_options.addopts = "-n auto --cov --cov-report xml"
+ini_options.addopts = "-n auto --cov --cov-report=xml --junitxml=junit.xml"
 ini_options.testpaths = ["tests"]
 
 [tool.coverage]
