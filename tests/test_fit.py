@@ -1,16 +1,24 @@
+from importlib.metadata import version
+
 import numpy as np
 import pytest
 
 from elisa import BayesFit, MaxLikeFit
 from elisa.models import PowerLaw
 
+JAXNS_XFAIL_MARK = pytest.mark.xfail(
+    version('jaxns') == '2.6.7'
+    and tuple(map(int, version('jax').split('.'))) >= (0, 6, 0),
+    reason='jaxns==2.6.7 is not compatible with jax>=0.6.0',
+)
+
 
 @pytest.mark.parametrize(
     'method',
     [
-        pytest.param('minuit', id='minuit'),
-        pytest.param('lm', id='lm'),
-        pytest.param('ns', id='ns'),
+        pytest.param('minuit', id='iminuit'),
+        pytest.param('lm', id='optimistix.LevenbergMarquardt'),
+        pytest.param('ns', marks=JAXNS_XFAIL_MARK, id='JAXNS'),
     ],
 )
 def test_trivial_max_like_fit(simulation, method):
@@ -47,7 +55,7 @@ def test_trivial_max_like_fit(simulation, method):
         pytest.param('ess', {}, id='ESS'),
         pytest.param('ess', {'n_parallel': 1}, id='ESS_1'),
         # JAX backend nested sampler
-        pytest.param('jaxns', {}, id='JAXNS'),
+        pytest.param('jaxns', {}, marks=JAXNS_XFAIL_MARK, id='JAXNS'),
         # Non-JAX backends samplers
         pytest.param('emcee', {}, id='emcee'),
         pytest.param('emcee', {'n_parallel': 1}, id='emcee_1'),
