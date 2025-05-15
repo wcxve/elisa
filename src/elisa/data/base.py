@@ -481,9 +481,9 @@ class ObservationData:
             )
 
         # Group the channel segaments derived from user-specified erange,
-        # e.g., for erange=[(0.1, 10), (20, 30)], there are two segments.
+        # e.g., for erange=[(0.1, 10), (20, 30)], there are two segaments.
         # Here, the number of channel_mask's rows is equal to the number
-        # of the segments.
+        # of the segaments.
         results = list(map(fn, zip(*data, strict=True)))
         grouping = np.hstack([r[0] for r in results])
         success = all(r[1] for r in results)

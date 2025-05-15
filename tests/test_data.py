@@ -67,8 +67,9 @@ def test_data_grouping(erange):
         data.set_erange(erange)
 
     scale = 6
+    nchan = data.channel.size
     data.group('const', scale)
-    assert data.channel.size == nbins // scale
+    assert data.channel.size == nchan // scale
 
     scale = 1
     data.group('min', scale)
@@ -121,6 +122,9 @@ def test_data_grouping(erange):
     data.group('const', scale, preserve_data_group=True)
     assert data.channel.size == original_nchan // scale
     assert np.all(data.grouping[original_grouping == -1] == -1)
+
+    with pytest.raises(ValueError):
+        data.group('optbsig', scale, preserve_data_group=True)
 
     data = compiled_model.simulate(
         photon_egrid=photon_egrid,
