@@ -138,6 +138,15 @@ class ObservationData:
         mask2 = np.less_equal(channel_emax, emax)
         return np.bitwise_and(mask1, mask2)
 
+    def _counts_data_for_opt_grouping(self) -> NDArray:
+        """The counts data to be used in the optimal grouping."""
+        if self.has_back:
+            return (
+                self.spec_data.counts - self.back_ratio * self.back_data.counts
+            )
+        else:
+            return self.spec_data.counts
+
     def set_erange(self, erange: list | tuple):
         """Set energy range of interest.
 
@@ -166,17 +175,18 @@ class ObservationData:
     def set_grouping(self, grouping: NDArray | None):
         """Set grouping flags.
 
-        First group the spectrum and background accordind to the grouping
+        First group the spectrum and background according to the grouping
         flags, then ignore the channel groups falling outside the energy
         range of interest.
 
         Parameters
         ----------
         grouping : ndarray
-            The grouping flags. If None, clear current grouping flags.
+            The grouping flags. If None, restore the grouping flags stored
+            in the spectrum file.
         """
         if grouping is None:
-            grouping = np.ones(self.resp_data.channel_number, dtype=np.int64)
+            grouping = self.spec_data.grouping
         else:
             grouping = np.asarray(grouping)
 
@@ -184,6 +194,13 @@ class ObservationData:
             raise ValueError(
                 'grouping must have the same size as the number of channels'
             )
+
+        if grouping[0] == -1:
+            warnings.warn(
+                'reset the first grouping flag from -1 to 1',
+                Warning,
+            )
+            grouping[0] = 1
 
         self._grouping = grouping
         quality = self.good_quality
@@ -199,6 +216,12 @@ class ObservationData:
         groups_channel = np.array([f'{prefix}_{i}' for i in channels])
         channel_mask = self._get_channel_mask(channel_emin, channel_emax)
         channel_mask = np.any(channel_mask, axis=0)
+        # mask groups with no good channels
+        n_good = np.add.reduceat(
+            self.good_quality.astype(int),  # good to 1 and bad to 0
+            np.flatnonzero(grouping != -1),  # transform to seg sum index
+        )
+        channel_mask &= n_good > 0
 
         # response attribute
         self._channel = groups_channel[channel_mask]
@@ -246,7 +269,12 @@ class ObservationData:
             self._ce = self.net_counts * unit
             self._ce_errors = self.spec_errors * unit
 
-    def group(self, method: str, scale: float | None = None):
+    def group(
+        self,
+        method: str,
+        scale: float | None = None,
+        preserve_data_group: bool = False,
+    ):
         """Group the spectrum.
 
         Parameters
@@ -273,6 +301,13 @@ class ObservationData:
 
         scale : float, int or None
             Grouping scale.
+        preserve_data_group : bool, optional
+            Whether to preserve the grouping flags stored in `spec_data`.
+            If true, will first group the data based on the grouping flags
+            stored in `spec_data`, then apply the grouping method specified
+            in `group`. If false, will directly apply the grouping method
+            specified in `group` to the data, ignoring the grouping flags
+            stored in `spec_data`. The default is False.
 
         Warns
         -----
@@ -297,19 +332,46 @@ class ObservationData:
             raise ValueError(f'scale must be given for {method} grouping')
 
         if method.startswith('opt'):
+            if preserve_data_group:
+                raise ValueError(
+                    'setting preserve_data_group=True is not supported for '
+                    'opt type grouping, use other grouping methods instead'
+                )
             fwhm = self.resp_data.channel_fwhm
+            counts_opt = self._counts_data_for_opt_grouping()
         else:
             fwhm = None
+            counts_opt = None
 
-        channel_emin = self.resp_data.channel_emin
-        channel_emax = self.resp_data.channel_emax
+        if preserve_data_group:
+            pre_grouping = self.spec_data.grouping.copy()
+        else:
+            pre_grouping = np.ones_like(self.spec_data.grouping, int)
+
+        # calculate the pre-grouped channels' total and good channel numbers
+        pre_group_idx = np.flatnonzero(pre_grouping != -1)
+        n_chan = np.diff(np.append(pre_group_idx, len(pre_grouping)))
+        n_good = np.add.reduceat(
+            self.good_quality.astype(int),  # good to 1 and bad to 0
+            pre_group_idx,
+        )
+
+        channel_emin, channel_emax, _ = self.resp_data.group_energy(
+            grouping=pre_grouping, quality=self.good_quality
+        )
         channel_mask = self._get_channel_mask(channel_emin, channel_emax)
-        spec_counts = self.spec_data.counts
-        spec_errors = self.spec_data.errors
+        # filter out groups with no good channels
+        channel_mask &= n_good > 0
+
+        spec_counts, spec_errors = self.spec_data.group(
+            grouping=pre_grouping, quality=self.good_quality
+        )
+
         if self.has_back:
+            back_counts, back_errors = self.back_data.group(
+                grouping=pre_grouping, quality=self.good_quality
+            )
             back_ratio = self.back_ratio
-            back_counts = self.back_data.counts
-            back_errors = self.back_data.errors
             berr = back_ratio * back_errors
             net_counts = spec_counts - back_ratio * back_counts
             net_errors = np.sqrt(spec_errors * spec_errors + berr * berr)
@@ -320,126 +382,87 @@ class ObservationData:
             net_counts = spec_counts
             net_errors = spec_errors
 
-        grouping = np.full(len(spec_counts), 1, dtype=np.int64)
-
-        def apply_grouping(group_func, mask, args, all_good=()):
-            """Apply the grouping array defined above."""
-            data = []
-            for i, j in enumerate(args):
-                if np.shape(j) == ():  # scalar
-                    data.append(j)
-                else:
-                    d = j[mask]
-                    if i not in all_good:
-                        d = d * self._good_quality[mask]
-                        if method == 'const':
-                            d = d.sum()
-                    data.append(d)
-            grouping_flag, grouping_success = group_func(*data, scale)
-            grouping[mask] = grouping_flag
-            return grouping_success
-
-        def apply_map(func, *args, all_good=()):
-            """Map the apply function and return a success flag."""
-            flags = [
-                apply_grouping(func, mask, args, all_good)
-                for mask in channel_mask
-            ]
-            return all(flags)
+        channel_masked = lambda x: [x[mask] for mask in channel_mask]
+        spec_counts = channel_masked(spec_counts)
+        net_counts = channel_masked(net_counts)
+        net_errors = channel_masked(net_errors)
+        if self.has_back:
+            back_counts = channel_masked(back_counts)
+            back_errors = channel_masked(back_errors)
+        if method.startswith('opt'):
+            fwhm = channel_masked(fwhm)
+            counts_opt = channel_masked(counts_opt)
 
         if method == 'const':
-            success = apply_map(group_const, np.ones(spec_counts.size, int))
-
+            fn = lambda a: group_const(*a, c=scale)
+            data = [list(map(len, spec_counts))]
         elif method == 'min':
-            success = apply_map(group_min, spec_counts)
-
+            fn = lambda a: group_min(*a, n=scale)
+            data = [spec_counts]
         elif method == 'sig':
             if self.spec_data.poisson:
                 if self.back_data.poisson:
-                    fn = group_sig_lima
-                    args = (spec_counts, back_counts, back_ratio)
-                    all_good = (2,)
+                    fn = lambda a: group_sig_lima(*a, a=back_ratio, sig=scale)
+                    data = [spec_counts, back_counts]
                 else:
-                    fn = group_sig_gv
-                    args = (spec_counts, back_counts, back_errors, back_ratio)
-                    all_good = (3,)
+                    fn = lambda a: group_sig_gv(*a, a=back_ratio, sig=scale)
+                    data = [spec_counts, back_counts, back_errors]
             else:
-                fn = group_sig_normal
-                args = (net_counts, net_errors)
-                all_good = ()
-            success = apply_map(fn, *args, all_good=all_good)
-
+                fn = lambda a: group_sig_normal(*a, sig=scale)
+                data = [net_counts, net_errors]
         elif method == 'bmin':
             if not (self.has_back and self.back_data.poisson):
                 raise ValueError(
                     'Poisson background is required for "bmin" method'
                 )
-            success = apply_map(group_min, back_counts)
-
+            fn = lambda a: group_min(*a, n=scale)
+            data = [back_counts]
         elif method == 'bsig':
             if not self.has_back:
                 raise ValueError(
                     'background data is required for "bsig" method'
                 )
-            success = apply_map(group_sig_normal, back_counts, back_errors)
-
+            fn = lambda a: group_sig_normal(*a, sig=scale)
+            data = [back_counts, back_errors]
         elif method == 'opt':
-            success = apply_map(group_opt, fwhm, net_counts, all_good=(0, 1))
-
+            fn = lambda a: group_opt(*a)
+            data = [fwhm, counts_opt]
         elif method == 'optmin':
-            success = apply_map(
-                group_opt, fwhm, net_counts, spec_counts, all_good=(0, 1)
-            )
-
+            fn = lambda a: group_opt(*a, n=scale)
+            data = [fwhm, counts_opt, spec_counts]
         elif method == 'optsig':
             if self.spec_data.poisson:
                 if self.back_data.poisson:
-                    fn = group_optsig_lima
-                    args = (
-                        fwhm,
-                        net_counts,
-                        spec_counts,
-                        back_counts,
-                        back_ratio,
+                    fn = lambda a: group_optsig_lima(
+                        *a, a=back_ratio, sig=scale
                     )
+                    data = [fwhm, counts_opt, spec_counts, back_counts]
                 else:
-                    fn = group_optsig_gv
-                    args = (
+                    fn = lambda a: group_optsig_gv(*a, a=back_ratio, sig=scale)
+                    data = [
                         fwhm,
-                        net_counts,
+                        counts_opt,
                         spec_counts,
                         back_counts,
                         back_errors,
-                        back_ratio,
-                    )
+                    ]
             else:
-                fn = group_optsig_normal
-                args = (fwhm, net_counts, net_counts, net_errors)
-            success = apply_map(fn, *args, all_good=(0, 1))
-
+                fn = lambda a: group_optsig_normal(*a, sig=scale)
+                data = [fwhm, counts_opt, net_counts, net_errors]
         elif method == 'optbmin':
             if not (self.has_back and self.back_data.poisson):
                 raise ValueError(
                     'Poisson background is required for "optbmin" method'
                 )
-            success = apply_map(
-                group_opt, fwhm, net_counts, back_counts, all_good=(0, 1)
-            )
-
+            fn = lambda a: group_opt(*a, n=scale)
+            data = [fwhm, counts_opt, back_counts]
         elif method == 'optbsig':
             if not self.has_back:
                 raise ValueError(
                     'background data is required for "optbsig" method'
                 )
-            success = apply_map(
-                group_optsig_normal,
-                fwhm,
-                net_counts,
-                back_counts,
-                back_errors,
-                all_good=(0, 1),
-            )
-
+            fn = lambda a: group_optsig_normal(*a, sig=scale)
+            data = [fwhm, counts_opt, back_counts, back_errors]
         else:
             supported = (
                 'const',
@@ -457,13 +480,31 @@ class ObservationData:
                 f'supported grouping method are: {", ".join(supported)}'
             )
 
+        # Group the channel segaments derived from user-specified erange,
+        # e.g., for erange=[(0.1, 10), (20, 30)], there are two segments.
+        # Here, the number of channel_mask's rows is equal to the number
+        # of the segments.
+        results = list(map(fn, zip(*data, strict=True)))
+        grouping = np.hstack([r[0] for r in results])
+        success = all(r[1] for r in results)
+
         if not success:
             warnings.warn(
                 f'"{method}" grouping failed in some {self._name} channels',
                 GroupingWarning,
             )
 
-        self.set_grouping(grouping)
+        channel_mask_union = channel_mask.any(axis=0)
+        channel_mask_no_group = np.repeat(channel_mask_union, n_chan)
+        n_chan_per_group = n_chan[channel_mask_union]
+        n_chan_all_group = n_chan_per_group.sum()
+        grouping_flag = np.full(n_chan_all_group, -1, dtype=int)
+        idx = np.append(0, n_chan_per_group[:-1].cumsum())
+        grouping_flag[idx] = grouping
+        final_grouping = np.full(n_chan.sum(), -1, dtype=int)
+        final_grouping[~channel_mask_no_group] = 1
+        final_grouping[channel_mask_no_group] = grouping_flag
+        self.set_grouping(final_grouping)
 
     def plot_spec(
         self,
@@ -1004,6 +1045,14 @@ class SpectrumData:
                 stacklevel=2,
             )
 
+        if grouping[0] == -1:
+            warnings.warn(
+                'reset the first grouping flag from -1 to 1',
+                Warning,
+                stacklevel=2,
+            )
+            grouping[0] = 1
+
         if not poisson:
             vars = np.square(errors)
             sys_vars = np.square(sys_errors * counts)
@@ -1036,13 +1085,10 @@ class SpectrumData:
         Returns
         -------
         counts : ndarray
-            Grouped spectrum counts. The values of groups filled with bad
-            channels are automatically dropped.
+            Grouped spectrum counts.
         errors : ndarray
-            Uncertainty of grouped spectrum counts. The values of groups
-            filled with bad channels are automatically dropped.
+            Uncertainty of grouped spectrum counts.
         """
-
         if np.shape(grouping) != np.shape(self.counts):
             raise ValueError('grouping must have the same size as counts')
 
@@ -1053,15 +1099,13 @@ class SpectrumData:
             raise ValueError('quality must have the same size as counts')
 
         factor = quality.astype(np.float64)
-        group_index = np.flatnonzero(grouping != -1)  # transform to index
+        group_idx = np.flatnonzero(grouping != -1)  # transform to seg sum idx
+        counts = np.add.reduceat(factor * self.counts, group_idx)
+        errors = np.sqrt(
+            np.add.reduceat(factor * self.errors * self.errors, group_idx)
+        )
 
-        counts = np.add.reduceat(factor * self.counts, group_index)
-        vars = np.add.reduceat(factor * self.errors * self.errors, group_index)
-        errors = np.sqrt(vars)
-
-        mask = np.add.reduceat(factor, group_index) > 0.0
-
-        return counts[mask], errors[mask]
+        return counts, errors
 
     @property
     def counts(self) -> NDArray:
@@ -1214,24 +1258,66 @@ class ResponseData:
             with grouping flags of -1 are combined.
         quality : ndarray, optional
             Flag indicating which channel to be used in grouping.
+        keep_channel_info : bool, optional
+            Whether to keep channel information when grouping the response.
+            The default is False.
 
         Returns
         -------
         group_emin : ndarray
-            Left edge of the grouped channel energy array. The values of groups
-            filled with bad channels are automatically dropped.
+            Left edge of the grouped channel energy array.
         group_emax : ndarray
-            Right edge of the grouped channel energy array. The values of
-            groups filled with bad channels are automatically dropped.
+            Right edge of the grouped channel energy array.
         matrix : coo_array
-            Grouped response matrix. The values of groups filled with bad
-            channels are automatically dropped.
+            Grouped response matrix.
         channel : ndarray
-            Grouped channel information. The values of groups filled with bad
-            channels are automatically dropped.
+            Grouped channel information.
+        """
+        group_channels, group_emin, group_emax = self.group_energy(
+            grouping=grouping,
+            quality=quality,
+            keep_channel_info=keep_channel_info,
+        )
+
+        channel_number = self.channel_number
+        matrix = self.sparse_matrix
+        group_idx = np.flatnonzero(grouping != -1)  # transform to seg sum idx
+        if len(group_idx) != channel_number:
+            a = np.where(quality, 1.0, 0.0)
+            idx = np.arange(channel_number)
+            ptr = np.append(group_idx, channel_number)
+            grouping_matrix = csc_array((a, idx, ptr))
+            matrix = self.sparse_matrix.dot(grouping_matrix)
+
+        return group_channels, group_emin, coo_array(matrix), group_emax
+
+    def group_energy(
+        self,
+        grouping: NDArray,
+        quality: NDArray | None = None,
+        keep_channel_info: bool = False,
+    ) -> tuple[NDArray, NDArray, NDArray]:
+        """Get grouped channels' energy grid information.
+
+        Parameters
+        ----------
+        grouping : ndarray
+            Channel with a grouping flag of 1 with all successive channels
+            with grouping flags of -1 are combined.
+        quality : ndarray, optional
+            Flag indicating which channel to be used in grouping.
         keep_channel_info : bool, optional
             Whether to keep channel information when grouping the response.
             The default is False.
+
+        Returns
+        -------
+        group_emin : ndarray
+            Left edge of the grouped channel energy array.
+        group_emax : ndarray
+            Right edge of the grouped channel energy array.
+        channel : ndarray
+            Grouped channel information.
         """
         channel_number = self.channel_number
         if np.shape(grouping) != (channel_number,):
@@ -1246,21 +1332,11 @@ class ResponseData:
         group_channels = np.array(self.channel, dtype=str)
         group_emin = self.channel_emin
         group_emax = self.channel_emax
-        matrix = self.sparse_matrix
 
-        group_index = np.flatnonzero(grouping != -1)  # transform to index
+        group_idx = np.flatnonzero(grouping != -1)  # transform to seg sum idx
 
-        if len(group_index) == channel_number:  # apply good mask only
-            if np.count_nonzero(quality) != quality.size:
-                group_channels = np.array(group_channels[quality], dtype=str)
-                group_emin = group_emin[quality]
-                group_emax = group_emax[quality]
-                matrix = self.sparse_matrix.tocsc()[:, quality]
-
-        else:
-            mask = np.add.reduceat(quality, group_index) > 0
-
-            edge_indices = np.append(group_index, channel_number)
+        if len(group_idx) != channel_number:
+            edge_indices = np.append(group_idx, channel_number)
             raw_channel = self.channel.tolist()
             emin = self.channel_emin
             emax = self.channel_emax
@@ -1268,9 +1344,7 @@ class ResponseData:
             group_emin = []
             group_emax = []
 
-            for i in range(len(group_index)):
-                if not mask[i]:
-                    continue
+            for i in range(len(group_idx)):
                 slice_i = slice(edge_indices[i], edge_indices[i + 1])
                 quality_slice = quality[slice_i]
                 channel_slice = np.array(raw_channel[slice_i])[quality_slice]
@@ -1285,14 +1359,7 @@ class ResponseData:
             group_emin = np.array(group_emin)
             group_emax = np.array(group_emax)
 
-            a = np.where(quality, 1.0, 0.0)
-            idx = np.arange(channel_number)
-            ptr = np.append(group_index, channel_number)
-            grouping_matrix = csc_array((a, idx, ptr))
-            matrix = self.sparse_matrix.dot(grouping_matrix)
-            matrix = matrix.tocsc()[:, mask]
-
-        return group_emin, group_emax, coo_array(matrix), group_channels
+        return group_emin, group_emax, group_channels
 
     def plot_effective_area(
         self,

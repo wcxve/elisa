@@ -67,6 +67,13 @@ class Data(ObservationData):
         The default is None.
     scale : float or None, optional
         Grouping scale for the method specified in `group`.
+    preserve_data_group : bool, optional
+        Whether to preserve the grouping flags stored in `specfile`.
+        If true, will first group the data based on the grouping flags stored
+        in `specfile`, then apply the grouping method specified in `group`.
+        If false, will directly apply the grouping method specified in
+        `group` to the data, ignoring the grouping flags stored in `specfile`.
+        The default is False.
     spec_poisson : bool or None, optional
         Whether the spectrum data follows counting statistics, reading from
         the `specfile` header. This value must be set if ``POISSERR`` is
@@ -116,6 +123,7 @@ class Data(ObservationData):
         name: str | None = None,
         group: str | None = None,
         scale: float | None = None,
+        preserve_data_group: bool = False,
         spec_poisson: bool | None = None,
         back_poisson: bool | None = None,
         ignore_bad: bool = True,
@@ -198,7 +206,7 @@ class Data(ObservationData):
         )
 
         if group is not None:
-            self.group(group, scale)
+            self.group(group, scale, preserve_data_group)
 
 
 class Spectrum(SpectrumData):

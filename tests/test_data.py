@@ -3,20 +3,37 @@ import pytest
 from jax.experimental.sparse import BCSR
 
 from elisa.data.grouping import significance_gv, significance_lima
-from elisa.data.ogip import Response, ResponseData
+from elisa.data.ogip import Response, ResponseData, SpectrumData
 from elisa.models import PowerLaw
 
 
-def test_data_plot(simulation):
+@pytest.mark.parametrize(
+    'erange',
+    [pytest.param([(1, 37), (42, 99)]), pytest.param(None)],
+)
+def test_data_plot(simulation, erange):
     data = simulation
 
+    if erange is not None:
+        data.set_erange(erange)
+
     # Check the plot methods
-    data.plot_spec()
-    data.plot_effective_area()
-    data.plot_matrix()
+    for xlog in [True, False]:
+        for data_ylog in [True, False]:
+            for sig_ylog in [True, False]:
+                data.plot_spec(xlog, data_ylog, sig_ylog)
+
+    for hatch in [True, False]:
+        data.plot_matrix(hatch)
+        for log in [True, False]:
+            data.plot_effective_area(hatch, log)
 
 
-def test_data_grouping():
+@pytest.mark.parametrize(
+    'erange',
+    [pytest.param([(1, 37), (42, 99)]), pytest.param(None)],
+)
+def test_data_grouping(erange):
     # Setup simulation configuration
     seed = 42
     emin = 1.0
@@ -45,6 +62,9 @@ def test_data_grouping():
         back_poisson=True,
         seed=seed,
     )
+
+    if erange is not None:
+        data.set_erange(erange)
 
     scale = 6
     data.group('const', scale)
@@ -93,6 +113,15 @@ def test_data_grouping():
     sig = data.back_counts / data.back_errors
     assert np.all(sig >= scale)
 
+    # test preserve_data_group=True
+    scale = 2
+    original_nchan = data.channel.size
+    original_grouping = data.grouping
+    data.spec_data._grouping = original_grouping
+    data.group('const', scale, preserve_data_group=True)
+    assert data.channel.size == original_nchan // scale
+    assert np.all(data.grouping[original_grouping == -1] == -1)
+
     data = compiled_model.simulate(
         photon_egrid=photon_egrid,
         channel_emin=channel_emin,
@@ -107,6 +136,9 @@ def test_data_grouping():
         seed=seed,
     )
 
+    if erange is not None:
+        data.set_erange(erange)
+
     scale = 1
     data.group('sig', scale)
     sig = significance_gv(
@@ -120,6 +152,22 @@ def test_data_grouping():
         data.spec_counts, data.back_counts, data.back_errors, data.back_ratio
     )
     assert np.all(sig >= scale)
+
+
+def test_grouping_warning(simulation):
+    with pytest.warns(match='reset the first grouping flag from -1 to 1'):
+        grouping = simulation.grouping.copy()
+        grouping[0] = -1
+        simulation.set_grouping(grouping)
+
+    with pytest.warns(match='reset the first grouping flag from -1 to 1'):
+        SpectrumData(
+            counts=np.ones(2),
+            errors=np.ones(2),
+            poisson=True,
+            exposure=1.0,
+            grouping=np.array([-1, 1]),
+        )
 
 
 @pytest.mark.parametrize(
