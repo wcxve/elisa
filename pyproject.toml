@@ -133,7 +133,7 @@ ini_options.testpaths = ["tests"]
 [tool.coverage]
 run.concurrency = [
     "thread",
-    "multiprocessing",
+    "multiprocess",
 ]
 run.source_dirs = ["src"]
 run.omit = [
