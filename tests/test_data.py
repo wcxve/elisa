@@ -66,8 +66,9 @@ def test_data_grouping(erange):
     if erange is not None:
         data.set_erange(erange)
 
-    scale = 6
     nchan = data.channel.size
+
+    scale = 6
     data.group('const', scale)
     assert data.channel.size == nchan // scale
 
@@ -92,7 +93,7 @@ def test_data_grouping(erange):
     assert np.all(sig >= scale)
 
     data.group('opt')
-    assert data.channel.size == nbins
+    assert data.channel.size == nchan
 
     scale = 1
     data.group('optmin', scale)
