@@ -1359,6 +1359,7 @@ class BayesFit(Fit):
         init: dict[str, float] | None = None,
         n_parallel: int | None = None,
         progress: bool = True,
+        post_warmup_state: Sequence | None = None,
         ignore_nan: bool = False,
         **kwargs: dict,
     ) -> PosteriorResult:
@@ -1393,6 +1394,9 @@ class BayesFit(Fit):
             The default is ``jax.local_device_count()``.
         progress : bool, optional
             Whether to show progress bars during sampling. The default is True.
+        post_warmup_state : sequence, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
         ignore_nan : bool, optional
             Whether to transform a NaN log probability to a large negative
             number (-1e300). The default is False.
@@ -1425,13 +1429,14 @@ class BayesFit(Fit):
             ignore_nan=ignore_nan,
             seed=self._helper.seed['mcmc'],
         )
-        samples = sampler.run(
+        states, samples = sampler.run(
             warmup=warmup,
             steps=steps,
             chains=chains,
             thinning=thinning,
             n_parallel=n_parallel,
             progress=progress,
+            states=post_warmup_state,
             **kwargs,
         )
         ess, reff = self._get_ess(samples, n_parallel)
@@ -1439,6 +1444,7 @@ class BayesFit(Fit):
             samples=samples,
             ess=ess,
             reff=reff,
+            sampler_state=states,
             inference_library='emcee',
         )
 
