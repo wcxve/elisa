@@ -15,7 +15,7 @@ from tqdm.auto import tqdm
 from elisa.infer.samplers.util import get_model_info
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     from numpy.typing import NDArray
 
@@ -90,34 +90,42 @@ class EmceeSampler:
         n_parallel: int = 4,
         tune: bool = False,
         progress: bool = True,
+        states: Sequence[State] | None = None,
         **kwargs: dict,
-    ) -> dict[str, NDArray[float]]:
-        pbars = {
-            i: tqdm(
-                total=warmup + steps,
-                desc='Initializing... ',
-                position=i,
-                disable=not progress,
-            )
-            for i in range(1, n_parallel + 1)
-        }
-
+    ) -> tuple[tuple[State, ...], dict[str, NDArray[float]]]:
         ndim = self._ndim
         if chains is None:
             chains = 4 * ndim
 
-        ss = np.random.SeedSequence(self._seed)
-        seeds = ss.spawn(n_parallel)
-        mcmc_rngs = list(map(np.random.default_rng, seeds))
-
-        init = np.full((chains, ndim), self._init)
+        if states is None:
+            rng = np.random.default_rng(self._seed)
+            init = np.full((chains, ndim), self._init)
+            jitter = rng.uniform(0.99, 1.01, size=(n_parallel, chains, ndim))
+            init = init * jitter
+            rngs = rng.spawn(n_parallel)
+            states = [
+                State(i, random_state=j)
+                for i, j in zip(init, rngs, strict=True)
+            ]
+        else:
+            states = list(states)
+            if len(states) != n_parallel:
+                raise ValueError('states number should match n_parallel')
+            if not all(isinstance(s, State) for s in states):
+                raise ValueError('states must be sequence of emcee State')
+            for s in states:
+                if s.coords.shape != (chains, ndim):
+                    raise ValueError(
+                        f"states' coords must have shape ({chains}, {ndim})"
+                    )
+                s.log_prob = None
+                s.blobs = None
+            warmup = 0
 
         log_prob_fn = self._log_prob_with_blobs
         blobs_dtype = self._blobs_dtype
 
-        def run_sampler(sampler_id, init, rng, queue):
-            jitter = rng.uniform(0.99, 1.01, size=(chains, ndim))
-            init = init * jitter
+        def run_sampler(sampler_id, state, queue):
             sampler = EnsembleSampler(
                 chains,
                 ndim,
@@ -126,7 +134,6 @@ class EmceeSampler:
                 blobs_dtype=blobs_dtype,
                 **kwargs,
             )
-            state = State(init, random_state=rng)
             queue.put((sampler_id, 'warmup'))
             for s in sampler.sample(
                 state,
@@ -138,7 +145,7 @@ class EmceeSampler:
                 state = s
                 queue.put((sampler_id, 'update'))
             queue.put((sampler_id, 'sample'))
-            for _ in sampler.sample(
+            for s in sampler.sample(
                 state,
                 iterations=steps,
                 tune=tune,
@@ -146,9 +153,10 @@ class EmceeSampler:
                 store=True,
                 progress=False,
             ):
+                state = s
                 queue.put((sampler_id, 'update'))
             queue.put((sampler_id, 'finish'))
-            return sampler.get_blobs()
+            return sampler.get_blobs(), state
 
         def progress_listener(queue, pbars, num_samplers):
             finished = 0
@@ -158,7 +166,7 @@ class EmceeSampler:
                     pbars[sampler_id].update(1)
                 elif msg == 'warmup':
                     pbars[sampler_id].set_description(
-                        f'Warming up sampler {sampler_id}'
+                        f'Warm-up sampler {sampler_id}'
                     )
                 elif msg == 'sample':
                     pbars[sampler_id].set_description(
@@ -177,6 +185,16 @@ class EmceeSampler:
         else:
             old_method = ''
 
+        pbars = {
+            i: tqdm(
+                total=warmup + steps,
+                desc='Initializing... ',
+                position=i,
+                disable=not progress,
+            )
+            for i in range(1, n_parallel + 1)
+        }
+
         queue = mp.Manager().Queue()
         listener_thread = threading.Thread(
             target=progress_listener, args=(queue, pbars, n_parallel)
@@ -188,7 +206,7 @@ class EmceeSampler:
             for i in range(n_parallel):
                 r = pool.apply_async(
                     run_sampler,
-                    args=(i + 1, init, mcmc_rngs[i], queue),
+                    args=(i + 1, states[i], queue),
                 )
                 results.append(r)
             results = [r.get() for r in results]
@@ -198,10 +216,16 @@ class EmceeSampler:
         if old_method:
             mp.set_start_method(old_method, force=True)
 
-        # reshape results from (n_step, n_walker) to (n_walker, n_step)
-        results = list(map(np.transpose, results))
+        samples = [r[0] for r in results]
+        states = tuple(r[1] for r in results)
+        for s in states:
+            s.log_prob = None
+            s.blobs = None
+
+        # reshape samples from (n_step, n_walker) to (n_walker, n_step)
+        samples = list(map(np.transpose, samples))
         # merge chains from the same sampler into a single one
-        results = list(map(np.concatenate, results))
-        # stack results of different samplers
-        results = np.vstack(results)
-        return {i: results[i] for i in results.dtype.names}
+        samples = list(map(np.concatenate, samples))
+        # stack samples of different samplers
+        samples = np.vstack(samples)
+        return states, {i: samples[i] for i in samples.dtype.names}

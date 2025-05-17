@@ -81,8 +81,14 @@ def test_trivial_bayes_fit(simulation, method, options):
         model['PowerLaw']['alpha'].default = 0.0
         model['PowerLaw']['K'].default = 10.0
 
-    # Get Bayesian fit result, i.e. posterior
-    result = getattr(BayesFit(data, model, seed=100), method)(**options)
+    fit_fn = getattr(BayesFit(data, model, seed=100), method)
+
+    # Bayesian fit result, i.e. posterior
+    result = fit_fn(**options)
+
+    # test refit with given post_warmup_state
+    if result.sampler_state is not None:
+        fit_fn(steps=100, post_warmup_state=result.sampler_state, **options)
 
     # check convergence
     assert all(i < 1.01 for i in result.rhat.values() if not np.isnan(i))
