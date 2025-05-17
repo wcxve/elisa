@@ -98,11 +98,12 @@ class EmceeSampler:
             chains = 4 * ndim
 
         if states is None:
-            rng = np.random.default_rng(self._seed)
+            seeds = np.random.SeedSequence(self._seed).spawn(n_parallel + 1)
+            rng = np.random.default_rng(seeds[0])
             init = np.full((chains, ndim), self._init)
             jitter = rng.uniform(0.99, 1.01, size=(n_parallel, chains, ndim))
             init = init * jitter
-            rngs = rng.spawn(n_parallel)
+            rngs = list(map(np.random.default_rng, seeds[1:]))
             states = [
                 State(i, random_state=j)
                 for i, j in zip(init, rngs, strict=True)
