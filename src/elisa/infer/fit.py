@@ -752,7 +752,7 @@ class BayesFit(Fit):
             ess=ess,
             reff=reff,
             sample_stats=sample_stats,
-            sampler_state=sampler.post_warmup_state,
+            sampler_state=sampler.last_state,
             inference_library=kernel_library,
         )
 
