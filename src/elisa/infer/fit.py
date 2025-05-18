@@ -802,6 +802,8 @@ class BayesFit(Fit):
 
         # TODO: option to let sampler starting from MLE
         if issubclass(kernel, NumpyroEnsembleSampler):
+            # set randomize_split=False to produce right rhat and ess reuslt
+            kernel_kwargs['randomize_split'] = False
             init = self._check_init(init)
             init = self._helper.constr_dic_to_unconstr_arr(init)
             n_params = len(init)
