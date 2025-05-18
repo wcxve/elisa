@@ -1300,7 +1300,7 @@ class BayesFit(Fit):
         """
         kwargs['walkers'] = chains
         return self._run_numpyro_mcmc(
-            kernel=NumPyroAIES,
+            kernel=NumPyroESS,
             warmup=warmup,
             steps=steps,
             chains=n_parallel,
