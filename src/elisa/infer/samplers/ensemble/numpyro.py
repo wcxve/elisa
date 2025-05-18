@@ -26,12 +26,13 @@ class NumpyroEnsembleSampler(MCMCKernel):
 
         import jax
         import jax.numpy as jnp
-        samples = jax.tree.map(lambda x: jnp.swapaxes(x, 1, 2), posterior)
+        samples = jax.tree.map(lambda x: jnp.swapaxes(x, 1, 2), samples)
         samples = jax.tree.map(
             lambda x: jnp.reshape(
-                x, (x.shape[0], x.shape[1] * x.shape[2],) + x.shape[3:]
+                x,
+                (x.shape[0], x.shape[1] * x.shape[2], *x.shape[3:]),
             ),
-            samples
+            samples,
         )
     """
 
