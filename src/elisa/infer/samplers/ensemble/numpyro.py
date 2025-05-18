@@ -43,8 +43,8 @@ class NumpyroEnsembleSampler(MCMCKernel):
         self._sampler = self._kernel(*args, **kwargs)
 
     @property
-    def model(self):
-        return self._sampler.model
+    def sample_field(self):
+        return 'z'
 
     def postprocess_fn(self, args, kwargs):
         return jax.vmap(self._sampler.postprocess_fn(args, kwargs))
@@ -58,10 +58,13 @@ class NumpyroEnsembleSampler(MCMCKernel):
             )
         rng_keys = jax.random.split(rng_key, self._walkers)
         if init_params is not None:
-            assert all(
+            if not all(
                 param.shape[0] == self._walkers
                 for param in jax.tree.leaves(init_params)
-            ), 'The batch dimension of each param must match number of chains'
+            ):
+                raise ValueError(
+                    'The batch dimension of each param must match chains'
+                )
 
         return self._sampler.init(
             rng_keys, num_warmup, init_params, model_args, model_kwargs
@@ -73,10 +76,6 @@ class NumpyroEnsembleSampler(MCMCKernel):
 
 class NumPyroAIES(NumpyroEnsembleSampler):
     _kernel = AIES
-
-    @property
-    def sample_field(self):
-        return 'z'
 
     def get_diagnostics_str(self, state):
         return f'acc. prob={state.inner_state.mean_accept_prob:.2f}'
