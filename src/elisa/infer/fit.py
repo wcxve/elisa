@@ -812,7 +812,7 @@ class BayesFit(Fit):
             else:
                 walkers = int(walkers)
             kernel_kwargs['walkers'] = walkers
-            jitter = 0.1 * np.abs(init)
+            jitter = 0.1 * jnp.abs(init)
             low = init - jitter
             high = init + jitter
             rng_key, init_key = jax.random.split(rng_key, 2)
