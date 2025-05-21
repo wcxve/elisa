@@ -136,6 +136,8 @@ run.concurrency = [
     "thread",
     "multiprocessing",
 ]
+run.parallel = true
+sigterm = true
 run.source_dirs = ["src"]
 run.omit = [
     "src/elisa/infer/samplers/ns/jaxns.py",
