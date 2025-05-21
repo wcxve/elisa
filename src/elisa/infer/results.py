@@ -1344,7 +1344,6 @@ class PosteriorResult(FitResult):
     _pit: dict[str, tuple] | None = None
     _params: dict[str, JAXArray] | None = None
     _info_tabs: dict | None = None
-    _last_state = None
 
     def __init__(
         self,
