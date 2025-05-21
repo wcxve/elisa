@@ -88,23 +88,26 @@ class UltraNestSampler:
                 shape = filtered[0][2]
                 derived_names.extend(ravel_params_names(i, shape))
 
-        sampler = self._sampler = self._sampler_constructor(
-            param_names=params_names,
-            loglike=lambda x: jax.device_get(self._log_prob_fn(x)),
-            transform=lambda x: jax.device_get(transform(x)),
-            derived_param_names=derived_names,
-            vectorized=True,
-        )
         if read_file_config is None:
+            prev_state = np.random.get_state()
             np.random.seed(self._seed)
+            sampler = self._sampler = self._sampler_constructor(
+                param_names=params_names,
+                loglike=lambda x: jax.device_get(self._log_prob_fn(x)),
+                transform=lambda x: jax.device_get(transform(x)),
+                derived_param_names=derived_names,
+                vectorized=True,
+            )
             sampler.run(**kwargs)
-            np.random.seed()
+            np.random.set_state(prev_state)
+            u_samples = sampler.results['samples'][:, : mi.ndim]
         else:
             read_file_config = dict(read_file_config)
-            x_dim = sampler.x_dim
-            sequence, final = read_file(x_dim=x_dim, **read_file_config)
-            sampler.results = sequence | final
-        u_samples = sampler.results['samples'][:, : mi.ndim]
+            read_file_config['x_dim'] = mi.ndim
+            sequence, final = read_file(**read_file_config)
+            results = sequence | final
+            u_samples = results['samples'][:, : mi.ndim]
+
         u_samples = jax.vmap(mi.unravel)(u_samples)
         samples = jax.vmap(mi.postprocess_fn)(u_samples)
         samples = jax.device_get(samples)
