@@ -67,7 +67,7 @@ class ZeusSampler(EnsembleSampler):
                 pool=None,
                 vectorize=True,
                 blobs_dtype=blobs_dtype,
-                **warmup_kwargs,
+                **sampling_kwargs,
             )
             queue.put((sampler_id, 'warmup'))
             for _ in sampler1.sample(
