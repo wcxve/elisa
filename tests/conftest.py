@@ -40,8 +40,7 @@ def powerlaw_flux(powerlaw_fn) -> Callable:
     return _
 
 
-@pytest.fixture(scope='function')
-def simulation() -> Data:
+def get_simulation():
     """Simulate a simple power-law spectrum with a known flux and index."""
     # Setup simulation configuration
     seed = 42
@@ -70,25 +69,33 @@ def simulation() -> Data:
     return data
 
 
+@pytest.fixture(scope='function')
+def simulation() -> Data:
+    """Function-scoped fixture to simulate data for each test."""
+    # This ensures that each test gets a simulation copy
+    return get_simulation()
+
+
 @pytest.fixture(scope='session')
-def mle_result(simulation) -> MLEResult:
-    data = simulation
+def mle_result() -> MLEResult:
+    data = get_simulation()
     model = PowerLaw(K=[10.0], alpha=0.0)
     return MaxLikeFit(data, model).mle()
 
 
 @pytest.fixture(scope='session')
-def mle_result2(simulation) -> MLEResult:
-    data = simulation
+def mle_result2() -> MLEResult:
+    data = get_simulation()
     model = PowerLaw(K=[10.0], alpha=[0.0])
     return MaxLikeFit(data, model).mle()
 
 
 @pytest.fixture(scope='session')
-def mle_result2_covar(simulation, powerlaw_fn) -> tuple[Callable, Callable]:
-    data = simulation.spec_counts
-    expo = simulation.spec_exposure
-    egrid = simulation.resp_data.photon_egrid
+def mle_result2_covar(powerlaw_fn) -> tuple[Callable, Callable]:
+    data = get_simulation()
+    counts = data.spec_counts
+    expo = data.spec_exposure
+    egrid = data.resp_data.photon_egrid
 
     @jax.jit
     @jax.hessian
@@ -96,7 +103,7 @@ def mle_result2_covar(simulation, powerlaw_fn) -> tuple[Callable, Callable]:
     def hess(params):
         alpha, K = params
         model = powerlaw_fn(alpha, K, egrid) * expo
-        return jnp.sum(data * jnp.log(model) - model)
+        return jnp.sum(counts * jnp.log(model) - model)
 
     @jax.jit
     def covar(params):
@@ -118,7 +125,7 @@ def mle_result2_covar(simulation, powerlaw_fn) -> tuple[Callable, Callable]:
 
 
 @pytest.fixture(scope='session')
-def posterior_result(simulation) -> PosteriorResult:
-    data = simulation
+def posterior_result() -> PosteriorResult:
+    data = get_simulation()
     model = PowerLaw(K=[10.0])
     return BayesFit(data, model).nuts()
