@@ -40,7 +40,7 @@ def powerlaw_flux(powerlaw_fn) -> Callable:
     return _
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope='function')
 def simulation() -> Data:
     """Simulate a simple power-law spectrum with a known flux and index."""
     # Setup simulation configuration
