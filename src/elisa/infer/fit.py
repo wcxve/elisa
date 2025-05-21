@@ -33,11 +33,13 @@ from elisa.infer.helper import Helper, get_helper
 from elisa.infer.likelihood import _STATISTIC_OPTIONS
 from elisa.infer.results import MLEResult, PosteriorResult
 from elisa.infer.samplers.blackjax.nuts import BlackJAXNUTS, BlackJAXNUTSState
+from elisa.infer.samplers.ensemble.emcee import EmceeSampler
 from elisa.infer.samplers.ensemble.numpyro import (
     NumPyroAIES,
     NumpyroEnsembleSampler,
     NumPyroESS,
 )
+from elisa.infer.samplers.ensemble.zeus import ZeusSampler
 from elisa.infer.samplers.ns.jaxns import JAXNSSampler
 from elisa.models.model import Model, get_model_info
 from elisa.util.config import get_parallel_number
@@ -1247,7 +1249,7 @@ class BayesFit(Fit):
     ) -> PosteriorResult:
         """Run :mod:`numpyro`'s Ensemble Slice Sampling (ESS).
 
-        Ensemble Slice Sampling [1]_ is a gradient free method
+        Ensemble slice sampling [1]_ is a gradient free method
         that finds better slice sampling directions by sharing information
         between chains. Suitable for low to moderate dimensional models.
         Generally, `chains` should be at least twice the dimensionality
@@ -1324,8 +1326,10 @@ class BayesFit(Fit):
         n_parallel: int | None = None,
         progress: bool = True,
         post_warmup_state: Sequence | None = None,
+        tune: bool = False,
         ignore_nan: bool = False,
-        **kwargs: dict,
+        warmup_kwargs: dict | None = None,
+        sampling_kwargs: dict | None = None,
     ) -> PosteriorResult:
         """Run :mod:`emcee`'s affine-invariant ensemble sampling.
 
@@ -1361,6 +1365,8 @@ class BayesFit(Fit):
         post_warmup_state : sequence, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided.
+        tune : bool, optional
+            If True, the parameters of some moves will be automatically tuned.
         ignore_nan : bool, optional
             Whether to transform a NaN log probability to a large negative
             number (-1e300). The default is False.
@@ -1368,8 +1374,12 @@ class BayesFit(Fit):
             .. warning::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
-        **kwargs : dict
-            Extra parameters passed to :class:`emcee.EnsembleSampler`.
+        warmup_kwargs: dict, optional
+            Extra parameters passed to :class:`emcee.EnsembleSampler` for
+            warm-up phase.
+        sampling_kwargs: dict | None = None,
+            Extra parameters passed to :class:`emcee.EnsembleSampler` for
+            sampling phase.
 
         Returns
         -------
@@ -1383,8 +1393,6 @@ class BayesFit(Fit):
                Daniel Foreman-Mackey, David W. Hogg, Dustin Lang,
                and Jonathan Goodman.
         """
-        from elisa.infer.samplers.ensemble.emcee import EmceeSampler
-
         init = self._check_init(init)
         n_parallel = get_parallel_number(n_parallel)
         sampler = EmceeSampler(
@@ -1393,15 +1401,17 @@ class BayesFit(Fit):
             ignore_nan=ignore_nan,
             seed=self._helper.seed['mcmc'],
         )
-        states, samples = sampler.run(
+        samples, states = sampler.run(
             warmup=warmup,
             steps=steps,
             chains=chains,
             thinning=thinning,
             n_parallel=n_parallel,
+            tune=tune,
             progress=progress,
             states=post_warmup_state,
-            **kwargs,
+            warmup_kwargs=warmup_kwargs,
+            sampling_kwargs=sampling_kwargs,
         )
         ess, reff = self._get_ess(samples, n_parallel)
         return self._generate_results(
@@ -1410,6 +1420,115 @@ class BayesFit(Fit):
             reff=reff,
             sampler_state=states,
             inference_library='emcee',
+        )
+
+    def zeus(
+        self,
+        warmup: int = 3000,
+        steps: int = 5000,
+        chains: int | None = None,
+        thinning: int = 1,
+        init: dict[str, float] | None = None,
+        n_parallel: int | None = None,
+        progress: bool = True,
+        post_warmup_state: Sequence | None = None,
+        tune: bool = True,
+        ignore_nan: bool = False,
+        warmup_kwargs: dict | None = None,
+        sampling_kwargs: dict | None = None,
+    ) -> PosteriorResult:
+        """Run :mod:`zeus`' ensemble slice sampling.
+
+        Ensemble slice sampling [1]_ is a gradient free method
+        that finds better slice sampling directions by sharing information
+        between chains. Suitable for low to moderate dimensional models.
+        Generally, `chains` should be at least twice the dimensionality
+        of the model.
+
+        .. note::
+            This sampler must be used with even number `chains` > 1.
+
+        Parameters
+        ----------
+        warmup : int, optional
+            Number of warmup steps. The default is 5000.
+        steps : int, optional
+            Number of steps to run for each chain. The default is 5000.
+        chains : int, optional
+            Number of MCMC chains to run. Defaults to 4 * `D`, where `D` is
+            the dimension of model parameters.
+        thinning: int, optional
+            For each chain, every `thinning` step is retained, and the other
+            steps are discarded. The total steps for each chain are
+            `steps` * `thinning`. The default is 1.
+        init : dict, optional
+            Initial parameter for sampler to start from.
+        n_parallel : int, optional
+            Number of parallel samplers to run.
+            The default is ``jax.local_device_count()``.
+        progress : bool, optional
+            Whether to show progress bars during sampling. The default is True.
+        post_warmup_state : sequence, optional
+            The state before the sampling phase. The sampling will start from
+            the given state if provided.
+        tune : bool, optional
+            If True, the parameters of some moves will be automatically tuned.
+        ignore_nan : bool, optional
+            Whether to transform a NaN log probability to a large negative
+            number (-1e300). The default is False.
+
+            .. warning::
+                Setting ``ignore_nan=True`` may fail to spot potential issues
+                with model computation.
+        warmup_kwargs: dict, optional
+            Extra parameters passed to :class:`zeus.EnsembleSampler` for
+            warm-up phase.
+        sampling_kwargs: dict | None = None,
+            Extra parameters passed to :class:`zeus.EnsembleSampler` for
+            sampling phase.
+
+        Returns
+        -------
+        PosteriorResult
+            The posterior sampling result.
+
+        References
+        ----------
+        .. [1] zeus: a PYTHON implementation of ensemble slice sampling
+                for efficient Bayesian parameter inference
+                (https://academic.oup.com/mnras/article/508/3/3589/6381726),
+                Minas Karamanis, Florian Beutler, and John A. Peacock.
+        .. [2] Ensemble slice sampling
+               (https://link.springer.com/article/10.1007/s11222-021-10038-2),
+               Minas Karamanis, Florian Beutler.
+        """
+        init = self._check_init(init)
+        n_parallel = get_parallel_number(n_parallel)
+        sampler = ZeusSampler(
+            numpyro_model=self._helper.numpyro_model,
+            init_params=init,
+            ignore_nan=ignore_nan,
+            seed=self._helper.seed['mcmc'],
+        )
+        samples, states = sampler.run(
+            warmup=warmup,
+            steps=steps,
+            chains=chains,
+            thinning=thinning,
+            n_parallel=n_parallel,
+            tune=tune,
+            progress=progress,
+            states=post_warmup_state,
+            warmup_kwargs=warmup_kwargs,
+            sampling_kwargs=sampling_kwargs,
+        )
+        ess, reff = self._get_ess(samples, n_parallel)
+        return self._generate_results(
+            samples=samples,
+            ess=ess,
+            reff=reff,
+            sampler_state=states,
+            inference_library='zeus-mcmc',
         )
 
     def jaxns(
