@@ -65,6 +65,8 @@ def test_trivial_max_like_fit(simulation, method):
         # Non-JAX backends samplers
         pytest.param('emcee', {}, id='emcee'),
         pytest.param('emcee', {'n_parallel': 1}, id='emcee_1'),
+        pytest.param('zeus', {'steps': 2000}, id='zeus'),
+        pytest.param('zeus', {'steps': 2000, 'n_parallel': 1}, id='zeus_1'),
         # Non-JAX backends nested samplers
         pytest.param('nautilus', {}, id='Nautilus'),
         pytest.param('ultranest', {}, id='UltraNest'),
@@ -81,6 +83,11 @@ def test_trivial_bayes_fit(simulation, method, options):
         model['PowerLaw']['alpha'].default = 0.0
         model['PowerLaw']['K'].default = 10.0
 
+    # check the global random state of numpy is unaffected after the fit
+    np.random.seed(0)
+    test_rand = np.random.rand()
+    np.random.seed(0)
+
     fit_fn = getattr(BayesFit(data, model, seed=100), method)
 
     # Bayesian fit result, i.e. posterior
@@ -88,7 +95,8 @@ def test_trivial_bayes_fit(simulation, method, options):
 
     # test refit with given post_warmup_state
     if result.sampler_state is not None:
-        fit_fn(steps=100, post_warmup_state=result.sampler_state, **options)
+        options['steps'] = 100
+        fit_fn(post_warmup_state=result.sampler_state, **options)
 
     # check convergence
     assert all(i < 1.01 for i in result.rhat.values() if not np.isnan(i))
@@ -97,3 +105,6 @@ def test_trivial_bayes_fit(simulation, method, options):
     ci = result.ci(cl=1).intervals
     assert ci['PowerLaw.K'][0] < 10.0 < ci['PowerLaw.K'][1]
     assert ci['PowerLaw.alpha'][0] < 0.0 < ci['PowerLaw.alpha'][1]
+
+    # check the global random state of numpy is unaffected after the fit
+    assert np.allclose(np.random.rand(), test_rand)
