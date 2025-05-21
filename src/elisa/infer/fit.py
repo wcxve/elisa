@@ -803,7 +803,7 @@ class BayesFit(Fit):
         # TODO: option to let sampler starting from MLE
         if issubclass(kernel, NumpyroEnsembleSampler):
             # set randomize_split to True to improve mixing
-            kernel_kwargs.setdefault('randomize_split', False)
+            kernel_kwargs.setdefault('randomize_split', True)
             init = self._check_init(init)
             init = self._helper.constr_dic_to_unconstr_arr(init)
             n_params = len(init)
