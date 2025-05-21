@@ -46,6 +46,7 @@ dependencies = [
     "tinygp==0.3.0",
     "tqdm>=4.66.0",
     "ultranest==4.4.0",
+    "zeus-mcmc==2.5.4",
 ]
 dynamic = ["version"]
 
