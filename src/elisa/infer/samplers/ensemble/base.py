@@ -236,6 +236,8 @@ class EnsembleSampler(metaclass=ABCMeta):
                 )
                 results.append(r)
             results = [r.get() for r in results]
+            pool.close()
+            pool.join()
 
         listener_thread.join()
 
