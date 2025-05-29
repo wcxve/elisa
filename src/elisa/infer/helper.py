@@ -136,9 +136,9 @@ def check_params(
 def get_helper(fit: Fit) -> Helper:
     """
     Constructs a Helper object encapsulating all utilities and data structures for spectral model fitting, simulation, and parameter handling.
-    
+
     This function extracts model, data, and statistical information from a Fit object, prepares JAX- and NumPyro-compatible functions for parameter transformations, likelihood evaluation, simulation, and optimization, and bundles them into a Helper named tuple. It supports multiple statistics (including "whittle"), background handling, and parallelized fitting and simulation routines.
-    
+
     Returns:
         Helper: An object containing all relevant data, parameter mappings, simulation and fitting functions, and model utilities for spectral analysis workflows.
     """
@@ -238,13 +238,13 @@ def get_helper(fit: Fit) -> Helper:
     ):
         """
         Creates a simulator function for generating synthetic data from a specified distribution.
-        
+
         The returned simulator uses the provided random number generator to sample data from a normal, Poisson, or exponential distribution, parameterized by the given model values and optional distribution arguments.
-        
+
         Args:
             data_dist: The type of distribution to simulate ('norm', 'poisson', or 'exp').
             *dist_args: Additional arguments for the distribution (e.g., standard deviation for 'norm').
-        
+
         Returns:
             A function that simulates data using the specified distribution and model values.
         """
@@ -256,12 +256,12 @@ def get_helper(fit: Fit) -> Helper:
         ):
             """
             Simulates synthetic data from model values using the specified random number generator and distribution.
-            
+
             Args:
                 rng: Random number generator used for sampling.
                 model_values: Expected values from the model to serve as distribution parameters.
                 n: Number of simulated datasets to generate.
-            
+
             Returns:
                 Simulated data array with shape `(n, ...)` if `n > 1`, otherwise matching `model_values`.
             """

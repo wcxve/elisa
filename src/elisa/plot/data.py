@@ -442,7 +442,7 @@ class MLEPlotData(PlotData):
     def pit(self) -> tuple[Array, Array]:
         """
         Computes the probability integral transform (PIT) for the observed data under the fitted model.
-        
+
         Returns:
             A tuple of arrays containing the PIT values for the on-source and, if applicable, off-source measurements, depending on the statistic type. The computation method adapts to the statistic: normal (Gaussian), Poisson, Poisson-Gaussian, Poisson-Poisson, or Whittle.
         """
@@ -581,13 +581,13 @@ class MLEPlotData(PlotData):
     ) -> Array | None:
         """
         Computes Pearson residuals for the specified result type.
-        
+
         Args:
             rtype: Indicates whether to compute residuals for the MLE ('mle') or bootstrap ('boot') result.
-        
+
         Returns:
             An array of Pearson residuals for the source and, if applicable, background data. Returns None if bootstrap results are unavailable.
-        
+
         The computation adapts to the statistic type, including special handling for the "whittle" statistic and for cases with background data.
         """
         if rtype == 'boot' and self.boot is None:
@@ -636,13 +636,13 @@ class MLEPlotData(PlotData):
     ) -> tuple[Array, Array | bool, Array | bool]:
         """
         Computes quantile residuals for the MLE fit using the probability integral transform.
-        
+
         The method calculates quantile residuals based on the current statistic type, handling boundary cases for discrete statistics and optionally introducing randomness for randomized quantile residuals. For statistics with discrete data, special handling ensures residuals are well-defined at the boundaries.
-        
+
         Args:
             seed: Random seed for reproducibility when generating randomized quantile residuals.
             random: If True, uses randomized quantile residuals; otherwise, uses non-randomized.
-        
+
         Returns:
             A tuple containing:
                 - The array of quantile residuals.
@@ -991,10 +991,10 @@ class PosteriorPlotData(PlotData):
     ) -> Array | None:
         """
         Computes Pearson residuals for the specified result type and statistic.
-        
+
         Args:
             rtype: Specifies which result to use ('posterior', 'loo', 'mle', or 'ppc').
-        
+
         Returns:
             An array of Pearson residuals for the chosen result type, or None if not available.
             For statistics involving background, combines source and background residuals.

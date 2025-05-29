@@ -145,7 +145,7 @@ class BetterPoisson(Poisson):
     def log_prob(self, value):
         """
         Computes the modified Poisson log-probability for the given value.
-        
+
         For sparse inputs, only nonzero entries contribute to the log-probability. The result is clipped at a maximum of zero for numerical stability and includes a goodness-of-fit correction term.
         """
         if self._validate_args:
@@ -184,7 +184,7 @@ class BetterExponential(Exponential):
     def log_prob(self, value):
         """
         Computes the log-probability of a value under an exponential distribution with a goodness-of-fit correction.
-        
+
         The returned log-probability is adjusted by subtracting `-log(value) - 1.0` from the standard exponential log-probability.
         """
         gof = -jnp.log(value) - 1.0
@@ -194,7 +194,7 @@ class BetterExponential(Exponential):
 def _get_resp_matrix(data: FixedData) -> JAXArray | BCSR:
     """
     Returns the transposed response matrix from the input data.
-    
+
     If the response matrix is stored in sparse format, returns a BCSR matrix; otherwise, returns a dense JAX array.
     """
     if data.response_sparse:
@@ -415,7 +415,7 @@ def wstat(
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """
     Implements the W-statistic likelihood for data with background, using Poisson models for both source and background counts.
-    
+
     Returns a NumPyro model callable that computes the joint Poisson likelihood for observed and background counts, profiling the background via the W-statistic. The likelihood function supports both observed and predictive modes, and records log-likelihood values as deterministic variables for inference.
     """
     assert data.has_back, 'Data must have background'
@@ -433,9 +433,9 @@ def wstat(
     def likelihood(params: ParamNameValMapping, predictive: bool = False):
         """
         Defines the W-statistic likelihood for Poisson-distributed source and background counts with background profiling.
-        
+
         Evaluates the model at the photon energy grid, applies the response matrix and area scaling, and computes expected source and background counts. The background is profiled using the W-statistic formula. Observed and modeled counts are handled via custom Poisson distributions within a NumPyro plate. Log-likelihoods for both source and background are recorded as deterministic variables when not in predictive mode.
-        
+
         Args:
             params: Model parameter mapping for evaluation.
             predictive: If True, samples from the predictive distribution instead of conditioning on observed data.
@@ -488,7 +488,7 @@ def whittle(
 ) -> Callable[[ParamNameValMapping, bool], None]:
     """
     Returns a likelihood function implementing the Whittle likelihood for power spectrum data.
-    
+
     The returned function models observed periodogram power values as exponentially distributed with mean equal to the model power spectrum evaluated at frequency bins. It records deterministic variables for the normalized model power, raw model power, and log-likelihood values for use in inference.
     """
     name = str(data.name)
@@ -502,7 +502,7 @@ def whittle(
     ) -> None:
         """
         Defines the Whittle likelihood for power spectrum (periodogram) data using NumPyro primitives.
-        
+
         Evaluates the model at frequency bins and computes the likelihood of observed power data under an exponential distribution parameterized by the inverse model power. Records deterministic variables for the normalized model power, raw model power, and log-likelihood values. In predictive mode, samples are drawn without conditioning on observed data.
         """
         pmodel = model(freq_bins, params)
