@@ -24,6 +24,8 @@ def test_mle_result(simulation, mle_result):
 
     plotter = result.plot
 
+    plotter('corner')
+
     # raise ValueError if colors dict not containing all data names
     with pytest.raises(ValueError):
         plotter.set_colors({})
@@ -47,7 +49,6 @@ def test_mle_result(simulation, mle_result):
     plotter('rp')
     plotter('rq')
 
-    plotter('corner')
     plotter.plot_pit(detrend=False)
     plotter.plot_qq('rd')
     plotter.plot_qq('rd', detrend=False)
@@ -249,6 +250,9 @@ def test_posterior_result(simulation, posterior_result):
 
     plotter = result.plot
 
+    plotter('corner')
+    plotter('trace')
+
     # raise ValueError if colors dict not containing all data names
     with pytest.raises(ValueError):
         plotter.set_colors({})
@@ -272,7 +276,6 @@ def test_posterior_result(simulation, posterior_result):
     plotter('rp')
     plotter('rq')
 
-    plotter('corner')
     plotter.plot_pit(detrend=False)
     plotter.plot_qq('rd')
     plotter.plot_qq('rd', detrend=False)

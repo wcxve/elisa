@@ -353,8 +353,8 @@ def get_helper(fit: Fit) -> Helper:
         # TODO:
         #  figure out how to handle reparam transformation, so we can
         #       * give initial parameter value in the original space and
-        #         transformed to repameterized space,
-        #       * find the classic confidence interval in the repameterized
+        #         transformed to reparameterized space,
+        #       * find the classic confidence interval in the reparameterized
         #         space and then transform back to the original space.
         #  This is not trivial because transformation is not always bijective!
         #  The trick to handle confidence interval of composite parameter may

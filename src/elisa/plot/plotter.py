@@ -158,44 +158,36 @@ def _get_pit_ecdf(
 
     # See ref [1] for the following
     scaled_rank = np.linspace(0.0, 1.0, n + 1)
-    # Since binomial is discrete, we need to have lower and upper bounds with
-    # a confidence/credible level >= cl to ensure the nominal coverage,
-    # that is, we require that (cdf <= 0.5 - 0.5 * cl) for lower bound
-    # and (0.5 + 0.5 * cl <= cdf) for upper bound
-    lower_q = 0.5 - cl * 0.5
-    lower = stats.binom.ppf(lower_q, n, scaled_rank)
-    mask = stats.binom.cdf(lower, n, scaled_rank) > lower_q
-    lower[mask] -= 1.0
-    lower = np.clip(lower / n, 0.0, 1.0)
-
-    upper_q = 0.5 + cl * 0.5
-    upper = stats.binom.ppf(upper_q, n, scaled_rank)
-    mask = stats.binom.cdf(upper, n, scaled_rank) < upper_q
-    upper[mask] += 1.0
-    upper = np.clip(upper / n, 0.0, 1.0)
-
-    line = scaled_rank
     pit_ecdf = np.count_nonzero(pit <= scaled_rank[:, None], axis=1) / n
+    lower, upper = stats.binom.interval(cl, n, scaled_rank)
+    lower = lower / n
+    upper = upper / n
 
     if detrend:
-        lower -= line
-        upper -= line
-        pit_ecdf -= line
-        line = np.zeros_like(line)
+        line = np.zeros_like(scaled_rank)
+        lower -= scaled_rank
+        upper -= scaled_rank
+        pit_ecdf -= scaled_rank
+    else:
+        line = scaled_rank
 
     return scaled_rank, pit_ecdf, line, lower, upper
 
     # x = np.hstack([0.0, np.sort(pit), 1.0])
     # pit_ecdf = np.hstack([0.0, np.arange(n) / n, 1.0])
-    # line = scaled_rank
+    # lower, upper = stats.binom.interval(cl, n, x)
+    # lower = lower / n
+    # upper = upper / n
     #
     # if detrend:
     #     pit_ecdf -= x
-    #     lower -= scaled_rank
-    #     upper -= scaled_rank
-    #     line = np.zeros_like(scaled_rank)
+    #     lower -= x
+    #     upper -= x
+    #     line = np.zeros_like(x)
+    # else:
+    #     line = x
     #
-    # return x, pit_ecdf, scaled_rank, line, lower, upper
+    # return x, pit_ecdf, line, lower, upper
 
 
 # def _get_pit_pdf(pit_intervals: NumPyArray) -> NumPyArray:
@@ -1082,7 +1074,10 @@ class Plotter(ABC):
         gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
         gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
         ax1 = fig.add_subplot(gs1[0, 0])
-        ax2 = gs2.subplots(squeeze=False).ravel()[: len(self.data)]
+        ax2 = gs2.subplots(squeeze=False).ravel()
+        if n_subplots % 2:
+            ax2[-1].set_visible(False)
+        ax2 = ax2[: len(self.data)]
         ax1.set_xlabel('Normal Theoretical Quantiles')
         ax1.set_ylabel('Residuals')
 
@@ -1112,8 +1107,6 @@ class Plotter(ABC):
                 va='top',
                 color=color,
             )
-        if n_subplots % 2:
-            ax2[-1].set_visible(False)
 
         return fig
 
@@ -1147,9 +1140,12 @@ class Plotter(ABC):
         gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
         gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
         ax1 = fig.add_subplot(gs1[0, 0])
-        ax2 = gs2.subplots(squeeze=False).ravel()[: len(self.data)]
-        ax1.set_xlabel('Scaled Rank')
-        ax1.set_ylabel('PIT ECDF')
+        ax2 = gs2.subplots(squeeze=False).ravel()
+        if n_subplots % 2:
+            ax2[-1].set_visible(False)
+        ax2 = ax2[: len(self.data)]
+        ax1.set_xlabel('PIT Value')
+        ax1.set_ylabel('ECDF')
 
         alpha = config.alpha
         ha = 'right' if detrend else 'left'
@@ -1173,8 +1169,6 @@ class Plotter(ABC):
                 va='top',
                 color=color,
             )
-        if n_subplots % 2:
-            ax2[-1].set_visible(False)
 
         return fig
 
@@ -1223,7 +1217,10 @@ class Plotter(ABC):
         gs1 = fig.add_gridspec(1, 2, width_ratios=[4, ncols * 2.25])
         gs2 = gs1[0, 1].subgridspec(2, ncols, wspace=0.35)
         ax1 = fig.add_subplot(gs1[0, 0])
-        ax2 = gs2.subplots(squeeze=False).ravel()[: len(self.data)]
+        ax2 = gs2.subplots(squeeze=False).ravel()
+        if n_subplots % 2:
+            ax2[-1].set_visible(False)
+        ax2 = ax2[: len(self.data)]
         ax1.set_xlabel('$D$')
         ax1.set_ylabel(r'$P(\mathcal{D} \geq D)$')
 
@@ -1250,8 +1247,6 @@ class Plotter(ABC):
                 color=color,
             )
             ax.set_yscale('log')
-        if n_subplots % 2:
-            ax2[-1].set_visible(False)
 
         return fig
 
