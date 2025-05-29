@@ -440,6 +440,12 @@ class MLEPlotData(PlotData):
 
     @_to_cached_method
     def pit(self) -> tuple[Array, Array]:
+        """
+        Computes the probability integral transform (PIT) for the observed data under the fitted model.
+        
+        Returns:
+            A tuple of arrays containing the PIT values for the on-source and, if applicable, off-source measurements, depending on the statistic type. The computation method adapts to the statistic: normal (Gaussian), Poisson, Poisson-Gaussian, Poisson-Poisson, or Whittle.
+        """
         stat = self.statistic
 
         if stat in _STATISTIC_SPEC_NORMAL:
@@ -573,6 +579,17 @@ class MLEPlotData(PlotData):
     def _pearson_residuals(
         self, rtype: Literal['mle', 'boot']
     ) -> Array | None:
+        """
+        Computes Pearson residuals for the specified result type.
+        
+        Args:
+            rtype: Indicates whether to compute residuals for the MLE ('mle') or bootstrap ('boot') result.
+        
+        Returns:
+            An array of Pearson residuals for the source and, if applicable, background data. Returns None if bootstrap results are unavailable.
+        
+        The computation adapts to the statistic type, including special handling for the "whittle" statistic and for cases with background data.
+        """
         if rtype == 'boot' and self.boot is None:
             return None
 
@@ -617,6 +634,21 @@ class MLEPlotData(PlotData):
     def quantile_residuals_mle(
         self, seed: int, random: bool
     ) -> tuple[Array, Array | bool, Array | bool]:
+        """
+        Computes quantile residuals for the MLE fit using the probability integral transform.
+        
+        The method calculates quantile residuals based on the current statistic type, handling boundary cases for discrete statistics and optionally introducing randomness for randomized quantile residuals. For statistics with discrete data, special handling ensures residuals are well-defined at the boundaries.
+        
+        Args:
+            seed: Random seed for reproducibility when generating randomized quantile residuals.
+            random: If True, uses randomized quantile residuals; otherwise, uses non-randomized.
+        
+        Returns:
+            A tuple containing:
+                - The array of quantile residuals.
+                - A boolean array or False indicating which residuals are at the lower boundary.
+                - A boolean array or False indicating which residuals are at the upper boundary.
+        """
         pit_minus, pit = self.pit()
 
         if random:
@@ -957,6 +989,17 @@ class PosteriorPlotData(PlotData):
     def _pearson_residuals(
         self, rtype: Literal['posterior', 'loo', 'mle', 'ppc']
     ) -> Array | None:
+        """
+        Computes Pearson residuals for the specified result type and statistic.
+        
+        Args:
+            rtype: Specifies which result to use ('posterior', 'loo', 'mle', or 'ppc').
+        
+        Returns:
+            An array of Pearson residuals for the chosen result type, or None if not available.
+            For statistics involving background, combines source and background residuals.
+            For the "whittle" statistic, uses the square root of the model prediction as the standard deviation.
+        """
         if rtype in ['mle', 'ppc'] and self.ppc is None:
             return None
 

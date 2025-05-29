@@ -299,7 +299,14 @@ class Fit(ABC):
         model: Model | Sequence[Model],
         stat: Statistic | Sequence[Statistic] | None,
     ) -> tuple[list[FixedData], list[Model], list[Statistic]]:
-        """Check if data, model, and stat are correct and return lists."""
+        """
+        Validates and normalizes input data, model, and statistic arguments for fitting.
+        
+        Ensures that data, model, and statistic inputs are compatible, converts them to lists, and checks for consistency in types, uniqueness, and valid combinations. Raises descriptive errors for mismatches, duplicate data, or invalid statistic choices for the given data. Returns lists of fixed data, models, and statistics ready for use in fitting routines.
+        
+        Returns:
+            A tuple containing lists of fixed data, models, and statistics, each aligned by dataset.
+        """
 
         # ====================== some helper functions ========================
         def get_list(
@@ -332,7 +339,13 @@ class Fit(ABC):
                 return 'chi2'
 
         def check_stat(d: FixedData, s: Statistic):
-            """Check if data type and likelihood are matched."""
+            """
+            Validates that the chosen likelihood statistic is compatible with the data type.
+            
+            Raises:
+                ValueError: If the likelihood statistic is not appropriate for the data's
+                    uncertainty type, background presence, or background uncertainty.
+            """
             name = d.name
 
             if s == 'whittle':
