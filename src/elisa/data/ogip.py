@@ -547,8 +547,8 @@ class Response(ResponseData):
 
     def _read_response(self, file: str, response_id: int) -> dict:
         respfile = self.respfile
-        with fits.open(file) as response_hdu:
-            if 'MATRIX' in response_hdu:
+        with fits.open(file) as response_hdul:
+            if 'MATRIX' in response_hdul:
                 if self.ancrfile is None:
                     warnings.warn(
                         f'{file} is probably a rmf, '
@@ -558,18 +558,24 @@ class Response(ResponseData):
 
                 ext = ('MATRIX', response_id)
 
-            elif 'SPECRESP MATRIX' in response_hdu:
+            elif 'SPECRESP MATRIX' in response_hdul:
                 ext = ('SPECRESP MATRIX', response_id)
 
             else:
-                raise ValueError(
-                    f'cannot read response matrix data from {respfile}'
-                )
+                # try to find the first extension with MATRIX data
+                for hdu in response_hdul:
+                    if hdu.data is not None and 'MATRIX' in hdu.data.names:
+                        ext = (hdu.name, response_id)
+                        break
+                else:
+                    raise ValueError(
+                        f'cannot read response matrix data from {respfile}'
+                    )
 
-            ebounds_header = response_hdu['EBOUNDS'].header
-            ebounds_data = response_hdu['EBOUNDS'].data
-            response_header = response_hdu[ext].header
-            response_data = response_hdu[ext].data
+            ebounds_header = response_hdul['EBOUNDS'].header
+            ebounds_data = response_hdul['EBOUNDS'].data
+            response_header = response_hdul[ext].header
+            response_data = response_hdul[ext].data
 
         channel_type = ebounds_header.get(
             'CHANTYPE', response_header.get('CHANTYPE', 'PI')
