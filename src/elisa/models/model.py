@@ -587,7 +587,7 @@ class CompiledModel:
         Returns
         -------
         jax.Array, or dict[str, jax.Array]
-            The folded model in units of count s⁻¹ keV⁻¹.
+            The folded model in units of counts s⁻¹ keV⁻¹.
         """
         if self.type != 'add':
             msg = f'C(E) is undefined for {self.type} type model "{self}"'
