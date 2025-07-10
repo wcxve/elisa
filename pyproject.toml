@@ -20,7 +20,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "arviz==0.21.0",
+    "arviz==0.22.0",
     "astropy>=5.3,<=6.1.7; python_version < '3.11'",
     "astropy>=5.3,<=7.0.1; python_version >= '3.11'",
     "beautifulsoup4==4.13.4",
