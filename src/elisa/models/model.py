@@ -2154,8 +2154,15 @@ def get_model_info(
     latex_mapping = dict(zip(aux_params.keys(), aux_latex, strict=True))
 
     # record the LaTeX format of component parameters from _config
+    # latex_mapping |= {
+    #     comp[name]._id: comp._config[i].latex
+    #     for comp in comps
+    #     for (i, name) in enumerate(comp.param_names)
+    # }
+
+    # record the LaTeX format of component parameters
     latex_mapping |= {
-        comp[name]._id: comp._config[i].latex
+        comp[name]._id: params_info[comp[name]._id].latex
         for comp in comps
         for (i, name) in enumerate(comp.param_names)
     }
