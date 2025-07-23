@@ -1446,6 +1446,8 @@ def _param_setter(name: str, idx: int) -> Callable[[Component, Any], None]:
         elif isinstance(param, Parameter):
             # given parameter instance
             param = param
+            # set the latex format as specified in model config
+            param.latex = cfg.latex
 
         elif isinstance(param, Mapping):
             # given mapping
@@ -1453,8 +1455,8 @@ def _param_setter(name: str, idx: int) -> Callable[[Component, Any], None]:
             if not {'default', 'min', 'max'}.issubset(param.keys()):
                 raise ValueError(
                     f'{type(self).__name__}.{cfg.name} expected dict with keys'
-                    f' "default", "min", "max", and optional "log", but got '
-                    f'{param}'
+                    f' "default", "min", "max", with optional "log" and'
+                    f' "fixed", but got {param}'
                 )
 
             param = UniformParameter(
@@ -1464,7 +1466,7 @@ def _param_setter(name: str, idx: int) -> Callable[[Component, Any], None]:
                 max=param['max'],
                 log=param.get('log', False),
                 fixed=param.get('fixed', False),
-                latex=param.get('latex', cfg.latex),
+                latex=cfg.latex,
             )
 
         elif isinstance(param, Sequence):

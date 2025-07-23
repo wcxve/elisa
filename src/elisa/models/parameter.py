@@ -155,10 +155,20 @@ class Parameter(ABC):
         r""":math:`\LaTeX` format of the parameter."""
         pass
 
+    @latex.setter
+    @abstractmethod
+    def latex(self, value):
+        pass
+
     @property
     @abstractmethod
     def default(self) -> JAXFloat:
         """Default value of the parameter."""
+        pass
+
+    @default.setter
+    @abstractmethod
+    def default(self, value):
         pass
 
     @property
@@ -167,10 +177,20 @@ class Parameter(ABC):
         """Whether the parameter is parameterized in a logarithmic scale."""
         pass
 
+    @log.setter
+    @abstractmethod
+    def log(self, value):
+        pass
+
     @property
     @abstractmethod
     def fixed(self) -> bool:
         """Whether the parameter is fixed."""
+        pass
+
+    @fixed.setter
+    @abstractmethod
+    def fixed(self, value):
         pass
 
     @property
