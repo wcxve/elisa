@@ -162,9 +162,9 @@ def add_suffix(
         else:
             template = LATEX_SUPERSCRIPT_TEMPLATE
         if mathrm:
-            suffix = [r'\mathrm{' + i + '}' for i in suffix]
+            suffix = [r'\mathrm{' + i + '}' if i else '' for i in suffix]
         else:
-            suffix = ['{' + i + '}' for i in suffix]
+            suffix = ['{' + i + '}' if i else '' for i in suffix]
         strings = ['{' + i + '}' for i in strings]
     elif unicode:
         template = '%s'

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from astropy.io import fits
+from astropy.units import Unit
 from scipy.sparse import coo_array
 
 from elisa.data.base import ObservationData, ResponseData, SpectrumData
@@ -546,8 +547,8 @@ class Response(ResponseData):
 
     def _read_response(self, file: str, response_id: int) -> dict:
         respfile = self.respfile
-        with fits.open(file) as response_hdu:
-            if 'MATRIX' in response_hdu:
+        with fits.open(file) as response_hdul:
+            if 'MATRIX' in response_hdul:
                 if self.ancrfile is None:
                     warnings.warn(
                         f'{file} is probably a rmf, '
@@ -557,25 +558,42 @@ class Response(ResponseData):
 
                 ext = ('MATRIX', response_id)
 
-            elif 'SPECRESP MATRIX' in response_hdu:
+            elif 'SPECRESP MATRIX' in response_hdul:
                 ext = ('SPECRESP MATRIX', response_id)
 
             else:
-                raise ValueError(
-                    f'cannot read response matrix data from {respfile}'
-                )
+                # try to find the first extension with MATRIX data
+                for hdu in response_hdul:
+                    if hdu.data is not None and 'MATRIX' in hdu.data.names:
+                        ext = (hdu.name, response_id)
+                        break
+                else:
+                    raise ValueError(
+                        f'cannot read response matrix data from {respfile}'
+                    )
 
-            ebounds_data = response_hdu['EBOUNDS'].data
-            response_header = response_hdu[ext].header
-            response_data = response_hdu[ext].data
+            ebounds_header = response_hdul['EBOUNDS'].header
+            ebounds_data = response_hdul['EBOUNDS'].data
+            response_header = response_hdul[ext].header
+            response_data = response_hdul[ext].data
 
-        channel_type = response_header.get('CHANTYPE', 'Ch')
+        channel_type = ebounds_header.get(
+            'CHANTYPE', response_header.get('CHANTYPE', 'PI')
+        )
 
-        channel_emin = ebounds_data['E_MIN']
-        channel_emax = ebounds_data['E_MAX']
+        emin_idx = ebounds_data.names.index('E_MIN') + 1
+        emax_idx = ebounds_data.names.index('E_MAX') + 1
+        emin_unit = ebounds_header.get(f'TUNIT{emin_idx}', 'keV')
+        emax_unit = ebounds_header.get(f'TUNIT{emax_idx}', 'keV')
+        channel_emin = ebounds_data['E_MIN'] * Unit(emin_unit).to('keV')
+        channel_emax = ebounds_data['E_MAX'] * Unit(emax_unit).to('keV')
 
-        photon_emin = response_data['ENERG_LO']
-        photon_emax = response_data['ENERG_HI']
+        elo_idx = response_data.names.index('ENERG_LO') + 1
+        ehi_idx = response_data.names.index('ENERG_HI') + 1
+        elo_unit = response_header.get(f'TUNIT{elo_idx}', 'keV')
+        ehi_unit = response_header.get(f'TUNIT{ehi_idx}', 'keV')
+        photon_emin = response_data['ENERG_LO'] * Unit(elo_unit).to('keV')
+        photon_emax = response_data['ENERG_HI'] * Unit(ehi_unit).to('keV')
         photon_egrid = np.append(photon_emin, photon_emax[-1])
         photon_egrid = np.asarray(photon_egrid, dtype=np.float64, order='C')
 

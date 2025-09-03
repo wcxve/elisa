@@ -225,7 +225,7 @@ class PlotConfig:
     """Plotting configuration."""
 
     _YLABLES = {
-        'ce': r'$C_E\ \mathrm{[count\ s^{-1}\ keV^{-1}]}$',
+        'ce': r'$C_E\ \mathrm{[counts\ s^{-1}\ keV^{-1}]}$',
         'ne': r'$N_E\ \mathrm{[ph\ cm^{-2}\ s^{-1}\ keV^{-1}]}$',
         'ene': r'$E N_E\ \mathrm{[erg\ cm^{-2}\ s^{-1}\ keV^{-1}]}$',
         'Fv': r'$F_{\nu}\ \mathrm{[erg\ cm^{-2}\ s^{-1}\ keV^{-1}]}$',

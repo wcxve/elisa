@@ -98,8 +98,8 @@ nb_ipywidgets_js = {
         'crossorigin': 'anonymous',
     },
 }
-nb_execution_mode = 'off'
-nb_execution_timeout = -1
+nb_execution_mode = 'auto'
+nb_execution_timeout = 600
 
 numpydoc_attributes_as_param_list = False
 numpydoc_class_members_toctree = False
@@ -125,3 +125,22 @@ pygments_style = 'sphinx'
 typehints_document_rtype = False
 typehints_use_signature = True
 typehints_use_signature_return = True
+
+
+# This function is used to fix XSPEC model API docs build, adapted from
+# https://github.com/wjakob/nanobind/discussions/707#discussioncomment-13540168
+def setup(app):
+    from sphinx.util import inspect as sphinx_inspect
+
+    sphinx_isfunction = sphinx_inspect.isfunction
+
+    # Sphinx inspects all objects in the module and tries to resolve their type
+    # (attribute, function, class, module, etc.) by using its own functions in
+    # `sphinx.util.inspect`. These functions misidentify certain nanobind
+    # objects. We monkey patch those functions here.
+    def mpatch_isfunction(object):
+        if hasattr(object, '__name__') and type(object).__name__ == 'nb_func':
+            return True
+        return sphinx_isfunction(object)
+
+    sphinx_inspect.isfunction = mpatch_isfunction

@@ -1,16 +1,15 @@
-"""Xspec model library API."""
+"""XSPEC model library API."""
 
 from __future__ import annotations
 
-import os
+import keyword
 import warnings
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 import jax
 import jax.numpy as jnp
 import numpy as np
-from bs4 import BeautifulSoup
 
 from elisa.models.model import (
     Component,
@@ -22,62 +21,49 @@ from elisa.models.model import (
 from elisa.util.misc import define_fdjvp
 
 try:
+    import xspex as _xx
     from xspex import (
-        ModelType as _XspecModelType,
-        abundance,
+        abund,
+        abund_file,
         chatter,
-        clear_db,
-        clear_model_string,
+        clear_mstr,
         clear_xflt,
-        cosmology,
-        cross_section,
-        element_abundance,
-        element_name,
-        get_db,
-        get_model_string,
-        get_number_xflt,
-        get_xflt,
-        in_xflt,
-        number_elements,
-        set_db,
-        set_model_string,
-        set_xflt,
-        version,
+        cosmo,
+        list_models,
+        mstr,
+        xflt,
+        xsect,
+        xspec_version,
     )
-    from xspex.primitive import XSModel as _XSMODEL
+    from xspex._xspec.types import (
+        XspecModelType as _XspecModelType,
+    )
 
     __all__ = [
-        'abundance',
-        'chatter',
-        'clear_db',
-        'clear_model_string',
+        'xspec_version',
+        'list_models',
+        'abund',
+        'abund_file',
+        'xsect',
+        'cosmo',
+        'mstr',
+        'clear_mstr',
+        'xflt',
         'clear_xflt',
-        'cosmology',
-        'cross_section',
-        'element_abundance',
-        'element_name',
-        'get_db',
-        'get_model_string',
-        'get_number_xflt',
-        'get_xflt',
-        'in_xflt',
-        'number_elements',
-        'set_db',
-        'set_model_string',
-        'set_xflt',
-        'version',
+        'chatter',
+        *_xx.list_models(),
     ]
     _HAS_XSPEC = True
 except ImportError as e:
     __all__ = []
-    _XSMODEL = {}
     _HAS_XSPEC = False
-    warnings.warn(f'Xspec model library is not available: {e}', ImportWarning)
+    warnings.warn(f'XSPEC model library is not available: {e}', ImportWarning)
 
 if TYPE_CHECKING:
-    from xspex import (
-        XspecModel as XspecModelInfo,
-        XspecParameter as XspecParameterInfo,
+    from typing import Literal
+
+    from xspex._xspec.types import (
+        XspecParam as XspecParamInfo,
     )
 
     from elisa.models.model import Model, UniComponentModel
@@ -136,7 +122,7 @@ class XspecComponent(Component, metaclass=XspecComponentMeta):
     @grad_method.setter
     def grad_method(self, value: Literal['central', 'forward'] | None):
         if value is None:
-            value: Literal['central'] = 'central'
+            value = 'central'
 
         if value not in {'central', 'forward'}:
             raise ValueError(
@@ -164,7 +150,7 @@ class XspecAdditive(XspecComponent):
         _integral = jax.jit(define_fdjvp(self._integral, self.grad_method))
 
         def integral(egrid, params):
-            return params['norm'] * _integral(egrid, params)
+            return params.pop('norm') * _integral(egrid, params)
 
         self._eval = jax.jit(integral)
 
@@ -172,7 +158,7 @@ class XspecAdditive(XspecComponent):
 
     @property
     @abstractmethod
-    def _integral(self):
+    def _integral(self) -> CompEval:
         pass
 
 
@@ -191,7 +177,7 @@ class XspecMultiplicative(XspecComponent):
 
     @property
     @abstractmethod
-    def _integral(self):
+    def _integral(self) -> CompEval:
         pass
 
 
@@ -341,8 +327,8 @@ class XspecConvolution(XspecComponent):
         pass
 
 
-_TEMPLATE_ADD = '''
-class XS{name}(XspecAdditive):
+_XSPEC_MODEL_TEMPLATE_ADD = '''
+class {name}(XspecAdditive):
     """Xspec additive model `{name} <{link}>`_: {desc}."""
 
     _config = (
@@ -365,8 +351,8 @@ class XS{name}(XspecAdditive):
         return integral
 '''
 
-_TEMPLATE_MUL = '''
-class XS{name}(XspecMultiplicative):
+_XSPEC_MODEL_TEMPLATE_MUL = '''
+class {name}(XspecMultiplicative):
     """Xspec multiplicative model `{name} <{link}>`_: {desc}."""
 
     _config = (
@@ -389,8 +375,8 @@ class XS{name}(XspecMultiplicative):
         return integral
 '''
 
-_TEMPLATE_CON = '''
-class XS{name}(XspecConvolution):
+_XSPEC_MODEL_TEMPLATE_CON = '''
+class {name}(XspecConvolution):
     """Xspec convolution model `{name} <{link}>`_: {desc}."""
 
     _supported = frozenset(['{supported}'])
@@ -414,21 +400,18 @@ class XS{name}(XspecConvolution):
         return convolve
 '''
 
-_PARAM_CONFIG_TEMPLATE = (
+_XSPEC_MODEL_PARAM_CONFIG_TEMPLATE = (
     r'ParamConfig(name="{name}", latex=r"\mathrm{{{name}}}", unit="{unit}", '
     'default={default}, min={min}, max={max}, fixed={fixed})'
 )
 
 
-def generate_xspec_models():
+def _generate_xspec_models():
     """Generate Xspec model classes."""
     models = {}
 
     if not _HAS_XSPEC:
         return models
-
-    # Models' short description and URL link to official manual
-    model_desc_link = xspec_model_desc_and_link()
 
     # Convolution models that should be applied for multiplicative models
     conv_for_mul = ('partcov', 'vmshift', 'zmshift')
@@ -443,7 +426,7 @@ def generate_xspec_models():
     }
 
     # For additive models
-    norm_config = _PARAM_CONFIG_TEMPLATE.format(
+    norm_config = _XSPEC_MODEL_PARAM_CONFIG_TEMPLATE.format(
         name='norm',
         latex=r'\mathrm{{norm}}',
         unit='',
@@ -453,17 +436,20 @@ def generate_xspec_models():
         fixed=False,
     )
 
-    def gen_param_config(param_info: XspecParameterInfo) -> str:
+    def gen_param_config(param_info: XspecParamInfo) -> str:
         """Generate parameter configuration string given parameter info."""
         name = param_info.name
         default = param_info.default
-        unit = param_info.units or ''
-        pmin = param_info.hardmin
-        pmax = param_info.hardmax
+        unit = param_info.unit or ''
+        pmin = param_info.min
+        pmax = param_info.max
 
-        # avoid conflict to del in Python
-        if name == 'del':
-            name = 'delta'
+        # smaug model's params names have dots
+        name = name.replace('.', '_')
+
+        # avoid keyword conflict
+        if keyword.iskeyword(name):
+            name = f'{name}_'
 
         # min and max is None for switch and scale type parameters
         if pmin is None:
@@ -471,95 +457,45 @@ def generate_xspec_models():
         if pmax is None:
             pmax = 1e10
 
-        return _PARAM_CONFIG_TEMPLATE.format(
+        return _XSPEC_MODEL_PARAM_CONFIG_TEMPLATE.format(
             name=name,
             unit=unit,
             default=default,
             min=pmin,
             max=pmax,
-            fixed=param_info.frozen,
+            fixed=param_info.fixed,
         )
 
-    def make_xspec_model(model_info: XspecModelInfo) -> XspecComponentMeta:
+    def make_xspec_model(name: str):
         """Make Xspec model class."""
-        name = model_info.name
+        fn, model_info = _xx.get_model(name)
         vars_map = {
             'name': name,
-            'desc': model_desc_link[name]['desc'],
-            'link': model_desc_link[name]['link'],
+            'desc': model_info.desc,
+            'link': model_info.link,
         }
         params_config = list(map(gen_param_config, model_info.parameters))
-        model_type = model_info.modeltype
+        model_type = model_info.type
         if model_type == _XspecModelType.Add:
             params_config.append(norm_config)
-            template = _TEMPLATE_ADD
+            template = _XSPEC_MODEL_TEMPLATE_ADD
         elif model_type == _XspecModelType.Mul:
-            template = _TEMPLATE_MUL
+            template = _XSPEC_MODEL_TEMPLATE_MUL
         elif model_type == _XspecModelType.Con:
             vars_map['supported'] = 'mul' if name in conv_for_mul else 'add'
-            template = _TEMPLATE_CON
+            template = _XSPEC_MODEL_TEMPLATE_CON
         else:
             raise ValueError(f'Unsupported model type: {model_type.name}')
         vars_map['params_config'] = ',\n        '.join(params_config)
         model_code = template.format_map(vars_map)
-        primitive = _XSMODEL['primitive'][name]
-        exec(model_code, env | {name: primitive}, models)
+        exec(model_code, env | {name: fn}, models)
 
-    list(map(make_xspec_model, _XSMODEL['add'].values()))
-    list(map(make_xspec_model, _XSMODEL['mul'].values()))
-    list(map(make_xspec_model, _XSMODEL['con'].values()))
+    list(map(make_xspec_model, _xx.list_models()))
+
+    for m in models.values():
+        m.__module__ = __name__
 
     return models
 
 
-def xspec_model_desc_and_link():
-    HEADAS = os.environ.get('HEADAS', '')
-    model_info = {}
-
-    if not HEADAS:
-        return model_info
-
-    spectral_path = os.path.abspath(f'{HEADAS}/../spectral')
-    if not os.path.exists(spectral_path):
-        spectral_path = os.path.abspath(f'{HEADAS}/spectral')
-        if not os.path.exists(spectral_path):
-            spectral_path = ''
-
-    if not spectral_path:
-        return model_info
-
-    url = 'https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/XSmodel{}.html'
-    html_path = f'{spectral_path}/help/html'
-    for mtype in ['Additive', 'Multiplicative', 'Convolution']:
-        with open(f'{html_path}/{mtype}.html', encoding='utf-8') as f:
-            s = BeautifulSoup(f.read(), 'html.parser')
-
-        for a in s.find_all('ul', class_='ChildLinks')[0].find_all('a'):
-            text = a.text
-
-            # there is no ':' in agnslim model desc
-            if mtype == 'Additive' and text.startswith('agnslim, AGN'):
-                text = text.replace('agnslim, AGN', 'agnslim: AGN')
-
-            models, desc = text.split(':')
-            models = [m.strip() for m in models.split(',')]
-            desc = desc.strip()
-            link = url.format(models[0].title())
-            for m in models:
-                model_info[m.lower()] = {'desc': desc, 'link': link}
-
-    # There are some typos in the model name
-    if 'bvvcie' not in model_info and 'bbvcie' in model_info:
-        model_info['bvvcie'] = model_info.pop('bbvcie')
-    if 'bvwdem' not in model_info and 'bwwdem' in model_info:
-        model_info['bvwdem'] = model_info.pop('bwwdem')
-
-    return model_info
-
-
-_xs_comps = generate_xspec_models()
-for c in _xs_comps.values():
-    c.__module__ = __name__
-locals().update(_xs_comps)
-__all__.extend(_xs_comps.keys())
-del _xs_comps
+locals().update(_generate_xspec_models())

@@ -192,7 +192,7 @@ def get_helper(fit: Fit) -> Helper:
             for i in data
         }
 
-        # net spectrum [count s^-1 keV^-1]
+        # net spectrum [counts s^-1 keV^-1]
         counts_data |= {i: net_counts[i] * spec_unit[i] for i in data.keys()}
 
         # stack net spectrum of all channels of all datasets
