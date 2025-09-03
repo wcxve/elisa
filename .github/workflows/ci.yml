@@ -104,7 +104,7 @@ jobs:
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }}
 
-          uv pip install "$(ls dist/*.tar.gz)[${extra},test]" \
+          uv pip install "$(ls dist/astro-elisa-*.tar.gz)[${extra},test]" \
             --overrides requirements.txt \
             --verbose
 
