@@ -30,17 +30,19 @@ environment as follows:
     ```
 
 
-## Use ``Xspec`` Models
-   If you want to use models from [Xspec](https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/Models.html),
-   make sure ``HEASoft`` and ``Xspec v12.12.1+`` are installed on your system, and the
-   ``HEASoft`` environment is initialized, then use the following command to
-   install [``xspex``](https://github.com/wcxve/xspex):
+## Use ``XSPEC`` Models
+
+If you want to use models
+from [XSPEC](https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/Models.html),
+make sure ``HEASoft`` and ``XSPEC v12.12.1+`` are installed on your system,
+and the ``HEASoft`` environment is initialized, then use the following
+command to install [``xspex``](https://github.com/wcxve/xspex):
 
    ```console
    pip install xspex
    ```
 
-   For more details, see [API docs](https://astro-elisa.readthedocs.io/en/latest/apidoc/elisa.models.xspec.html) for ``Xspec``.
+For more details, see the corresponding [API docs](https://astro-elisa.readthedocs.io/en/stable/apidoc/elisa.models.xs.html).
 
 
 ## Development Version
