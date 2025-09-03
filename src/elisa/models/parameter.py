@@ -902,6 +902,7 @@ class CompositeParameter(Parameter):
         self._op_latex = self._op_name if op_latex is None else str(op_latex)
         self._op_symbol = op_symbol
         self._params = tuple(params)
+        self._latex_custom = None
 
         for p in self._params:
             if isinstance(p, ConstantInterval) or (
@@ -1035,10 +1036,19 @@ class CompositeParameter(Parameter):
 
     @property
     def latex(self) -> str:
+        if self._latex_custom is not None:
+            return self._latex_custom
         nodes_latex = [p.latex for p in self._nodes]
         latex = build_namespace(nodes_latex, True, True)['namespace']
         pid_to_latex = dict(zip(self._nodes_id, latex, strict=True))
         return self._id_to_label(pid_to_latex, 'latex')
+
+    @latex.setter
+    def latex(self, value: str | None):
+        if value is None:
+            self._latex_custom = None
+        else:
+            self._latex_custom = str(value)
 
     @property
     def default(self) -> JAXFloat:

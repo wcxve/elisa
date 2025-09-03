@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any, Literal
 
-    from astropy.cosmology.flrw.lambdacdm import LambdaCDM
+    from astropy.cosmology import LambdaCDM
     from numpyro.distributions import Distribution
 
     from elisa.models.parameter import ParamInfo
@@ -58,7 +58,6 @@ class Model(ABC):
     """Base model class."""
 
     _comps: tuple[Component, ...]
-    _additive_comps: tuple[Model, ...]
     __initialized: bool = False
 
     def __init__(
@@ -103,7 +102,7 @@ class Model(ABC):
             The compiled model.
         """
         if self.type == 'conv':
-            raise RuntimeError('cannot compile convolution model')
+            raise RuntimeError(f'cannot compile convolution model {self.name}')
 
         if model_info is None:
             model_info = get_model_info(
@@ -168,7 +167,7 @@ class Model(ABC):
 
     @property
     @abstractmethod
-    def type(self) -> Literal['add', 'mul']:
+    def type(self) -> Literal['add', 'mul', 'conv']:
         """Model type."""
         pass
 
@@ -254,7 +253,8 @@ class Model(ABC):
             self._comps, self._cid_to_cname, self._cid_to_clatex
         ).info
         tab_params = make_pretty_table(fields, info)
-        return f'Model: {self.name} [{self.type}]\n{tab_params.get_string()}'
+        mtype = get_mtype_str(self)
+        return f'{mtype} Model: {self.name}\n{tab_params.get_string()}'
 
     def _repr_html_(self) -> str:
         fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
@@ -262,9 +262,10 @@ class Model(ABC):
             self._comps, self._cid_to_cname, self._cid_to_clatex
         ).info
         tab_params = make_pretty_table(fields, info)
+        mtype = get_mtype_str(self)
         return (
             '<details open>'
-            f'<summary><b>Model: {self.name} [{self.type}]</b></summary>'
+            f'<summary><b>{mtype} Model: {self.name}</b></summary>'
             f'{tab_params.get_html_string(format=True)}'
             '</details>'
         )
@@ -1131,15 +1132,17 @@ class CompiledModel:
         fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
         info = self._model_info.info
         tab_params = make_pretty_table(fields, info)
-        return f'Model: {self.name} [{self.type}]\n{tab_params.get_string()}'
+        mtype = get_mtype_str(self)
+        return f'{mtype} Model: {self.name}\n{tab_params.get_string()}'
 
     def _repr_html_(self) -> str:
         fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
         info = self._model_info.info
         tab_params = make_pretty_table(fields, info)
+        mtype = get_mtype_str(self)
         return (
             '<details open>'
-            f'<summary><b>Model: {self.name} [{self.type}]</b></summary>'
+            f'<summary><b>{mtype} Model: {self.name}</b></summary>'
             f'{tab_params.get_html_string(format=True)}'
             '</details>'
         )
@@ -1597,7 +1600,7 @@ class Component(ABC, metaclass=ComponentMeta):
 
     @property
     @abstractmethod
-    def type(self) -> Literal['add', 'mul']:
+    def type(self) -> Literal['add', 'mul', 'conv']:
         """Component type."""
         pass
 
@@ -2087,6 +2090,19 @@ class PyNumInt(PyComponent, NumericalIntegral):
             )
 
         return self._make_integral(self._continuum_jit)
+
+
+def get_mtype_str(model: Model | CompiledModel) -> str:
+    """Get the model type string."""
+    match model.type:
+        case 'add':
+            return 'Additive'
+        case 'mul':
+            return 'Multiplicative'
+        case 'conv':
+            return 'Convolution'
+        case _:
+            raise ValueError(f"unknown model type '{model.type}'")
 
 
 def get_model_info(
