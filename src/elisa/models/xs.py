@@ -40,17 +40,17 @@ try:
     )
 
     __all__ = [
+        'xspec_version',
+        'list_models',
         'abund',
         'abund_file',
-        'chatter',
-        'clear_mstr',
-        'clear_xflt',
-        'cosmo',
-        'list_models',
-        'mstr',
-        'xflt',
         'xsect',
-        'xspec_version',
+        'cosmo',
+        'mstr',
+        'clear_mstr',
+        'xflt',
+        'clear_xflt',
+        'chatter',
         *_xx.list_models(),
     ]
     _HAS_XSPEC = True

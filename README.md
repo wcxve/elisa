@@ -71,7 +71,7 @@ command to install [``xspex``](https://github.com/wcxve/xspex):
    ```
 
 For more details, see the
-corresponding [API docs](https://astro-elisa.readthedocs.io/en/latest/apidoc/elisa.models.xspec.html).
+corresponding [API docs](https://astro-elisa.readthedocs.io/en/stable/apidoc/elisa.models.xs.html).
 
 ### Development Version
 
