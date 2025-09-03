@@ -103,7 +103,7 @@ jobs:
             $(echo "${extra}" | tr ',' '\n' | xargs -I {} echo --extra {}) \
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }}
-
+          ls dist/
           uv pip install "$(ls dist/astro-elisa-*.tar.gz)[${extra},test]" \
             --overrides requirements.txt \
             --verbose
