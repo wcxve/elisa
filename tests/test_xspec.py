@@ -14,7 +14,7 @@ def get_test_models():
     HEADAS = os.environ.get('HEADAS', '')
 
     if not HEADAS:
-        pytest.skip('HEADAS environment variable is not set')
+        return []
 
     path = os.path.abspath(f'{HEADAS}/../spectral/modelData')
     path_alt = os.path.abspath(f'{HEADAS}/spectral/modelData')
@@ -32,7 +32,8 @@ def get_test_models():
         ]
     else:
         models = xs.list_models()
-        models.remove('smaug')
+        if 'smaug' in models:
+            models.remove('smaug')
 
     return models
 

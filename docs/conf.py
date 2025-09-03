@@ -99,7 +99,7 @@ nb_ipywidgets_js = {
     },
 }
 nb_execution_mode = 'auto'
-nb_execution_timeout = -1
+nb_execution_timeout = 600
 
 numpydoc_attributes_as_param_list = False
 numpydoc_class_members_toctree = False

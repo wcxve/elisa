@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from typing import Any, Literal
 
     from arviz.stats.stats_utils import ELPDData
-    from astropy.cosmology.flrw.lambdacdm import LambdaCDM
+    from astropy.cosmology import LambdaCDM
     from astropy.units import Quantity as Q
     from iminuit.util import FMin
     from xarray import DataArray

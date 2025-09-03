@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from typing import Any, Literal
 
-    from astropy.cosmology.flrw.lambdacdm import LambdaCDM
+    from astropy.cosmology import LambdaCDM
     from numpyro.distributions import Distribution
 
     from elisa.models.parameter import ParamInfo
@@ -58,7 +58,6 @@ class Model(ABC):
     """Base model class."""
 
     _comps: tuple[Component, ...]
-    _additive_comps: tuple[Model, ...]
     __initialized: bool = False
 
     def __init__(

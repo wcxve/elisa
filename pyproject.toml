@@ -52,8 +52,8 @@ Source = "https://github.com/wcxve/elisa"
 
 [project.optional-dependencies]
 dev = [
-    "pre-commit>=3.6.0",
-    "ruff>=0.2.0",
+    "pre-commit~=4.0",
+    "ruff>=0.12.0",
 ]
 docs = [
     "ipywidgets",
@@ -71,12 +71,12 @@ docs = [
     "widgetsnbextension",
 ]
 test = [
-    "coverage[toml]>=7.8.0",
+    "coverage[toml]~=7.8.0",
     "pytest",
     "pytest-cov",
     "pytest-xdist",
 ]
-xspec = ["xspex>=0.1.1,<0.2"]
+xspec = ["xspex~=0.1.1"]
 
 [build-system]
 requires = ["hatchling"]
