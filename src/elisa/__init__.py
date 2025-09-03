@@ -1,4 +1,4 @@
-from .__about__ import __version__ as __version__
+from ._version import __version__ as __version__
 from .data import (
     Data as Data,
     ObservationData as ObservationData,

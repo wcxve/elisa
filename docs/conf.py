@@ -98,7 +98,7 @@ nb_ipywidgets_js = {
         'crossorigin': 'anonymous',
     },
 }
-nb_execution_mode = 'off'
+nb_execution_mode = 'auto'
 nb_execution_timeout = -1
 
 numpydoc_attributes_as_param_list = False

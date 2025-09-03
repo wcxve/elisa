@@ -1,161 +1,151 @@
 [project]
 name = "astro-elisa"
+version = "0.2.0"
 description = "Efficient library for spectral analysis in high-energy astrophysics."
 readme = "README.md"
 requires-python = ">=3.10, <3.14"
 license = "GPL-3.0-or-later"
 authors = [
-    { name = "Wang-Chen Xue", email = "wcxuemail@gmail.com" },
+  { name = "Wang-Chen Xue", email = "wcxuemail@gmail.com" },
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
-    "Operating System :: OS Independent",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Science/Research",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "arviz==0.22.0",
-    "astropy>=5.3,<=6.1.7; python_version < '3.11'",
-    "astropy>=5.3,<=7.0.1; python_version >= '3.11'",
-    "beautifulsoup4==4.13.4",
-    "blackjax==1.2.5",
-    "corner>=2.2.2,<=2.2.3",
-    "dill==0.4.0",
-    "emcee==3.1.6",
-    "h5py>=3.12.1,<=3.14.0",
-    "iminuit>=2.28.0,<=2.31.1",
-    "jax>=0.4.35,<=0.6.2",
-    "jaxlib>=0.4.35,<=0.6.2",
-    "jaxns==2.6.7; python_version < '3.13'",
-    "matplotlib>=3.8.0",
-    "multiprocess>=0.70.18",
-    "nautilus-sampler==1.0.5",
-    "numpy>=1.24.1",
-    "numpyro>=0.16.1,<=0.19.0",
-    "optimistix>=0.0.8,<=0.0.10",
-    "prettytable>=3.12.0,<=3.16.0",
-    "quadax>=0.2.6,<=0.2.9",
-    "scipy>=1.11.1,<=1.15.3",
-    "seaborn==0.13.2",
-    "tinygp==0.3.0",
-    "tqdm>=4.66.0",
-    "ultranest==4.4.0",
-    "zeus-mcmc==2.5.4",
+  "arviz==0.22.0",
+  "astropy>=5.3,<=6.1.7; python_version < '3.11'",
+  "astropy>=5.3,<=7.0.1; python_version >= '3.11'",
+  "blackjax==1.2.5",
+  "corner>=2.2.2,<=2.2.3",
+  "dill==0.4.0",
+  "emcee==3.1.6",
+  "h5py>=3.12.1,<=3.14.0",
+  "iminuit>=2.28.0,<=2.31.1",
+  "jax>=0.4.35,<=0.6.2",
+  "jaxlib>=0.4.35,<=0.6.2",
+  "jaxns==2.6.7; python_version < '3.13'",
+  "matplotlib>=3.8.0",
+  "multiprocess>=0.70.18",
+  "nautilus-sampler==1.0.5",
+  "numpy>=1.24.1",
+  "numpyro>=0.16.1,<=0.19.0",
+  "optimistix>=0.0.8,<=0.0.10",
+  "prettytable>=3.12.0,<=3.16.0",
+  "quadax>=0.2.6,<=0.2.9",
+  "scipy>=1.11.1,<=1.15.3",
+  "seaborn==0.13.2",
+  "tinygp==0.3.0",
+  "tqdm>=4.66.0",
+  "ultranest==4.4.0",
+  "zeus-mcmc==2.5.4",
 ]
-dynamic = ["version"]
-
-
-[project.optional-dependencies]
-xspec = ["xspex>=0.0.8"]
-test = [
-    "coverage[toml]>=7.8.0",
-    "pytest",
-    "pytest-cov",
-    "pytest-xdist",
-]
-docs = [
-    "ipywidgets",
-    "jupyter",
-    "jupyterlab_widgets",
-    "sphinx>=7.4.0",
-    "sphinx-autodoc-typehints",
-    "sphinx-codeautolink",
-    "sphinx-copybutton",
-    "sphinx-design",
-    "myst-nb",
-    "numba",
-    "numpydoc",
-    "pydata-sphinx-theme",
-    "widgetsnbextension",
-]
-dev = [
-    "pre-commit>=3.6.0",
-    "ruff>=0.2.0",
-]
-
 
 [project.urls]
 Documentation = "https://github.com/wcxve/elisa#readme"
 Issues = "https://github.com/wcxve/elisa/issues"
 Source = "https://github.com/wcxve/elisa"
 
+[project.optional-dependencies]
+dev = [
+  "pre-commit>=3.6.0",
+  "ruff>=0.2.0",
+]
+docs = [
+  "ipywidgets",
+  "jupyter",
+  "jupyterlab_widgets",
+  "sphinx>=7.4.0",
+  "sphinx-autodoc-typehints",
+  "sphinx-codeautolink",
+  "sphinx-copybutton",
+  "sphinx-design",
+  "myst-nb",
+  "numba",
+  "numpydoc",
+  "pydata-sphinx-theme",
+  "widgetsnbextension",
+]
+test = [
+  "coverage[toml]>=7.8.0",
+  "pytest",
+  "pytest-cov",
+  "pytest-xdist",
+]
+xspec = ["xspex>=0.1.1,<0.2"]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.coverage]
+run.concurrency = [
+  "thread",
+  "multiprocessing",
+]
+run.parallel = true
+run.sigterm = true
+run.source_pkgs = ["elisa"]
+run.omit = [
+  "src/elisa/infer/samplers/ns/jaxns.py",
+  "src/elisa/models/tables",
+]
+report.exclude_also = [
+  # Have to re-enable the standard pragma
+  "pragma: no cover",
+  # Don't complain about packages we have installed
+  "except ImportError",
+  # Don't complain if tests don't hit defensive assertion code:
+  "raise AssertionError",
+  "raise NotImplementedError",
+  # Don't complain about script hooks
+  "if __name__ == .__main__.:",
+  # typing.TYPE_CHECKING is False at runtime
+  "if TYPE_CHECKING:",
+  # Don't complain about abstract methods' implementations
+  '@(abc\.)?abstractmethod',
+]
+report.show_missing = true
 
 [tool.hatch]
-version.path = "src/elisa/__about__.py"
-build.targets.sdist.only-include = ["src", "tests"]
-build.targets.wheel.packages = ["src/elisa"]
-
-
-[tool.ruff]
-line-length = 79
-target-version = "py310"
-extend-exclude = [
-    "src/elisa/infer/samplers/ns/jaxns.py",
-]
-format.quote-style = "single"
-lint.extend-select = ["Q"]
-lint.flake8-quotes.inline-quotes = "single"
-lint.ignore = [
-    "B028",  # allow warnings without stacklevel
-    "C901",  # allow functions with a high complexity
-    "E731",  # allow lambda functions
-]
-lint.isort.known-first-party = ["elisa"]
-lint.isort.combine-as-imports = true
-lint.select = [
-    "E",  # pycodestyle errors
-    "W",  # pycodestyle warnings
-    "F",  # pyflakes
-    "I",  # isort
-    "C",  # flake8-comprehensions
-    "B",  # flake8-bugbear
-    "UP",  # pyupgrade
-]
-#lint.pydocstyle.convention = "numpy"
-
-[tool.ruff.lint.per-file-ignores]
-"docs/notebooks/model-building.ipynb" = ["F403", "F405"]
+build.targets.sdist.only-include = ["src/elisa"]
 
 [tool.pytest]
 ini_options.addopts = "-n auto --cov --cov-report=xml --junitxml=junit.xml"
 ini_options.testpaths = ["tests"]
 
-[tool.coverage]
-run.concurrency = [
-    "thread",
-    "multiprocessing",
+[tool.ruff]
+line-length = 79
+target-version = "py310"
+extend-exclude = [
+  "src/elisa/infer/samplers/ns/jaxns.py",
 ]
-run.parallel = true
-run.sigterm = true
-run.source_dirs = ["src"]
-run.omit = [
-    "src/elisa/infer/samplers/ns/jaxns.py",
-    "src/elisa/models/tables",
+format.quote-style = "single"
+lint.extend-select = ["Q"]
+lint.flake8-quotes.inline-quotes = "single"
+lint.ignore = [
+  "B028",  # allow warnings without stacklevel
+  "C901",  # allow functions with a high complexity
+  "E731",  # allow lambda functions
 ]
-report.exclude_also = [
-    # Have to re-enable the standard pragma
-    "pragma: no cover",
-    # Don't complain about packages we have installed
-    "except ImportError",
-    # Don't complain if tests don't hit defensive assertion code:
-    "raise AssertionError",
-    "raise NotImplementedError",
-    # Don't complain about script hooks
-    "if __name__ == .__main__.:",
-    # typing.TYPE_CHECKING is False at runtime
-    "if TYPE_CHECKING:",
-    # Don't complain about abstract methods' implementations
-    '@(abc\.)?abstractmethod',
+lint.isort.known-first-party = ["elisa"]
+lint.isort.combine-as-imports = true
+lint.select = [
+  "E",  # pycodestyle errors
+  "W",  # pycodestyle warnings
+  "F",  # pyflakes
+  "I",  # isort
+  "C",  # flake8-comprehensions
+  "B",  # flake8-bugbear
+  "UP",  # pyupgrade
 ]
-report.show_missing = true
+# lint.pydocstyle.convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+"docs/notebooks/model-building.ipynb" = ["F403", "F405"]

@@ -168,7 +168,7 @@ class Model(ABC):
 
     @property
     @abstractmethod
-    def type(self) -> Literal['add', 'mul']:
+    def type(self) -> Literal['add', 'mul', 'conv']:
         """Model type."""
         pass
 
@@ -254,7 +254,8 @@ class Model(ABC):
             self._comps, self._cid_to_cname, self._cid_to_clatex
         ).info
         tab_params = make_pretty_table(fields, info)
-        return f'Model: {self.name} [{self.type}]\n{tab_params.get_string()}'
+        mtype = get_mtype_str(self)
+        return f'{mtype} Model: {self.name}\n{tab_params.get_string()}'
 
     def _repr_html_(self) -> str:
         fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
@@ -262,9 +263,10 @@ class Model(ABC):
             self._comps, self._cid_to_cname, self._cid_to_clatex
         ).info
         tab_params = make_pretty_table(fields, info)
+        mtype = get_mtype_str(self)
         return (
             '<details open>'
-            f'<summary><b>Model: {self.name} [{self.type}]</b></summary>'
+            f'<summary><b>{mtype} Model: {self.name}</b></summary>'
             f'{tab_params.get_html_string(format=True)}'
             '</details>'
         )
@@ -1131,15 +1133,17 @@ class CompiledModel:
         fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
         info = self._model_info.info
         tab_params = make_pretty_table(fields, info)
-        return f'Model: {self.name} [{self.type}]\n{tab_params.get_string()}'
+        mtype = get_mtype_str(self)
+        return f'{mtype} Model: {self.name}\n{tab_params.get_string()}'
 
     def _repr_html_(self) -> str:
         fields = ['No.', 'Component', 'Parameter', 'Value', 'Bound', 'Prior']
         info = self._model_info.info
         tab_params = make_pretty_table(fields, info)
+        mtype = get_mtype_str(self)
         return (
             '<details open>'
-            f'<summary><b>Model: {self.name} [{self.type}]</b></summary>'
+            f'<summary><b>{mtype} Model: {self.name}</b></summary>'
             f'{tab_params.get_html_string(format=True)}'
             '</details>'
         )
@@ -2087,6 +2091,19 @@ class PyNumInt(PyComponent, NumericalIntegral):
             )
 
         return self._make_integral(self._continuum_jit)
+
+
+def get_mtype_str(model: Model | CompiledModel) -> str:
+    """Get the model type string."""
+    match model.type:
+        case 'add':
+            return 'Additive'
+        case 'mul':
+            return 'Multiplicative'
+        case 'conv':
+            return 'Convolution'
+        case _:
+            raise ValueError(f"unknown model type '{model.type}'")
 
 
 def get_model_info(

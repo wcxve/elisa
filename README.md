@@ -11,8 +11,10 @@ analyze the spectral data. It is designed to be user-friendly and flexible.
 The key features of ``ELISA`` include:
 
 - **Ease of Use**: Simple and intuitive interfaces
-- **Robustness**: Utilizing the state-of-the-art algorithm to fit, test, and compare models
-- **Performance**: Efficient computation backend based on [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html)
+- **Robustness**: Utilizing the state-of-the-art algorithm to fit, test, and
+  compare models
+- **Performance**: Efficient computation backend based
+  on [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html)
 - ...
 
 **NOTE**: ``ELISA`` is currently under active development. Please be aware of
@@ -30,7 +32,8 @@ potential brittleness, bugs, and changes to the API as the design evolves.
 
 ### Stable Version
 
-It is recommended to install ``ELISA`` in a new [``conda``](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html)
+It is recommended to install ``ELISA`` in a new [
+``conda``](https://docs.conda.io/projects/conda/en/stable/user-guide/getting-started.html)
 environment as follows:
 
 1. Create a new ``conda`` environment. The following command creates a new
@@ -55,27 +58,28 @@ environment as follows:
     pip install astro-elisa
     ```
 
+## Use ``XSPEC`` Models
 
-## Use ``Xspec`` Models
-   If you want to use models from [Xspec](https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/Models.html),
-   make sure ``HEASoft`` and ``Xspec v12.12.1+`` are installed on your system,
-   and the ``HEASoft`` environment is initialized, then use the following
-   command to install [``xspex``](https://github.com/wcxve/xspex):
+If you want to use models
+from [XSPEC](https://heasarc.gsfc.nasa.gov/xanadu/xspec/manual/Models.html),
+make sure ``HEASoft`` and ``XSPEC v12.12.1+`` are installed on your system,
+and the ``HEASoft`` environment is initialized, then use the following
+command to install [``xspex``](https://github.com/wcxve/xspex):
 
    ```console
    pip install xspex
    ```
 
-   For more details, see [API docs](https://astro-elisa.readthedocs.io/en/latest/apidoc/elisa.models.xspec.html) for ``Xspec``.
-
+For more details, see the
+corresponding [API docs](https://astro-elisa.readthedocs.io/en/latest/apidoc/elisa.models.xspec.html).
 
 ### Development Version
+
 The latest version of ``ELISA`` can be installed by the following command:
 
    ```console
    pip install -U git+https://github.com/wcxve/elisa.git
    ```
-
 
 ## Documentation
 
@@ -83,4 +87,5 @@ Read the documentation at: https://astro-elisa.readthedocs.io
 
 ## License
 
-`ELISA` is distributed under the terms of the [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html) license.
+`ELISA` is distributed under the terms of
+the [GPL-3.0](https://www.gnu.org/licenses/gpl-3.0-standalone.html) license.
