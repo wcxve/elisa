@@ -87,7 +87,7 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
 
-      - name: Install Xspec
+      - name: Install XSPEC
         run: |
           mamba install xspec -c ${{ env.heasarc-channel }} -c conda-forge -y
 
@@ -95,7 +95,6 @@ jobs:
         uses: actions/download-artifact@v5
         with:
           name: elisa
-          path: dist
 
       - name: Install Python Dependencies
         run: |
@@ -103,8 +102,7 @@ jobs:
             $(echo "${extra}" | tr ',' '\n' | xargs -I {} echo --extra {}) \
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }}
-          ls dist/
-          uv pip install "$(ls dist/astro-elisa-*.tar.gz)[${extra},test]" \
+          uv pip install "$(ls astro_elisa-*.tar.gz)[${extra},test]" \
             --overrides requirements.txt \
             --verbose
 
