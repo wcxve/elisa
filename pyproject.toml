@@ -27,7 +27,7 @@ dependencies = [
     "emcee~=3.1.6",
     "h5py~=3.14.0",
     "iminuit~=2.31.1",
-    "jax>=0.4.35,<0.8",
+    "jax>=0.4.35,<=0.7.0", #  optimistix==0.0.10 is not compatible 0.7.1
     "jaxns~=2.6.9",
     "matplotlib>=3.8.0",
     "multiprocess~=0.70.18",
@@ -116,7 +116,7 @@ build.targets.sdist.only-include = ["src/elisa"]
 build.targets.wheel.packages = ["src/elisa"]
 
 [tool.pytest]
-ini_options.addopts = "-n auto --cov --cov-report=xml --junitxml=junit.xml"
+ini_options.addopts = "-v -n auto --cov --cov-report=xml --junitxml=junit.xml"
 ini_options.testpaths = ["tests"]
 
 [tool.ruff]

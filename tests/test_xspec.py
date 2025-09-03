@@ -16,26 +16,15 @@ def get_test_models():
     if not HEADAS:
         return []
 
-    path = os.path.abspath(f'{HEADAS}/../spectral/modelData')
-    path_alt = os.path.abspath(f'{HEADAS}/spectral/modelData')
-    has_xspec_data = os.path.exists(path) or os.path.exists(path_alt)
-
-    if not has_xspec_data:
-        models = [
-            'feklor',  # test for additive models with norm param only
-            'posm',  # test for additive models with norm param only
-            'tbabs',  # test multiplicative model
-            'clumin',  # test convolution model (for additive models)
-            'partcov',  # test convolution model (for multiplicative models)
-            'vmshift',  # test convolution model (for multiplicative models)
-            'zmshift',  # test convolution model (for multiplicative models)
-        ]
-    else:
-        models = xs.list_models()
-        if 'smaug' in models:
-            models.remove('smaug')
-
-    return models
+    return [
+        'feklor',  # test for additive models with norm param only
+        'posm',  # test for additive models with norm param only
+        'tbabs',  # test multiplicative model
+        'clumin',  # test convolution model (for additive models)
+        'partcov',  # test convolution model (for multiplicative models)
+        'vmshift',  # test convolution model (for multiplicative models)
+        'zmshift',  # test convolution model (for multiplicative models)
+    ]
 
 
 @pytest.mark.parametrize(
