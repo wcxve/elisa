@@ -11,6 +11,9 @@ on:
       - "CITATION.bib"
       - "README.md"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "README.md"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
