@@ -102,7 +102,7 @@ class Model(ABC):
             The compiled model.
         """
         if self.type == 'conv':
-            raise RuntimeError('cannot compile convolution model')
+            raise RuntimeError(f'cannot compile convolution model {self.name}')
 
         if model_info is None:
             model_info = get_model_info(
@@ -1600,7 +1600,7 @@ class Component(ABC, metaclass=ComponentMeta):
 
     @property
     @abstractmethod
-    def type(self) -> Literal['add', 'mul']:
+    def type(self) -> Literal['add', 'mul', 'conv']:
         """Component type."""
         pass
 

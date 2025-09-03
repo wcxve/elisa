@@ -27,7 +27,8 @@ dependencies = [
     "emcee~=3.1.6",
     "h5py~=3.14.0",
     "iminuit~=2.31.1",
-    "jax>=0.4.35,<=0.7.0", #  optimistix==0.0.10 is not compatible 0.7.1
+    # equinox v0.13.0 is not compatible with jax v0.7.1
+    "jax>=0.4.35,<=0.7.0",
     "jaxns~=2.6.9",
     "matplotlib>=3.8.0",
     "multiprocess~=0.70.18",
