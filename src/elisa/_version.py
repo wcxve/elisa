@@ -1,8 +1,8 @@
-import importlib.metadata as metadata
+from importlib.metadata import PackageNotFoundError, version
 
 try:
-    __version__: str = metadata.version('astro-elisa')
-except metadata.PackageNotFoundError:
-    __version__: str = 'dev'
+    __version__ = version('astro-elisa')
+except PackageNotFoundError:
+    __version__ = 'dev'
 
 __all__ = ['__version__']
