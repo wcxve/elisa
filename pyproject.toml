@@ -1,6 +1,5 @@
 [project]
 name = "astro-elisa"
-version = "0.2.1"
 description = "Efficient library for spectral analysis in high-energy astrophysics."
 readme = "README.md"
 requires-python = ">=3.10, <3.14"
@@ -18,6 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Astronomy",
+    "Typing :: Typed",
 ]
 dependencies = [
     "arviz~=0.22.0",
@@ -46,6 +46,7 @@ dependencies = [
     "ultranest~=4.4.0",
     "zeus-mcmc~=2.5.4",
 ]
+dynamic = ["version"]
 
 [project.urls]
 Documentation = "https://github.com/wcxve/elisa#readme"
@@ -81,7 +82,7 @@ test = [
 xspec = ["xspex~=0.1.1"]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [tool.coverage]
@@ -116,6 +117,7 @@ report.show_missing = true
 [tool.hatch]
 build.targets.sdist.only-include = ["src/elisa"]
 build.targets.wheel.packages = ["src/elisa"]
+version.source = "vcs"
 
 [tool.pytest]
 ini_options.addopts = "-v -n auto --cov --cov-report=xml --junitxml=junit.xml"
