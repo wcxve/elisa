@@ -96,7 +96,7 @@ jobs:
           mamba install xspec -c ${{ env.heasarc-channel }} -c conda-forge -y
 
       - name: Download Source Distribution
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: elisa
 
@@ -144,7 +144,7 @@ jobs:
       id-token: write
     steps:
       - name: Download Source Distribution
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v6
         with:
           name: elisa
           path: dist
