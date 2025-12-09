@@ -2180,7 +2180,7 @@ def get_model_info(
 
     # record the LaTeX format of component parameters
     latex_mapping |= {
-        comp[name]._id: params_info[comp[name]._id].latex
+        comp[name]._id: comp[name].latex
         for comp in comps
         for (i, name) in enumerate(comp.param_names)
     }

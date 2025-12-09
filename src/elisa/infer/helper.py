@@ -762,7 +762,7 @@ def get_helper(fit: Fit) -> Helper:
         n_parallel = get_parallel_number(n_parallel)
 
         init_params = jax.tree.map(jnp.array, init_params)
-        assert set(init_params) == set(params_names)
+        assert set(init_params) == set(free_names)
 
         # check if all params shapes are the same
         param_shapes = [np.shape(v)[:-1] for v in init_params.values()]
@@ -775,7 +775,7 @@ def get_helper(fit: Fit) -> Helper:
         nsim = data_shapes[0][0]
 
         # get initial parameters arrays in unconstrained space,
-        init = jnp.array([init_params[k] for k in params_names]).T
+        init = jnp.array([init_params[k] for k in free_names]).T
         assert init.ndim <= 2
         if init.ndim == 2:
             assert init.shape[0] == nsim
