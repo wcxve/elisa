@@ -266,7 +266,7 @@ def get_helper(fit: Fit) -> Helper:
             name = f'{k}_Noff'
             if s in _STATISTIC_BACK_NORMAL:
                 simulators[name] = simulator_factory('norm', d.back_errors)
-                sampling_dist[name] = ('norm', (d.spec_errors,))
+                sampling_dist[name] = ('norm', (d.back_errors,))
             else:
                 simulators[name] = simulator_factory('poisson')
                 sampling_dist[name] = ('poisson', ())
