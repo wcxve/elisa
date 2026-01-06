@@ -21,7 +21,7 @@ classifiers = [
 ]
 dependencies = [
     "arviz>=0.22,<0.24",
-    "astropy>=5.3,<7.2",
+    "astropy>=5.3,<7.3",
     "blackjax==1.3",
     "corner~=2.2.2",
     "dill~=0.4.0",
