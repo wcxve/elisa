@@ -76,7 +76,7 @@ def test_data_grouping(erange):
     data.group('min', scale)
     assert np.all(data.spec_counts >= scale)
 
-    scale = 1
+    scale = 2.5
     data.group('sig', scale)
     sig = significance_lima(
         data.spec_counts, data.back_counts, data.back_ratio
@@ -103,14 +103,14 @@ def test_data_grouping(erange):
     data.group('optbmin', scale)
     assert np.all(data.back_counts >= scale)
 
-    scale = 1
+    scale = 2.5
     data.group('optsig', scale)
     sig = significance_lima(
         data.spec_counts, data.back_counts, data.back_ratio
     )
     assert np.all(sig >= scale)
 
-    scale = 1
+    scale = 2.5
     data.group('optbsig', scale)
     sig = data.back_counts / data.back_errors
     assert np.all(sig >= scale)
@@ -144,18 +144,36 @@ def test_data_grouping(erange):
     if erange is not None:
         data.set_erange(erange)
 
-    scale = 1
+    scale = 2.5
     data.group('sig', scale)
     sig = significance_gv(
         data.spec_counts, data.back_counts, data.back_errors, data.back_ratio
     )
     assert np.all(sig >= scale)
 
-    scale = 1
+    scale = 2.5
     data.group('optbsig', scale)
-    sig = significance_gv(
-        data.spec_counts, data.back_counts, data.back_errors, data.back_ratio
+    sig = data.back_counts / data.back_errors
+    assert np.all(sig >= scale)
+
+    # test grouping of Poisson spectrum with no background data (Issue #286)
+    data = compiled_model.simulate(
+        photon_egrid=photon_egrid,
+        channel_emin=channel_emin,
+        channel_emax=channel_emax,
+        response_matrix=response_matrix,
+        spec_exposure=spec_exposure,
+        spec_poisson=True,
+        seed=seed,
     )
+
+    scale = 2.5
+    data.group('sig', scale)
+    sig = data.net_counts / data.net_errors
+    assert np.all(sig >= scale)
+
+    data.group('optsig', scale)
+    sig = data.net_counts / data.net_errors
     assert np.all(sig >= scale)
 
 
