@@ -400,7 +400,7 @@ class ObservationData:
             fn = lambda a: group_min(*a, n=scale)
             data = [spec_counts]
         elif method == 'sig':
-            if self.spec_data.poisson:
+            if self.spec_data.poisson and self.has_back:
                 if self.back_data.poisson:
                     fn = lambda a: group_sig_lima(*a, a=back_ratio, sig=scale)
                     data = [spec_counts, back_counts]
@@ -431,7 +431,7 @@ class ObservationData:
             fn = lambda a: group_opt(*a, n=scale)
             data = [fwhm, counts_opt, spec_counts]
         elif method == 'optsig':
-            if self.spec_data.poisson:
+            if self.spec_data.poisson and self.has_back:
                 if self.back_data.poisson:
                     fn = lambda a: group_optsig_lima(
                         *a, a=back_ratio, sig=scale
