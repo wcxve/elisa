@@ -22,6 +22,7 @@ from elisa.infer.likelihood import (
     cstat,
     pgstat,
     pstat,
+    whittle,
     wstat,
 )
 from elisa.util.config import get_parallel_number
@@ -212,7 +213,7 @@ def get_helper(fit: Fit) -> Helper:
     obs_counts = {
         f'{k}_Non': (
             v.net_counts
-            if stat[k] in _STATISTIC_SPEC_NORMAL
+            if stat[k] in _STATISTIC_SPEC_NORMAL or stat[k] == 'whittle'
             else v.spec_counts
         )
         for k, v in data.items()
@@ -225,7 +226,9 @@ def get_helper(fit: Fit) -> Helper:
     obs_data = get_counts_data(obs_counts)
 
     # ======================== count data simulator ===========================
-    def simulator_factory(data_dist: Literal['norm', 'poisson'], *dist_args):
+    def simulator_factory(
+        data_dist: Literal['norm', 'poisson', 'exp'], *dist_args
+    ):
         """Factory to create data simulator."""
 
         def simulator(
@@ -244,18 +247,26 @@ def get_helper(fit: Fit) -> Helper:
                 return rng.normal(model_values, *dist_args, shape)
             elif data_dist == 'poisson':
                 return rng.poisson(model_values, shape)
+            elif data_dist == 'exp':
+                return rng.exponential(model_values, shape)
             else:
                 raise NotImplementedError(f'{data_dist = }')
 
         return simulator
 
     simulators = {}
-    sampling_dist: dict[str, tuple[Literal['norm', 'poisson'], tuple]] = {}
+    sampling_dist: dict[
+        str,
+        tuple[Literal['norm', 'poisson', 'exp'], tuple],
+    ] = {}
     for k, s in stat.items():
         d = data[k]
 
         name = f'{k}_Non'
-        if s in _STATISTIC_SPEC_NORMAL:
+        if s == 'whittle':
+            simulators[name] = simulator_factory('exp')
+            sampling_dist[name] = ('exp', ())
+        elif s in _STATISTIC_SPEC_NORMAL:
             simulators[name] = simulator_factory('norm', d.spec_errors)
             sampling_dist[name] = ('norm', (d.spec_errors,))
         else:
@@ -323,6 +334,7 @@ def get_helper(fit: Fit) -> Helper:
         'pstat': pstat,
         'wstat': wstat,
         'pgstat': pgstat,
+        'whittle': whittle,
     }
     likelihood: dict[str, Callable[[JAXArray], None]] = {
         k: likelihood_wrapper[stat[k]](v, model[k].eval)
