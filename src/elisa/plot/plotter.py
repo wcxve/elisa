@@ -549,6 +549,35 @@ class Plotter(ABC):
     def set_xlabel(self, ax: Axes):
         ax.set_xlabel(r'$\mathrm{Energy\ [keV]}$')
 
+    def _residuals_ci_overlap_too_high(
+        self,
+        *,
+        min_datasets: int = 4,
+        threshold: float = 0.6,
+        samples: int = 128,
+    ) -> bool:
+        if len(self.data) < min_datasets:
+            return False
+
+        ranges = [
+            (float(data.channel_emin[0]), float(data.channel_emax[-1]))
+            for data in self.data.values()
+        ]
+        starts, ends = zip(*ranges, strict=True)
+        total_min = min(starts)
+        total_max = max(ends)
+        if not np.isfinite(total_min) or not np.isfinite(total_max):
+            return False
+        if total_max <= total_min:
+            return False
+
+        grid = np.linspace(total_min, total_max, num=samples)
+        coverage = np.zeros_like(grid, dtype=int)
+        for start, end in ranges:
+            coverage += (grid >= start) & (grid <= end)
+        overlap_ratio = np.mean(coverage >= 2)
+        return overlap_ratio >= threshold
+
     def plot_spec(
         self,
         data: bool = True,
@@ -926,6 +955,9 @@ class Plotter(ABC):
         mark_outlier = config.mark_outlier_residuals
         seed = config.seed
         ribbon_kwargs = {'lw': 0.618, 'alpha': 0.15 * config.alpha}
+        fill_residuals_ci = config.fill_residuals_ci
+        if fill_residuals_ci and self._residuals_ci_overlap_too_high():
+            fill_residuals_ci = False
 
         if rtype is None:
             rtype = config.residuals
@@ -951,7 +983,7 @@ class Plotter(ABC):
                 if q is not None:
                     quantiles.append(q)
 
-            if self.config.fill_residuals_ci:
+            if fill_residuals_ci:
                 if quantiles:
                     _plot_ribbon(
                         ax,
