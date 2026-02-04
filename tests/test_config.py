@@ -111,10 +111,7 @@ def test_default_import_device_count():
     expected = _get_int(payload, 'expected')
     xla_flags = _get_str(payload, 'xla_flags')
     assert count == expected
-    assert (
-        f'--xla_force_host_platform_device_count={expected}'
-        in xla_flags
-    )
+    assert f'--xla_force_host_platform_device_count={expected}' in xla_flags
 
 
 def test_set_cpu_cores_after_default_import():
@@ -164,7 +161,4 @@ def test_set_cpu_cores_after_default_import():
     expected = _get_int(payload, 'expected')
     xla_flags = _get_str(payload, 'xla_flags')
     assert count == expected
-    assert (
-        f'--xla_force_host_platform_device_count={expected}'
-        in xla_flags
-    )
+    assert f'--xla_force_host_platform_device_count={expected}' in xla_flags
