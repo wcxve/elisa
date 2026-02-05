@@ -196,9 +196,9 @@ def test_grouping_warning(simulation):
 @pytest.mark.parametrize(
     'file',
     [
-        'docs/notebooks/data/P011160500104_LE.rsp',
-        'docs/notebooks/data/P011160500104_ME.rsp',
-        'docs/notebooks/data/P011160500104_HE.rsp',
+        'docs/notebooks/data/P011160506306_LE_RSP.fits',
+        'docs/notebooks/data/P011160506306_ME_RSP.fits',
+        'docs/notebooks/data/P011160506306_HE_RSP.fits',
     ],
 )
 def test_load_response(file):
