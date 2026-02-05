@@ -67,6 +67,10 @@ master_doc = 'index'
 
 add_module_names = False
 autodoc_member_order = 'bysource'
+autodoc_default_options = {
+    'exclude-members': 'Lock',
+}
+suppress_warnings = ['sphinx_autodoc_typehints.guarded_import']
 
 codeautolink_concat_default = True
 copybutton_selector = 'div:not(.output) > div.highlight pre'
