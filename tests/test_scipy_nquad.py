@@ -3,7 +3,6 @@ import types
 
 import numpy as np
 
-
 fake_nb = types.SimpleNamespace(
     types=types.SimpleNamespace(
         double=lambda *args, **kwargs: None,
@@ -19,7 +18,9 @@ sys.modules.setdefault('numba', fake_nb)
 import elisa.util.scipy_nquad as scipy_nquad
 
 
-def _setup_callback_mocks(monkeypatch, jax_version: str, expected_kwargs: dict):
+def _setup_callback_mocks(
+    monkeypatch, jax_version: str, expected_kwargs: dict
+):
     monkeypatch.setattr(scipy_nquad.jax, '__version__', jax_version)
     monkeypatch.setattr(scipy_nquad.jax, 'jit', lambda f: f)
     monkeypatch.setattr(

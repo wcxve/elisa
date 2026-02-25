@@ -25,7 +25,9 @@ def _parse_version(version: str) -> tuple[int, ...]:
     return tuple(numbers)
 
 
-def _pure_callback_kwargs(vectorized: bool = False, jax_version: str | None = None):
+def _pure_callback_kwargs(
+    vectorized: bool = False, jax_version: str | None = None
+):
     """Get compatible keyword args for ``jax.pure_callback``.
 
     ``vmap_method`` is used for jax>=0.6.0, and ``vectorized`` is kept for
