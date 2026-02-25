@@ -3,6 +3,8 @@
 Contributed by @xiesl97 (https://github.com/xiesl97).
 """
 
+import re
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -15,6 +17,27 @@ except ImportError as e:
         'To use this module, please install `numba` package. It can be'
         ' installed with `pip install numba`'
     ) from e
+
+
+def _parse_version(version: str) -> tuple[int, ...]:
+    """Parse version string into a tuple of integers for comparison."""
+    numbers = [int(i) for i in re.findall(r'\d+', version)]
+    return tuple(numbers)
+
+
+def _pure_callback_kwargs(vectorized: bool = False, jax_version: str | None = None):
+    """Get compatible keyword args for ``jax.pure_callback``.
+
+    ``vmap_method`` is used for jax>=0.6.0, and ``vectorized`` is kept for
+    older JAX versions.
+    """
+    if jax_version is None:
+        jax_version = jax.__version__
+
+    if _parse_version(jax_version) >= (0, 6, 0):
+        return {'vmap_method': 'sequential'}
+
+    return {'vectorized': vectorized}
 
 
 class NQuadTransform:
@@ -51,8 +74,9 @@ class NQuadTransform:
             result_shape_dtype = jax.ShapeDtypeStruct(
                 shape=(2,), dtype=ranges.dtype
             )
+            callback_kwargs = _pure_callback_kwargs(vectorized=vectorized)
             return jax.pure_callback(
-                _pcb, result_shape_dtype, ranges, args, vectorized=vectorized
+                _pcb, result_shape_dtype, ranges, args, **callback_kwargs
             )
 
         return _nquad_scipy
