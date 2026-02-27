@@ -15,7 +15,7 @@ fake_nb = types.SimpleNamespace(
 )
 sys.modules.setdefault('numba', fake_nb)
 
-import elisa.util.scipy_nquad as scipy_nquad
+import elisa.util.scipy_nquad as scipy_nquad  # noqa
 
 
 def _setup_callback_mocks(
