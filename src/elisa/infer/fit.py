@@ -1163,7 +1163,7 @@ class BayesFit(Fit):
         thinning: int = 1,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
-        n_parallel: int | None = None,
+        parallel_chains: int | None = None,
         progress: bool = True,
         post_warmup_state: EnsembleSamplerState | None = None,
         **kwargs: dict,
@@ -1196,7 +1196,7 @@ class BayesFit(Fit):
             Initial parameter for sampler to start from.
         chain_method : str, optional
             The chain method passed to :class:`numpyro.infer.MCMC`.
-        n_parallel : int, optional
+        parallel_chains : int, optional
             Number of parallel samplers to run.
             The default is ``jax.local_device_count()``.
         progress : bool, optional
@@ -1204,7 +1204,7 @@ class BayesFit(Fit):
         post_warmup_state : EnsembleSamplerState, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided. This does not take effect when
-            `n_parallel`>=2.
+            `parallel_chains`>=2.
         **kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.AIES`.
             The default for `moves` is ``{AIES.StretchMove(): 1.0}``.
@@ -1228,7 +1228,7 @@ class BayesFit(Fit):
             kernel=NumPyroAIES,
             warmup=warmup,
             steps=steps,
-            chains=n_parallel,
+            chains=parallel_chains,
             thinning=thinning,
             init=init,
             chain_method=chain_method,
@@ -1245,7 +1245,7 @@ class BayesFit(Fit):
         thinning: int = 1,
         init: dict[str, float] | None = None,
         chain_method: str = 'parallel',
-        n_parallel: int | None = None,
+        parallel_chains: int | None = None,
         progress: bool = True,
         post_warmup_state: EnsembleSamplerState | None = None,
         **kwargs: dict,
@@ -1278,7 +1278,7 @@ class BayesFit(Fit):
             Initial parameter for sampler to start from.
         chain_method : str, optional
             The chain method passed to :class:`numpyro.infer.MCMC`.
-        n_parallel : int, optional
+        parallel_chains : int, optional
             Number of parallel samplers to run.
             The default is ``jax.local_device_count()``.
         progress : bool, optional
@@ -1286,7 +1286,7 @@ class BayesFit(Fit):
         post_warmup_state : EnsembleSamplerState, optional
             The state before the sampling phase. The sampling will start from
             the given state if provided. This does not take effect when
-            `n_parallel`>=2.
+            `parallel_chains`>=2.
         **kwargs : dict
             Extra parameters passed to :class:`numpyro.infer.ESS`.
 
@@ -1310,7 +1310,7 @@ class BayesFit(Fit):
             kernel=NumPyroESS,
             warmup=warmup,
             steps=steps,
-            chains=n_parallel,
+            chains=parallel_chains,
             thinning=thinning,
             init=init,
             chain_method=chain_method,
@@ -1326,7 +1326,7 @@ class BayesFit(Fit):
         chains: int | None = None,
         thinning: int = 1,
         init: dict[str, float] | None = None,
-        n_parallel: int | None = None,
+        parallel: bool | int | Sequence[Device] = True,
         progress: bool = True,
         post_warmup_state: Sequence | None = None,
         tune: bool = False,
@@ -1360,9 +1360,15 @@ class BayesFit(Fit):
             `steps` * `thinning`. The default is 1.
         init : dict, optional
             Initial parameter for sampler to start from.
-        n_parallel : int, optional
-            Number of parallel samplers to run.
-            The default is ``jax.local_device_count()``.
+        parallel : bool, int, or sequence of Device, optional
+            Parallel setup for independent samplers:
+
+                * ``False``: disable parallel sampling (single sampler)
+                * ``True``: use ``jax.local_device_count()`` samplers
+                * ``int``: use the specified number of samplers
+                * ``list(devices)``: use the length of the device list
+
+            The default is True.
         progress : bool, optional
             Whether to show progress bars during sampling. The default is True.
         post_warmup_state : sequence, optional
@@ -1397,7 +1403,7 @@ class BayesFit(Fit):
                and Jonathan Goodman.
         """
         init = self._check_init(init)
-        n_parallel = get_parallel_number(n_parallel)
+        n_parallel = self._parse_parallel_setting(parallel)
         sampler = EmceeSampler(
             numpyro_model=self._helper.numpyro_model,
             init_params=init,
@@ -1432,7 +1438,7 @@ class BayesFit(Fit):
         chains: int | None = None,
         thinning: int = 1,
         init: dict[str, float] | None = None,
-        n_parallel: int | None = None,
+        parallel: bool | int | Sequence[Device] = True,
         progress: bool = True,
         post_warmup_state: Sequence | None = None,
         tune: bool = True,
@@ -1466,9 +1472,15 @@ class BayesFit(Fit):
             `steps` * `thinning`. The default is 1.
         init : dict, optional
             Initial parameter for sampler to start from.
-        n_parallel : int, optional
-            Number of parallel samplers to run.
-            The default is ``jax.local_device_count()``.
+        parallel : bool, int, or sequence of Device, optional
+            Parallel setup for independent samplers:
+
+                * ``False``: disable parallel sampling (single sampler)
+                * ``True``: use ``jax.local_device_count()`` samplers
+                * ``int``: use the specified number of samplers
+                * ``list(devices)``: use the length of the device list
+
+            The default is True.
         progress : bool, optional
             Whether to show progress bars during sampling. The default is True.
         post_warmup_state : sequence, optional
@@ -1506,7 +1518,7 @@ class BayesFit(Fit):
                Minas Karamanis, Florian Beutler.
         """
         init = self._check_init(init)
-        n_parallel = get_parallel_number(n_parallel)
+        n_parallel = self._parse_parallel_setting(parallel)
         sampler = ZeusSampler(
             numpyro_model=self._helper.numpyro_model,
             init_params=init,
@@ -1532,6 +1544,30 @@ class BayesFit(Fit):
             reff=reff,
             sampler_state=states,
             inference_library='zeus-mcmc',
+        )
+
+
+    @staticmethod
+    def _parse_parallel_setting(
+        parallel: bool | int | Sequence[Device],
+    ) -> int:
+        """Parse parallel configuration to worker count."""
+        if isinstance(parallel, bool):
+            return get_parallel_number(None) if parallel else 1
+
+        if isinstance(parallel, int):
+            return get_parallel_number(parallel)
+
+        if isinstance(parallel, Sequence) and not isinstance(
+            parallel, (str, bytes)
+        ):
+            n = len(parallel)
+            if n == 0:
+                raise ValueError('parallel devices list cannot be empty')
+            return get_parallel_number(n)
+
+        raise TypeError(
+            f'parallel must be bool, int, or device sequence, got {type(parallel)}'
         )
 
     def jaxns(
@@ -1653,6 +1689,7 @@ class BayesFit(Fit):
         self,
         ess: int = 3000,
         ignore_nan: bool = False,
+        parallel: bool | int | Sequence[Device] = False,
         *,
         constructor_kwargs: dict | None = None,
         termination_kwargs: dict | None = None,
@@ -1670,6 +1707,15 @@ class BayesFit(Fit):
             .. warning::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
+        parallel : bool, int, or sequence of Device, optional
+            Parallel setup for process pool:
+
+                * ``False``: disable parallel pool
+                * ``True``: use ``jax.local_device_count()`` processes
+                * ``int``: use the specified number of processes
+                * ``list(devices)``: use the length of the device list
+
+            The default is False.
         constructor_kwargs : dict, optional
             Extra parameters passed to
             :class:`nautilus.Sampler`.
@@ -1683,7 +1729,12 @@ class BayesFit(Fit):
             constructor_kwargs = {}
         else:
             constructor_kwargs = dict(constructor_kwargs)
-        constructor_kwargs.setdefault('pool', get_parallel_number(None))
+        if parallel is False:
+            constructor_kwargs.setdefault('pool', None)
+        else:
+            constructor_kwargs.setdefault(
+                'pool', self._parse_parallel_setting(parallel)
+            )
 
         if termination_kwargs is None:
             termination_kwargs = {}
