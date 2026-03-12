@@ -1546,7 +1546,6 @@ class BayesFit(Fit):
             inference_library='zeus-mcmc',
         )
 
-
     @staticmethod
     def _parse_parallel_setting(
         parallel: bool | int | Sequence[Device],
