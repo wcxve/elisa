@@ -1532,7 +1532,9 @@ class PosteriorResult(FitResult):
             return jnp.hstack([params_arr, fn_arr])
 
         if parallel:
-            n_parallel = get_parallel_number(self._n_parallel)
+            n_parallel = get_parallel_number(
+                self._n_parallel if n_parallel is None else n_parallel
+            )
             devices = create_device_mesh(
                 mesh_shape=(n_parallel,),
                 devices=jax.devices()[:n_parallel],
@@ -1661,6 +1663,7 @@ class PosteriorResult(FitResult):
         cl: float | int,
         hdi: bool,
         parallel: bool = True,
+        n_parallel: int | None = None,
         params_setting: dict[str, JAXArray] | None = None,
     ):
         if params_setting is not None:
@@ -1675,7 +1678,9 @@ class PosteriorResult(FitResult):
         eval_fn = jax.jit(jax.vmap(lambda p: jax.tree.map(lambda f: f(p), fn)))
 
         if parallel:
-            n_parallel = get_parallel_number(self._n_parallel)
+            n_parallel = get_parallel_number(
+                self._n_parallel if n_parallel is None else n_parallel
+            )
             devices = create_device_mesh(
                 mesh_shape=(n_parallel,),
                 devices=jax.devices()[:n_parallel],
@@ -1726,6 +1731,8 @@ class PosteriorResult(FitResult):
         converter: Callable,
         hdi: bool,
         comps: bool,
+        parallel: bool,
+        n_parallel: int | None,
         params: dict[str, JAXArray] | None,
     ) -> dict[str, Q | float]:
         """Calculate confidence interval of flux.
@@ -1744,6 +1751,10 @@ class PosteriorResult(FitResult):
             Whether to return the highest density interval.
         comps : bool
             Whether to return the result of each component.
+        parallel : bool
+            Whether to evaluate intensity in parallel.
+        n_parallel : int, optional
+            Number of parallel processes when ``parallel`` is ``True``.
         params : dict, optional
             Parameters dict to overwrite the posterior parameters.
 
@@ -1757,7 +1768,7 @@ class PosteriorResult(FitResult):
         fn = jax.jit(lambda p: self._flux_fn(egrid, p, energy, comps))
 
         mean, std, median, intervals, dist = self._ci_fn(
-            {'intensity': fn}, cl, hdi, True, params
+            {'intensity': fn}, cl, hdi, parallel, n_parallel, params
         )
         mean = mean['intensity']
         std = std['intensity']
@@ -1795,6 +1806,8 @@ class PosteriorResult(FitResult):
         hdi: bool = False,
         comps: bool = False,
         log: bool = True,
+        parallel: bool = False,
+        n_parallel: int | None = None,
         params: dict[str, float | int] | None = None,
     ) -> PosteriorFlux:
         r"""Calculate the flux of model.
@@ -1833,6 +1846,12 @@ class PosteriorResult(FitResult):
         log : bool, optional
             Whether to use logarithmically regular energy grid. The default is
             True.
+        parallel : bool, optional
+            Whether to evaluate posterior samples in parallel. The default is
+            False.
+        n_parallel : int, optional
+            Number of parallel processes when ``parallel`` is ``True``.
+            Defaults to ``jax.local_device_count()``.
         params : dict, optional
             Parameters dict to overwrite the fitted parameters. Ignored when
             `method` is ``'profile'``.
@@ -1848,7 +1867,15 @@ class PosteriorResult(FitResult):
             egrid = jnp.linspace(emin, emax, ngrid)
 
         flux = self._intensity_ci(
-            egrid, energy, cl, lambda x: x, hdi, comps, params
+            egrid,
+            energy,
+            cl,
+            lambda x: x,
+            hdi,
+            comps,
+            parallel,
+            n_parallel,
+            params,
         )
 
         return PosteriorFlux(
@@ -1865,6 +1892,8 @@ class PosteriorResult(FitResult):
         hdi: bool = False,
         comps: bool = False,
         log: bool = True,
+        parallel: bool = False,
+        n_parallel: int | None = None,
         params: dict[str, float | int] | None = None,
         cosmo: LambdaCDM = Planck18,
     ) -> PosteriorLumin:
@@ -1902,6 +1931,12 @@ class PosteriorResult(FitResult):
         log : bool, optional
             Whether to use logarithmically regular energy grid. The default is
             True.
+        parallel : bool, optional
+            Whether to evaluate posterior samples in parallel. The default is
+            False.
+        n_parallel : int, optional
+            Number of parallel processes when ``parallel`` is ``True``.
+            Defaults to ``jax.local_device_count()``.
         params : dict, optional
             Parameters dict to overwrite the fitted parameters. Ignored when
             `method` is ``'profile'``.
@@ -1924,7 +1959,15 @@ class PosteriorResult(FitResult):
         to_lumin = lambda x: (x * factor).to('erg s^-1')
 
         lumin = self._intensity_ci(
-            egrid, True, cl, to_lumin, hdi, comps, params
+            egrid,
+            True,
+            cl,
+            to_lumin,
+            hdi,
+            comps,
+            parallel,
+            n_parallel,
+            params,
         )
 
         return PosteriorLumin(
@@ -1947,6 +1990,8 @@ class PosteriorResult(FitResult):
         hdi: bool = False,
         comps: bool = False,
         log: bool = True,
+        parallel: bool = False,
+        n_parallel: int | None = None,
         params: dict[str, float | int] | None = None,
         cosmo: LambdaCDM = Planck18,
     ) -> PosteriorEiso:
@@ -1987,6 +2032,12 @@ class PosteriorResult(FitResult):
         log : bool, optional
             Whether to use logarithmically regular energy grid. The default
             is True.
+        parallel : bool, optional
+            Whether to evaluate posterior samples in parallel. The default is
+            False.
+        n_parallel : int, optional
+            Number of parallel processes when ``parallel`` is ``True``.
+            Defaults to ``jax.local_device_count()``.
         params : dict, optional
             Parameters dict to overwrite the fitted parameters. Ignored when
             `method` is ``'profile'``.
@@ -2010,7 +2061,17 @@ class PosteriorResult(FitResult):
         factor *= duration / (1 + z) * u.s
         to_eiso = lambda x: (x * factor).to('erg')
 
-        eiso = self._intensity_ci(egrid, True, cl, to_eiso, hdi, comps, params)
+        eiso = self._intensity_ci(
+            egrid,
+            True,
+            cl,
+            to_eiso,
+            hdi,
+            comps,
+            parallel,
+            n_parallel,
+            params,
+        )
 
         return PosteriorEiso(
             emin_rest,
