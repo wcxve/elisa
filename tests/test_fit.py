@@ -8,6 +8,12 @@ import pytest
 from elisa import BayesFit, MaxLikeFit
 from elisa.models import PowerLaw
 
+DYNESTY_SKIP_MARK = pytest.mark.skipif(
+    not bool(find_spec('dynesty')),
+    reason='dynesty is not installed',
+)
+
+
 JAXNS_XFAIL_MARK = pytest.mark.xfail(
     not bool(find_spec('jaxns'))
     and sys.version_info >= (3, 13)
@@ -70,6 +76,12 @@ def test_trivial_max_like_fit(simulation, method):
         # Non-JAX backends nested samplers
         pytest.param('nautilus', {}, id='Nautilus'),
         pytest.param('ultranest', {}, id='UltraNest'),
+        pytest.param(
+            'dynesty',
+            {'termination_kwargs': {'maxcall': 20000}},
+            marks=DYNESTY_SKIP_MARK,
+            id='Dynesty',
+        ),
     ],
 )
 def test_trivial_bayes_fit(simulation, method, options):
