@@ -57,14 +57,16 @@ class DynestySampler:
         self._run_results = None
         self._pool = None
 
-        if 'pool' not in kwargs and kwargs.get('queue_size', 1) > 1:
+        pool = kwargs.get('pool')
+        if isinstance(pool, int):
             old_method = mp.get_start_method()
             if old_method != 'spawn':
                 mp.set_start_method('spawn', force=True)
             else:
                 old_method = ''
-            self._pool = mp.Pool(int(kwargs['queue_size']))
+            self._pool = mp.Pool(pool)
             kwargs['pool'] = self._pool
+            kwargs.setdefault('queue_size', pool)
             kwargs.setdefault(
                 'use_pool',
                 {
@@ -76,6 +78,9 @@ class DynestySampler:
             )
             if old_method:
                 mp.set_start_method(old_method, force=True)
+        elif pool is None:
+            kwargs.pop('pool', None)
+            kwargs.setdefault('queue_size', 1)
 
         sampler_cls = DynamicNestedSampler if self._dynamic else NestedSampler
         self._sampler_cls = sampler_cls
@@ -95,8 +100,13 @@ class DynestySampler:
                 pool=self._sampler_constructor_kwargs.get('pool'),
             )
         else:
+            log_prob_fn = self._log_prob_fn
+
+            def loglikelihood(x):
+                return jax.device_get(log_prob_fn(x))
+
             sampler = self._sampler_cls(
-                loglikelihood=lambda x: jax.device_get(self._log_prob_fn(x)),
+                loglikelihood=loglikelihood,
                 prior_transform=lambda x: x,
                 ndim=mi.ndim,
                 **self._sampler_constructor_kwargs,

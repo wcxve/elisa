@@ -1860,7 +1860,7 @@ class BayesFit(Fit):
             constructor_kwargs = dict(constructor_kwargs)
         constructor_kwargs.setdefault('bound', 'multi')
         constructor_kwargs.setdefault('sample', 'auto')
-        constructor_kwargs.setdefault('queue_size', get_parallel_number(None))
+        constructor_kwargs.setdefault('pool', get_parallel_number(None))
 
         if termination_kwargs is None:
             termination_kwargs = {}
