@@ -1662,7 +1662,9 @@ class BayesFit(Fit):
         Parameters
         ----------
         ess : int, optional
-            The desired effective sample size.
+            The desired effective sample size for dynamic nested sampling.
+            For static nested sampling, please use ``termination_kwargs`` to
+            control settings such as ``dlogz`` or ``maxcall``.
         ignore_nan : bool, optional
             Whether to transform a NaN log probability to a large negative
             number (-1e300). The default is False.
@@ -1737,7 +1739,9 @@ class BayesFit(Fit):
         Parameters
         ----------
         ess : int, optional
-            The desired effective sample size.
+            The desired effective sample size for dynamic nested sampling.
+            For static nested sampling, please use ``termination_kwargs`` to
+            control settings such as ``dlogz`` or ``maxcall``.
         ignore_nan : bool, optional
             Whether to transform a NaN log probability to a large negative
             number (-1e300). The default is False.
@@ -1831,7 +1835,9 @@ class BayesFit(Fit):
         Parameters
         ----------
         ess : int, optional
-            The desired effective sample size.
+            The desired effective sample size for dynamic nested sampling.
+            For static nested sampling, please use ``termination_kwargs`` to
+            control settings such as ``dlogz`` or ``maxcall``.
         ignore_nan : bool, optional
             Whether to transform a NaN log probability to a large negative
             number (-1e300). The default is False.
@@ -1866,7 +1872,10 @@ class BayesFit(Fit):
             termination_kwargs = {}
         else:
             termination_kwargs = dict(termination_kwargs)
-        termination_kwargs.setdefault('n_effective', int(ess))
+        if dynamic:
+            termination_kwargs.setdefault('n_effective', int(ess))
+        else:
+            termination_kwargs.pop('n_effective', None)
 
         print('Running nested sampling of Dynesty...')
         t0 = time.time()

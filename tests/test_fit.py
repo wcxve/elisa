@@ -1,4 +1,5 @@
 import sys
+import types
 from importlib.metadata import version
 from importlib.util import find_spec
 
@@ -120,3 +121,68 @@ def test_trivial_bayes_fit(simulation, method, options):
 
     # check the global random state of numpy is unaffected after the fit
     assert np.allclose(np.random.rand(), test_rand)
+
+
+@pytest.mark.parametrize(
+    'dynamic, expected',
+    [
+        pytest.param(False, None, id='Dynesty_static'),
+        pytest.param(True, 3000, id='Dynesty_dynamic'),
+    ],
+)
+def test_dynesty_termination_kwargs_dispatch(simulation, dynamic, expected):
+    captured = {}
+    original_generate_results = BayesFit._generate_results
+
+    class FakeDynestySampler:
+        def __init__(self, *args, dynamic: bool = False, **kwargs):
+            captured['dynamic'] = dynamic
+            self._ess = 8
+
+        def run(self, **kwargs):
+            captured['run_kwargs'] = kwargs
+            return {
+                'PowerLaw.K': np.array([10.0, 10.1]),
+                'PowerLaw.alpha': np.array([0.0, 0.1]),
+            }
+
+        def print_results(self):
+            captured['printed'] = True
+
+        @property
+        def ess(self):
+            return self._ess
+
+        @property
+        def lnZ(self):
+            return 0.0, 0.1
+
+    original = sys.modules.get('elisa.infer.samplers.ns.dynesty')
+    sys.modules['elisa.infer.samplers.ns.dynesty'] = types.SimpleNamespace(
+        DynestySampler=FakeDynestySampler,
+    )
+
+    try:
+        def fake_generate_results(self, **kwargs):
+            captured['generated'] = kwargs
+            return types.SimpleNamespace(lnZ=kwargs['lnZ'])
+
+        BayesFit._generate_results = fake_generate_results
+        data = simulation
+        model = PowerLaw()
+        model.PowerLaw.K.log = True
+        result = BayesFit(data, model, seed=100).dynesty(dynamic=dynamic)
+    finally:
+        BayesFit._generate_results = original_generate_results
+        if original is None:
+            del sys.modules['elisa.infer.samplers.ns.dynesty']
+        else:
+            sys.modules['elisa.infer.samplers.ns.dynesty'] = original
+
+    assert captured['dynamic'] is dynamic
+    assert captured.get('printed') is True
+    if expected is None:
+        assert 'n_effective' not in captured['run_kwargs']
+    else:
+        assert captured['run_kwargs']['n_effective'] == expected
+    assert result.lnZ[0] == 0.0
