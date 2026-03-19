@@ -1818,7 +1818,6 @@ class BayesFit(Fit):
             inference_library='ultranest',
         )
 
-
     def dynesty(
         self,
         ess: int = 3000,

@@ -163,6 +163,7 @@ def test_dynesty_termination_kwargs_dispatch(simulation, dynamic, expected):
     )
 
     try:
+
         def fake_generate_results(self, **kwargs):
             captured['generated'] = kwargs
             return types.SimpleNamespace(lnZ=kwargs['lnZ'])
