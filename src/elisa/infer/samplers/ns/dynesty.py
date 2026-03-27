@@ -4,6 +4,8 @@ import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import dill
+import dynesty.utils as dyutils
 import jax
 import jax.numpy as jnp
 import multiprocess as mp
@@ -11,9 +13,6 @@ import numpy as np
 from dynesty import DynamicNestedSampler, NestedSampler
 
 from elisa.infer.samplers.util import uniform_reparam_model
-
-import dill
-import dynesty.utils as dyutils
 
 dyutils.pickle_module = dill
 
