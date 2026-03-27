@@ -25,6 +25,7 @@ dependencies = [
     "blackjax==1.3",
     "corner~=2.2.2",
     "dill~=0.4.0",
+    "dynesty>=2.1,<=3.0.0",
     "emcee~=3.1.6",
     "fastprogress<1.1.0", # blackjax's requirement, v1.1+ needs IPython
     "h5py>=3.14,<3.16",
