@@ -12,6 +12,11 @@ from dynesty import DynamicNestedSampler, NestedSampler
 
 from elisa.infer.samplers.util import uniform_reparam_model
 
+import dill
+import dynesty.utils as dyutils
+
+dyutils.pickle_module = dill
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
