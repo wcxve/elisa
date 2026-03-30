@@ -34,7 +34,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: Install Python Dependencies
         run: |
@@ -64,19 +64,19 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Tests (Python 3.13 on Linux-x64)
+          - name: Tests (Python 3.14 on Linux-x64)
             os: "ubuntu-latest"
-            python-version: "3.13"
+            python-version: "3.14"
             uv-resolution: "highest"
 
-          - name: Tests (Python 3.13 on macOS-arm64)
+          - name: Tests (Python 3.14 on macOS-arm64)
             os: "macos-latest"
-            python-version: "3.13"
+            python-version: "3.14"
             uv-resolution: "highest"
 
           - name: Tests (Lowest Version Deps)
             os: "ubuntu-latest"
-            python-version: "3.10"
+            python-version: "3.11"
             uv-resolution: "lowest-direct"
     steps:
       - name: Checkout
