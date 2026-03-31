@@ -34,7 +34,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: Install Python Dependencies
         run: |
@@ -64,23 +64,20 @@ jobs:
     strategy:
       matrix:
         include:
-          - name: Tests (Python 3.13 on Linux-x64)
+          - name: Tests (Python 3.14 on Linux-x64)
             os: "ubuntu-latest"
-            python-version: "3.13"
+            python-version: "3.14"
             uv-resolution: "highest"
-            worker: "4"
 
-          - name: Tests (Python 3.13 on macOS-arm64)
+          - name: Tests (Python 3.14 on macOS-arm64)
             os: "macos-latest"
-            python-version: "3.13"
+            python-version: "3.14"
             uv-resolution: "highest"
-            worker: "3"
 
           - name: Tests (Lowest Version Deps)
             os: "ubuntu-latest"
-            python-version: "3.10"
+            python-version: "3.11"
             uv-resolution: "lowest-direct"
-            worker: "4"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -109,13 +106,15 @@ jobs:
             $(echo "${extra}" | tr ',' '\n' | xargs -I {} echo --extra {}) \
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }}
+          # Keep PEP 517 build isolation aligned with the resolved runtime deps.
           uv pip install "$(ls astro_elisa-*.tar.gz)[${extra},test]" \
             --overrides requirements.txt \
+            --build-constraint requirements.txt \
             --verbose
 
       - name: Run Tests
         run: |
-          pytest -n ${{ matrix.worker }}
+          pytest
 
       - name: Upload Test Results
         if: ${{ !cancelled() }}
