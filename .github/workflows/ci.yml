@@ -106,8 +106,10 @@ jobs:
             $(echo "${extra}" | tr ',' '\n' | xargs -I {} echo --extra {}) \
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }}
+          # Keep PEP 517 build isolation aligned with the resolved runtime deps.
           uv pip install "$(ls astro_elisa-*.tar.gz)[${extra},test]" \
             --overrides requirements.txt \
+            --build-constraint requirements.txt \
             --verbose
 
       - name: Run Tests
