@@ -78,7 +78,6 @@ test = [
     "coverage[toml]>=7.8,<7.14",
     "pytest",
     "pytest-cov",
-    "pytest-xdist",
 ]
 xspec = ["xspex~=0.1.2"]
 
@@ -121,7 +120,7 @@ build.targets.wheel.packages = ["src/elisa"]
 version.source = "vcs"
 
 [tool.pytest]
-ini_options.addopts = "-v -n 0 --cov --cov-report=xml --junitxml=junit.xml"
+ini_options.addopts = "-v --cov --cov-report=xml --junitxml=junit.xml"
 ini_options.testpaths = ["tests"]
 
 [tool.ruff]
