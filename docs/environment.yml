@@ -4,7 +4,7 @@ channels:
   - defaults
 dependencies:
   - python=3.12
-  - xspec>=12.15.0
+  - xspec>=12.15.1
   - pip
   - pip:
-      - xspex~=0.1.1
+      - xspex~=0.1.2
