@@ -80,7 +80,7 @@ test = [
     "pytest-cov",
     "pytest-xdist",
 ]
-xspec = ["xspex~=0.1.1,!=0.1.2"]
+xspec = ["xspex~=0.1.2"]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
@@ -121,7 +121,7 @@ build.targets.wheel.packages = ["src/elisa"]
 version.source = "vcs"
 
 [tool.pytest]
-ini_options.addopts = "-v -n auto --cov --cov-report=xml --junitxml=junit.xml"
+ini_options.addopts = "-v -n 0 --cov --cov-report=xml --junitxml=junit.xml"
 ini_options.testpaths = ["tests"]
 
 [tool.ruff]
