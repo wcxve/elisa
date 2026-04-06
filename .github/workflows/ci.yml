@@ -93,7 +93,7 @@ jobs:
 
       - name: Install XSPEC
         run: |
-          mamba install xspec -c ${{ env.heasarc-channel }} -c conda-forge -y
+          mamba install xspec=12.15.0 -c ${{ env.heasarc-channel }} -c conda-forge -y
 
       - name: Download Source Distribution
         uses: actions/download-artifact@v7
