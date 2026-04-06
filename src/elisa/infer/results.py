@@ -1030,7 +1030,7 @@ class MLEResult(FitResult):
             unit = u.Unit('erg cm^-2 s^-1')
         else:
             unit = u.Unit('ph cm^-2 s^-1')
-        convert = lambda x: (x if x is None else converter(x * unit))
+        convert = lambda x: x if x is None else converter(x * unit)
 
         intervals = {k: intervals[v] for k, v in mapping.items()}
         se = {k: se[v] for k, v in mapping.items()}
@@ -1769,7 +1769,7 @@ class PosteriorResult(FitResult):
             unit = u.Unit('erg cm^-2 s^-1')
         else:
             unit = u.Unit('ph cm^-2 s^-1')
-        convert = lambda x: (x if x is None else converter(x * unit))
+        convert = lambda x: x if x is None else converter(x * unit)
 
         errors = jax.tree.map(
             lambda x, y: (y[0] - x, y[1] - x), median, intervals
