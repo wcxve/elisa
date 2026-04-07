@@ -520,7 +520,6 @@ class ObservationData:
                     fn = lambda a: group_sig_lima(
                         a[0],
                         a[1],
-                        source_net=False,
                         spec_exposure=self.spec_data.exposure,
                         back_exposure=self.back_data.exposure,
                         spec_area=a[2],
@@ -542,7 +541,6 @@ class ObservationData:
                         a[0],
                         a[1],
                         a[2],
-                        source_net=False,
                         spec_exposure=self.spec_data.exposure,
                         back_exposure=self.back_data.exposure,
                         spec_area=a[3],

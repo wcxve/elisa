@@ -669,7 +669,6 @@ def group_sig_lima(
     n_on: NDArray,
     n_off: NDArray,
     *,
-    source_net: bool,
     spec_exposure: float,
     back_exposure: float,
     spec_area: _ScaleGroupData,
@@ -682,13 +681,15 @@ def group_sig_lima(
 
     The source-to-background ratio is recomputed for every candidate bin from
     the grouped scale metadata instead of assuming a single constant ratio.
+    Significance grouping always treats the source scales as total-spectrum
+    scales, so NET averaging is not used here.
     """
     assert len(n_on) == len(n_off)
     sig = float(sig)
     assert sig > 0.0
 
-    spec_area_prefix = _build_scale_prefix(spec_area, net=source_net)
-    spec_back_prefix = _build_scale_prefix(spec_back, net=source_net)
+    spec_area_prefix = _build_scale_prefix(spec_area, net=False)
+    spec_back_prefix = _build_scale_prefix(spec_back, net=False)
     back_area_prefix = _build_scale_prefix(back_area, net=False)
     back_back_prefix = _build_scale_prefix(back_back, net=False)
     on_prefix = _prefix_sum(n_on)
@@ -753,7 +754,6 @@ def group_sig_gv(
     b: NDArray,
     s: NDArray,
     *,
-    source_net: bool,
     spec_exposure: float,
     back_exposure: float,
     spec_area: _ScaleGroupData,
@@ -766,13 +766,15 @@ def group_sig_gv(
 
     The source-to-background ratio is recomputed for every candidate bin from
     the grouped scale metadata instead of assuming a single constant ratio.
+    Significance grouping always treats the source scales as total-spectrum
+    scales, so NET averaging is not used here.
     """
     assert len(n) == len(b) == len(s)
     sig = float(sig)
     assert sig > 0.0
 
-    spec_area_prefix = _build_scale_prefix(spec_area, net=source_net)
-    spec_back_prefix = _build_scale_prefix(spec_back, net=source_net)
+    spec_area_prefix = _build_scale_prefix(spec_area, net=False)
+    spec_back_prefix = _build_scale_prefix(spec_back, net=False)
     back_area_prefix = _build_scale_prefix(back_area, net=False)
     back_back_prefix = _build_scale_prefix(back_back, net=False)
     n_prefix = _prefix_sum(n)
