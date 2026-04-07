@@ -61,6 +61,7 @@ jobs:
         shell: bash -el {0}
     env:
       extra: "xspec"
+      CURATED_TEST_DATA: "${{ github.workspace }}/external/curated-test-data"
     strategy:
       matrix:
         include:
@@ -81,6 +82,24 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Checkout curated test data
+        uses: actions/checkout@v6
+        with:
+          repository: HEACIT/curated-test-data
+          path: external/curated-test-data
+          fetch-depth: 1
+          sparse-checkout: |
+            observations.yml
+            Chandra
+            HXMT
+            Hitomi
+            IXPE
+            Lynx
+            NICER
+            NuSTAR
+            XMM-Newton
+            XRISM
 
       - name: Setup Miniforge
         uses: conda-incubator/setup-miniconda@v3
