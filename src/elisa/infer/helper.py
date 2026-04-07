@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-from typing import TYPE_CHECKING, NamedTuple
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Any, Literal, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -11,41 +11,34 @@ import numpy as np
 import numpyro
 from jax import lax
 from numpyro import handlers
+from numpyro.distributions import Distribution
 from numpyro.infer.util import constrain_fn, unconstrain_fn
 
+from elisa.data.base import FixedData
 from elisa.infer.likelihood import (
     _STATISTIC_BACK_NORMAL,
     _STATISTIC_SPEC_NORMAL,
     _STATISTIC_WITH_BACK,
+    Statistic,
     chi2,
     cstat,
     pgstat,
     pstat,
     wstat,
 )
+from elisa.models.model import CompiledModel, ModelInfo, ParamSetup
 from elisa.util.config import get_parallel_number
 from elisa.util.misc import (
     get_unit_latex,
     progress_bar_factory,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
-    from typing import Literal
-
-    from numpyro.distributions import Distribution
-
-    from elisa.data.base import FixedData
-    from elisa.infer.fit import Fit
-    from elisa.infer.likelihood import Statistic
-    from elisa.models.model import CompiledModel, ModelInfo, ParamSetup
-    from elisa.util.typing import (
-        JAXArray,
-        JAXFloat,
-        ParamID,
-        ParamName,
-        ParamNameValMapping,
-    )
+from elisa.util.typing import (
+    JAXArray,
+    JAXFloat,
+    ParamID,
+    ParamName,
+    ParamNameValMapping,
+)
 
 
 def check_params(
@@ -131,7 +124,7 @@ def check_params(
 #     return reparam, inv
 
 
-def get_helper(fit: Fit) -> Helper:
+def get_helper(fit: Any) -> Helper:
     """Get helper functions for fitting."""
     # JAX devices must be set before importing optimistix
     # so we import it here

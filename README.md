@@ -44,7 +44,7 @@ environment as follows:
     ```
 
    Note that you can customize the environment name to your preference,
-   and the ``Python`` version should range from 3.10 to 3.13.
+   and the ``Python`` version should range from 3.11 to 3.14.
 
 2. Activate the environment we just created:
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NamedTuple
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
 import blackjax.adaptation.window_adaptation as window_adaptation
 import blackjax.mcmc.integrators as integrators
@@ -12,11 +13,6 @@ from blackjax.mcmc.nuts import build_kernel
 from numpyro.infer.mcmc import MCMCKernel
 from numpyro.infer.util import init_to_uniform, initialize_model
 from numpyro.util import identity, is_prng_key
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from blackjax.mcmc.metrics import MetricTypes
 
 
 class BlackJAXNUTSState(NamedTuple):
@@ -62,10 +58,10 @@ class BlackJAXNUTSState(NamedTuple):
     step_size: float
     """Step size to be used by the integrator in the next iteration."""
 
-    inverse_mass_matrix: MetricTypes
+    inverse_mass_matrix: Any
     """The inverse mass matrix to be used for the next iteration."""
 
-    adapt_state: window_adaptation.WindowAdaptationState
+    adapt_state: Any
     """The current window adaption state of the NUTS."""
 
     rng_key: jax.Array
