@@ -8,6 +8,10 @@ import numpy as np
 from scipy.sparse import coo_array, csc_array, sparray
 
 from elisa.data.grouping import (
+    _group_back_ratio,
+    _group_scale_data,
+    _ScaleGroupData,
+    _slice_scale_data,
     group_const,
     group_min,
     group_opt,
@@ -28,7 +32,6 @@ if TYPE_CHECKING:
 
 
 # TODO: support multiple response in a single data object
-# TODO: support area and background scale arrays
 class ObservationData:
     """Observation data.
 
@@ -93,10 +96,17 @@ class ObservationData:
         if self.has_back:
             spec = self.spec_data
             back = self.back_data
-            self._back_ratio = (
-                spec.exposure * spec.area_scale * spec.back_scale
-            ) / (back.exposure * back.area_scale * back.back_scale)
+            numerator = spec.exposure * spec.area_scale * spec.back_scale
+            denominator = back.exposure * back.area_scale * back.back_scale
+            self._raw_back_ratio = np.ones(numerator.shape, dtype=np.float64)
+            np.divide(
+                numerator,
+                denominator,
+                out=self._raw_back_ratio,
+                where=denominator != 0.0,
+            )
         else:
+            self._raw_back_ratio = None
             self._back_ratio = None
 
         # bad quality flags of the spectrum
@@ -128,6 +138,78 @@ class ObservationData:
         self.set_grouping(self.spec_data.grouping)
         self._initialized = True
 
+    def _group_scale_arrays(
+        self, grouping: NDArray, quality: NDArray | None = None
+    ) -> tuple[
+        _ScaleGroupData,
+        _ScaleGroupData,
+        _ScaleGroupData | None,
+        _ScaleGroupData | None,
+    ]:
+        """Group source/background scale arrays with XSPEC-compatible rules.
+
+        Source scales use NET averaging only when the input spectrum is a NET
+        spectrum without an explicit background file. Background scales always
+        use the non-NET rule.
+        """
+        source_scale_net = self.spec_data.net and not self.has_back
+        spec = self.spec_data
+        spec_area = _group_scale_data(
+            counts=spec.counts,
+            scale=spec.area_scale,
+            grouping=grouping,
+            quality=quality,
+            net=source_scale_net,
+        )
+        spec_back = _group_scale_data(
+            counts=spec.counts,
+            scale=spec.back_scale,
+            grouping=grouping,
+            quality=quality,
+            net=source_scale_net,
+        )
+
+        if not self.has_back:
+            return spec_area, spec_back, None, None
+
+        back = self.back_data
+        back_area = _group_scale_data(
+            counts=back.counts,
+            scale=back.area_scale,
+            grouping=grouping,
+            quality=quality,
+            net=False,
+        )
+        back_back = _group_scale_data(
+            counts=back.counts,
+            scale=back.back_scale,
+            grouping=grouping,
+            quality=quality,
+            net=False,
+        )
+        return spec_area, spec_back, back_area, back_back
+
+    def _get_grouped_back_ratio(
+        self,
+        spec_area: _ScaleGroupData,
+        spec_back: _ScaleGroupData,
+        back_area: _ScaleGroupData | None,
+        back_back: _ScaleGroupData | None,
+    ) -> NDArray | None:
+        """Return grouped source-to-background effective exposure ratios."""
+        if not self.has_back:
+            return None
+
+        assert back_area is not None and back_back is not None
+        return _group_back_ratio(
+            spec_exposure=self.spec_data.exposure,
+            back_exposure=self.back_data.exposure,
+            spec_area=spec_area,
+            spec_back=spec_back,
+            back_area=back_area,
+            back_back=back_back,
+        )
+
     def _get_channel_mask(
         self, channel_emin: NDArray, channel_emax: NDArray
     ) -> NDArray:
@@ -142,7 +224,8 @@ class ObservationData:
         """The counts data to be used in the optimal grouping."""
         if self.has_back:
             return (
-                self.spec_data.counts - self.back_ratio * self.back_data.counts
+                self.spec_data.counts
+                - self._raw_back_ratio * self.back_data.counts
             )
         else:
             return self.spec_data.counts
@@ -206,6 +289,9 @@ class ObservationData:
         quality = self.good_quality
 
         spec_counts, spec_errors = self.spec_data.group(grouping, quality)
+        spec_area, spec_back, back_area, back_back = self._group_scale_arrays(
+            grouping, quality
+        )
 
         channel_emin, channel_emax, matrix, channels = self.resp_data.group(
             grouping, quality, self.keep_channel_info
@@ -239,15 +325,28 @@ class ObservationData:
         # spectrum attribute
         self._spec_counts = spec_counts[channel_mask]
         self._spec_errors = spec_errors[channel_mask]
+        self._area_scale = spec_area.scale[channel_mask]
+        self._spec_back_scale = spec_back.scale[channel_mask]
 
         # background attribute
         if self.has_back:
             back_counts, back_errors = self.back_data.group(grouping, quality)
             self._back_counts = back_counts[channel_mask]
             self._back_errors = back_errors[channel_mask]
+            assert back_area is not None and back_back is not None
+            self._back_area_scale = back_area.scale[channel_mask]
+            self._back_back_scale = back_back.scale[channel_mask]
+            grouped_back_ratio = self._get_grouped_back_ratio(
+                spec_area, spec_back, back_area, back_back
+            )
+            assert grouped_back_ratio is not None
+            self._back_ratio = grouped_back_ratio[channel_mask]
         else:
             self._back_counts = None
             self._back_errors = None
+            self._back_area_scale = None
+            self._back_back_scale = None
+            self._back_ratio = None
 
         # net spectrum attribute
         unit = 1.0 / (self.channel_width * self.spec_data.exposure)
@@ -366,12 +465,22 @@ class ObservationData:
         spec_counts, spec_errors = self.spec_data.group(
             grouping=pre_grouping, quality=self.good_quality
         )
+        spec_area_data, spec_back_data, back_area_data, back_back_data = (
+            self._group_scale_arrays(pre_grouping, self.good_quality)
+        )
 
         if self.has_back:
             back_counts, back_errors = self.back_data.group(
                 grouping=pre_grouping, quality=self.good_quality
             )
-            back_ratio = self.back_ratio
+            assert back_area_data is not None and back_back_data is not None
+            back_ratio = self._get_grouped_back_ratio(
+                spec_area_data,
+                spec_back_data,
+                back_area_data,
+                back_back_data,
+            )
+            assert back_ratio is not None
             berr = back_ratio * back_errors
             net_counts = spec_counts - back_ratio * back_counts
             net_errors = np.sqrt(spec_errors * spec_errors + berr * berr)
@@ -382,13 +491,19 @@ class ObservationData:
             net_counts = spec_counts
             net_errors = spec_errors
 
-        channel_masked = lambda x: [x[mask] for mask in channel_mask]
+        channel_masks = [np.asarray(mask, dtype=bool) for mask in channel_mask]
+        channel_masked = lambda x: [x[mask] for mask in channel_masks]
         spec_counts = channel_masked(spec_counts)
         net_counts = channel_masked(net_counts)
         net_errors = channel_masked(net_errors)
+        spec_area_data = _slice_scale_data(spec_area_data, channel_masks)
+        spec_back_data = _slice_scale_data(spec_back_data, channel_masks)
         if self.has_back:
             back_counts = channel_masked(back_counts)
             back_errors = channel_masked(back_errors)
+            assert back_area_data is not None and back_back_data is not None
+            back_area_data = _slice_scale_data(back_area_data, channel_masks)
+            back_back_data = _slice_scale_data(back_back_data, channel_masks)
         if method.startswith('opt'):
             fwhm = channel_masked(fwhm)
             counts_opt = channel_masked(counts_opt)
@@ -402,11 +517,49 @@ class ObservationData:
         elif method == 'sig':
             if self.spec_data.poisson and self.has_back:
                 if self.back_data.poisson:
-                    fn = lambda a: group_sig_lima(*a, a=back_ratio, sig=scale)
-                    data = [spec_counts, back_counts]
+                    fn = lambda a: group_sig_lima(
+                        a[0],
+                        a[1],
+                        source_net=False,
+                        spec_exposure=self.spec_data.exposure,
+                        back_exposure=self.back_data.exposure,
+                        spec_area=a[2],
+                        spec_back=a[3],
+                        back_area=a[4],
+                        back_back=a[5],
+                        sig=scale,
+                    )
+                    data = [
+                        spec_counts,
+                        back_counts,
+                        spec_area_data,
+                        spec_back_data,
+                        back_area_data,
+                        back_back_data,
+                    ]
                 else:
-                    fn = lambda a: group_sig_gv(*a, a=back_ratio, sig=scale)
-                    data = [spec_counts, back_counts, back_errors]
+                    fn = lambda a: group_sig_gv(
+                        a[0],
+                        a[1],
+                        a[2],
+                        source_net=False,
+                        spec_exposure=self.spec_data.exposure,
+                        back_exposure=self.back_data.exposure,
+                        spec_area=a[3],
+                        spec_back=a[4],
+                        back_area=a[5],
+                        back_back=a[6],
+                        sig=scale,
+                    )
+                    data = [
+                        spec_counts,
+                        back_counts,
+                        back_errors,
+                        spec_area_data,
+                        spec_back_data,
+                        back_area_data,
+                        back_back_data,
+                    ]
             else:
                 fn = lambda a: group_sig_normal(*a, sig=scale)
                 data = [net_counts, net_errors]
@@ -434,17 +587,53 @@ class ObservationData:
             if self.spec_data.poisson and self.has_back:
                 if self.back_data.poisson:
                     fn = lambda a: group_optsig_lima(
-                        *a, a=back_ratio, sig=scale
+                        a[0],
+                        a[1],
+                        a[2],
+                        a[3],
+                        spec_exposure=self.spec_data.exposure,
+                        back_exposure=self.back_data.exposure,
+                        spec_area=a[4],
+                        spec_back=a[5],
+                        back_area=a[6],
+                        back_back=a[7],
+                        sig=scale,
                     )
-                    data = [fwhm, counts_opt, spec_counts, back_counts]
+                    data = [
+                        fwhm,
+                        counts_opt,
+                        spec_counts,
+                        back_counts,
+                        spec_area_data,
+                        spec_back_data,
+                        back_area_data,
+                        back_back_data,
+                    ]
                 else:
-                    fn = lambda a: group_optsig_gv(*a, a=back_ratio, sig=scale)
+                    fn = lambda a: group_optsig_gv(
+                        a[0],
+                        a[1],
+                        a[2],
+                        a[3],
+                        a[4],
+                        spec_exposure=self.spec_data.exposure,
+                        back_exposure=self.back_data.exposure,
+                        spec_area=a[5],
+                        spec_back=a[6],
+                        back_area=a[7],
+                        back_back=a[8],
+                        sig=scale,
+                    )
                     data = [
                         fwhm,
                         counts_opt,
                         spec_counts,
                         back_counts,
                         back_errors,
+                        spec_area_data,
+                        spec_back_data,
+                        back_area_data,
+                        back_back_data,
                     ]
             else:
                 fn = lambda a: group_optsig_normal(*a, sig=scale)
@@ -703,13 +892,13 @@ class ObservationData:
             spec_errors=copy(self.spec_errors),
             spec_poisson=self.spec_data.poisson,
             spec_exposure=self.spec_data.exposure,
-            area_scale=self.spec_data.area_scale,
+            area_scale=copy(self.area_scale),
             has_back=self.has_back,
             back_counts=copy(self.back_counts) if self.has_back else None,
             back_errors=copy(self.back_errors) if self.has_back else None,
             back_poisson=self.back_data.poisson if self.has_back else None,
             back_exposure=self.back_data.exposure if self.has_back else None,
-            back_ratio=self.back_ratio if self.has_back else None,
+            back_ratio=copy(self.back_ratio) if self.has_back else None,
             net_counts=copy(self.net_counts),
             net_errors=copy(self.net_errors),
             ce=copy(self.ce),
@@ -772,9 +961,9 @@ class ObservationData:
         return self.spec_data.poisson
 
     @property
-    def area_scale(self) -> float:
-        """Area scaling factor."""
-        return self.spec_data.area_scale
+    def area_scale(self) -> NDArray:
+        """Area scaling factor of grouped spectrum bins."""
+        return self._area_scale
 
     @property
     def back_ratio(self) -> NDArray | None:
@@ -920,9 +1109,15 @@ class SpectrumData:
         grouping flag of 1 with all successive channels with grouping
         flags of -1 will be combined. The default is ``1`` for all channels.
     area_scale : float or array-like, optional
-        Area scaling factor. The default is 1.0.
+        Area scaling factor. Scalar input is broadcast to all channels;
+        array input must match the number of channels. The default is 1.0.
     back_scale : float or array-like, optional
-        Background scaling factor. The default is 1.0.
+        Background scaling factor. Scalar input is broadcast to all channels;
+        array input must match the number of channels. The default is 1.0.
+    net : bool, optional
+        Whether grouped source scale factors should use XSPEC NET-spectrum
+        averaging. If omitted, ELISA infers it from the counts and treats any
+        spectrum containing negative channels as a NET spectrum.
     sys_errors : float or array-like, optional
         Systematic errors. If scalar, it will be applied to all channels.
         The default is 0.0.
@@ -947,6 +1142,7 @@ class SpectrumData:
         grouping: NDArray | None = None,
         area_scale: float | NDArray = 1.0,
         back_scale: float | NDArray = 1.0,
+        net: bool | None = None,
         sys_errors: float | NDArray = 0.0,
         zero_errors_warning: bool = True,
         non_int_warning: bool = True,
@@ -975,11 +1171,17 @@ class SpectrumData:
         if np.shape(grouping) != counts_shape:
             raise ValueError('grouping must have the same size as counts')
 
-        if np.shape(area_scale) != ():
-            raise NotImplementedError('area scale array not supported yet')
+        area_scale_shape = np.shape(area_scale)
+        if area_scale_shape != () and area_scale_shape != counts_shape:
+            raise ValueError(
+                'area_scale must be a scalar or have the same size as counts'
+            )
 
-        if np.shape(back_scale) != ():
-            raise NotImplementedError('area scale array not supported yet')
+        back_scale_shape = np.shape(back_scale)
+        if back_scale_shape != () and back_scale_shape != counts_shape:
+            raise ValueError(
+                'back_scale must be a scalar or have the same size as counts'
+            )
 
         sys_errors_shape = np.shape(sys_errors)
         if sys_errors_shape != () and sys_errors_shape != counts_shape:
@@ -994,8 +1196,16 @@ class SpectrumData:
 
         poisson = bool(poisson)
         exposure = float(exposure)
-        area_scale = float(area_scale)
-        back_scale = float(back_scale)
+        if area_scale_shape == ():
+            area_scale = np.full(counts_shape, area_scale, dtype=np.float64)
+        else:
+            area_scale = np.array(area_scale, dtype=np.float64, order='C')
+        if back_scale_shape == ():
+            back_scale = np.full(counts_shape, back_scale, dtype=np.float64)
+        else:
+            back_scale = np.array(back_scale, dtype=np.float64, order='C')
+        if net is not None:
+            net = bool(net)
         sys_errors = np.full(counts_shape, sys_errors, dtype=np.float64)
 
         if not np.all(np.isin(quality, [0, 1, 2, 5, -1])):
@@ -1031,11 +1241,37 @@ class SpectrumData:
         if exposure <= 0:
             raise ValueError('exposure must be positive')
 
-        if area_scale <= 0:
-            raise ValueError('area_scale must be positive')
+        area_zero_mask = np.logical_and(area_scale == 0.0, quality != 1)
+        if np.any(area_zero_mask):
+            warnings.warn(
+                'zero area_scale in non-ignored channels is reset to 1.0',
+                Warning,
+                stacklevel=2,
+            )
+            area_scale[area_zero_mask] = 1.0
 
-        if back_scale <= 0:
-            raise ValueError('back_scale must be positive')
+        back_zero_mask = np.logical_and(back_scale == 0.0, quality != 1)
+        if np.any(back_zero_mask):
+            warnings.warn(
+                'zero back_scale in non-ignored channels is reset to 1.0',
+                Warning,
+                stacklevel=2,
+            )
+            back_scale[back_zero_mask] = 1.0
+
+        if np.any(area_scale < 0):
+            raise ValueError('area_scale must be non-negative')
+
+        if np.any(back_scale < 0):
+            raise ValueError('back_scale must be non-negative')
+
+        valid_area = np.logical_or(area_scale > 0.0, quality == 1)
+        if not np.all(valid_area):
+            raise ValueError('area_scale must be positive in used channels')
+
+        valid_back = np.logical_or(back_scale > 0.0, quality == 1)
+        if not np.all(valid_back):
+            raise ValueError('back_scale must be positive in used channels')
 
         if not poisson and zero_errors_warning and np.any(errors == 0):
             warnings.warn(
@@ -1066,6 +1302,7 @@ class SpectrumData:
         self._exposure = exposure
         self._area_scale = area_scale
         self._back_scale = back_scale
+        self._net = net
 
     def group(
         self,
@@ -1138,14 +1375,25 @@ class SpectrumData:
         return self._exposure
 
     @property
-    def area_scale(self) -> float:
-        """Area scaling factor."""
+    def area_scale(self) -> NDArray:
+        """Per-channel area scaling factors."""
         return self._area_scale
 
     @property
-    def back_scale(self) -> float:
-        """Background scaling factor."""
+    def back_scale(self) -> NDArray:
+        """Per-channel background scaling factors."""
         return self._back_scale
+
+    @property
+    def net(self) -> bool:
+        """Whether grouped source scales should follow NET averaging.
+
+        Returns the explicit user/OGIP setting when present; otherwise falls
+        back to an automatic check for negative channel values.
+        """
+        if self._net is not None:
+            return self._net
+        return bool(np.any(self.counts < 0.0))
 
 
 class ResponseData:

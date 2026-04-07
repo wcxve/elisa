@@ -1,10 +1,361 @@
 import numpy as np
 import pytest
+from astropy.io import fits
 from jax.experimental.sparse import BCSR
 
+import elisa.data.base as data_base
+import elisa.data.ogip as ogip_mod
+from elisa.data import Data
+from elisa.data.base import ObservationData
 from elisa.data.grouping import significance_gv, significance_lima
-from elisa.data.ogip import Response, ResponseData, SpectrumData
+from elisa.data.ogip import Response, ResponseData, Spectrum, SpectrumData
 from elisa.models import PowerLaw
+
+CURATED_RESPONSE_CASES = [
+    pytest.param(
+        'Chandra/ACIS',
+        'Chandra/ACIS/acisf04487_001N022_r0009_rmf3.fits.gz',
+        'Chandra/ACIS/acisf04487_001N022_r0009_arf3.fits.gz',
+        id='Chandra/ACIS',
+    ),
+    pytest.param(
+        'Chandra/LETGS',
+        'Chandra/LETGS/leg_1.rmf.gz',
+        'Chandra/LETGS/leg_1.arf.gz',
+        id='Chandra/LETGS',
+    ),
+    pytest.param(
+        'NuSTAR/FPMA',
+        'NuSTAR/FPMA/nu90402339002A01_sr.rmf',
+        'NuSTAR/FPMA/nu90402339002A01_sr.arf',
+        id='NuSTAR/FPMA',
+    ),
+    pytest.param(
+        'NuSTAR/FPMB',
+        'NuSTAR/FPMB/nu90402339002B01_sr.rmf',
+        'NuSTAR/FPMB/nu90402339002B01_sr.arf',
+        id='NuSTAR/FPMB',
+    ),
+    pytest.param(
+        'XMM-Newton/EPIC-pn',
+        'XMM-Newton/EPIC-PN/PN.rmf',
+        'XMM-Newton/EPIC-PN/PN.arf',
+        id='XMM-Newton/EPIC-pn',
+    ),
+    pytest.param(
+        'XMM-Newton/EPIC-MOS1',
+        'XMM-Newton/EPIC-MOS1/MOS1.rmf',
+        'XMM-Newton/EPIC-MOS1/MOS1.arf',
+        id='XMM-Newton/EPIC-MOS1',
+    ),
+    pytest.param(
+        'XMM-Newton/EPIC-MOS2',
+        'XMM-Newton/EPIC-MOS2/MOS2.rmf',
+        'XMM-Newton/EPIC-MOS2/MOS2.arf',
+        id='XMM-Newton/EPIC-MOS2',
+    ),
+    pytest.param(
+        'XMM-Newton/RGS',
+        'XMM-Newton/RGS/P0871591801R1S004RSPMAT1003.FIT.gz',
+        None,
+        id='XMM-Newton/RGS',
+    ),
+    pytest.param(
+        'NICER/XTI',
+        'NICER/XTI/2050300110.rmf',
+        'NICER/XTI/2050300110_g2_b_001.arf',
+        id='NICER/XTI',
+    ),
+    pytest.param(
+        'XRISM/Resolve',
+        'XRISM/Resolve/xa_merged_p0px1000_HpS.rmf.gz',
+        'XRISM/Resolve/rsl_standard_GVclosed.arf',
+        id='XRISM/Resolve',
+    ),
+    pytest.param(
+        'Hitomi/SXS',
+        'Hitomi/SXS/ah100040040sxs.rmf.gz',
+        'Hitomi/SXS/ah100040040sxs.arf.gz',
+        id='Hitomi/SXS',
+    ),
+    pytest.param(
+        'Lynx/HDXI',
+        'Lynx/HDXI/xrs_hdxi.rmf',
+        'Lynx/HDXI/xrs_hdxi_3x10.arf',
+        id='Lynx/HDXI',
+    ),
+    pytest.param(
+        'IXPE/GPD',
+        'IXPE/GPD/ixpe_d1_20170101_alpha075_02.rmf',
+        'IXPE/GPD/ixpe_d1_20170101_alpha075_03.arf',
+        id='IXPE/GPD',
+    ),
+    pytest.param('HXMT/LE', 'HXMT/LE/CygX-1_LE.rsp', None, id='HXMT/LE'),
+    pytest.param('HXMT/ME', 'HXMT/ME/CygX-1_ME.rsp', None, id='HXMT/ME'),
+    pytest.param('HXMT/HE', 'HXMT/HE/CygX-1_HE.rsp', None, id='HXMT/HE'),
+]
+
+
+CURATED_DATA_CASES = [
+    pytest.param(
+        'NuSTAR/FPMA',
+        'NuSTAR/FPMA/nu90402339002A01_sr.pha',
+        'NuSTAR/FPMA/nu90402339002A01_bk.pha',
+        'NuSTAR/FPMA/nu90402339002A01_sr.rmf',
+        'NuSTAR/FPMA/nu90402339002A01_sr.arf',
+        id='NuSTAR/FPMA',
+    ),
+    pytest.param(
+        'NuSTAR/FPMB',
+        'NuSTAR/FPMB/nu90402339002B01_sr.pha',
+        'NuSTAR/FPMB/nu90402339002B01_bk.pha',
+        'NuSTAR/FPMB/nu90402339002B01_sr.rmf',
+        'NuSTAR/FPMB/nu90402339002B01_sr.arf',
+        id='NuSTAR/FPMB',
+    ),
+    pytest.param(
+        'XMM-Newton/EPIC-pn',
+        'XMM-Newton/EPIC-PN/PN_spectrum_grp20.fits',
+        'XMM-Newton/EPIC-PN/PNbackground_spectrum.fits',
+        'XMM-Newton/EPIC-PN/PN.rmf',
+        'XMM-Newton/EPIC-PN/PN.arf',
+        id='XMM-Newton/EPIC-pn',
+    ),
+    pytest.param(
+        'XMM-Newton/EPIC-MOS1',
+        'XMM-Newton/EPIC-MOS1/MOS1_spectrum_grp.fits',
+        'XMM-Newton/EPIC-MOS1/MOS1background_spectrum.fits',
+        'XMM-Newton/EPIC-MOS1/MOS1.rmf',
+        'XMM-Newton/EPIC-MOS1/MOS1.arf',
+        id='XMM-Newton/EPIC-MOS1',
+    ),
+    pytest.param(
+        'XMM-Newton/EPIC-MOS2',
+        'XMM-Newton/EPIC-MOS2/MOS2_spectrum_grp.fits',
+        'XMM-Newton/EPIC-MOS2/MOS2background_spectrum.fits',
+        'XMM-Newton/EPIC-MOS2/MOS2.rmf',
+        'XMM-Newton/EPIC-MOS2/MOS2.arf',
+        id='XMM-Newton/EPIC-MOS2',
+    ),
+    pytest.param(
+        'XMM-Newton/RGS',
+        'XMM-Newton/RGS/P0871591801R1S004SRSPEC1003.FIT.gz',
+        None,
+        'XMM-Newton/RGS/P0871591801R1S004RSPMAT1003.FIT.gz',
+        None,
+        id='XMM-Newton/RGS',
+    ),
+    pytest.param(
+        'NICER/XTI',
+        'NICER/XTI/g2_b_001_raw_opt.pha',
+        None,
+        'NICER/XTI/2050300110.rmf',
+        'NICER/XTI/2050300110_g2_b_001.arf',
+        id='NICER/XTI',
+    ),
+    pytest.param(
+        'XRISM/Resolve',
+        'XRISM/Resolve/xa_merged_p0px1000_Hp.pi.gz',
+        None,
+        'XRISM/Resolve/xa_merged_p0px1000_HpS.rmf.gz',
+        'XRISM/Resolve/rsl_standard_GVclosed.arf',
+        id='XRISM/Resolve',
+    ),
+    pytest.param(
+        'Hitomi/SXS',
+        'Hitomi/SXS/ah100040040sxs_src_grp.pha.gz',
+        None,
+        'Hitomi/SXS/ah100040040sxs.rmf.gz',
+        'Hitomi/SXS/ah100040040sxs.arf.gz',
+        id='Hitomi/SXS',
+    ),
+    pytest.param(
+        'Lynx/HDXI',
+        'Lynx/HDXI/fakeit_lynx.pha',
+        None,
+        'Lynx/HDXI/xrs_hdxi.rmf',
+        'Lynx/HDXI/xrs_hdxi_3x10.arf',
+        id='Lynx/HDXI',
+    ),
+    pytest.param(
+        'IXPE/GPD-I',
+        'IXPE/GPD/ixpe_det1_src_I.pha',
+        None,
+        'IXPE/GPD/ixpe_d1_20170101_alpha075_02.rmf',
+        'IXPE/GPD/ixpe_d1_20170101_alpha075_03.arf',
+        id='IXPE/GPD-I',
+    ),
+    pytest.param(
+        'IXPE/GPD-Q',
+        'IXPE/GPD/ixpe_det1_src_Q.pha',
+        None,
+        'IXPE/GPD/ixpe_d1_20170101_alpha075_02.rmf',
+        'IXPE/GPD/ixpe_d1_20170101_alpha075_03.mrf',
+        id='IXPE/GPD-Q',
+    ),
+    pytest.param(
+        'IXPE/GPD-U',
+        'IXPE/GPD/ixpe_det1_src_U.pha',
+        None,
+        'IXPE/GPD/ixpe_d1_20170101_alpha075_02.rmf',
+        'IXPE/GPD/ixpe_d1_20170101_alpha075_03.mrf',
+        id='IXPE/GPD-U',
+    ),
+    pytest.param(
+        'HXMT/LE',
+        'HXMT/LE/CygX-1_LE.pha',
+        'HXMT/LE/CygX-1_LE_bkg.pha',
+        'HXMT/LE/CygX-1_LE.rsp',
+        None,
+        id='HXMT/LE',
+    ),
+    pytest.param(
+        'HXMT/ME',
+        'HXMT/ME/CygX-1_ME.pha',
+        'HXMT/ME/CygX-1_ME_bkg.pha',
+        'HXMT/ME/CygX-1_ME.rsp',
+        None,
+        id='HXMT/ME',
+    ),
+    pytest.param(
+        'HXMT/HE',
+        'HXMT/HE/CygX-1_HE.pha',
+        'HXMT/HE/CygX-1_HE_bkg.pha',
+        'HXMT/HE/CygX-1_HE.rsp',
+        None,
+        id='HXMT/HE',
+    ),
+    pytest.param(
+        'Chandra/ACIS',
+        'Chandra/ACIS/acisf04487_001N023_r0009_pha3.fits.gz',
+        None,
+        'Chandra/ACIS/acisf04487_001N022_r0009_rmf3.fits.gz',
+        'Chandra/ACIS/acisf04487_001N022_r0009_arf3.fits.gz',
+        marks=pytest.mark.xfail(
+            strict=True,
+            reason='current Data loading follows an unusable BACKFILE path',
+        ),
+        id='Chandra/ACIS',
+    ),
+    pytest.param(
+        'Chandra/LETGS',
+        'Chandra/LETGS/pha2.gz{1}',
+        'Chandra/LETGS/pha2_bg.gz{1}',
+        'Chandra/LETGS/leg_1.rmf.gz',
+        'Chandra/LETGS/leg_1.arf.gz',
+        id='Chandra/LETGS',
+    ),
+]
+
+
+def _make_observation(
+    spec_counts,
+    spec_area,
+    spec_back,
+    *,
+    back_counts=None,
+    back_area=None,
+    back_back=None,
+    spec_poisson=False,
+    back_poisson=False,
+    spec_net=None,
+    grouping=None,
+    quality=None,
+):
+    spec_counts = np.asarray(spec_counts, dtype=np.float64)
+    nchan = len(spec_counts)
+    egrid = np.linspace(1.0, nchan + 1.0, nchan + 1)
+    response = ResponseData(
+        photon_egrid=egrid,
+        channel_emin=egrid[:-1],
+        channel_emax=egrid[1:],
+        response_matrix=np.eye(nchan),
+        channel=np.arange(nchan).astype(str),
+    )
+    spec_errors = (
+        np.sqrt(np.clip(spec_counts, 0.0, None))
+        if spec_poisson
+        else np.ones(nchan, dtype=np.float64)
+    )
+    spec = SpectrumData(
+        counts=spec_counts,
+        errors=spec_errors,
+        poisson=spec_poisson,
+        exposure=1.0,
+        quality=quality,
+        grouping=grouping,
+        area_scale=spec_area,
+        back_scale=spec_back,
+        net=spec_net,
+    )
+
+    if back_counts is None:
+        back = None
+    else:
+        back_counts = np.asarray(back_counts, dtype=np.float64)
+        back_errors = (
+            np.sqrt(np.clip(back_counts, 0.0, None))
+            if back_poisson
+            else np.ones(nchan, dtype=np.float64)
+        )
+        back = SpectrumData(
+            counts=back_counts,
+            errors=back_errors,
+            poisson=back_poisson,
+            exposure=1.0,
+            quality=quality,
+            grouping=grouping,
+            area_scale=back_area,
+            back_scale=back_back,
+        )
+
+    return ObservationData(
+        name='test',
+        erange=[(egrid[0], egrid[-1])],
+        spec_data=spec,
+        resp_data=response,
+        back_data=back,
+    )
+
+
+def _write_vector_scale_spectrum(path, *, hduclas2='', backfile=''):
+    counts = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+    cols = [
+        fits.Column(name='COUNTS', format='D', array=counts),
+        fits.Column(
+            name='QUALITY', format='I', array=np.zeros(3, dtype=np.int16)
+        ),
+        fits.Column(
+            name='GROUPING', format='I', array=np.ones(3, dtype=np.int16)
+        ),
+        fits.Column(
+            name='AREASCAL', format='D', array=np.array([1.0, 2.0, 3.0])
+        ),
+        fits.Column(
+            name='BACKSCAL', format='D', array=np.array([4.0, 5.0, 6.0])
+        ),
+    ]
+    spectrum = fits.BinTableHDU.from_columns(cols, name='SPECTRUM')
+    spectrum.header['POISSERR'] = True
+    spectrum.header['EXPOSURE'] = 1.0
+    spectrum.header['DETCHANS'] = 3
+    spectrum.header['DETNAM'] = 'TEST'
+    if hduclas2:
+        spectrum.header['HDUCLAS2'] = hduclas2
+    if backfile:
+        spectrum.header['BACKFILE'] = backfile
+    fits.HDUList([fits.PrimaryHDU(), spectrum]).writeto(path)
+
+
+def _make_dummy_response(nchan):
+    egrid = np.linspace(1.0, nchan + 1.0, nchan + 1)
+    return ResponseData(
+        photon_egrid=egrid,
+        channel_emin=egrid[:-1],
+        channel_emax=egrid[1:],
+        response_matrix=np.eye(nchan),
+        channel=np.arange(nchan).astype(str),
+    )
 
 
 @pytest.mark.parametrize(
@@ -193,23 +544,361 @@ def test_grouping_warning(simulation):
         )
 
 
+def test_scale_arrays_and_net_support():
+    with pytest.warns(Warning) as record:
+        spec = SpectrumData(
+            counts=np.array([1.0, 2.0, 3.0]),
+            errors=np.ones(3),
+            poisson=False,
+            exposure=1.0,
+            quality=np.array([0, 1, 0]),
+            area_scale=np.array([0.0, 0.0, 4.0]),
+            back_scale=np.array([2.0, 0.0, 0.0]),
+        )
+    messages = [str(i.message) for i in record]
+    assert any('zero area_scale' in i for i in messages)
+    assert any('zero back_scale' in i for i in messages)
+    np.testing.assert_allclose(spec.area_scale, np.array([1.0, 0.0, 4.0]))
+    np.testing.assert_allclose(spec.back_scale, np.array([2.0, 0.0, 1.0]))
+
+    net_spec = SpectrumData(
+        counts=np.array([1.0, -1.0]),
+        errors=np.ones(2),
+        poisson=False,
+        exposure=1.0,
+    )
+    assert net_spec.net is True
+
+    with pytest.raises(ValueError, match='area_scale must be non-negative'):
+        SpectrumData(
+            counts=np.ones(2),
+            errors=np.ones(2),
+            poisson=False,
+            exposure=1.0,
+            area_scale=np.array([-1.0, 1.0]),
+        )
+
+
+def test_grouped_scales_match_xspec_formulas():
+    data = _make_observation(
+        spec_counts=[10.0, 20.0],
+        spec_area=[2.0, 6.0],
+        spec_back=[4.0, 12.0],
+        spec_net=False,
+    )
+    data.set_grouping(np.array([1, -1]))
+    np.testing.assert_allclose(data.area_scale, np.array([3.6]))
+    np.testing.assert_allclose(data._spec_back_scale, np.array([7.2]))
+
+    net_data = _make_observation(
+        spec_counts=[10.0, 20.0],
+        spec_area=[2.0, 6.0],
+        spec_back=[3.0, 9.0],
+        spec_net=True,
+    )
+    net_data.set_grouping(np.array([1, -1]))
+    np.testing.assert_allclose(net_data.area_scale, np.array([4.0]))
+    np.testing.assert_allclose(net_data._spec_back_scale, np.array([6.0]))
+
+    fallback = _make_observation(
+        spec_counts=[1.0, -3.0],
+        spec_area=[1.0, 3.0],
+        spec_back=[2.0, 6.0],
+        spec_net=False,
+    )
+    fallback.set_grouping(np.array([1, -1]))
+    np.testing.assert_allclose(fallback.area_scale, np.array([1.5]))
+    np.testing.assert_allclose(fallback._spec_back_scale, np.array([3.0]))
+
+
+def test_background_grouped_ratio_uses_non_net_formula():
+    data = _make_observation(
+        spec_counts=[10.0, 20.0],
+        spec_area=[2.0, 6.0],
+        spec_back=[3.0, 9.0],
+        back_counts=[4.0, 8.0],
+        back_area=[2.0, 6.0],
+        back_back=[2.0, 8.0],
+        spec_net=True,
+    )
+    data.set_grouping(np.array([1, -1]))
+    expected_spec_area = 30.0 / (10.0 / 2.0 + 20.0 / 6.0)
+    expected_spec_back = 30.0 / (10.0 / 3.0 + 20.0 / 9.0)
+    expected_back_area = 12.0 / (4.0 / 2.0 + 8.0 / 6.0)
+    expected_back_back = 12.0 / (4.0 / 2.0 + 8.0 / 8.0)
+    expected_ratio = (
+        expected_spec_area
+        * expected_spec_back
+        / (expected_back_area * expected_back_back)
+    )
+    np.testing.assert_allclose(data.area_scale, np.array([expected_spec_area]))
+    np.testing.assert_allclose(
+        data._spec_back_scale, np.array([expected_spec_back])
+    )
+    np.testing.assert_allclose(data.back_ratio, np.array([expected_ratio]))
+
+
+def test_scalar_scales_group_to_constant_ratio():
+    data = _make_observation(
+        spec_counts=[10.0, 20.0],
+        spec_area=2.0,
+        spec_back=3.0,
+        back_counts=[4.0, 8.0],
+        back_area=5.0,
+        back_back=6.0,
+        spec_net=True,
+    )
+    data.set_grouping(np.array([1, -1]))
+    np.testing.assert_allclose(data.area_scale, np.array([2.0]))
+    np.testing.assert_allclose(data._spec_back_scale, np.array([3.0]))
+    np.testing.assert_allclose(data._back_area_scale, np.array([5.0]))
+    np.testing.assert_allclose(data._back_back_scale, np.array([6.0]))
+    np.testing.assert_allclose(data.back_ratio, np.array([0.2]))
+
+
 @pytest.mark.parametrize(
-    'file',
+    ('method', 'back_poisson', 'helper_name', 'expect_source_net'),
     [
-        'docs/notebooks/data/P011160506306_LE_RSP.fits',
-        'docs/notebooks/data/P011160506306_ME_RSP.fits',
-        'docs/notebooks/data/P011160506306_HE_RSP.fits',
+        ('sig', True, 'group_sig_lima', False),
+        ('sig', False, 'group_sig_gv', False),
+        ('optsig', True, 'group_optsig_lima', None),
+        ('optsig', False, 'group_optsig_gv', None),
     ],
 )
-def test_load_response(file):
+def test_background_grouping_helpers_treat_source_as_total(
+    monkeypatch, method, back_poisson, helper_name, expect_source_net
+):
+    data = _make_observation(
+        spec_counts=[40.0, 50.0, 60.0],
+        spec_area=[2.0, 6.0, 10.0],
+        spec_back=[3.0, 9.0, 15.0],
+        back_counts=[5.0, 5.0, 5.0],
+        back_area=[2.0, 6.0, 10.0],
+        back_back=[2.0, 8.0, 4.0],
+        spec_poisson=True,
+        back_poisson=back_poisson,
+        spec_net=True,
+    )
+
+    original = getattr(data_base, helper_name)
+    called = {}
+
+    def wrapper(*args, **kwargs):
+        called['has_source_net'] = 'source_net' in kwargs
+        called['source_net'] = kwargs.get('source_net')
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(data_base, helper_name, wrapper)
+    data.group(method, 0.1)
+    if expect_source_net is None:
+        assert called['has_source_net'] is False
+    else:
+        assert called['source_net'] is expect_source_net
+
+
+@pytest.mark.parametrize(
+    ('method', 'back_poisson', 'helper_name', 'expect_source_net'),
+    [
+        ('sig', True, 'group_sig_lima', False),
+        ('sig', False, 'group_sig_gv', False),
+        ('optsig', True, 'group_optsig_lima', None),
+        ('optsig', False, 'group_optsig_gv', None),
+    ],
+)
+def test_scalar_scale_inputs_also_use_variable_ratio_helpers(
+    monkeypatch, method, back_poisson, helper_name, expect_source_net
+):
+    data = _make_observation(
+        spec_counts=[40.0, 50.0, 60.0],
+        spec_area=2.0,
+        spec_back=3.0,
+        back_counts=[5.0, 5.0, 5.0],
+        back_area=5.0,
+        back_back=6.0,
+        spec_poisson=True,
+        back_poisson=back_poisson,
+        spec_net=True,
+    )
+
+    original = getattr(data_base, helper_name)
+    called = {}
+
+    def wrapper(*args, **kwargs):
+        called['has_source_net'] = 'source_net' in kwargs
+        called['source_net'] = kwargs.get('source_net')
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(data_base, helper_name, wrapper)
+    data.group(method, 0.1)
+    if expect_source_net is None:
+        assert called['has_source_net'] is False
+    else:
+        assert called['source_net'] is expect_source_net
+
+
+def test_preserve_grouping_recomputes_ratio():
+    grouping = np.array([1, -1, 1, -1])
+    data = _make_observation(
+        spec_counts=[20.0, 20.0, 20.0, 20.0],
+        spec_area=np.ones(4),
+        spec_back=np.ones(4),
+        back_counts=[10.0, 10.0, 10.0, 10.0],
+        back_area=np.ones(4),
+        back_back=np.ones(4),
+        spec_poisson=True,
+        back_poisson=True,
+        spec_net=False,
+        grouping=grouping,
+    )
+    data._back_ratio = np.full(data.back_ratio.shape, 1.0e6)
+    data.group('sig', 2.5, preserve_data_group=True)
+    np.testing.assert_array_equal(data.grouping, grouping)
+
+
+@pytest.mark.parametrize(
+    ('hduclas2', 'expected_net'),
+    [('NET', True), ('TOTAL', False), ('', False)],
+)
+def test_ogip_vector_scales_and_hduclas2(tmp_path, hduclas2, expected_net):
+    specfile = tmp_path / 'spec.pha'
+    _write_vector_scale_spectrum(specfile, hduclas2=hduclas2)
+    spectrum = Spectrum(str(specfile))
+    np.testing.assert_allclose(spectrum.area_scale, np.array([1.0, 2.0, 3.0]))
+    np.testing.assert_allclose(spectrum.back_scale, np.array([4.0, 5.0, 6.0]))
+    assert spectrum.net is expected_net
+
+
+def test_ogip_warns_when_net_spectrum_has_background(tmp_path, monkeypatch):
+    specfile = tmp_path / 'spec.pha'
+    backfile = tmp_path / 'back.pha'
+    _write_vector_scale_spectrum(specfile, hduclas2='NET')
+    _write_vector_scale_spectrum(backfile, hduclas2='BKG')
+    monkeypatch.setattr(
+        ogip_mod,
+        'Response',
+        lambda respfile, ancrfile, sparse: _make_dummy_response(3),
+    )
+
+    with pytest.warns(
+        Warning,
+        match='marked as NET but background file .* is also provided',
+    ):
+        Data(
+            erange=[(1.0, 4.0)],
+            specfile=str(specfile),
+            backfile=str(backfile),
+            respfile='dummy.rsp',
+        )
+
+
+def test_ogip_warns_when_source_spectrum_is_marked_bkg(tmp_path, monkeypatch):
+    specfile = tmp_path / 'spec.pha'
+    _write_vector_scale_spectrum(specfile, hduclas2='BKG')
+    monkeypatch.setattr(
+        ogip_mod,
+        'Response',
+        lambda respfile, ancrfile, sparse: _make_dummy_response(3),
+    )
+
+    with pytest.warns(
+        Warning,
+        match='spectrum .* is marked as BKG; check whether source and '
+        'background files are swapped',
+    ):
+        Data(
+            erange=[(1.0, 4.0)],
+            specfile=str(specfile),
+            respfile='dummy.rsp',
+        )
+
+
+def test_simulate_with_scale_arrays():
+    photon_egrid = np.linspace(1.0, 5.0, 5)
+    channel_emin = photon_egrid[:-1]
+    channel_emax = photon_egrid[1:]
+    response_matrix = np.eye(4)
+    model = PowerLaw(K=[10.0], alpha=0.0).compile()
+    data = model.simulate(
+        photon_egrid=photon_egrid,
+        channel_emin=channel_emin,
+        channel_emax=channel_emax,
+        response_matrix=response_matrix,
+        spec_exposure=10.0,
+        spec_poisson=True,
+        back_counts=np.full(4, 5.0),
+        back_exposure=5.0,
+        back_poisson=True,
+        spec_area_scale=np.array([1.0, 2.0, 3.0, 4.0]),
+        spec_back_scale=np.array([1.0, 1.0, 2.0, 2.0]),
+        back_area_scale=np.array([2.0, 2.0, 4.0, 4.0]),
+        back_back_scale=np.array([1.0, 2.0, 1.0, 2.0]),
+    )
+    np.testing.assert_equal(data.spec_data.area_scale.shape, (4,))
+    np.testing.assert_equal(data.back_data.area_scale.shape, (4,))
+    data.set_grouping(np.array([1, -1, 1, -1]))
+    np.testing.assert_equal(data.area_scale.shape, data.spec_counts.shape)
+    np.testing.assert_equal(data.back_ratio.shape, data.back_counts.shape)
+    fixed = data.get_fixed_data()
+    np.testing.assert_equal(fixed.area_scale.shape, fixed.spec_counts.shape)
+    np.testing.assert_equal(fixed.back_ratio.shape, fixed.back_counts.shape)
+
+
+@pytest.mark.parametrize(
+    ('name', 'resp_relpath', 'anc_relpath'),
+    CURATED_RESPONSE_CASES,
+)
+def test_load_response_from_curated_data(
+    curated_test_data_path, name, resp_relpath, anc_relpath
+):
     # test Response against big-endian files
-    rsp = Response(file)
+    rsp = Response(
+        str(curated_test_data_path(resp_relpath)),
+        None
+        if anc_relpath is None
+        else str(curated_test_data_path(anc_relpath)),
+    )
     # test if the response matrix can be converted to a BCSR matrix in JAX
     assert np.all(rsp.channel_fwhm > 0)
-    assert np.array_equal(
+    np.testing.assert_allclose(
         rsp.matrix,
         BCSR.from_scipy_sparse(rsp.sparse_matrix).todense(),
+        atol=1.0e-37,
     )
+
+
+@pytest.mark.parametrize(
+    ('name', 'spec_relpath', 'back_relpath', 'resp_relpath', 'anc_relpath'),
+    CURATED_DATA_CASES,
+)
+def test_load_data_from_curated_datasets(
+    curated_test_data_path,
+    name,
+    spec_relpath,
+    back_relpath,
+    resp_relpath,
+    anc_relpath,
+):
+    kwargs = {
+        'erange': [(1.0, 100.0)],
+        'specfile': str(curated_test_data_path(spec_relpath)),
+        'respfile': str(curated_test_data_path(resp_relpath)),
+    }
+    if back_relpath is not None:
+        kwargs['backfile'] = str(curated_test_data_path(back_relpath))
+    if anc_relpath is not None:
+        kwargs['ancrfile'] = str(curated_test_data_path(anc_relpath))
+    if name.startswith('Chandra/LETGS'):
+        kwargs['name'] = 'LETGS'
+
+    data = Data(**kwargs)
+    assert data.spec_counts.size > 0
+    if back_relpath is None:
+        assert data.back_counts is None
+        assert data.back_ratio is None
+    else:
+        assert data.back_counts.size > 0
+        assert data.back_ratio.shape == data.back_counts.shape
+    assert data.area_scale.shape == data.spec_counts.shape
 
 
 def test_response():
