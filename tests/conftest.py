@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import functools
+import os
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import jax
@@ -74,6 +76,51 @@ def simulation() -> Data:
     """Function-scoped fixture to simulate data for each test."""
     # This ensures that each test gets a simulation copy
     return get_simulation()
+
+
+@pytest.fixture(scope='session')
+def curated_test_data_root() -> Path:
+    root = os.environ.get('CURATED_TEST_DATA')
+    if not root:
+        pytest.skip('CURATED_TEST_DATA is not set')
+
+    path = Path(root).expanduser().resolve()
+    if not path.exists():
+        pytest.skip(f'CURATED_TEST_DATA path does not exist: {path}')
+
+    return path
+
+
+@pytest.fixture(scope='session')
+def curated_test_data_file(curated_test_data_root):
+    def _find(name: str) -> Path:
+        matches = sorted(curated_test_data_root.rglob(name))
+        if not matches:
+            pytest.skip(f'{name} not found under CURATED_TEST_DATA')
+        return matches[0]
+
+    return _find
+
+
+@pytest.fixture(scope='session')
+def curated_test_data_path(curated_test_data_root):
+    def _path(relative: str) -> Path | str:
+        row_spec = ''
+        base = relative
+        if relative.endswith('}') and '{' in relative:
+            idx = relative.rfind('{')
+            base = relative[:idx]
+            row_spec = relative[idx:]
+
+        path = curated_test_data_root / base
+        if not path.exists():
+            pytest.skip(f'{relative} not found under CURATED_TEST_DATA')
+
+        if row_spec:
+            return f'{path}{row_spec}'
+        return path
+
+    return _path
 
 
 @pytest.fixture(scope='session')

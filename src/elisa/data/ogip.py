@@ -16,6 +16,36 @@ if TYPE_CHECKING:
     NDArray = np.ndarray
 
 
+def _get_hduclas2(header: fits.Header) -> str:
+    return str(header.get('HDUCLAS2', '')).strip().upper()
+
+
+def _warn_on_spectrum_classification(
+    spec_data: Spectrum,
+    back_data: Spectrum | None,
+) -> None:
+    spec_hduclas2 = _get_hduclas2(spec_data.header)
+    if spec_hduclas2 == 'BKG':
+        warnings.warn(
+            f'spectrum {spec_data.specfile} is marked as BKG; check whether '
+            'source and background files are swapped',
+            Warning,
+            stacklevel=3,
+        )
+
+    if back_data is None:
+        return
+
+    if spec_hduclas2 == 'NET':
+        warnings.warn(
+            f'spectrum {spec_data.specfile} is marked as NET but background '
+            f'file {back_data.specfile} is also provided; check whether the '
+            'background file is redundant',
+            Warning,
+            stacklevel=3,
+        )
+
+
 class Data(ObservationData):
     """Handle observation data in OGIP standards [1]_ [2]_.
 
@@ -195,6 +225,11 @@ class Data(ObservationData):
                 f'specfile ({specfile}) and backfile ({backfile}) are not '
                 'matched'
             )
+
+        _warn_on_spectrum_classification(
+            spec_data=spec_data,
+            back_data=back_data,
+        )
 
         super().__init__(
             name=name,
@@ -421,6 +456,14 @@ class Spectrum(SpectrumData):
         else:
             back_scale = float(back_scale)
 
+        hduclas2 = _get_hduclas2(header)
+        if hduclas2 == 'NET':
+            net = True
+        elif hduclas2 in {'TOTAL', 'BKG'}:
+            net = False
+        else:
+            net = None
+
         # get the correction scaling factor
         # self._corr_scale = np.float64(get_field('CORRSCAL', 0.0))
 
@@ -449,6 +492,7 @@ class Spectrum(SpectrumData):
             grouping=grouping,
             area_scale=area_scale,
             back_scale=back_scale,
+            net=net,
             sys_errors=sys_err,
             zero_errors_warning=False,
             non_int_warning=False,
@@ -546,6 +590,12 @@ class Response(ResponseData):
         super().__init__(**response_data, sparse=sparse)
 
     def _read_response(self, file: str, response_id: int) -> dict:
+        """Read one OGIP response matrix extension.
+
+        The compressed ``MATRIX`` column is expanded row by row using the
+        corresponding ``N_GRP``/``F_CHAN``/``N_CHAN`` metadata so that padded
+        fixed-width rows and placeholder values in empty groups are ignored.
+        """
         respfile = self.respfile
         with fits.open(file) as response_hdul:
             if 'MATRIX' in response_hdul:
@@ -625,36 +675,50 @@ class Response(ResponseData):
         n_grp = response_data['N_GRP']
         f_chan = response_data['F_CHAN'] - first_chan
         n_chan = response_data['N_CHAN']
+        matrix = response_data['MATRIX']
 
-        # if ndim == 1 and dtype is 'O', it is an array of array
-        if f_chan.ndim == 1 and f_chan.dtype != np.dtype('O'):
-            # f_chan is scalar in each row, make it an array
-            f_chan = f_chan[:, None]
-
-        if n_chan.ndim == 1 and n_chan.dtype != np.dtype('O'):
-            # n_chan is scalar in each row, make it an array
-            n_chan = n_chan[:, None]
-
-        # the last channel numbers
-        e_chan = f_chan + n_chan
-
-        rows = np.hstack(
-            tuple(np.full(round(n.sum()), i) for i, n in enumerate(n_chan))
-        )
+        rows = []
         cols = []
+        reduced_matrix = []
         for i in range(len(response_data)):
-            n = int(n_grp[i])  # n channel subsets
-            if n > 0:
-                f = f_chan[i].astype(int)  # first channel numbers of subsets
-                e = e_chan[i].astype(int)  # last channel numbers of subsets
-                cols.extend(map(np.arange, f, e))
-        cols = np.hstack(cols)
+            n = int(n_grp[i])
+            if n <= 0:
+                continue
 
-        matrix = response_data['MATRIX'].ravel()
-        if matrix.dtype != np.dtype('O'):
-            reduced_matrix = matrix
-        else:
-            reduced_matrix = np.hstack(matrix)
+            f = np.asarray(np.atleast_1d(f_chan[i]), dtype=int).ravel()[:n]
+            widths = np.asarray(np.atleast_1d(n_chan[i]), dtype=int).ravel()[
+                :n
+            ]
+            if len(f) != n or len(widths) != n:
+                raise ValueError(
+                    f'cannot parse grouped channel ranges in "{respfile}"'
+                )
+
+            n_elem = int(widths.sum())
+            if n_elem <= 0:
+                continue
+
+            values = np.asarray(np.atleast_1d(matrix[i])).ravel()
+            if len(values) < n_elem:
+                raise ValueError(
+                    f'cannot parse matrix values in "{respfile}" row {i + 1}'
+                )
+            values = values[:n_elem]
+
+            rows.append(np.full(n_elem, i, dtype=int))
+            cols.extend(
+                np.arange(start, start + width)
+                for start, width in zip(f, widths, strict=True)
+            )
+            reduced_matrix.append(values)
+
+        rows = np.hstack(rows) if rows else np.array([], dtype=int)
+        cols = np.hstack(cols) if cols else np.array([], dtype=int)
+        reduced_matrix = (
+            np.hstack(reduced_matrix)
+            if reduced_matrix
+            else np.array([], dtype=np.float64)
+        )
 
         # convert to native byteorder to be compatible with scipy.sparse
         reduced_matrix = to_native_byteorder(reduced_matrix)
@@ -675,6 +739,7 @@ class Response(ResponseData):
         }
 
     def _read_arf(self) -> NDArray | None:
+        """Read the ARF effective area column when an ancillary file exists."""
         if self.ancrfile:
             with fits.open(self.ancrfile) as arf_hdul:
                 return arf_hdul['SPECRESP'].data['SPECRESP']
