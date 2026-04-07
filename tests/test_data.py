@@ -1,3 +1,6 @@
+import os
+import re
+
 import numpy as np
 import pytest
 from astropy.io import fits
@@ -204,6 +207,144 @@ CURATED_DATA_CASES = [
     ),
 ]
 
+CURATED_XSPEC_CASES = [
+    {
+        'id': 'NuSTAR/FPMA',
+        'spec_relpath': 'NuSTAR/FPMA/nu90402339002A01_sr.pha',
+        'back_relpath': 'NuSTAR/FPMA/nu90402339002A01_bk.pha',
+        'resp_relpath': 'NuSTAR/FPMA/nu90402339002A01_sr.rmf',
+        'anc_relpath': 'NuSTAR/FPMA/nu90402339002A01_sr.arf',
+        'erange': (3.0, 79.0),
+        'name': None,
+    },
+    {
+        'id': 'NuSTAR/FPMB',
+        'spec_relpath': 'NuSTAR/FPMB/nu90402339002B01_sr.pha',
+        'back_relpath': 'NuSTAR/FPMB/nu90402339002B01_bk.pha',
+        'resp_relpath': 'NuSTAR/FPMB/nu90402339002B01_sr.rmf',
+        'anc_relpath': 'NuSTAR/FPMB/nu90402339002B01_sr.arf',
+        'erange': (3.0, 79.0),
+        'name': None,
+    },
+    {
+        'id': 'XMM-Newton/EPIC-pn',
+        'spec_relpath': 'XMM-Newton/EPIC-PN/PN_spectrum_grp20.fits',
+        'back_relpath': 'XMM-Newton/EPIC-PN/PNbackground_spectrum.fits',
+        'resp_relpath': 'XMM-Newton/EPIC-PN/PN.rmf',
+        'anc_relpath': 'XMM-Newton/EPIC-PN/PN.arf',
+        'erange': (0.3, 10.0),
+        'name': None,
+    },
+    {
+        'id': 'XMM-Newton/EPIC-MOS1',
+        'spec_relpath': 'XMM-Newton/EPIC-MOS1/MOS1_spectrum_grp.fits',
+        'back_relpath': 'XMM-Newton/EPIC-MOS1/MOS1background_spectrum.fits',
+        'resp_relpath': 'XMM-Newton/EPIC-MOS1/MOS1.rmf',
+        'anc_relpath': 'XMM-Newton/EPIC-MOS1/MOS1.arf',
+        'erange': (0.3, 10.0),
+        'name': None,
+    },
+    {
+        'id': 'XMM-Newton/EPIC-MOS2',
+        'spec_relpath': 'XMM-Newton/EPIC-MOS2/MOS2_spectrum_grp.fits',
+        'back_relpath': 'XMM-Newton/EPIC-MOS2/MOS2background_spectrum.fits',
+        'resp_relpath': 'XMM-Newton/EPIC-MOS2/MOS2.rmf',
+        'anc_relpath': 'XMM-Newton/EPIC-MOS2/MOS2.arf',
+        'erange': (0.3, 10.0),
+        'name': None,
+    },
+    {
+        'id': 'XMM-Newton/RGS',
+        'spec_relpath': 'XMM-Newton/RGS/P0871591801R1S004SRSPEC1003.FIT.gz',
+        'back_relpath': None,
+        'resp_relpath': 'XMM-Newton/RGS/P0871591801R1S004RSPMAT1003.FIT.gz',
+        'anc_relpath': None,
+        'erange': (0.35, 2.0),
+        'name': None,
+    },
+    {
+        'id': 'NICER/XTI',
+        'spec_relpath': 'NICER/XTI/g2_b_001_raw_opt.pha',
+        'back_relpath': None,
+        'resp_relpath': 'NICER/XTI/2050300110.rmf',
+        'anc_relpath': 'NICER/XTI/2050300110_g2_b_001.arf',
+        'erange': (0.38, 10.0),
+        'name': None,
+    },
+    {
+        'id': 'Lynx/HDXI',
+        'spec_relpath': 'Lynx/HDXI/fakeit_lynx.pha',
+        'back_relpath': None,
+        'resp_relpath': 'Lynx/HDXI/xrs_hdxi.rmf',
+        'anc_relpath': 'Lynx/HDXI/xrs_hdxi_3x10.arf',
+        'erange': (0.3, 10.0),
+        'name': None,
+    },
+    {
+        'id': 'IXPE/GPD-I',
+        'spec_relpath': 'IXPE/GPD/ixpe_det1_src_I.pha',
+        'back_relpath': None,
+        'resp_relpath': 'IXPE/GPD/ixpe_d1_20170101_alpha075_02.rmf',
+        'anc_relpath': 'IXPE/GPD/ixpe_d1_20170101_alpha075_03.arf',
+        'erange': (2.0, 8.0),
+        'name': None,
+    },
+    {
+        'id': 'IXPE/GPD-Q',
+        'spec_relpath': 'IXPE/GPD/ixpe_det1_src_Q.pha',
+        'back_relpath': None,
+        'resp_relpath': 'IXPE/GPD/ixpe_d1_20170101_alpha075_02.rmf',
+        'anc_relpath': 'IXPE/GPD/ixpe_d1_20170101_alpha075_03.mrf',
+        'erange': (2.0, 8.0),
+        'name': None,
+    },
+    {
+        'id': 'IXPE/GPD-U',
+        'spec_relpath': 'IXPE/GPD/ixpe_det1_src_U.pha',
+        'back_relpath': None,
+        'resp_relpath': 'IXPE/GPD/ixpe_d1_20170101_alpha075_02.rmf',
+        'anc_relpath': 'IXPE/GPD/ixpe_d1_20170101_alpha075_03.mrf',
+        'erange': (2.0, 8.0),
+        'name': None,
+    },
+    {
+        'id': 'HXMT/LE',
+        'spec_relpath': 'HXMT/LE/CygX-1_LE.pha',
+        'back_relpath': 'HXMT/LE/CygX-1_LE_bkg.pha',
+        'resp_relpath': 'HXMT/LE/CygX-1_LE.rsp',
+        'anc_relpath': None,
+        'erange': (2.0, 10.0),
+        'name': None,
+    },
+    {
+        'id': 'HXMT/ME',
+        'spec_relpath': 'HXMT/ME/CygX-1_ME.pha',
+        'back_relpath': 'HXMT/ME/CygX-1_ME_bkg.pha',
+        'resp_relpath': 'HXMT/ME/CygX-1_ME.rsp',
+        'anc_relpath': None,
+        'erange': (10.0, 30.0),
+        'name': None,
+    },
+    {
+        'id': 'HXMT/HE',
+        'spec_relpath': 'HXMT/HE/CygX-1_HE.pha',
+        'back_relpath': 'HXMT/HE/CygX-1_HE_bkg.pha',
+        'resp_relpath': 'HXMT/HE/CygX-1_HE.rsp',
+        'anc_relpath': None,
+        'erange': (28.0, 250.0),
+        'name': None,
+    },
+    {
+        'id': 'Chandra/LETGS',
+        'spec_relpath': 'Chandra/LETGS/pha2.gz{1}',
+        'back_relpath': 'Chandra/LETGS/pha2_bg.gz{1}',
+        'resp_relpath': 'Chandra/LETGS/leg_1.rmf.gz',
+        'anc_relpath': 'Chandra/LETGS/leg_1.arf.gz',
+        'erange': (0.2, 10.0),
+        'name': 'LETGS',
+    },
+]
+
 
 def _make_observation(
     spec_counts,
@@ -313,6 +454,289 @@ def _make_dummy_response(nchan):
         response_matrix=np.eye(nchan),
         channel=np.arange(nchan).astype(str),
     )
+
+
+def _split_ogip_row_spec(path: str) -> tuple[str, int | None]:
+    match = re.match(r'^(.*)\{(\d+)\}$', path)
+    if match is None:
+        return path, None
+    return match.group(1), int(match.group(2)) - 1
+
+
+def _append_ogip_row_spec(path: str, row_index: int | None) -> str:
+    if row_index is None:
+        return path
+    return f'{path}{{{row_index + 1}}}'
+
+
+def _grouped_copy_name(path: str) -> str:
+    name = os.path.basename(path)
+    compressed = name.endswith('.gz')
+    if compressed:
+        name = name[:-3]
+    stem, ext = os.path.splitext(name)
+    grouped = f'{stem}_optgrp{ext}'
+    if compressed:
+        grouped += '.gz'
+    return grouped
+
+
+def _build_table_hdu(
+    hdu: fits.BinTableHDU,
+    replacements: dict[str, tuple[np.ndarray, str | None]],
+    additions: dict[str, tuple[np.ndarray, str]],
+) -> fits.BinTableHDU:
+    columns = []
+    for col in hdu.columns:
+        if col.name in replacements:
+            array, fmt = replacements[col.name]
+            fmt = col.format if fmt is None else fmt
+        else:
+            array = np.array(hdu.data[col.name], copy=True)
+            fmt = col.format
+
+        kwargs = {
+            'name': col.name,
+            'format': fmt,
+            'array': array,
+        }
+        if getattr(col, 'unit', None):
+            kwargs['unit'] = col.unit
+        if getattr(col, 'null', None) is not None:
+            kwargs['null'] = col.null
+        if getattr(col, 'disp', None):
+            kwargs['disp'] = col.disp
+        if getattr(col, 'dim', None):
+            kwargs['dim'] = col.dim
+        columns.append(fits.Column(**kwargs))
+
+    for name, (array, fmt) in additions.items():
+        columns.append(fits.Column(name=name, format=fmt, array=array))
+
+    return fits.BinTableHDU.from_columns(
+        columns,
+        header=hdu.header,
+        name=hdu.name,
+    )
+
+
+def _set_int_column(
+    hdu: fits.BinTableHDU,
+    name: str,
+    values: np.ndarray,
+    row_index: int | None,
+) -> fits.BinTableHDU:
+    values = np.asarray(values, dtype=np.int16)
+
+    if name in hdu.columns.names:
+        array = np.array(hdu.data[name], copy=True)
+        if row_index is None:
+            array = values
+        else:
+            array[row_index] = values
+        return _build_table_hdu(hdu, {name: (array, None)}, {})
+
+    if row_index is None:
+        return _build_table_hdu(hdu, {}, {name: (values, 'I')})
+
+    array = np.zeros((len(hdu.data), values.size), dtype=np.int16)
+    array[row_index] = values
+    return _build_table_hdu(hdu, {}, {name: (array, f'{values.size}I')})
+
+
+def _string_width(fmt: str) -> int:
+    match = re.fullmatch(r'(\d+)A', str(fmt).upper())
+    return int(match.group(1)) if match else 0
+
+
+def _set_aux_path(
+    hdu: fits.BinTableHDU,
+    name: str,
+    value: str | None,
+    row_index: int | None,
+) -> fits.BinTableHDU:
+    value = 'none' if value is None else str(value)
+    hdu.header[name] = value
+
+    if row_index is None or name not in hdu.columns.names:
+        return hdu
+
+    col = next(c for c in hdu.columns if c.name == name)
+    width = max(_string_width(col.format), len(value))
+    array = np.asarray(hdu.data[name], dtype=f'U{width}')
+    array = np.array(array, copy=True)
+    array[row_index] = value
+    return _build_table_hdu(hdu, {name: (array, f'{width}A')}, {})
+
+
+def _read_written_column(specfile: str, name: str) -> np.ndarray:
+    path, row_index = _split_ogip_row_spec(specfile)
+    with fits.open(path) as hdul:
+        values = hdul['SPECTRUM'].data[name]
+        if row_index is None:
+            return np.asarray(values)
+        return np.asarray(values[row_index])
+
+
+def _write_opt_grouped_spectrum(
+    tmp_path,
+    specfile: str,
+    data: Data,
+    *,
+    backfile: str | None,
+    respfile: str,
+    ancrfile: str | None,
+) -> str:
+    path, row_index = _split_ogip_row_spec(specfile)
+    new_path = tmp_path / _grouped_copy_name(path)
+
+    with fits.open(path) as hdul:
+        index = hdul.index_of('SPECTRUM')
+        spectrum_hdu = hdul[index]
+        grouping = np.asarray(data.grouping, dtype=np.int16)
+        quality = np.where(data.good_quality, 0, 1).astype(np.int16)
+        spectrum_hdu = _set_int_column(
+            spectrum_hdu, 'GROUPING', grouping, row_index
+        )
+        spectrum_hdu = _set_int_column(
+            spectrum_hdu, 'QUALITY', quality, row_index
+        )
+        spectrum_hdu = _set_aux_path(
+            spectrum_hdu, 'BACKFILE', backfile, row_index
+        )
+        spectrum_hdu = _set_aux_path(
+            spectrum_hdu, 'RESPFILE', respfile, row_index
+        )
+        spectrum_hdu = _set_aux_path(
+            spectrum_hdu, 'ANCRFILE', ancrfile, row_index
+        )
+        hdul[index] = spectrum_hdu
+        hdul.writeto(new_path, overwrite=True)
+
+    return _append_ogip_row_spec(str(new_path), row_index)
+
+
+def _xspec_array(values, size: int) -> np.ndarray:
+    array = np.asarray(values, dtype=np.float64)
+    if array.shape == ():
+        return np.full(size, float(array), dtype=np.float64)
+    return np.array(array, dtype=np.float64, copy=True)
+
+
+def _xspec_source_counts(spectrum) -> np.ndarray:
+    size = len(spectrum.noticed)
+    return _xspec_array(spectrum.values, size) * float(spectrum.exposure)
+
+
+def _xspec_back_ratio(spectrum) -> np.ndarray:
+    size = len(spectrum.noticed)
+    source_area = _xspec_array(spectrum.areaScale, size)
+    source_back = _xspec_array(spectrum.backScale, size)
+    back_area = _xspec_array(spectrum.background.areaScale, size)
+    back_back = _xspec_array(spectrum.background.backScale, size)
+    numerator = float(spectrum.exposure) * source_area * source_back
+    denominator = float(spectrum.background.exposure) * back_area * back_back
+    return numerator / denominator
+
+
+def _xspec_background_counts(spectrum, back_ratio: np.ndarray) -> np.ndarray:
+    size = len(back_ratio)
+    scaled = _xspec_array(spectrum.background.values, size) * float(
+        spectrum.background.exposure
+    )
+    counts = np.zeros_like(scaled)
+    np.divide(scaled, back_ratio, out=counts, where=back_ratio != 0.0)
+    return counts
+
+
+def _curated_xspec_kwargs(curated_test_data_path, case) -> dict:
+    specfile = str(curated_test_data_path(case['spec_relpath']))
+    respfile = str(curated_test_data_path(case['resp_relpath']))
+    backfile = (
+        None
+        if case['back_relpath'] is None
+        else str(curated_test_data_path(case['back_relpath']))
+    )
+    ancrfile = (
+        None
+        if case['anc_relpath'] is None
+        else str(curated_test_data_path(case['anc_relpath']))
+    )
+    kwargs = {
+        'erange': [case['erange']],
+        'specfile': specfile,
+        'respfile': respfile,
+    }
+    if backfile is not None:
+        kwargs['backfile'] = backfile
+    if ancrfile is not None:
+        kwargs['ancrfile'] = ancrfile
+    if case['name'] is not None:
+        kwargs['name'] = case['name']
+    return kwargs
+
+
+@pytest.fixture(scope='session')
+def xspec_home_dir(tmp_path_factory):
+    home = tmp_path_factory.mktemp('xspec-home')
+    (home / '.xspec' / 'cache').mkdir(parents=True, exist_ok=True)
+    return home
+
+
+@pytest.fixture(scope='function')
+def xspec_runtime(monkeypatch, xspec_home_dir):
+    if not os.environ.get('HEADAS', ''):
+        pytest.skip('HEADAS is not set')
+
+    monkeypatch.setenv('HOME', str(xspec_home_dir))
+    xspec = pytest.importorskip('xspec')
+    if hasattr(xspec, 'Xset') and hasattr(xspec.Xset, 'allowPrompting'):
+        xspec.Xset.allowPrompting = False
+    xspec.AllData.clear()
+    yield xspec
+    xspec.AllData.clear()
+
+
+def _load_grouped_curated_pair(
+    curated_test_data_path,
+    xspec_runtime,
+    tmp_path,
+    case,
+):
+    kwargs = _curated_xspec_kwargs(curated_test_data_path, case)
+    data = Data(**kwargs)
+    data.group('opt')
+
+    grouped_specfile = _write_opt_grouped_spectrum(
+        tmp_path=tmp_path,
+        specfile=kwargs['specfile'],
+        data=data,
+        backfile=kwargs.get('backfile'),
+        respfile=kwargs['respfile'],
+        ancrfile=kwargs.get('ancrfile'),
+    )
+
+    np.testing.assert_array_equal(
+        _read_written_column(grouped_specfile, 'GROUPING'),
+        np.asarray(data.grouping, dtype=np.int16),
+    )
+    np.testing.assert_array_equal(
+        _read_written_column(grouped_specfile, 'QUALITY'),
+        np.where(data.good_quality, 0, 1).astype(np.int16),
+    )
+
+    xspec = xspec_runtime
+    xspec.AllData.clear()
+    xspec.Plot.xAxis = 'keV'
+    spectrum = xspec.Spectrum(
+        grouped_specfile,
+        kwargs.get('backfile'),
+        kwargs.get('respfile'),
+        kwargs.get('ancrfile'),
+    )
+    emin, emax = case['erange']
+    spectrum.ignore(f'**-{emin} {emax}-**')
+    return data, spectrum
 
 
 @pytest.mark.parametrize(
@@ -813,6 +1237,61 @@ def test_load_data_from_curated_datasets(
         assert data.back_counts.size > 0
         assert data.back_ratio.shape == data.back_counts.shape
     assert data.area_scale.shape == data.spec_counts.shape
+
+
+@pytest.mark.parametrize(
+    'case',
+    [pytest.param(case, id=case['id']) for case in CURATED_XSPEC_CASES],
+)
+def test_grouping_matches_xspec(
+    curated_test_data_path,
+    xspec_runtime,
+    tmp_path,
+    case,
+):
+    data, spectrum = _load_grouped_curated_pair(
+        curated_test_data_path, xspec_runtime, tmp_path, case
+    )
+    xspec_counts = _xspec_source_counts(spectrum)
+    xspec_area_scale = _xspec_array(spectrum.areaScale, data.spec_counts.size)
+    xspec_back_scale = _xspec_array(spectrum.backScale, data.spec_counts.size)
+
+    np.testing.assert_allclose(
+        xspec_counts,
+        data.spec_counts,
+        rtol=1.0e-10,
+        atol=0.0,
+    )
+    np.testing.assert_allclose(
+        xspec_area_scale,
+        data.area_scale,
+        rtol=1.0e-10,
+        atol=0.0,
+    )
+    np.testing.assert_allclose(
+        xspec_back_scale,
+        data._spec_back_scale,
+        rtol=1.0e-10,
+        atol=0.0,
+    )
+
+    if case['back_relpath'] is None:
+        return
+
+    xspec_ratio = _xspec_back_ratio(spectrum)
+    xspec_back_counts = _xspec_background_counts(spectrum, xspec_ratio)
+    np.testing.assert_allclose(
+        xspec_back_counts,
+        data.back_counts,
+        rtol=1.0e-10,
+        atol=0.0,
+    )
+    np.testing.assert_allclose(
+        xspec_ratio,
+        data.back_ratio,
+        rtol=1.0e-10,
+        atol=0.0,
+    )
 
 
 def test_response():

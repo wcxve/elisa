@@ -133,7 +133,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          pytest -n 0 -x
+          pytest
 
       - name: Upload Test Results
         if: ${{ !cancelled() }}
