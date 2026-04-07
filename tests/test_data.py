@@ -676,19 +676,11 @@ def _curated_xspec_kwargs(curated_test_data_path, case) -> dict:
     return kwargs
 
 
-@pytest.fixture(scope='session')
-def xspec_home_dir(tmp_path_factory):
-    home = tmp_path_factory.mktemp('xspec-home')
-    (home / '.xspec' / 'cache').mkdir(parents=True, exist_ok=True)
-    return home
-
-
 @pytest.fixture(scope='function')
-def xspec_runtime(monkeypatch, xspec_home_dir):
+def xspec_runtime():
     if not os.environ.get('HEADAS', ''):
         pytest.skip('HEADAS is not set')
 
-    monkeypatch.setenv('HOME', str(xspec_home_dir))
     xspec = pytest.importorskip('xspec')
     if hasattr(xspec, 'Xset') and hasattr(xspec.Xset, 'allowPrompting'):
         xspec.Xset.allowPrompting = False
