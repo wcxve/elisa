@@ -52,10 +52,82 @@ jobs:
           name: elisa
           path: dist/*
 
+  download:
+    name: Cache XSPEC Model Data
+    runs-on: ubuntu-latest
+    outputs:
+      data-fn: ${{ steps.get_info.outputs.fn }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - name: Setup Miniforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+
+      - name: Install Utils
+        run: |
+          sudo apt-get install -y aria2 jq
+
+      - name: Get Latest Version of XSPEC Model Data
+        id: get_info
+        run: |
+          get_latest_pkg() {
+            jq '
+              .result.pkgs
+              | sort_by(
+                  (
+                    .version
+                    | capture("^(?<major>\\d+)(\\.(?<minor>\\d+))?(\\.(?<patch>\\d+))?(?<suffix>[a-z]*)?")
+                    | {
+                        major: (.major | tonumber),
+                        minor: (.minor // "0" | tonumber),
+                        patch: (.patch // "0" | tonumber),
+                        suffix: .suffix
+                      }
+                  ) + { build: .build_number }
+                  | [ .major, .minor, .patch, .suffix, .build ]
+                )
+              | .[-1]
+            '
+          }
+
+          data_pkg=$(
+            mamba search xspec-data -c ${{ env.heasarc-channel }} --json \
+              | get_latest_pkg
+          )
+          version=$(echo $data_pkg | jq -r '.version')
+          build=$(echo $data_pkg | jq -r '.build_string')
+          url=$(echo $data_pkg | jq -r '.url')
+          fn=$(echo $data_pkg | jq -r '.fn')
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "BUILD=$build" >> "$GITHUB_ENV"
+          echo "URL=$url" >> "$GITHUB_ENV"
+          echo "FN=$fn" >> "$GITHUB_ENV"
+          echo "fn=$fn" >> "$GITHUB_OUTPUT"
+
+      - name: Cache XSPEC Model Data ${{ env.VERSION }} (Build ${{ env.BUILD }})
+        id: cache-xspec-model-data
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.FN }}
+          key: ${{ env.FN }}
+          lookup-only: true
+
+      - name: Download XSPEC Model Data ${{ env.VERSION }} (Build ${{ env.BUILD }})
+        if: steps.cache-xspec-model-data.outputs.cache-hit != 'true'
+        run: |
+          aria2c -x 16 -s 16 --show-console-readout=true "$URL"
+          if [ ! -f "$FN" ]; then
+            echo "Failed to download from $URL"
+            exit 1
+          fi
+
   tests:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
-    needs: build
+    needs: [ build, download ]
     defaults:
       run:
         shell: bash -el {0}
@@ -82,6 +154,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Cache XSPEC Model Data
+        uses: actions/cache@v5
+        with:
+          path: ${{ needs.download.outputs.data-fn }}
+          key: ${{ needs.download.outputs.data-fn }}
+          fail-on-cache-miss: true
 
       - name: Checkout curated test data
         uses: actions/checkout@v6
@@ -113,6 +192,7 @@ jobs:
       - name: Install XSPEC
         run: |
           mamba install xspec -c ${{ env.heasarc-channel }} -c conda-forge -y
+          conda install --use-local ${{ needs.download.outputs.data-fn }} -y
 
       - name: Download Source Distribution
         uses: actions/download-artifact@v8
