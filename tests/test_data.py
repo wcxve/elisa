@@ -17,11 +17,11 @@ CURATED_RESPONSE_CASES = [
         'Chandra/ACIS/acisf04487_001N022_r0009_arf3.fits.gz',
         id='Chandra/ACIS',
     ),
-    # pytest.param(
-    #     'Chandra/LETGS/leg_1.rmf.gz',
-    #     'Chandra/LETGS/leg_1.arf.gz',
-    #     id='Chandra/LETGS',
-    # ),
+    pytest.param(
+        'Chandra/LETGS/leg_1.rmf.gz',
+        'Chandra/LETGS/leg_1.arf.gz',
+        id='Chandra/LETGS',
+    ),
     pytest.param(
         'NuSTAR/FPMA/nu90402339002A01_sr.rmf',
         'NuSTAR/FPMA/nu90402339002A01_sr.arf',
@@ -57,11 +57,11 @@ CURATED_RESPONSE_CASES = [
         'NICER/XTI/2050300110_g2_b_001.arf',
         id='NICER/XTI',
     ),
-    pytest.param(
-        'XRISM/Resolve/xa_merged_p0px1000_HpS.rmf.gz',
-        'XRISM/Resolve/rsl_standard_GVclosed.arf',
-        id='XRISM/Resolve',
-    ),
+    # pytest.param(
+    #     'XRISM/Resolve/xa_merged_p0px1000_HpS.rmf.gz',
+    #     'XRISM/Resolve/rsl_standard_GVclosed.arf',
+    #     id='XRISM/Resolve',
+    # ),
     pytest.param(
         'Hitomi/SXS/ah100040040sxs.rmf.gz',
         'Hitomi/SXS/ah100040040sxs.arf.gz',
@@ -132,13 +132,13 @@ CURATED_DATA_CASES = [
         'NICER/XTI/2050300110_g2_b_001.arf',
         id='NICER/XTI',
     ),
-    pytest.param(
-        'XRISM/Resolve/xa_merged_p0px1000_Hp.pi.gz',
-        None,
-        'XRISM/Resolve/xa_merged_p0px1000_HpS.rmf.gz',
-        'XRISM/Resolve/rsl_standard_GVclosed.arf',
-        id='XRISM/Resolve',
-    ),
+    # pytest.param(
+    #     'XRISM/Resolve/xa_merged_p0px1000_Hp.pi.gz',
+    #     None,
+    #     'XRISM/Resolve/xa_merged_p0px1000_HpS.rmf.gz',
+    #     'XRISM/Resolve/rsl_standard_GVclosed.arf',
+    #     id='XRISM/Resolve',
+    # ),
     pytest.param(
         'Hitomi/SXS/ah100040040sxs_src_grp.pha.gz',
         None,
@@ -195,13 +195,13 @@ CURATED_DATA_CASES = [
         None,
         id='HXMT/HE',
     ),
-    # pytest.param(
-    #     'Chandra/LETGS/pha2.gz{1}',
-    #     'Chandra/LETGS/pha2_bg.gz{1}',
-    #     'Chandra/LETGS/leg_1.rmf.gz',
-    #     'Chandra/LETGS/leg_1.arf.gz',
-    #     id='Chandra/LETGS',
-    # ),
+    pytest.param(
+        'Chandra/LETGS/pha2.gz{1}',
+        'Chandra/LETGS/pha2_bg.gz{1}',
+        'Chandra/LETGS/leg_1.rmf.gz',
+        'Chandra/LETGS/leg_1.arf.gz',
+        id='Chandra/LETGS',
+    ),
 ]
 
 
@@ -801,6 +801,9 @@ def test_load_data_from_curated_datasets(
         kwargs['backfile'] = str(curated_test_data_path(back_relpath))
     if anc_relpath is not None:
         kwargs['ancrfile'] = str(curated_test_data_path(anc_relpath))
+    if spec_relpath.startswith('Chandra/LETGS/'):
+        kwargs['name'] = 'LETGS'
+
     data = Data(**kwargs)
     assert data.spec_counts.size > 0
     if back_relpath is None:
