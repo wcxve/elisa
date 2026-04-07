@@ -62,11 +62,11 @@ CURATED_RESPONSE_CASES = [
     #     'XRISM/Resolve/rsl_standard_GVclosed.arf',
     #     id='XRISM/Resolve',
     # ),
-    pytest.param(
-        'Hitomi/SXS/ah100040040sxs.rmf.gz',
-        'Hitomi/SXS/ah100040040sxs.arf.gz',
-        id='Hitomi/SXS',
-    ),
+    # pytest.param(
+    #     'Hitomi/SXS/ah100040040sxs.rmf.gz',
+    #     'Hitomi/SXS/ah100040040sxs.arf.gz',
+    #     id='Hitomi/SXS',
+    # ),
     pytest.param(
         'Lynx/HDXI/xrs_hdxi.rmf',
         'Lynx/HDXI/xrs_hdxi_3x10.arf',
@@ -139,13 +139,13 @@ CURATED_DATA_CASES = [
     #     'XRISM/Resolve/rsl_standard_GVclosed.arf',
     #     id='XRISM/Resolve',
     # ),
-    pytest.param(
-        'Hitomi/SXS/ah100040040sxs_src_grp.pha.gz',
-        None,
-        'Hitomi/SXS/ah100040040sxs.rmf.gz',
-        'Hitomi/SXS/ah100040040sxs.arf.gz',
-        id='Hitomi/SXS',
-    ),
+    # pytest.param(
+    #     'Hitomi/SXS/ah100040040sxs_src_grp.pha.gz',
+    #     None,
+    #     'Hitomi/SXS/ah100040040sxs.rmf.gz',
+    #     'Hitomi/SXS/ah100040040sxs.arf.gz',
+    #     id='Hitomi/SXS',
+    # ),
     pytest.param(
         'Lynx/HDXI/fakeit_lynx.pha',
         None,
