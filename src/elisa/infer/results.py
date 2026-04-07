@@ -21,12 +21,14 @@ from astropy.cosmology import Planck18
 from iminuit import Minuit
 from iminuit.util import Matrix as CovarMatrix
 from jax.experimental.mesh_utils import create_device_mesh
-from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
 
 from elisa.infer.helper import check_params
 from elisa.plot.plotter import MLEResultPlotter, PosteriorResultPlotter
-from elisa.util.config import get_parallel_number
+from elisa.util.config import (
+    get_parallel_number,
+    jax_pmap_shmap_merge,
+)
 from elisa.util.misc import make_pretty_table
 
 if TYPE_CHECKING:
@@ -440,17 +442,18 @@ class MLEResult(FitResult):
         models = self._model_values
 
         # perform parametric bootstrap
-        result = helper.simulate_and_fit(
-            seed,
-            params,
-            models,
-            n,
-            parallel,
-            n_parallel,
-            progress,
-            update_rate,
-            'Bootstrap',
-        )
+        with jax_pmap_shmap_merge(False):
+            result = helper.simulate_and_fit(
+                seed,
+                params,
+                models,
+                n,
+                parallel,
+                n_parallel,
+                progress,
+                update_rate,
+                'Bootstrap',
+            )
         valid = result.pop('valid')
         result = jax.tree.map(lambda x: x[valid], result)
 
@@ -557,12 +560,12 @@ class MLEResult(FitResult):
                 )
                 mesh = Mesh(devices, axis_names=('i',))
                 pi = PartitionSpec('i')
-                eval_fn = shard_map(
-                    f=eval_fn,
-                    mesh=mesh,
-                    in_specs=(pi,),
+                eval_fn = jax.shard_map(
+                    eval_fn,
                     out_specs=pi,
-                    check_rep=False,
+                    in_specs=(pi,),
+                    mesh=mesh,
+                    check_vma=False,
                 )
 
             samples = eval_fn(self._params_dist)
@@ -882,12 +885,12 @@ class MLEResult(FitResult):
                 )
                 mesh = Mesh(devices, axis_names=('i',))
                 pi = PartitionSpec('i')
-                eval_fn = shard_map(
-                    f=eval_fn,
-                    mesh=mesh,
-                    in_specs=(pi,),
+                eval_fn = jax.shard_map(
+                    eval_fn,
                     out_specs=pi,
-                    check_rep=False,
+                    in_specs=(pi,),
+                    mesh=mesh,
+                    check_vma=False,
                 )
 
             if params_setting:
@@ -1539,12 +1542,12 @@ class PosteriorResult(FitResult):
             )
             mesh = Mesh(devices, axis_names=('i',))
             pi = PartitionSpec('i')
-            eval_fn = shard_map(
-                f=eval_fn,
-                mesh=mesh,
-                in_specs=(pi,),
+            eval_fn = jax.shard_map(
+                eval_fn,
                 out_specs=pi,
-                check_rep=False,
+                in_specs=(pi,),
+                mesh=mesh,
+                check_vma=False,
             )
 
         samples = eval_fn(params_dist)
@@ -1682,12 +1685,12 @@ class PosteriorResult(FitResult):
             )
             mesh = Mesh(devices, axis_names=('i',))
             pi = PartitionSpec('i')
-            eval_fn = shard_map(
-                f=eval_fn,
-                mesh=mesh,
-                in_specs=(pi,),
+            eval_fn = jax.shard_map(
+                eval_fn,
                 out_specs=pi,
-                check_rep=False,
+                in_specs=(pi,),
+                mesh=mesh,
+                check_vma=False,
             )
 
         if params_setting:
@@ -2077,17 +2080,18 @@ class PosteriorResult(FitResult):
         }
 
         # perform ppc
-        result = helper.simulate_and_fit(
-            seed,
-            params,
-            models,
-            1,
-            parallel,
-            n_parallel,
-            progress,
-            update_rate,
-            'PPC',
-        )
+        with jax_pmap_shmap_merge(False):
+            result = helper.simulate_and_fit(
+                seed,
+                params,
+                models,
+                1,
+                parallel,
+                n_parallel,
+                progress,
+                update_rate,
+                'PPC',
+            )
         valid = result.pop('valid')
         result = jax.tree.map(lambda x: x[valid], result)
 

@@ -5,12 +5,14 @@ from __future__ import annotations
 import os
 import re
 import warnings
+from contextlib import contextmanager
 from multiprocessing import cpu_count
 from typing import TYPE_CHECKING
 
 import jax
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from typing import Literal
 
 
@@ -101,6 +103,29 @@ def jax_debug_nans(flag: bool):
         When ``True``, raise an error when NaNs are detected in JAX.
     """
     jax.config.update('jax_debug_nans', bool(flag))
+
+
+@contextmanager
+def jax_pmap_shmap_merge(flag: bool) -> Iterator[None]:
+    """Temporarily set ``jax_pmap_shmap_merge`` and restore it afterwards."""
+    old = jax.config.jax_pmap_shmap_merge
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            'ignore',
+            message='Setting `jax_pmap_shmap_merge` is deprecated.*',
+            category=DeprecationWarning,
+        )
+        jax.config.update('jax_pmap_shmap_merge', bool(flag))
+    try:
+        yield
+    finally:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                'ignore',
+                message='Setting `jax_pmap_shmap_merge` is deprecated.*',
+                category=DeprecationWarning,
+            )
+            jax.config.update('jax_pmap_shmap_merge', old)
 
 
 def get_parallel_number(n: int | None) -> int:

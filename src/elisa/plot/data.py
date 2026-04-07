@@ -11,7 +11,6 @@ import jax.numpy as jnp
 import numpy as np
 import scipy.stats as stats
 from jax.experimental.mesh_utils import create_device_mesh
-from jax.experimental.shard_map import shard_map
 from jax.sharding import Mesh, PartitionSpec
 
 from elisa.infer.likelihood import (
@@ -239,12 +238,12 @@ class PlotData(ABC):
             mesh = Mesh(devices, axis_names=('i',))
             p = PartitionSpec()
             pi = PartitionSpec('i')
-            fn = shard_map(
-                f=fn,
-                mesh=mesh,
-                in_specs=(p, pi),
+            fn = jax.shard_map(
+                fn,
                 out_specs=pi,
-                check_rep=False,
+                in_specs=(p, pi),
+                mesh=mesh,
+                check_vma=False,
             )
         return jax.device_get(fn(egrid, params))
 
