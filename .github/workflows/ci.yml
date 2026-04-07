@@ -155,13 +155,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Cache XSPEC Model Data
-        uses: actions/cache@v5
-        with:
-          path: ${{ needs.download.outputs.data-fn }}
-          key: ${{ needs.download.outputs.data-fn }}
-          fail-on-cache-miss: true
-
       - name: Checkout curated test data
         uses: actions/checkout@v6
         with:
@@ -188,6 +181,13 @@ jobs:
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v7
+
+      - name: Cache XSPEC Model Data
+        uses: actions/cache@v5
+        with:
+          path: ${{ needs.download.outputs.data-fn }}
+          key: ${{ needs.download.outputs.data-fn }}
+          fail-on-cache-miss: true
 
       - name: Install XSPEC
         run: |
