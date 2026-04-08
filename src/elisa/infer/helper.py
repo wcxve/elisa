@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import numpyro
+import optimistix as optx
 from jax import lax
 from numpyro import handlers
 from numpyro.distributions import Distribution
@@ -126,10 +127,6 @@ def check_params(
 
 def get_helper(fit: Any) -> Helper:
     """Get helper functions for fitting."""
-    # JAX devices must be set before importing optimistix
-    # so we import it here
-    import optimistix as optx
-
     model_info: ModelInfo = fit._model_info
     data: dict[str, FixedData] = fit._data
     model: dict[str, CompiledModel] = fit._model
