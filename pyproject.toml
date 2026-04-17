@@ -28,7 +28,7 @@ dependencies = [
     "emcee~=3.1.6",
     "h5py>=3.14,<3.17",
     "iminuit>=2.31.1,<2.33",
-    "jax>=0.7.0,<=0.9.2",
+    "jax>=0.7.0,<=0.10.0",
     "jaxns==2.6.9; python_version < '3.14'",
     "matplotlib>=3.8.0",
     "multiprocess~=0.70.18",
