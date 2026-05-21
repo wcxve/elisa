@@ -9,7 +9,7 @@ fake_nb = types.SimpleNamespace(
         intc=object(),
         CPointer=lambda x: None,
     ),
-    cfunc=lambda sig: (lambda f: types.SimpleNamespace(ctypes=f)),
+    cfunc=lambda sig: lambda f: types.SimpleNamespace(ctypes=f),
     njit=lambda f: f,
     carray=lambda params, shape: params,
 )

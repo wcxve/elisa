@@ -1,22 +1,14 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, NamedTuple
+from collections.abc import Callable
+from typing import Any, NamedTuple
 
-import blackjax.adaptation.window_adaptation as window_adaptation
-import blackjax.mcmc.integrators as integrators
 import jax
 import jax.numpy as jnp
 import jax.random as random
-from blackjax.mcmc.hmc import HMCState
-from blackjax.mcmc.nuts import build_kernel
 from numpyro.infer.mcmc import MCMCKernel
 from numpyro.infer.util import init_to_uniform, initialize_model
 from numpyro.util import identity, is_prng_key
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from blackjax.mcmc.metrics import MetricTypes
 
 
 class BlackJAXNUTSState(NamedTuple):
@@ -62,10 +54,10 @@ class BlackJAXNUTSState(NamedTuple):
     step_size: float
     """Step size to be used by the integrator in the next iteration."""
 
-    inverse_mass_matrix: MetricTypes
+    inverse_mass_matrix: Any
     """The inverse mass matrix to be used for the next iteration."""
 
-    adapt_state: window_adaptation.WindowAdaptationState
+    adapt_state: Any
     """The current window adaption state of the NUTS."""
 
     rng_key: jax.Array
@@ -85,8 +77,10 @@ class BlackJAXNUTS(MCMCKernel):
         target_accept_prob: float = 0.8,
         max_tree_depth: int = 10,
         divergence_threshold: float = 1000.0,
-        integrator: Callable = integrators.velocity_verlet,
+        integrator: Callable | None = None,
     ):
+        from blackjax.mcmc.integrators import velocity_verlet
+
         if not (model is None) ^ (potential_fn is None):
             raise ValueError(
                 'Only one of `model` or `potential_fn` must be specified.'
@@ -104,6 +98,8 @@ class BlackJAXNUTS(MCMCKernel):
         # NUTS kernel parameters
         self._max_tree_depth = max_tree_depth
         self._divergence_threshold = divergence_threshold
+        if integrator is None:
+            integrator = velocity_verlet
         self._integrator = integrator
 
         # Sampling related
@@ -136,6 +132,9 @@ class BlackJAXNUTS(MCMCKernel):
         return init_params
 
     def init(self, rng_key, num_warmup, init_params, model_args, model_kwargs):
+        import blackjax.adaptation.window_adaptation as wa
+        from blackjax.mcmc.nuts import build_kernel
+
         # TODO: support chain_method='vectorized'
         if not is_prng_key(rng_key):
             raise NotImplementedError(
@@ -162,11 +161,11 @@ class BlackJAXNUTS(MCMCKernel):
         kernel = build_kernel(self._integrator, self._divergence_threshold)
 
         # Initialize window adaption, adapted from blackjax.window_adaptation
-        adapt_init, adapt_step, adapt_final = window_adaptation.base(
+        adapt_init, adapt_step, adapt_final = wa.base(
             is_mass_matrix_diagonal=not self._dense_mass,
             target_acceptance_rate=self._target_accept_prob,
         )
-        schedule = window_adaptation.build_schedule(num_warmup)
+        schedule = wa.build_schedule(num_warmup)
 
         def wa_update(state, new_hmc_state, info):
             return adapt_step(
@@ -177,6 +176,8 @@ class BlackJAXNUTS(MCMCKernel):
             )
 
         def mcmc_kernel(state: BlackJAXNUTSState) -> BlackJAXNUTSState:
+            from blackjax.mcmc.hmc import HMCState
+
             i = state.i + 1
             (rng_key,) = random.split(state.rng_key, 1)
             hmc_state = HMCState(

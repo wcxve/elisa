@@ -34,7 +34,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
+          python-version: "3.14"
 
       - name: Install Python Dependencies
         run: |
@@ -47,7 +47,7 @@ jobs:
           python -m twine check --strict dist/*
 
       - name: Upload Source Distribution as Artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: elisa
           path: dist/*
@@ -61,26 +61,45 @@ jobs:
         shell: bash -el {0}
     env:
       extra: "xspec"
+      CURATED_TEST_DATA: "${{ github.workspace }}/external/curated-test-data"
     strategy:
       matrix:
         include:
-          - name: Tests (Python 3.13 on Linux-x64)
+          - name: Tests (Python 3.14 on Linux-x64)
             os: "ubuntu-latest"
-            python-version: "3.13"
+            python-version: "3.14"
             uv-resolution: "highest"
 
-          - name: Tests (Python 3.13 on macOS-arm64)
+          - name: Tests (Python 3.14 on macOS-arm64)
             os: "macos-latest"
-            python-version: "3.13"
+            python-version: "3.14"
             uv-resolution: "highest"
 
           - name: Tests (Lowest Version Deps)
             os: "ubuntu-latest"
-            python-version: "3.10"
+            python-version: "3.11"
             uv-resolution: "lowest-direct"
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Checkout curated test data
+        uses: actions/checkout@v6
+        with:
+          repository: HEACIT/curated-test-data
+          path: external/curated-test-data
+          fetch-depth: 1
+          sparse-checkout: |
+            observations.yml
+            Chandra
+            HXMT
+            Hitomi
+            IXPE
+            Lynx
+            NICER
+            NuSTAR
+            XMM-Newton
+            XRISM
 
       - name: Setup Miniforge
         uses: conda-incubator/setup-miniconda@v3
@@ -96,7 +115,7 @@ jobs:
           mamba install xspec -c ${{ env.heasarc-channel }} -c conda-forge -y
 
       - name: Download Source Distribution
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: elisa
 
@@ -106,8 +125,10 @@ jobs:
             $(echo "${extra}" | tr ',' '\n' | xargs -I {} echo --extra {}) \
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }}
+          # Keep PEP 517 build isolation aligned with the resolved runtime deps.
           uv pip install "$(ls astro_elisa-*.tar.gz)[${extra},test]" \
             --overrides requirements.txt \
+            --build-constraint requirements.txt \
             --verbose
 
       - name: Run Tests
@@ -126,7 +147,7 @@ jobs:
           verbose: true
 
       - name: Upload Coverage Results
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: true
@@ -144,10 +165,10 @@ jobs:
       id-token: write
     steps:
       - name: Download Source Distribution
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: elisa
           path: dist
 
       - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@v1.13.0
+        uses: pypa/gh-action-pypi-publish@v1.14.0

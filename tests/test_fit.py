@@ -16,13 +16,8 @@ DYNESTY_SKIP_MARK = pytest.mark.skipif(
 
 
 JAXNS_XFAIL_MARK = pytest.mark.xfail(
-    not bool(find_spec('jaxns'))
-    and sys.version_info >= (3, 13)
-    or (
-        version('jaxns') == '2.6.7'
-        and tuple(map(int, version('jax').split('.'))) >= (0, 6, 0)
-    ),
-    reason='jaxns==2.6.7 is incompatible with jax>=0.6.0 or python>=3.13',
+    not bool(find_spec('jaxns')) and sys.version_info >= (3, 14),
+    reason='jaxns==2.6.9 is incompatible with python>=3.14',
 )
 
 

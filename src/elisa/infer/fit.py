@@ -12,6 +12,7 @@ import arviz as az
 import jax
 import jax.numpy as jnp
 import numpy as np
+import optimistix as optx
 import xarray as xr
 from iminuit import Minuit
 from numpyro.infer import init_to_value
@@ -177,20 +178,7 @@ class Fit(ABC):
         verbose: bool = False,
     ) -> tuple[JAXArray, JAXFloat]:
         """Search MLE by Levenberg-Marquardt algorithm of :mod:`optimistix`."""
-
-        if verbose:
-            verbose = frozenset({'step', 'loss'})
-        else:
-            verbose = frozenset()
-
-        if getattr(self, '_lm_verbose', verbose) != verbose:
-            self._lm = None
-
         if self._lm is None:
-            # JAX devices must be set before importing optimistix
-            # so we import it here
-            import optimistix as optx
-
             lm_solver = optx.LevenbergMarquardt(
                 rtol=0.0, atol=1e-6, verbose=verbose
             )
