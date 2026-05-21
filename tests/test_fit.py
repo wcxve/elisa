@@ -1,6 +1,5 @@
 import sys
 import types
-from importlib.metadata import version
 from importlib.util import find_spec
 
 import numpy as np
