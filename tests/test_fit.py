@@ -228,6 +228,7 @@ def test_dynesty_closes_sampler_on_failure(simulation, fail_stage):
 
     try:
         if fail_stage == 'generate':
+
             def fake_generate_results(self, **kwargs):
                 raise RuntimeError('generate failed')
 
