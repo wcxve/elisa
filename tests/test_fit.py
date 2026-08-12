@@ -310,7 +310,9 @@ def test_dynesty_sampler_close_idempotent():
             self.joined += 1
 
     pool = FakePool()
-    sampler = dynesty_module.DynestySampler.__new__(dynesty_module.DynestySampler)
+    sampler = dynesty_module.DynestySampler.__new__(
+        dynesty_module.DynestySampler
+    )
     sampler._pool = pool
 
     sampler.close()

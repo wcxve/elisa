@@ -1890,7 +1890,9 @@ class BayesFit(Fit):
             ess_overall = sampler.ess
             ess = dict.fromkeys(self._helper.params_names['all'], ess_overall)
             # relative mcmc efficiency
-            total_sample = samples[self._helper.params_names['all'][0]].shape[1]
+            total_sample = samples[
+                self._helper.params_names['all'][0]
+            ].shape[1]
             reff = float(ess_overall / total_sample)
             # model evidence
             lnZ = sampler.lnZ
