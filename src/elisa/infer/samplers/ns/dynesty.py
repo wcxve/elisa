@@ -62,6 +62,8 @@ class DynestySampler:
         self._run_results = None
         self._pool = None
 
+        kwargs.setdefault('rstate', np.random.default_rng(self._seed))
+
         pool = kwargs.get('pool')
         if isinstance(pool, int):
             ctx = mp.get_context('spawn')
@@ -111,12 +113,7 @@ class DynestySampler:
                 **self._sampler_constructor_kwargs,
             )
 
-        prev_state = np.random.get_state()
-        np.random.seed(self._seed)
-        try:
-            sampler.run_nested(**kwargs)
-        finally:
-            np.random.set_state(prev_state)
+        sampler.run_nested(**kwargs)
 
         self._sampler = sampler
         results = self._run_results = sampler.results

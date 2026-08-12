@@ -73,7 +73,7 @@ def test_trivial_max_like_fit(simulation, method):
         pytest.param('ultranest', {}, id='UltraNest'),
         pytest.param(
             'dynesty',
-            {'termination_kwargs': {'maxcall': 20000}},
+            {},
             marks=DYNESTY_SKIP_MARK,
             id='Dynesty',
         ),
@@ -253,6 +253,8 @@ def test_dynesty_closes_sampler_on_failure(simulation, fail_stage):
 def test_dynesty_sampler_restores_rng_state_on_run_exception(monkeypatch):
     from elisa.infer.samplers.ns import dynesty as dynesty_module
 
+    captured = {}
+
     class FakeModelInfo:
         ndim = 1
 
@@ -270,7 +272,7 @@ def test_dynesty_sampler_restores_rng_state_on_run_exception(monkeypatch):
 
     class FailingNestedSampler:
         def __init__(self, *args, **kwargs):
-            pass
+            captured['rstate'] = kwargs['rstate']
 
         def run_nested(self, **kwargs):
             raise RuntimeError('run_nested failed')
@@ -293,6 +295,8 @@ def test_dynesty_sampler_restores_rng_state_on_run_exception(monkeypatch):
     with pytest.raises(RuntimeError, match='run_nested failed'):
         sampler.run(print_progress=False)
 
+    assert isinstance(captured['rstate'], np.random.Generator)
+    assert captured['rstate'].random() == np.random.default_rng(123).random()
     assert np.allclose(np.random.rand(), rand_ref)
 
 
