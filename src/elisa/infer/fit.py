@@ -1866,36 +1866,43 @@ class BayesFit(Fit):
 
         print('Running nested sampling of Dynesty...')
         t0 = time.time()
-        sampler = DynestySampler(
-            numpyro_model=self._helper.numpyro_model,
-            seed=self._helper.seed['mcmc'],
-            ignore_nan=ignore_nan,
-            dynamic=dynamic,
-            **constructor_kwargs,
-        )
-        samples = sampler.run(
-            resume_file=resume_file,
-            **termination_kwargs,
-        )
-        if print_result:
-            sampler.print_results()
-        print(f'Sampling completed in {time.time() - t0:.2f} s')
+        sampler = None
+        try:
+            sampler = DynestySampler(
+                numpyro_model=self._helper.numpyro_model,
+                seed=self._helper.seed['mcmc'],
+                ignore_nan=ignore_nan,
+                dynamic=dynamic,
+                **constructor_kwargs,
+            )
+            samples = sampler.run(
+                resume_file=resume_file,
+                **termination_kwargs,
+            )
+            if print_result:
+                sampler.print_results()
+            print(f'Sampling completed in {time.time() - t0:.2f} s')
 
-        # format posterior samples
-        samples = jax.tree.map(lambda x: x[None], samples)
+            # format posterior samples
+            samples = jax.tree.map(lambda x: x[None], samples)
 
-        # effective sample size
-        ess_overall = sampler.ess
-        ess = dict.fromkeys(self._helper.params_names['all'], ess_overall)
-        # relative mcmc efficiency
-        total_sample = samples[self._helper.params_names['all'][0]].shape[1]
-        reff = float(ess_overall / total_sample)
-        # model evidence
-        lnZ = sampler.lnZ
-        return self._generate_results(
-            samples=samples,
-            ess=ess,
-            reff=reff,
-            lnZ=lnZ,
-            inference_library='dynesty',
-        )
+            # effective sample size
+            ess_overall = sampler.ess
+            ess = dict.fromkeys(self._helper.params_names['all'], ess_overall)
+            # relative mcmc efficiency
+            total_sample = samples[
+                self._helper.params_names['all'][0]
+            ].shape[1]
+            reff = float(ess_overall / total_sample)
+            # model evidence
+            lnZ = sampler.lnZ
+            return self._generate_results(
+                samples=samples,
+                ess=ess,
+                reff=reff,
+                lnZ=lnZ,
+                inference_library='dynesty',
+            )
+        finally:
+            if sampler is not None:
+                sampler.close()

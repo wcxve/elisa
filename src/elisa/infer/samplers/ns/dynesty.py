@@ -37,7 +37,8 @@ class DynestySampler:
             warnings.warn(
                 'setting `ignore_nan` to True may fail to spot potential '
                 'issues of the model',
-                Warning,
+                UserWarning,
+                stacklevel=2,
             )
 
         self._model_info = mi = uniform_reparam_model(
@@ -63,12 +64,8 @@ class DynestySampler:
 
         pool = kwargs.get('pool')
         if isinstance(pool, int):
-            old_method = mp.get_start_method()
-            if old_method != 'spawn':
-                mp.set_start_method('spawn', force=True)
-            else:
-                old_method = ''
-            self._pool = mp.Pool(pool)
+            ctx = mp.get_context('spawn')
+            self._pool = ctx.Pool(pool)
             kwargs['pool'] = self._pool
             kwargs.setdefault('queue_size', pool)
             kwargs.setdefault(
@@ -80,8 +77,6 @@ class DynestySampler:
                     'update_bound': False,
                 },
             )
-            if old_method:
-                mp.set_start_method(old_method, force=True)
         elif pool is None:
             kwargs.pop('pool', None)
             kwargs.setdefault('queue_size', 1)
@@ -118,8 +113,10 @@ class DynestySampler:
 
         prev_state = np.random.get_state()
         np.random.seed(self._seed)
-        sampler.run_nested(**kwargs)
-        np.random.set_state(prev_state)
+        try:
+            sampler.run_nested(**kwargs)
+        finally:
+            np.random.set_state(prev_state)
 
         self._sampler = sampler
         results = self._run_results = sampler.results
@@ -167,7 +164,16 @@ class DynestySampler:
             float(self._run_results.logzerr[-1]),
         )
 
+    def close(self):
+        pool = self._pool
+        if pool is None:
+            return
+        self._pool = None
+        pool.close()
+        pool.join()
+
     def __del__(self):
-        if self._pool is not None:
-            self._pool.close()
-            self._pool.join()
+        try:
+            self.close()
+        except Exception:
+            pass
