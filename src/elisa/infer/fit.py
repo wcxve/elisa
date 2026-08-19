@@ -178,15 +178,6 @@ class Fit(ABC):
         verbose: bool = False,
     ) -> tuple[JAXArray, JAXFloat]:
         """Search MLE by Levenberg-Marquardt algorithm of :mod:`optimistix`."""
-
-        if verbose:
-            verbose = frozenset({'step', 'loss'})
-        else:
-            verbose = frozenset()
-
-        if getattr(self, '_lm_verbose', verbose) != verbose:
-            self._lm = None
-
         if self._lm is None:
             lm_solver = optx.LevenbergMarquardt(
                 rtol=0.0, atol=1e-6, verbose=verbose
@@ -1668,7 +1659,9 @@ class BayesFit(Fit):
         Parameters
         ----------
         ess : int, optional
-            The desired effective sample size.
+            The desired effective sample size for dynamic nested sampling.
+            For static nested sampling, please use ``termination_kwargs`` to
+            control settings such as ``dlogz`` or ``maxcall``.
         ignore_nan : bool, optional
             Whether to transform a NaN log probability to a large negative
             number (-1e300). The default is False.
@@ -1743,7 +1736,9 @@ class BayesFit(Fit):
         Parameters
         ----------
         ess : int, optional
-            The desired effective sample size.
+            The desired effective sample size for dynamic nested sampling.
+            For static nested sampling, please use ``termination_kwargs`` to
+            control settings such as ``dlogz`` or ``maxcall``.
         ignore_nan : bool, optional
             Whether to transform a NaN log probability to a large negative
             number (-1e300). The default is False.
@@ -1819,3 +1814,104 @@ class BayesFit(Fit):
             lnZ=lnZ,
             inference_library='ultranest',
         )
+
+    def dynesty(
+        self,
+        ess: int = 3000,
+        ignore_nan: bool = False,
+        dynamic: bool = False,
+        print_result: bool = True,
+        *,
+        constructor_kwargs: dict | None = None,
+        termination_kwargs: dict | None = None,
+        resume_file: str | None = None,
+    ) -> PosteriorResult:
+        """Run :mod:`dynesty`'s implementation of nested sampling.
+
+        Parameters
+        ----------
+        ess : int, optional
+            The desired effective sample size for dynamic nested sampling.
+            For static nested sampling, please use ``termination_kwargs`` to
+            control settings such as ``dlogz`` or ``maxcall``.
+        ignore_nan : bool, optional
+            Whether to transform a NaN log probability to a large negative
+            number (-1e300). The default is False.
+
+            .. warning::
+                Setting ``ignore_nan=True`` may fail to spot potential issues
+                with model computation.
+        dynamic : bool, optional
+            Whether to use :class:`dynesty.DynamicNestedSampler`.
+            If False, :class:`dynesty.NestedSampler` is used.
+        print_result : bool, optional
+            Whether to print sampling result. The default is True.
+        constructor_kwargs : dict, optional
+            Extra parameters passed to :class:`dynesty.NestedSampler` or
+            :class:`dynesty.DynamicNestedSampler`.
+        termination_kwargs : dict, optional
+            Extra parameters passed to ``run_nested``.
+        resume_file : str, optional
+            Resume from a previous checkpoint file if it exists.
+        """
+        from elisa.infer.samplers.ns.dynesty import DynestySampler
+
+        if constructor_kwargs is None:
+            constructor_kwargs = {}
+        else:
+            constructor_kwargs = dict(constructor_kwargs)
+        constructor_kwargs.setdefault('bound', 'multi')
+        constructor_kwargs.setdefault('sample', 'auto')
+        constructor_kwargs.setdefault('pool', get_parallel_number(None))
+
+        if termination_kwargs is None:
+            termination_kwargs = {}
+        else:
+            termination_kwargs = dict(termination_kwargs)
+        if dynamic:
+            termination_kwargs.setdefault('n_effective', int(ess))
+        else:
+            termination_kwargs.pop('n_effective', None)
+
+        print('Running nested sampling of Dynesty...')
+        t0 = time.time()
+        sampler = None
+        try:
+            sampler = DynestySampler(
+                numpyro_model=self._helper.numpyro_model,
+                seed=self._helper.seed['mcmc'],
+                ignore_nan=ignore_nan,
+                dynamic=dynamic,
+                **constructor_kwargs,
+            )
+            samples = sampler.run(
+                resume_file=resume_file,
+                **termination_kwargs,
+            )
+            if print_result:
+                sampler.print_results()
+            print(f'Sampling completed in {time.time() - t0:.2f} s')
+
+            # format posterior samples
+            samples = jax.tree.map(lambda x: x[None], samples)
+
+            # effective sample size
+            ess_overall = sampler.ess
+            ess = dict.fromkeys(self._helper.params_names['all'], ess_overall)
+            # relative mcmc efficiency
+            total_sample = samples[self._helper.params_names['all'][0]].shape[
+                1
+            ]
+            reff = float(ess_overall / total_sample)
+            # model evidence
+            lnZ = sampler.lnZ
+            return self._generate_results(
+                samples=samples,
+                ess=ess,
+                reff=reff,
+                lnZ=lnZ,
+                inference_library='dynesty',
+            )
+        finally:
+            if sampler is not None:
+                sampler.close()

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-from typing import TYPE_CHECKING, NamedTuple
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Any, Literal, NamedTuple
 
 import jax
 import jax.numpy as jnp
@@ -12,12 +12,15 @@ import numpyro
 import optimistix as optx
 from jax import lax
 from numpyro import handlers
+from numpyro.distributions import Distribution
 from numpyro.infer.util import constrain_fn, unconstrain_fn
 
+from elisa.data.base import FixedData
 from elisa.infer.likelihood import (
     _STATISTIC_BACK_NORMAL,
     _STATISTIC_SPEC_NORMAL,
     _STATISTIC_WITH_BACK,
+    Statistic,
     chi2,
     cstat,
     pgstat,
@@ -25,29 +28,19 @@ from elisa.infer.likelihood import (
     whittle,
     wstat,
 )
+from elisa.models.model import CompiledModel, ModelInfo, ParamSetup
 from elisa.util.config import get_parallel_number
 from elisa.util.misc import (
     get_unit_latex,
     progress_bar_factory,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
-    from typing import Literal
-
-    from numpyro.distributions import Distribution
-
-    from elisa.data.base import FixedData
-    from elisa.infer.fit import Fit
-    from elisa.infer.likelihood import Statistic
-    from elisa.models.model import CompiledModel, ModelInfo, ParamSetup
-    from elisa.util.typing import (
-        JAXArray,
-        JAXFloat,
-        ParamID,
-        ParamName,
-        ParamNameValMapping,
-    )
+from elisa.util.typing import (
+    JAXArray,
+    JAXFloat,
+    ParamID,
+    ParamName,
+    ParamNameValMapping,
+)
 
 
 def check_params(
@@ -133,7 +126,7 @@ def check_params(
 #     return reparam, inv
 
 
-def get_helper(fit: Fit) -> Helper:
+def get_helper(fit: Any) -> Helper:
     """Get helper functions for fitting."""
     model_info: ModelInfo = fit._model_info
     data: dict[str, FixedData] = fit._data
@@ -277,7 +270,7 @@ def get_helper(fit: Fit) -> Helper:
             name = f'{k}_Noff'
             if s in _STATISTIC_BACK_NORMAL:
                 simulators[name] = simulator_factory('norm', d.back_errors)
-                sampling_dist[name] = ('norm', (d.spec_errors,))
+                sampling_dist[name] = ('norm', (d.back_errors,))
             else:
                 simulators[name] = simulator_factory('poisson')
                 sampling_dist[name] = ('poisson', ())
@@ -774,7 +767,7 @@ def get_helper(fit: Fit) -> Helper:
         n_parallel = get_parallel_number(n_parallel)
 
         init_params = jax.tree.map(jnp.array, init_params)
-        assert set(init_params) == set(params_names)
+        assert set(init_params) == set(free_names)
 
         # check if all params shapes are the same
         param_shapes = [np.shape(v)[:-1] for v in init_params.values()]
@@ -787,7 +780,7 @@ def get_helper(fit: Fit) -> Helper:
         nsim = data_shapes[0][0]
 
         # get initial parameters arrays in unconstrained space,
-        init = jnp.array([init_params[k] for k in params_names]).T
+        init = jnp.array([init_params[k] for k in free_names]).T
         assert init.ndim <= 2
         if init.ndim == 2:
             assert init.shape[0] == nsim

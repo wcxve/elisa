@@ -1008,6 +1008,17 @@ class CompiledModel:
             sparse=response_sparse,
         )
 
+        def _coerce_scale(scale, name: str) -> NDArray:
+            arr = np.asarray(scale, dtype=np.float64)
+            if arr.shape == ():
+                arr = np.full(resp_data.channel_number, arr, dtype=np.float64)
+            elif arr.shape != (resp_data.channel_number,):
+                raise ValueError(
+                    f'{name} must be a scalar or have size '
+                    f'{resp_data.channel_number}'
+                )
+            return arr
+
         if not spec_poisson:
             if spec_errors is None:
                 raise ValueError(
@@ -1066,6 +1077,11 @@ class CompiledModel:
             has_back = True
         else:
             has_back = False
+
+        spec_area_scale = _coerce_scale(spec_area_scale, 'spec_area_scale')
+        spec_back_scale = _coerce_scale(spec_back_scale, 'spec_back_scale')
+        back_area_scale = _coerce_scale(back_area_scale, 'back_area_scale')
+        back_back_scale = _coerce_scale(back_back_scale, 'back_back_scale')
 
         if has_back:
             if back_poisson:
@@ -2180,7 +2196,7 @@ def get_model_info(
 
     # record the LaTeX format of component parameters
     latex_mapping |= {
-        comp[name]._id: params_info[comp[name]._id].latex
+        comp[name]._id: comp[name].latex
         for comp in comps
         for (i, name) in enumerate(comp.param_names)
     }

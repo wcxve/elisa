@@ -101,6 +101,17 @@ def _adjust_log_range(
     )
 
 
+_FV_KEV_TO_JY = 413566.7696923858
+
+
+def _scale_fv_to_jy(values):
+    if values is None:
+        return None
+    if isinstance(values, dict):
+        return {k: v * _FV_KEV_TO_JY for k, v in values.items()}
+    return values * _FV_KEV_TO_JY
+
+
 def _get_qq(
     q: NumPyArray,
     detrend: bool,
@@ -229,6 +240,7 @@ class PlotConfig:
         'ne': r'$N_E\ \mathrm{[ph\ cm^{-2}\ s^{-1}\ keV^{-1}]}$',
         'ene': r'$E N_E\ \mathrm{[erg\ cm^{-2}\ s^{-1}\ keV^{-1}]}$',
         'Fv': r'$F_{\nu}\ \mathrm{[erg\ cm^{-2}\ s^{-1}\ keV^{-1}]}$',
+        'FvJy': r'$F_{\nu}\ \mathrm{[Jy]}$',
         'eene': r'$E^2 N_E\ \mathrm{[erg\ cm^{-2}\ s^{-1}]}$',
         'vFv': r'$\nu F_{\nu}\ \mathrm{[erg\ cm^{-2}\ s^{-1}]}$',
         'rd': r'$r_D\ [\mathrm{\sigma}]$',
@@ -561,6 +573,7 @@ class Plotter(ABC):
         params: Mapping[str, float | int | Array] | None = None,
         label_Fv: bool = False,
         label_vFv: bool = False,
+        label_FvJy: bool = False,
     ) -> Figure:
         r"""Spectral plot.
 
@@ -594,6 +607,10 @@ class Plotter(ABC):
         label_vFv : bool, optional
             Whether to label the y-axis of :math:`E^2 N(E)` plot as
             :math:`\nu F_{\nu}`. The default is ``False``.
+        label_FvJy : bool, optional
+            Whether to label the y-axis of :math:`E N(E)` plot as
+            :math:`F_{\nu}` in Jy and convert values to Jy. The default is
+            ``False``.
 
         Returns
         -------
@@ -686,7 +703,12 @@ class Plotter(ABC):
                 _adjust_log_range(axs_dict['ne'], 'y')
         if ene:
             self.plot_unfolded(
-                axs_dict['ene'], 'ene', params, egrid, label_Fv=label_Fv
+                axs_dict['ene'],
+                'ene',
+                params,
+                egrid,
+                label_Fv=label_Fv,
+                label_FvJy=label_FvJy,
             )
             if yscale != 'linear':
                 axs_dict['ene'].set_yscale('log')
@@ -721,6 +743,7 @@ class Plotter(ABC):
         egrid: Mapping[str, NumPyArray] | None = None,
         label_Fv: bool = False,
         label_vFv: bool = False,
+        label_FvJy: bool = False,
     ):
         r"""Plot unfolded model.
 
@@ -745,6 +768,10 @@ class Plotter(ABC):
         label_vFv : bool, optional
             Whether to label the y-axis of :math:`E^2 N(E)` plot as
             :math:`\nu F_{\nu}`. The default is ``False``.
+        label_FvJy : bool, optional
+            Whether to label the y-axis of :math:`E N(E)` plot as
+            :math:`F_{\nu}` in Jy and convert values to Jy. The default is
+            ``False``.
         """
         params = dict(params) if params is not None else {}
         if params:
@@ -758,10 +785,16 @@ class Plotter(ABC):
         step_kwargs = {'lw': 1.618, 'alpha': config.alpha}
         ribbon_kwargs = {'lw': 0.618, 'alpha': 0.2 * config.alpha}
 
+        if label_FvJy and mtype != 'ene':
+            raise ValueError('label_FvJy requires mtype="ene"')
+
         if mtype == 'ne':
             label_type = 'ne'
         elif mtype == 'ene':
-            label_type = 'Fv' if label_Fv else 'ene'
+            if label_FvJy:
+                label_type = 'FvJy'
+            else:
+                label_type = 'Fv' if label_Fv else 'ene'
         elif mtype == 'eene':
             label_type = 'vFv' if label_vFv else 'eene'
         else:
@@ -773,6 +806,9 @@ class Plotter(ABC):
             color = colors[name]
             egrid_ = egrid.get(name, data.photon_egrid)
             ne, ci = data.unfolded_model(mtype, egrid_, params, False, cl)
+            if label_FvJy:
+                ne = _scale_fv_to_jy(ne)
+                ci = _scale_fv_to_jy(ci)
             _plot_step(
                 ax, egrid_[:-1], egrid_[1:], ne, color=color, **step_kwargs
             )
@@ -791,6 +827,9 @@ class Plotter(ABC):
                     continue
 
                 ne, ci = data.unfolded_model(mtype, egrid_, params, True)
+                if label_FvJy:
+                    ne = _scale_fv_to_jy(ne)
+                    ci = _scale_fv_to_jy(ci)
                 for ne_ in ne.values():
                     _plot_step(
                         ax,
@@ -1264,6 +1303,7 @@ class MLEResultPlotter(Plotter):
         'ene',
         'eene',
         'Fv',
+        'FvJy',
         'vFv',
         'corner',
         'gof',
@@ -1284,6 +1324,7 @@ class MLEResultPlotter(Plotter):
                 * ``'ene'``: :math:`E N(E)` model plot
                 * ``'eene'``: :math:`E^2 N(E)` model plot
                 * ``'Fv'``: :math:`F_{\nu}` model plot
+                * ``'FvJy'``: :math:`F_{\nu}` model plot in Jy
                 * ``'vFv'``: :math:`\nu F_{\nu}` model plot
                 * ``'r'``: default residuals plot
                 * ``'rd'``: deviance residuals plot
@@ -1318,6 +1359,7 @@ class MLEResultPlotter(Plotter):
             'ene',
             'eene',
             'Fv',
+            'FvJy',
             'vFv',
             'r',
             'rd',
@@ -1335,10 +1377,11 @@ class MLEResultPlotter(Plotter):
             dic['spec'] = self.plot_spec(
                 data='data' in plots,
                 ne='ne' in plots,
-                ene=bool({'ene', 'Fv'} & plots_set),
+                ene=bool({'ene', 'Fv', 'FvJy'} & plots_set),
                 eene=bool({'eene', 'vFv'} & plots_set),
                 residuals=residuals,
                 label_Fv='Fv' in plots,
+                label_FvJy='FvJy' in plots,
                 label_vFv='vFv' in plots,
             )
 
@@ -1441,6 +1484,7 @@ class PosteriorResultPlotter(Plotter):
         'ene',
         'eene',
         'Fv',
+        'FvJy',
         'vFv',
         'corner',
         'gof',
@@ -1463,6 +1507,7 @@ class PosteriorResultPlotter(Plotter):
                 * ``'ene'``: :math:`E N(E)` model plot
                 * ``'eene'``: :math:`E^2 N(E)` model plot
                 * ``'Fv'``: :math:`F_{\nu}` model plot
+                * ``'FvJy'``: :math:`F_{\nu}` model plot in Jy
                 * ``'vFv'``: :math:`\nu F_{\nu}` model plot
                 * ``'r'``: default residuals plot
                 * ``'rd'``: deviance residuals plot
@@ -1499,6 +1544,7 @@ class PosteriorResultPlotter(Plotter):
             'ene',
             'eene',
             'Fv',
+            'FvJy',
             'vFv',
             'r',
             'rd',
@@ -1516,10 +1562,11 @@ class PosteriorResultPlotter(Plotter):
             dic['spec'] = self.plot_spec(
                 data='data' in plots,
                 ne='ne' in plots,
-                ene=bool({'ene', 'Fv'} & plots_set),
+                ene=bool({'ene', 'Fv', 'FvJy'} & plots_set),
                 eene=bool({'eene', 'vFv'} & plots_set),
                 residuals=residuals,
                 label_Fv='Fv' in plots,
+                label_FvJy='FvJy' in plots,
                 label_vFv='vFv' in plots,
             )
 
