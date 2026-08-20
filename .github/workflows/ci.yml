@@ -10,11 +10,7 @@ on:
       - "docs/**"
       - "CITATION.bib"
       - "README.md"
-  pull_request:
-    paths-ignore:
-      - "docs/**"
-      - "CITATION.bib"
-      - "README.md"
+  pull_request: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
