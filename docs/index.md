@@ -17,7 +17,9 @@ The key features of ``ELISA`` include:
 - **Ease of Use**: Simple and intuitive interfaces
 - **Robustness**: Utilizing the state-of-the-art algorithm to fit, test, and compare models
 - **Performance**: Efficient computation backend based on [JAX](https://jax.readthedocs.io/en/latest/notebooks/quickstart.html)
-- ...
+- **Data Support**: Direct handling of OGIP-style spectra, backgrounds, and responses
+- **Flexible Modeling**: Composition of built-in, XSPEC, and custom spectral components
+- **Diagnostics**: Built-in visualization and summary tools for fits, residuals, and posterior distributions
 
 ```{admonition} How to find your way around?
 :class: tip
@@ -36,8 +38,9 @@ section and share your findings on the
 [GitHub issues page](https://github.com/wcxve/elisa/issues).
 ```
 
-**NOTE**: The documentations of ``ELISA`` is a work in progress. If you have any
-questions or suggestions, please feel free to open an issue on the [GitHub issues page](https://github.com/wcxve/elisa/issues).
+**NOTE**: The documentation evolves together with the package. If you find a
+gap, unclear explanation, or missing example, please open an issue on the
+[GitHub issues page](https://github.com/wcxve/elisa/issues).
 
 ```{toctree}
 :maxdepth: 2
