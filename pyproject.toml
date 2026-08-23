@@ -122,6 +122,9 @@ version.source = "vcs"
 [tool.pytest]
 ini_options.addopts = "-v -n auto --cov --cov-report=xml --junitxml=junit.xml"
 ini_options.testpaths = ["tests"]
+ini_options.markers = [
+    "slow: full nested-sampling pipeline tests (tens of seconds)",
+]
 
 [tool.ruff]
 line-length = 79

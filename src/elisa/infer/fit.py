@@ -1642,6 +1642,8 @@ class BayesFit(Fit):
         ess: int = 3000,
         ignore_nan: bool = False,
         *,
+        ess_multiplier: float | None = None,
+        equal_weight_boost: float | None = None,
         constructor_kwargs: dict | None = None,
         termination_kwargs: dict | None = None,
     ) -> PosteriorResult:
@@ -1660,6 +1662,20 @@ class BayesFit(Fit):
             .. warning::
                 Setting ``ignore_nan=True`` may fail to spot potential issues
                 with model computation.
+        ess_multiplier : float, optional
+            The multiplier ``k`` in the target-draws rule
+
+                expected equal-weight draws = k * weighted_ess
+
+            where ``weighted_ess`` is the native (unequal-weight) effective
+            sample size of the posterior.  Nautilus' ``equal_weight_boost`` is
+            chosen adaptively to target ``reff ~ 1 / k``.  The default is 2,
+            and values must be finite and ``>= 1``.
+        equal_weight_boost : float, optional
+            Explicit override of nautilus' ``equal_weight_boost``.  When set,
+            the adaptive rule is bypassed and this exact multiplier is used
+            (``1.0`` reproduces the previous behaviour).  ``reff`` is reported
+            as ``min(1.0, ess / n_draws)``.
         constructor_kwargs : dict, optional
             Extra parameters passed to
             :class:`nautilus.Sampler`.
@@ -1689,18 +1705,25 @@ class BayesFit(Fit):
             **constructor_kwargs,
         )
         t0 = time.time()
-        samples = sampler.run(**termination_kwargs)
+        samples = sampler.run(
+            ess_multiplier=ess_multiplier,
+            equal_weight_boost=equal_weight_boost,
+            **termination_kwargs,
+        )
         print(f'Sampling completed in {time.time() - t0:.2f} s')
 
         # format posterior samples
         samples = jax.tree.map(lambda x: x[None], samples)
 
-        # effective sample size
-        ess_overall = sampler.ess
+        # effective sample size: report the native (weighted) ESS, rounded to
+        # int for the public ``result.ess`` contract.
+        ess_overall = int(sampler.ess)
         ess = dict.fromkeys(self._helper.params_names['all'], ess_overall)
-        # relative mcmc efficiency
-        total_sample = len(samples[self._helper.params_names['all'][0]])
-        reff = float(ess_overall / total_sample)
+        # Relative efficiency for PSIS-LOO. It uses the same integer ESS as
+        # ``result.ess`` so the public contract is
+        # round-trip consistent: reff == min(1, result.ess[p] / n_draws).
+        n_draws = sampler.n_draws
+        reff = float(min(1.0, ess_overall / n_draws))
         # model evidence
         lnZ = (sampler.lnZ, None)
         return self._generate_results(
@@ -1791,11 +1814,21 @@ class BayesFit(Fit):
         samples = jax.tree.map(lambda x: x[None], samples)
 
         # effective sample size
-        ess_overall = sampler.ess
+        ess_overall = int(sampler.ess)
         ess = dict.fromkeys(self._helper.params_names['all'], ess_overall)
-        # relative mcmc efficiency
-        total_sample = len(samples[self._helper.params_names['all'][0]])
-        reff = float(ess_overall / total_sample)
+        # Relative efficiency for the equal-weight posterior export.
+        # ``ultranest.results['samples']`` is produced by ``resample_equal``,
+        # i.e. it is an *equal-weight* posterior; the native weighted draws
+        # live under ``results['weighted_samples']``.  elisa stores the
+        # equal-weight export, so the correct counting axis after the
+        # ``x[None]`` chain-axis wrap is ``shape[1]`` and ``reff`` is the
+        # *approximate* relative efficiency of the native ESS over that export:
+        #     reff = min(1, ess_overall / n_draws)
+        # ``ess_overall`` is the same integer-rounded value as ``result.ess``
+        # for a consistent public contract. The cap prevents assigning more
+        # independent information than the equal-weight export contains.
+        n_draws = samples[self._helper.params_names['all'][0]].shape[1]
+        reff = float(min(1.0, ess_overall / n_draws))
         # model evidence
         lnZ = sampler.lnZ
         return self._generate_results(
