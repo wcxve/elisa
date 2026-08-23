@@ -618,6 +618,10 @@ def get_helper(fit: Any) -> Helper:
             solver=lm_solver,
             y0=init[i],
             max_steps=1024,
+            # ImplicitAdjoint enters Lineax's sharding-sensitive structure
+            # checks under shard_map-backed pmap, even though these fits are
+            # not differentiated through.
+            adjoint=optx.RecursiveCheckpointAdjoint(),
             throw=False,
         )
         fitted_params = res.value
