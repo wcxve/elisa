@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -76,10 +76,10 @@ jobs:
             uv-resolution: "lowest-direct"
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Checkout curated test data
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: HEACIT/curated-test-data
           path: external/curated-test-data
