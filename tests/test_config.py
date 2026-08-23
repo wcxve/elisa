@@ -199,3 +199,16 @@ def test_jax_pmap_shmap_merge_compatibility():
     else:
         assert payload['inside'] is None
         assert payload['after'] is None
+
+
+def test_jax_pmap_shmap_merge_without_legacy_flag(monkeypatch):
+    """Allow the context manager to run when JAX has removed the flag."""
+    from types import SimpleNamespace
+
+    from elisa.util import config
+
+    monkeypatch.setattr(
+        config, 'jax', SimpleNamespace(config=SimpleNamespace())
+    )
+    with config.jax_pmap_shmap_merge(False):
+        assert not hasattr(config.jax.config, 'jax_pmap_shmap_merge')
