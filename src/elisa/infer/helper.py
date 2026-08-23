@@ -618,10 +618,6 @@ def get_helper(fit: Any) -> Helper:
             solver=lm_solver,
             y0=init[i],
             max_steps=1024,
-            # ImplicitAdjoint enters Lineax's sharding-sensitive structure
-            # checks under shard_map-backed pmap, even though these fits are
-            # not differentiated through.
-            adjoint=optx.RecursiveCheckpointAdjoint(),
             throw=False,
         )
         fitted_params = res.value
@@ -718,10 +714,8 @@ def get_helper(fit: Any) -> Helper:
             jax.tree.map(reshape, result),
             jax.tree.map(reshape, init),
         )
-        # Materialize NamedSharding outputs before host-side processing.
-        result = jax.device_get(result)
 
-        return jax.tree.map(lambda x: x.reshape((-1,) + x.shape[2:]), result)
+        return jax.tree.map(jnp.concatenate, result)
 
     def batch_fit(
         init_params: dict[str, JAXArray],
