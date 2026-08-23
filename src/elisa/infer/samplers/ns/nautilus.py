@@ -68,7 +68,16 @@ def weighted_bases(log_w) -> float:
     constant offset added by weight normalisation.
     """
     log_w = np.asarray(log_w, dtype=float)
-    return float(np.exp(log_w - np.max(log_w)).sum())
+    if log_w.size == 0:
+        raise ValueError('`log_w` must not be empty')
+    if np.isnan(log_w).any() or np.isposinf(log_w).any():
+        raise ValueError('`log_w` must not contain NaN or positive infinity')
+
+    max_log_w = float(np.max(log_w))
+    if not math.isfinite(max_log_w):
+        raise ValueError('`log_w` must contain at least one finite value')
+
+    return float(np.exp(log_w - max_log_w).sum())
 
 
 def adaptive_equal_weight_boost(
@@ -78,6 +87,12 @@ def adaptive_equal_weight_boost(
 ) -> float:
     """Choose a boost targeting ``ess_multiplier * weighted_ess`` draws."""
     ess_multiplier = check_ess_multiplier(ess_multiplier)
+    weighted_ess = float(weighted_ess)
+    n_base = float(n_base)
+    if not math.isfinite(weighted_ess) or weighted_ess <= 0.0:
+        raise ValueError('`weighted_ess` must be finite and positive')
+    if not math.isfinite(n_base) or n_base <= 0.0:
+        raise ValueError('`n_base` must be finite and positive')
     return max(1.0, ess_multiplier * weighted_ess / n_base)
 
 

@@ -29,6 +29,26 @@ def test_weighted_bases_matches_nautilus_rule():
     assert weighted_bases(log_w) == pytest.approx(expected)
 
 
+def test_weighted_bases_allows_zero_weight_points():
+    log_w = np.array([0.0, -1.0, -math.inf])
+    assert weighted_bases(log_w) == pytest.approx(1.0 + math.exp(-1.0))
+
+
+@pytest.mark.parametrize(
+    'log_w',
+    [
+        [],
+        [0.0, math.nan],
+        [0.0, math.inf],
+        [-math.inf, -math.inf],
+    ],
+    ids=['empty', 'nan', 'positive-infinity', 'all-negative-infinity'],
+)
+def test_weighted_bases_rejects_invalid_weights(log_w):
+    with pytest.raises(ValueError):
+        weighted_bases(log_w)
+
+
 def test_check_ess_multiplier_accepts_ge_one():
     assert check_ess_multiplier(1.0) == 1.0
     assert check_ess_multiplier(2.0) == 2.0
@@ -97,6 +117,24 @@ def test_adaptive_boost_grows_with_concentration():
 def test_adaptive_boost_validates_multiplier():
     with pytest.raises(ValueError):
         adaptive_equal_weight_boost(100.0, 50.0, 0.5)
+
+
+@pytest.mark.parametrize(
+    ('weighted_ess', 'n_base'),
+    [
+        (0.0, 1.0),
+        (-1.0, 1.0),
+        (math.nan, 1.0),
+        (math.inf, 1.0),
+        (1.0, 0.0),
+        (1.0, -1.0),
+        (1.0, math.nan),
+        (1.0, math.inf),
+    ],
+)
+def test_adaptive_boost_rejects_invalid_counts(weighted_ess, n_base):
+    with pytest.raises(ValueError):
+        adaptive_equal_weight_boost(weighted_ess, n_base, 2.0)
 
 
 def _fit(simulation, method='nautilus', **kwargs):
