@@ -714,8 +714,12 @@ def get_helper(fit: Any) -> Helper:
             jax.tree.map(reshape, result),
             jax.tree.map(reshape, init),
         )
+        # Materialize NamedSharding outputs before host-side processing.
+        result = jax.device_get(result)
 
-        return jax.tree.map(jnp.concatenate, result)
+        return jax.tree.map(
+            lambda x: x.reshape((-1,) + x.shape[2:]), result
+        )
 
     def batch_fit(
         init_params: dict[str, JAXArray],

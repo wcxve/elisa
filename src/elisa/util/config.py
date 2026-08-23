@@ -107,8 +107,13 @@ def jax_debug_nans(flag: bool):
 
 @contextmanager
 def jax_pmap_shmap_merge(flag: bool) -> Iterator[None]:
-    """Temporarily set ``jax_pmap_shmap_merge`` and restore it afterwards."""
-    old = jax.config.jax_pmap_shmap_merge
+    """Temporarily set the legacy pmap flag when it is available."""
+    name = 'jax_pmap_shmap_merge'
+    if not hasattr(jax.config, name):
+        yield
+        return
+
+    old = getattr(jax.config, name)
     with warnings.catch_warnings():
         warnings.filterwarnings(
             'ignore',
