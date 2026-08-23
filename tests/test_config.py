@@ -162,3 +162,53 @@ def test_set_cpu_cores_after_default_import():
     xla_flags = _get_str(payload, 'xla_flags')
     assert count == expected
     assert f'--xla_force_host_platform_device_count={expected}' in xla_flags
+
+
+def test_jax_pmap_shmap_merge_compatibility():
+    """Ensure the legacy pmap flag is optional and restored when available."""
+    script = """\
+    import json
+
+    import elisa
+    import jax
+    from elisa.util.config import jax_pmap_shmap_merge
+
+    name = "jax_pmap_shmap_merge"
+    has_flag = hasattr(jax.config, name)
+    before = getattr(jax.config, name, None)
+    with jax_pmap_shmap_merge(False):
+        inside = getattr(jax.config, name, None)
+    after = getattr(jax.config, name, None)
+
+    print(
+        json.dumps(
+            {
+                "has_flag": has_flag,
+                "before": before,
+                "inside": inside,
+                "after": after,
+            }
+        )
+    )
+    """
+    payload = _run_subprocess(script)
+
+    if payload['has_flag']:
+        assert payload['inside'] is False
+        assert payload['after'] == payload['before']
+    else:
+        assert payload['inside'] is None
+        assert payload['after'] is None
+
+
+def test_jax_pmap_shmap_merge_without_legacy_flag(monkeypatch):
+    """Allow the context manager to run when JAX has removed the flag."""
+    from types import SimpleNamespace
+
+    from elisa.util import config
+
+    monkeypatch.setattr(
+        config, 'jax', SimpleNamespace(config=SimpleNamespace())
+    )
+    with config.jax_pmap_shmap_merge(False):
+        assert not hasattr(config.jax.config, 'jax_pmap_shmap_merge')
