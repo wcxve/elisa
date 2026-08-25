@@ -64,16 +64,25 @@ jobs:
             os: "ubuntu-latest"
             python-version: "3.14"
             uv-resolution: "highest"
+            jax-series: "0.11"
 
           - name: Tests (Python 3.14 on macOS-arm64)
             os: "macos-latest"
             python-version: "3.14"
             uv-resolution: "highest"
+            jax-series: "0.11"
+
+          - name: Tests (Python 3.11, Highest Version Deps)
+            os: "ubuntu-latest"
+            python-version: "3.11"
+            uv-resolution: "highest"
+            jax-series: "0.10"
 
           - name: Tests (Lowest Version Deps)
             os: "ubuntu-latest"
             python-version: "3.11"
             uv-resolution: "lowest-direct"
+            jax-series: "0.9"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -125,6 +134,24 @@ jobs:
             --overrides requirements.txt \
             --build-constraint requirements.txt \
             --verbose
+
+      - name: Verify JAX Version
+        env:
+          EXPECTED_JAX_SERIES: "${{ matrix.jax-series }}"
+        run: |
+          python - <<'PY'
+          import os
+
+          import jax
+          import jaxlib
+
+          expected = os.environ['EXPECTED_JAX_SERIES']
+          jax_series = '.'.join(jax.__version__.split('.')[:2])
+          jaxlib_series = '.'.join(jaxlib.__version__.split('.')[:2])
+          print(f'JAX {jax.__version__}, JAXLIB {jaxlib.__version__}')
+          assert jax_series == expected
+          assert jaxlib_series == expected
+          PY
 
       - name: Run Tests
         run: |
