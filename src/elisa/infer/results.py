@@ -566,7 +566,6 @@ class MLEResult(FitResult):
                     out_specs=pi,
                     in_specs=(pi,),
                     mesh=mesh,
-                    check_vma=False,
                 )
 
             samples = eval_fn(self._params_dist)
@@ -891,7 +890,6 @@ class MLEResult(FitResult):
                     out_specs=pi,
                     in_specs=(pi,),
                     mesh=mesh,
-                    check_vma=False,
                 )
 
             if params_setting:
@@ -1548,7 +1546,6 @@ class PosteriorResult(FitResult):
                 out_specs=pi,
                 in_specs=(pi,),
                 mesh=mesh,
-                check_vma=False,
             )
 
         samples = eval_fn(params_dist)
@@ -1691,7 +1688,6 @@ class PosteriorResult(FitResult):
                 out_specs=pi,
                 in_specs=(pi,),
                 mesh=mesh,
-                check_vma=False,
             )
 
         if params_setting:

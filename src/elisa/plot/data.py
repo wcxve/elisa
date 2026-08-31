@@ -244,7 +244,6 @@ class PlotData(ABC):
                 out_specs=pi,
                 in_specs=(p, pi),
                 mesh=mesh,
-                check_vma=False,
             )
         return jax.device_get(fn(egrid, params))
 
