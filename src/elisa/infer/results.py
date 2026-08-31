@@ -28,6 +28,7 @@ from elisa.plot.plotter import MLEResultPlotter, PosteriorResultPlotter
 from elisa.util.config import (
     get_parallel_number,
     jax_pmap_shmap_merge,
+    jax_shard_map,
 )
 from elisa.util.misc import make_pretty_table
 
@@ -560,7 +561,7 @@ class MLEResult(FitResult):
                 )
                 mesh = Mesh(devices, axis_names=('i',))
                 pi = PartitionSpec('i')
-                eval_fn = jax.shard_map(
+                eval_fn = jax_shard_map(
                     eval_fn,
                     out_specs=pi,
                     in_specs=(pi,),
@@ -885,7 +886,7 @@ class MLEResult(FitResult):
                 )
                 mesh = Mesh(devices, axis_names=('i',))
                 pi = PartitionSpec('i')
-                eval_fn = jax.shard_map(
+                eval_fn = jax_shard_map(
                     eval_fn,
                     out_specs=pi,
                     in_specs=(pi,),
@@ -1542,7 +1543,7 @@ class PosteriorResult(FitResult):
             )
             mesh = Mesh(devices, axis_names=('i',))
             pi = PartitionSpec('i')
-            eval_fn = jax.shard_map(
+            eval_fn = jax_shard_map(
                 eval_fn,
                 out_specs=pi,
                 in_specs=(pi,),
@@ -1685,7 +1686,7 @@ class PosteriorResult(FitResult):
             )
             mesh = Mesh(devices, axis_names=('i',))
             pi = PartitionSpec('i')
-            eval_fn = jax.shard_map(
+            eval_fn = jax_shard_map(
                 eval_fn,
                 out_specs=pi,
                 in_specs=(pi,),

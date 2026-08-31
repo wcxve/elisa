@@ -6,13 +6,14 @@ import os
 import re
 import warnings
 from contextlib import contextmanager
+from inspect import signature
 from multiprocessing import cpu_count
 from typing import TYPE_CHECKING
 
 import jax
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable, Iterator
     from typing import Literal
 
 
@@ -103,6 +104,19 @@ def jax_debug_nans(flag: bool):
         When ``True``, raise an error when NaNs are detected in JAX.
     """
     jax.config.update('jax_debug_nans', bool(flag))
+
+
+def jax_shard_map(fn: Callable, *, mesh, in_specs, out_specs) -> Callable:
+    """Apply ``shard_map`` across its supported keyword signatures."""
+    check_name = (
+        'check_vma'
+        if 'check_vma' in signature(jax.shard_map).parameters
+        else 'check_rep'
+    )
+    check = {check_name: False}
+    return jax.shard_map(
+        fn, mesh=mesh, in_specs=in_specs, out_specs=out_specs, **check
+    )
 
 
 @contextmanager
