@@ -58,6 +58,7 @@ jobs:
       extra: "xspec"
       CURATED_TEST_DATA: "${{ github.workspace }}/external/curated-test-data"
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: Tests (Python 3.14 on Linux-x64)
