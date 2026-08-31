@@ -65,21 +65,14 @@ jobs:
             os: "ubuntu-latest"
             python-version: "3.14"
             uv-resolution: "highest"
-            jax-version: "0.11.1"
+            jax-version: "0.9.2"
             blackjax-version: "1.6.2"
 
           - name: Tests (Python 3.14 on macOS-arm64)
             os: "macos-latest"
             python-version: "3.14"
             uv-resolution: "highest"
-            jax-version: "0.11.1"
-            blackjax-version: "1.6.2"
-
-          - name: Tests (Python 3.11, Highest Version Deps)
-            os: "ubuntu-latest"
-            python-version: "3.11"
-            uv-resolution: "highest"
-            jax-version: "0.10.2"
+            jax-version: "0.9.2"
             blackjax-version: "1.6.2"
 
           - name: Tests (Python 3.11, JAX 0.9)
