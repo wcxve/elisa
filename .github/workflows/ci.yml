@@ -85,6 +85,22 @@ jobs:
             blackjax-version: "1.6.2"
             extra: "xspec"
 
+          - name: Tests (Python 3.12, JAX 0.11)
+            os: "ubuntu-latest"
+            python-version: "3.12"
+            uv-resolution: "highest"
+            jax-version: "0.11.1"
+            blackjax-version: "1.6.2"
+            extra: ""
+
+          - name: Tests (Python 3.11, JAX 0.10)
+            os: "ubuntu-latest"
+            python-version: "3.11"
+            uv-resolution: "highest"
+            jax-version: "0.10.2"
+            blackjax-version: "1.6.2"
+            extra: ""
+
           - name: Tests (Python 3.11, JAX 0.8)
             os: "ubuntu-latest"
             python-version: "3.11"
