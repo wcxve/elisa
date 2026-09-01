@@ -55,25 +55,51 @@ jobs:
       run:
         shell: bash -el {0}
     env:
-      extra: "xspec"
+      extra: "${{ matrix.extra }}"
       CURATED_TEST_DATA: "${{ github.workspace }}/external/curated-test-data"
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: Tests (Python 3.14 on Linux-x64)
             os: "ubuntu-latest"
             python-version: "3.14"
             uv-resolution: "highest"
+            jax-version: "0.9.2"
+            blackjax-version: "1.6.2"
+            extra: "xspec"
 
           - name: Tests (Python 3.14 on macOS-arm64)
             os: "macos-latest"
             python-version: "3.14"
             uv-resolution: "highest"
+            jax-version: "0.9.2"
+            blackjax-version: "1.6.2"
+            extra: "xspec"
+
+          - name: Tests (Python 3.11, JAX 0.9)
+            os: "ubuntu-latest"
+            python-version: "3.11"
+            uv-resolution: "highest"
+            jax-version: "0.9.2"
+            blackjax-version: "1.6.2"
+            extra: "xspec"
+
+          - name: Tests (Python 3.11, JAX 0.8)
+            os: "ubuntu-latest"
+            python-version: "3.11"
+            uv-resolution: "highest"
+            jax-version: "0.8.2"
+            blackjax-version: "1.3"
+            extra: ""
 
           - name: Tests (Lowest Version Deps)
             os: "ubuntu-latest"
             python-version: "3.11"
             uv-resolution: "lowest-direct"
+            jax-version: "0.7.2"
+            blackjax-version: "1.3"
+            extra: ""
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -106,6 +132,7 @@ jobs:
         uses: astral-sh/setup-uv@v7
 
       - name: Install XSPEC
+        if: ${{ matrix.extra == 'xspec' }}
         run: |
           mamba install xspec -c ${{ env.heasarc-channel }} -c conda-forge -y
 
@@ -116,15 +143,48 @@ jobs:
 
       - name: Install Python Dependencies
         run: |
+          printf 'jax==%s\njaxlib==%s\n' \
+            "${{ matrix.jax-version }}" \
+            "${{ matrix.jax-version }}" \
+            > jax-constraints.txt
           uv pip compile pyproject.toml \
             $(echo "${extra}" | tr ',' '\n' | xargs -I {} echo --extra {}) \
+            --constraints jax-constraints.txt \
             --output-file requirements.txt \
             --resolution ${{ matrix.uv-resolution }}
+          extras="test"
+          if [[ -n "${extra}" ]]; then
+            extras="${extra},${extras}"
+          fi
           # Keep PEP 517 build isolation aligned with the resolved runtime deps.
-          uv pip install "$(ls astro_elisa-*.tar.gz)[${extra},test]" \
+          uv pip install "$(ls astro_elisa-*.tar.gz)[${extras}]" \
             --overrides requirements.txt \
             --build-constraint requirements.txt \
             --verbose
+
+      - name: Verify JAX Version
+        env:
+          EXPECTED_JAX_VERSION: "${{ matrix.jax-version }}"
+          EXPECTED_BLACKJAX_VERSION: "${{ matrix.blackjax-version }}"
+        run: |
+          python - <<'PY'
+          import importlib.metadata
+          import os
+
+          import jax
+          import jaxlib
+
+          blackjax_version = importlib.metadata.version('blackjax')
+          expected_jax = os.environ['EXPECTED_JAX_VERSION']
+          expected_blackjax = os.environ['EXPECTED_BLACKJAX_VERSION']
+          print(
+              f'JAX {jax.__version__}, JAXLIB {jaxlib.__version__}, '
+              f'BlackJAX {blackjax_version}'
+          )
+          assert jax.__version__ == expected_jax
+          assert jaxlib.__version__ == expected_jax
+          assert blackjax_version == expected_blackjax
+          PY
 
       - name: Run Tests
         run: |

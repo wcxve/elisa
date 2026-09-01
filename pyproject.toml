@@ -22,14 +22,14 @@ classifiers = [
 dependencies = [
     "arviz>=0.22,<1",
     "astropy>=6.0,<8.1",
-    "blackjax==1.6.2",
+    "blackjax>=1.3,<1.7",
     "corner~=2.2.2",
     "dill~=0.4.0",
     "dynesty>=2.1.4,<=3.1.0",
     "emcee~=3.1.6",
     "h5py>=3.14,<3.17",
     "iminuit>=2.31.1,<2.33",
-    "jax>=0.7.0,<0.10",
+    "jax>=0.7.2,<0.10",
     "jaxns==2.6.9; python_version < '3.14'",
     "matplotlib>=3.8.0",
     "multiprocess~=0.70.18",
@@ -38,7 +38,7 @@ dependencies = [
     "numpyro>=0.19.0,<0.22",
     "optimistix~=0.1.0",
     "prettytable>=3.12.0,<3.19",
-    "quadax~=0.2.12",
+    "quadax>=0.2.12,<0.4",
     "scipy>=1.11.1,<1.18",
     "seaborn~=0.13.2",
     "tinygp~=0.3.0",
@@ -79,7 +79,7 @@ test = [
     "pytest-cov",
     "pytest-xdist",
 ]
-xspec = ["xspex~=0.1.3"]
+xspec = ["jax>=0.9,<0.10", "xspex>=0.1.5,<0.1.6"]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]

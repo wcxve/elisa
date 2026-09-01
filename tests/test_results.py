@@ -5,6 +5,18 @@ import pytest
 from elisa.models.add import PowerLaw
 
 
+def test_mle_parallel_bootstrap(mle_result):
+    mle_result.boot(
+        8,
+        seed=0,
+        parallel=True,
+        n_parallel=4,
+        progress=False,
+    )
+
+    assert all(np.isfinite(value) for value in mle_result.gof.values())
+
+
 def test_mle_result(simulation, mle_result):
     data = simulation
     result = mle_result

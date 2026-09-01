@@ -6,6 +6,7 @@ import subprocess
 import sys
 import textwrap
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -203,8 +204,6 @@ def test_jax_pmap_shmap_merge_compatibility():
 
 def test_jax_pmap_shmap_merge_without_legacy_flag(monkeypatch):
     """Allow the context manager to run when JAX has removed the flag."""
-    from types import SimpleNamespace
-
     from elisa.util import config
 
     monkeypatch.setattr(
@@ -212,3 +211,33 @@ def test_jax_pmap_shmap_merge_without_legacy_flag(monkeypatch):
     )
     with config.jax_pmap_shmap_merge(False):
         assert not hasattr(config.jax.config, 'jax_pmap_shmap_merge')
+
+
+def test_jax_shard_map_check_vma(monkeypatch):
+    """Use the JAX 0.8+ shard_map validation keyword."""
+    from elisa.util import config
+
+    def shard_map(fn, *, mesh, in_specs, out_specs, check_vma):
+        return fn, mesh, in_specs, out_specs, check_vma
+
+    monkeypatch.setattr(config, 'jax', SimpleNamespace(shard_map=shard_map))
+    result = config.jax_shard_map(
+        'fn', mesh='mesh', in_specs='in', out_specs='out'
+    )
+
+    assert result == ('fn', 'mesh', 'in', 'out', False)
+
+
+def test_jax_shard_map_check_rep(monkeypatch):
+    """Use the JAX 0.7 shard_map replication keyword."""
+    from elisa.util import config
+
+    def shard_map(fn, mesh, in_specs, out_specs, check_rep=True):
+        return fn, mesh, in_specs, out_specs, check_rep
+
+    monkeypatch.setattr(config, 'jax', SimpleNamespace(shard_map=shard_map))
+    result = config.jax_shard_map(
+        'fn', mesh='mesh', in_specs='in', out_specs='out'
+    )
+
+    assert result == ('fn', 'mesh', 'in', 'out', False)

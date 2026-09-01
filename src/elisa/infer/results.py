@@ -28,6 +28,7 @@ from elisa.plot.plotter import MLEResultPlotter, PosteriorResultPlotter
 from elisa.util.config import (
     get_parallel_number,
     jax_pmap_shmap_merge,
+    jax_shard_map,
 )
 from elisa.util.misc import make_pretty_table
 
@@ -560,12 +561,11 @@ class MLEResult(FitResult):
                 )
                 mesh = Mesh(devices, axis_names=('i',))
                 pi = PartitionSpec('i')
-                eval_fn = jax.shard_map(
+                eval_fn = jax_shard_map(
                     eval_fn,
                     out_specs=pi,
                     in_specs=(pi,),
                     mesh=mesh,
-                    check_vma=False,
                 )
 
             samples = eval_fn(self._params_dist)
@@ -885,12 +885,11 @@ class MLEResult(FitResult):
                 )
                 mesh = Mesh(devices, axis_names=('i',))
                 pi = PartitionSpec('i')
-                eval_fn = jax.shard_map(
+                eval_fn = jax_shard_map(
                     eval_fn,
                     out_specs=pi,
                     in_specs=(pi,),
                     mesh=mesh,
-                    check_vma=False,
                 )
 
             if params_setting:
@@ -1542,12 +1541,11 @@ class PosteriorResult(FitResult):
             )
             mesh = Mesh(devices, axis_names=('i',))
             pi = PartitionSpec('i')
-            eval_fn = jax.shard_map(
+            eval_fn = jax_shard_map(
                 eval_fn,
                 out_specs=pi,
                 in_specs=(pi,),
                 mesh=mesh,
-                check_vma=False,
             )
 
         samples = eval_fn(params_dist)
@@ -1685,12 +1683,11 @@ class PosteriorResult(FitResult):
             )
             mesh = Mesh(devices, axis_names=('i',))
             pi = PartitionSpec('i')
-            eval_fn = jax.shard_map(
+            eval_fn = jax_shard_map(
                 eval_fn,
                 out_specs=pi,
                 in_specs=(pi,),
                 mesh=mesh,
-                check_vma=False,
             )
 
         if params_setting:

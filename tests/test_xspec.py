@@ -3,6 +3,8 @@ import os
 import numpy as np
 import pytest
 
+pytest.importorskip('xspex')
+
 from elisa.models import Constant, PowerLaw, xs
 
 egrid = np.linspace(0.1, 10, 100)

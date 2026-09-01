@@ -25,6 +25,7 @@ from elisa.plot.residuals import (
     pit_poisson_poisson,
     quantile_residuals_poisson,
 )
+from elisa.util.config import jax_shard_map
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -238,12 +239,11 @@ class PlotData(ABC):
             mesh = Mesh(devices, axis_names=('i',))
             p = PartitionSpec()
             pi = PartitionSpec('i')
-            fn = jax.shard_map(
+            fn = jax_shard_map(
                 fn,
                 out_specs=pi,
                 in_specs=(p, pi),
                 mesh=mesh,
-                check_vma=False,
             )
         return jax.device_get(fn(egrid, params))
 
