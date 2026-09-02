@@ -79,7 +79,7 @@ test = [
     "pytest-cov",
     "pytest-xdist",
 ]
-xspec = ["jax>=0.9,<0.11", "xspex>=0.1.5,<0.1.6"]
+xspec = ["jax>=0.9,<0.11", "xspex>=0.1.5,<0.1.7"]
 
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
