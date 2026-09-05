@@ -227,6 +227,26 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - name: Tests (Python 3.12, JAX 0.11)
+            os: "ubuntu-latest"
+            python-version: "3.12"
+            uv-resolution: "highest"
+            jax-version: "0.11.1"
+            blackjax-version: "1.6.2"
+            astropy-version: ""
+            extra: ""
+            upload-coverage: false
+
+          - name: Tests (Python 3.11, JAX 0.10)
+            os: "ubuntu-latest"
+            python-version: "3.11"
+            uv-resolution: "highest"
+            jax-version: "0.10.2"
+            blackjax-version: "1.6.2"
+            astropy-version: ""
+            extra: ""
+            upload-coverage: false
+
           - name: Tests (Python 3.11, JAX 0.9)
             os: "ubuntu-latest"
             python-version: "3.11"
