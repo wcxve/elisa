@@ -93,12 +93,29 @@ jobs:
             blackjax-version: "1.3"
             extra: ""
 
+          - name: Tests (Python 3.11, JAX 0.7)
+            os: "ubuntu-latest"
+            python-version: "3.11"
+            uv-resolution: "highest"
+            jax-version: "0.7.2"
+            blackjax-version: "1.3"
+            extra: ""
+
+          - name: Tests (Python 3.11, JAX 0.6.2)
+            os: "ubuntu-latest"
+            python-version: "3.11"
+            uv-resolution: "highest"
+            jax-version: "0.6.2"
+            blackjax-version: "1.3"
+            extra: ""
+
           - name: Tests (Lowest Version Deps)
             os: "ubuntu-latest"
             python-version: "3.11"
             uv-resolution: "lowest-direct"
-            jax-version: "0.7.2"
+            jax-version: "0.6.0"
             blackjax-version: "1.3"
+            astropy-version: "5.3"
             extra: ""
     steps:
       - name: Checkout
@@ -166,6 +183,7 @@ jobs:
         env:
           EXPECTED_JAX_VERSION: "${{ matrix.jax-version }}"
           EXPECTED_BLACKJAX_VERSION: "${{ matrix.blackjax-version }}"
+          EXPECTED_ASTROPY_VERSION: "${{ matrix.astropy-version }}"
         run: |
           python - <<'PY'
           import importlib.metadata
@@ -184,6 +202,8 @@ jobs:
           assert jax.__version__ == expected_jax
           assert jaxlib.__version__ == expected_jax
           assert blackjax_version == expected_blackjax
+          if expected_astropy := os.environ.get('EXPECTED_ASTROPY_VERSION'):
+              assert importlib.metadata.version('astropy') == expected_astropy
           PY
 
       - name: Run Tests
