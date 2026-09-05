@@ -107,14 +107,19 @@ def jax_debug_nans(flag: bool):
 
 
 def jax_shard_map(fn: Callable, *, mesh, in_specs, out_specs) -> Callable:
-    """Apply ``shard_map`` across its supported keyword signatures."""
+    """Apply ``shard_map`` across its supported locations and signatures."""
+    if hasattr(jax, 'shard_map'):
+        shard_map = jax.shard_map
+    else:
+        from jax.experimental.shard_map import shard_map
+
     check_name = (
         'check_vma'
-        if 'check_vma' in signature(jax.shard_map).parameters
+        if 'check_vma' in signature(shard_map).parameters
         else 'check_rep'
     )
     check = {check_name: False}
-    return jax.shard_map(
+    return shard_map(
         fn, mesh=mesh, in_specs=in_specs, out_specs=out_specs, **check
     )
 
