@@ -1,3 +1,4 @@
+from . import _compat as _compat
 from ._version import __version__ as __version__
 from .data import (
     Data as Data,
