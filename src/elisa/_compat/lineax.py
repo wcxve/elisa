@@ -19,9 +19,11 @@ import jax.tree_util as jtu
 
 def _strip_weak_dtype_and_sharding(tree):
     return jtu.tree_map(
-        lambda x: jax.ShapeDtypeStruct(x.shape, x.dtype)
-        if type(x) is jax.ShapeDtypeStruct
-        else x,
+        lambda x: (
+            jax.ShapeDtypeStruct(x.shape, x.dtype)
+            if type(x) is jax.ShapeDtypeStruct
+            else x
+        ),
         tree,
     )
 
@@ -35,13 +37,10 @@ def _structure_equal(x, y) -> bool:
 def apply_lineax_workaround() -> None:
     """Ignore sharding only for the confirmed Lineax/JAX combinations."""
     jax_release = jax.__version_info__[:2]
-    if version('lineax') != '0.1.1' or not (
-        (0, 10) <= jax_release < (0, 12)
-    ):
+    if version('lineax') != '0.1.1' or not ((0, 10) <= jax_release < (0, 12)):
         return
 
-    from lineax import _misc as lineax_misc
-    from lineax import _solve as lineax_solve
+    from lineax import _misc as lineax_misc, _solve as lineax_solve
     from lineax._solver import cg, gmres, misc
 
     lineax_misc.structure_equal = _structure_equal
