@@ -28,7 +28,7 @@ dependencies = [
     "dynesty>=2.1.4,<=3.1.0",
     "emcee~=3.1.6",
     "h5py>=3.14,<3.17",
-    "iminuit>=2.31.1,<2.33",
+    "iminuit>=2.31.1,<2.34",
     # JAXNS 2.6.9 needs >=0.6.0; Optimistix excludes 0.7.0 and 0.7.1.
     "jax>=0.6.0,!=0.7.0,!=0.7.1,<0.12",
     "jaxns~=2.6.9; python_version < '3.14'",
