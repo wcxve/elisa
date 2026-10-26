@@ -75,7 +75,7 @@ docs = [
     "widgetsnbextension",
 ]
 test = [
-    "coverage[toml]>=7.8,<7.17",
+    "coverage[toml]>=7.8,<7.18",
     "pytest",
     "pytest-cov",
     "pytest-xdist",
